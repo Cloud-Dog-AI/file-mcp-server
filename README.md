@@ -1,6 +1,26 @@
 # File MCP SERVER
 
+## Development Setup
 
+1. Create/update the venv and install dependencies:
+
+   ```bash
+   bash scripts/setup_venv.sh
+   ```
+
+2. Activate the venv:
+
+   ```bash
+   source .venv/bin/activate
+   ```
+
+3. Run tests (example):
+
+   ```bash
+   PYTHONPATH=src pytest tests/test_config_loader.py
+   ```
+
+Environment files must live in `private/env-*` or `.env` (ignored by git).
 
 ## Getting started
 

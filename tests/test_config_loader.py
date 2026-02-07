@@ -1,0 +1,123 @@
+"""Config loader tests.
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Limited
+Description: Unit tests for config loader precedence and env file ordering.
+Requirements: FR1.3, FR1.4, CS1.3, NF1.7
+Tasks: T2, T18
+Architecture: 3. Configuration and Precedence
+Tests: UT1.1
+Recent Change History:
+- 2026-02-05: Added multi-env precedence tests.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from file_tools.config.loader import get_profile, load_config
+
+
+def _write_yaml(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+
+
+def _build_config_files(tmp_path: Path) -> tuple[Path, Path]:
+    defaults_path = tmp_path / "defaults.yaml"
+    config_path = tmp_path / "config.yaml"
+    _write_yaml(
+        defaults_path,
+        """
+profiles:
+  default:
+    observability:
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "${FILE_MCP_SERVER_LEVEL_DEFAULT}"
+""".lstrip(),
+    )
+    _write_yaml(
+        config_path,
+        """
+profiles:
+  default:
+    observability:
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "${FILE_MCP_SERVER_LEVEL_CONFIG}"
+""".lstrip(),
+    )
+    return defaults_path, config_path
+
+
+def _write_env(path: Path, values: dict[str, str]) -> None:
+    content = "\n".join(f"{key}={value}" for key, value in values.items()) + "\n"
+    path.write_text(content, encoding="utf-8")
+
+
+def _env_paths(tmp_path: Path) -> tuple[list[Path], str, str]:
+    env_a = tmp_path / "env-a"
+    env_b = tmp_path / "env-b"
+    log_path_a = tmp_path / "ops-a.log"
+    log_path_b = tmp_path / "ops-b.log"
+    level_default_a = f"level-default-a-{tmp_path.name}"
+    level_default_b = f"level-default-b-{tmp_path.name}"
+    level_config_a = f"level-config-a-{tmp_path.name}"
+    level_config_b = f"level-config-b-{tmp_path.name}"
+    _write_env(
+        env_a,
+        {
+            "FILE_MCP_SERVER_LOG": str(log_path_a),
+            "FILE_MCP_SERVER_LEVEL_DEFAULT": level_default_a,
+            "FILE_MCP_SERVER_LEVEL_CONFIG": level_config_a,
+        },
+    )
+    _write_env(
+        env_b,
+        {
+            "FILE_MCP_SERVER_LOG": str(log_path_b),
+            "FILE_MCP_SERVER_LEVEL_DEFAULT": level_default_b,
+            "FILE_MCP_SERVER_LEVEL_CONFIG": level_config_b,
+        },
+    )
+    return [env_a, env_b], str(log_path_b), level_config_b
+
+
+def test_load_config_env_precedence(tmp_path: Path, monkeypatch) -> None:
+    defaults_path, config_path = _build_config_files(tmp_path)
+    env_paths, expected_log_path, expected_level = _env_paths(tmp_path)
+    for key in ("FILE_MCP_SERVER_LOG", "FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+        monkeypatch.delenv(key, raising=False)
+
+    config = load_config(
+        env_path=env_paths,
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+
+    for key in ("FILE_MCP_SERVER_LOG", "FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+        monkeypatch.delenv(key, raising=False)
+
+    assert profile.observability.log_path == expected_log_path
+    assert profile.observability.level == expected_level
+
+
+def test_load_config_os_environ_precedence(tmp_path: Path, monkeypatch) -> None:
+    defaults_path, config_path = _build_config_files(tmp_path)
+    env_paths, _, expected_level = _env_paths(tmp_path)
+    env_override = str(tmp_path / "ops-env.log")
+    monkeypatch.setenv("FILE_MCP_SERVER_LOG", env_override)
+    for key in ("FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+        monkeypatch.delenv(key, raising=False)
+
+    config = load_config(
+        env_path=env_paths,
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+
+    for key in ("FILE_MCP_SERVER_LOG", "FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+        monkeypatch.delenv(key, raising=False)
+
+    assert profile.observability.log_path == env_override
+    assert profile.observability.level == expected_level

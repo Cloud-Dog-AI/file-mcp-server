@@ -1,0 +1,77 @@
+"""Lifecycle helpers for PID file management (scaffold)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+import os
+import signal
+
+
+@dataclass(frozen=True)
+class LifecycleStatus:
+    running: bool
+    pid: Optional[int]
+    message: str
+
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def read_pid(pidfile: Path) -> Optional[int]:
+    if not pidfile.exists():
+        return None
+    content = pidfile.read_text(encoding="utf-8").strip()
+    if not content:
+        return None
+    try:
+        return int(content)
+    except ValueError:
+        return None
+
+
+def write_pid(pidfile: Path, pid: int) -> None:
+    pidfile.parent.mkdir(parents=True, exist_ok=True)
+    pidfile.write_text(str(pid), encoding="utf-8")
+
+
+def status_pidfile(pidfile: Path) -> LifecycleStatus:
+    pid = read_pid(pidfile)
+    if pid is None:
+        return LifecycleStatus(False, None, "not running")
+    if _pid_is_running(pid):
+        return LifecycleStatus(True, pid, f"running (pid {pid})")
+    return LifecycleStatus(False, pid, f"stale pidfile (pid {pid})")
+
+
+def start_pidfile(pidfile: Path, *, pid: Optional[int] = None, force: bool = False) -> LifecycleStatus:
+    status = status_pidfile(pidfile)
+    if status.running and not force:
+        return LifecycleStatus(True, status.pid, "already running")
+    pid = pid or os.getpid()
+    write_pid(pidfile, pid)
+    return LifecycleStatus(True, pid, f"started (pid {pid})")
+
+
+def stop_pidfile(pidfile: Path, *, send_signal: bool = False) -> LifecycleStatus:
+    status = status_pidfile(pidfile)
+    if status.pid is None:
+        return LifecycleStatus(False, None, "not running")
+    if status.running:
+        if send_signal:
+            os.kill(status.pid, signal.SIGTERM)
+        else:
+            return LifecycleStatus(True, status.pid, "running; no signal sent")
+    pidfile.unlink(missing_ok=True)
+    return LifecycleStatus(False, status.pid, "stopped")
