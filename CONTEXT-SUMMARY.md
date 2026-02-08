@@ -1,6 +1,6 @@
 # Context Summary
 
-Version: 1.9 • 2026-02-08
+Version: 1.10 • 2026-02-08
 Status: Updated
 
 ## Current State
@@ -16,7 +16,7 @@ Status: Updated
   - `tests/test_integration_story_multitype_crud_http.py`
   - `tests/test_integration_iterative_cycle_guard_http.py`
   - `tests/test_integration_config_matrix_harness_http.py`
-- Updated docs for completion/traceability and optional backend skip policy.
+- Updated docs for completion/traceability and final zero-skip full-suite evidence in this environment.
 
 ## Functional Coverage Added
 - Upload/create/update/retrieve/delete in single-session flows.
@@ -25,7 +25,7 @@ Status: Updated
 - Config matrix scenarios: rotated keys, custom auth header/scheme, scoped deny patterns, limits.
 - Iterative cycle guard flow with bounded completion and audit verification.
 - Search depth/time controls verified in integration paths.
-- Real backend conversion policy: pandoc-backed paths run when available; otherwise explicit skip.
+- PDF story flow now uses an in-test generated PDF fixture (dependency-free) for deterministic execution.
 
 ## Key Files Updated (This Cycle)
 - `src/file_mcp_server/server.py`
@@ -45,12 +45,12 @@ Status: Updated
   - `python3 -m py_compile src/file_mcp_server/server.py src/file_tools/search/find.py src/file_tools/config/models.py tests/http_integration_helpers.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py tests/test_integration_config_matrix_harness_http.py`
 - New targeted integration runs:
   - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py` -> PASS (`3 passed`)
-  - `PYTHONPATH=src pytest tests/test_integration_story_multitype_crud_http.py` -> PASS (`2 passed, 2 skipped`)
+  - `PYTHONPATH=src pytest tests/test_integration_story_multitype_crud_http.py` -> PASS (`3 passed`)
   - `PYTHONPATH=src pytest tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`1 passed`)
-  - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`6 passed, 2 skipped`)
+  - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`7 passed`)
 - Full regression:
-  - `PYTHONPATH=src pytest` -> PASS (`131 passed, 2 skipped`)
+  - `PYTHONPATH=src pytest` -> PASS (`132 passed`)
 
 ## Notes
 - No internet-derived fixtures were added; integration test inputs are generated locally and deterministically.
-- Optional backend tests remain explicitly skip-based when backend prerequisites are unavailable.
+- Remaining optional backend behavior is covered in dedicated backend tests and remains environment-dependent by design.

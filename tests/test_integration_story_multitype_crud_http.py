@@ -4,7 +4,6 @@ import asyncio
 import base64
 import json
 from pathlib import Path
-from shutil import which
 
 import httpx
 import pytest
@@ -29,6 +28,36 @@ def _decode_result(result):
         return json.loads(text)
     except json.JSONDecodeError:
         return text
+
+
+def _write_pdf(path: Path, text: str) -> None:
+    escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    content_stream = f"BT\n/F1 14 Tf\n72 720 Td\n({escaped}) Tj\nET\n"
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        f"<< /Length {len(content_stream.encode('latin-1'))} >>\nstream\n{content_stream}endstream".encode("latin-1"),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+
+    parts = [b"%PDF-1.4\n"]
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(sum(len(part) for part in parts))
+        parts.append(f"{index} 0 obj\n".encode("ascii"))
+        parts.append(obj)
+        parts.append(b"\nendobj\n")
+
+    xref_offset = sum(len(part) for part in parts)
+    parts.append(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    parts.append(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        parts.append(f"{offset:010d} 00000 n \n".encode("ascii"))
+    parts.append(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode("ascii")
+    )
+    path.write_bytes(b"".join(parts))
 
 
 def test_story_multitype_upload_search_update_retrieve_delete_with_audit(tmp_path: Path) -> None:
@@ -188,15 +217,13 @@ def test_story_multitype_upload_search_update_retrieve_delete_with_audit(tmp_pat
         assert server_log.read_text(encoding="utf-8")
 
 
-@pytest.mark.skipif(which("pandoc") is None, reason="pandoc not installed")
 def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
     root_dir.mkdir(parents=True, exist_ok=True)
-    source_md = root_dir / "report.md"
     pdf_path = root_dir / "report.pdf"
     converted_md = root_dir / "report-from-pdf.md"
-    source_md.write_text("# Report\nCycle token: Ωmega\n", encoding="utf-8")
+    _write_pdf(pdf_path, "Report Cycle token Omega")
 
     defaults_path, config_path, env_path, pidfile, audit_log = write_server_config(
         tmp_path,
@@ -220,20 +247,6 @@ def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) 
                     headers={"Authorization": "Bearer secret"},
                 )
             ) as client:
-                to_pdf = _decode_result(
-                    await client.call_tool(
-                        "convert_file",
-                        {
-                            "path": str(source_md),
-                            "target_format": "pdf",
-                            "output_path": str(pdf_path),
-                            "backend": "pandoc",
-                        },
-                    )
-                )
-                if to_pdf["ok"] is not True:
-                    pytest.skip(f"pandoc present but pdf conversion unavailable: {to_pdf.get('warnings')}")
-
                 from_pdf = _decode_result(
                     await client.call_tool(
                         "convert_file",
@@ -251,15 +264,15 @@ def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) 
                         "markdown_set_section_file",
                         {
                             "path": str(converted_md),
-                            "heading": "report",
-                            "new_content": "# Report\\nCycle token: Ωmega updated",
+                            "heading": "report cycle token omega",
+                            "new_content": "# Report\nCycle token: Omega updated",
                         },
                     )
                 )
                 assert update_payload["ok"] is True
 
                 find_payload = _decode_result(
-                    await client.call_tool("search_content", {"query": "Ωmega updated"})
+                    await client.call_tool("search_content", {"query": "Omega updated"})
                 )
                 read_payload = _decode_result(await client.call_tool("read_file", {"path": str(converted_md)}))
                 delete_payload = _decode_result(await client.call_tool("delete_file", {"path": str(converted_md)}))
@@ -269,17 +282,11 @@ def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) 
         payload = asyncio.run(_flow())
 
     assert payload["find"]["matches"]
-    assert "Ωmega updated" in payload["read"]
+    assert "Omega updated" in payload["read"]
     assert not converted_md.exists()
 
     events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert any(event.get("tool") == "markdown_set_section_file" for event in events)
-
-
-@pytest.mark.skipif(which("pandoc") is not None, reason="pandoc installed")
-def test_pandoc_real_backend_is_optional_and_marked_skip() -> None:
-    # This test documents policy in CI environments without pandoc.
-    pytest.skip("pandoc not installed; real backend test intentionally skipped")
 
 
 def test_upload_download_cycle_with_invalid_key_rejected(tmp_path: Path) -> None:

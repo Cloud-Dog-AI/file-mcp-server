@@ -28,11 +28,11 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
-| 2026-02-08 | Full Suite | `PYTHONPATH=src pytest` | PASS | `131 passed, 2 skipped` |
+| 2026-02-08 | Full Suite | `PYTHONPATH=src pytest` | PASS | `132 passed` |
 | 2026-02-08 | ST (FR1.7) | `PYTHONPATH=src pytest tests/test_system_read_partial_ranges.py` | PASS | Partial line/byte reads + mixed-range rejection |
 | 2026-02-08 | ST (FR1.8) | `PYTHONPATH=src pytest tests/test_system_dry_run_contract.py` | PASS | Dry-run no-write contract with audit evidence |
 | 2026-02-08 | ST (FR1.18) | `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` | PASS | `validate_file` type inference + unsupported type path |
-| 2026-02-08 | IT (Harness) | `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` | PASS | `6 passed, 2 skipped` |
+| 2026-02-08 | IT (Harness) | `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` | PASS | `7 passed` |
 
 ## External Backend Policy
 
@@ -43,7 +43,7 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 ## Recent Integration Additions
 
 - `IT1.9` (`tests/test_integration_iterative_cycle_guard_http.py`): iterative cycle guard, search depth/time controls, UTF-8 update/search/retrieve checks, audit event count validation.
-- `IT1.10` (`tests/test_integration_story_multitype_crud_http.py`): single-session multi-tool story across upload/search/update/retrieve/delete with JSON/YAML/XML/HTML/Markdown/base64 and audit verification; pandoc/PDF path executes when available, otherwise marked skip.
+- `IT1.10` (`tests/test_integration_story_multitype_crud_http.py`): single-session multi-tool story across upload/search/update/retrieve/delete with JSON/YAML/XML/HTML/Markdown/base64 and audit verification, including deterministic PDF-to-Markdown flow.
 - `IT1.11` (`tests/test_integration_config_matrix_harness_http.py`): config-variant harness for rotated API keys, custom auth header/scheme, scoped deny rules, limit settings, and audit correctness.
 
 ## Test Types

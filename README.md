@@ -76,7 +76,7 @@ PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests
 ```
 
 Latest validated run in this workspace:
-- `131 passed, 2 skipped` (`PYTHONPATH=src pytest`)
+- `132 passed` (`PYTHONPATH=src pytest`)
 
 ## API Docs
 - Human-readable API docs: `API_DOCUMENTATION.md`
