@@ -1,13 +1,16 @@
 # API Documentation
 
 ## Overview
-`file-mcp-server` exposes MCP tools over FastMCP HTTP transport.
+`file-mcp-server` exposes MCP tools over FastMCP HTTP transports.
 
-Default endpoints:
+Default endpoint paths:
 - `GET /health`
 - `POST /mcp`
 
-Optional SSE transport also exposes an events path (default `/events`) when configured.
+Configured transport modes:
+- `streamable-http` (default): streamable MCP on `/mcp`
+- `http`: non-streaming MCP HTTP mode on `/mcp`
+- `sse`: SSE MCP mode on `/events`
 
 ## Authentication
 All tool calls require API key authentication.
