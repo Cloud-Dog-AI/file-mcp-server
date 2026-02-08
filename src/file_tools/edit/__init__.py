@@ -1,15 +1,21 @@
 """Structured edit package (scaffold)."""
 
 from .jsonyaml import (
+    json_copy,
     json_delete,
     json_get,
+    json_merge,
+    json_move,
     json_set,
     parse_path,
+    yaml_copy,
     yaml_delete,
     yaml_get,
+    yaml_merge,
+    yaml_move,
     yaml_set,
 )
-from .markdown import md_get_section, md_set_section
+from .markdown import md_get_section, md_set_frontmatter, md_set_section
 from .sedlike import (
     EditResult,
     apply_edits,
@@ -27,8 +33,12 @@ __all__ = [
     "html_set",
     "json_delete",
     "json_get",
+    "json_copy",
+    "json_merge",
+    "json_move",
     "json_set",
     "md_get_section",
+    "md_set_frontmatter",
     "md_set_section",
     "EditResult",
     "apply_edits",
@@ -43,5 +53,8 @@ __all__ = [
     "xml_set",
     "yaml_delete",
     "yaml_get",
+    "yaml_copy",
+    "yaml_merge",
+    "yaml_move",
     "yaml_set",
 ]

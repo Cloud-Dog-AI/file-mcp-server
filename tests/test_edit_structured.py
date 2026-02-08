@@ -20,16 +20,22 @@ from file_tools.edit import (
     html_delete,
     html_get,
     html_set,
+    json_copy,
     json_delete,
     json_get,
+    json_merge,
+    json_move,
     json_set,
     md_get_section,
     md_set_section,
     xml_delete,
     xml_get,
     xml_set,
+    yaml_copy,
     yaml_delete,
     yaml_get,
+    yaml_merge,
+    yaml_move,
     yaml_set,
 )
 
@@ -74,6 +80,30 @@ def test_json_yaml_crud(tmp_path: Path) -> None:
     assert yaml_get(yaml_updated, "/a/b/0") == 9
     yaml_updated = yaml_delete(yaml_updated, "/a/b/1")
     assert yaml_get(yaml_updated, "/a/b/0") == 9
+
+
+def test_json_yaml_move_copy_merge_matrix(tmp_path: Path) -> None:
+    root = _scoped_root(tmp_path)
+    json_path = root / "matrix.json"
+    yaml_path = root / "matrix.yaml"
+    json_path.write_text('{"a":{"b":1},"c":{}}', encoding="utf-8")
+    yaml_path.write_text("a:\n  b: 1\nc: {}\n", encoding="utf-8")
+
+    json_text = json_path.read_text(encoding="utf-8")
+    json_text = json_copy(json_text, "/a/b", "/c/copied")
+    assert json_get(json_text, "/c/copied") == 1
+    json_text = json_move(json_text, "/c/copied", "/a/moved")
+    assert json_get(json_text, "/a/moved") == 1
+    json_text = json_merge(json_text, "/a", {"merged": {"x": 9}})
+    assert json_get(json_text, "/a/merged/x") == 9
+
+    yaml_text = yaml_path.read_text(encoding="utf-8")
+    yaml_text = yaml_copy(yaml_text, "/a/b", "/c/copied")
+    assert yaml_get(yaml_text, "/c/copied") == 1
+    yaml_text = yaml_move(yaml_text, "/c/copied", "/a/moved")
+    assert yaml_get(yaml_text, "/a/moved") == 1
+    yaml_text = yaml_merge(yaml_text, "/a", {"merged": {"x": 9}})
+    assert yaml_get(yaml_text, "/a/merged/x") == 9
 
 
 def test_xml_html_edits(tmp_path: Path) -> None:

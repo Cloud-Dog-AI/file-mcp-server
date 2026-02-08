@@ -1,46 +1,42 @@
 # Context Summary
 
-Version: 0.4 • 2026-02-07
+Version: 1.8 • 2026-02-08
 Status: Updated
 
-## Summary
-- Prior phase refactored unit tests to load configuration values via env/config precedence with temporary test fixtures; updated docs and scope/validation helpers accordingly.
-- Confirmed FastMCP HTTP/SSE integration approach: use FastMCP `http_app`/`run_http_async` with Streamable HTTP transport, no custom `/tools/*` endpoints, and `/health` as the only custom HTTP route.
-- Reviewed FastMCP auth middleware and AuthProvider expectations for bearer token validation; plan to implement API key auth via configurable header/scheme mapped to bearer token validation.
-- Located HTTP config keys (`http.transport/host/port/base_path/mcp_path/health_path/events_path/stateless_http`) and env defaults in `defaults.yaml`.
-- Identified tool registry scaffolding only; tool definitions/handlers must be wired from `file_tools` modules and registered with FastMCP for real tool discovery and streaming calls.
-- CLI `serve/start/stop/status` remain scaffolding; will be updated to start FastMCP HTTP/SSE server and manage pidfile lifecycle.
-- No code changes or new tests executed yet in the current FastMCP HTTP/SSE implementation phase.
+## Current State
+- Implemented and validated recent FR gap closures across server + tests:
+  - FR1.7 partial read ranges (`start_line/end_line`, `start_byte/end_byte`) in `read_file`.
+  - FR1.8 `dry_run` support across mutating tools and audit recording of dry-run attempts.
+  - FR1.14 YAML round-trip support with optional `ruamel.yaml` path for comment/order preservation where feasible.
+  - FR1.16 markdown advanced addressing (heading-path arrays, slug/anchor targeting) and frontmatter update tooling.
+  - FR1.18 new `validate_file` tool with extension-based type inference and explicit type override.
+  - FR1.20 snapshot retention expanded to days/count/max-storage.
+- Added/updated system and integration coverage for the above behavior, including real HTTP tool calls and audit effects.
 
-## Files Updated
-- None in the current phase. Previous phase updates retained for reference:
-  - tests/config_helpers.py
-  - tests/__init__.py
-  - tests/test_config_loader.py
-  - tests/test_search.py
-  - tests/test_convert.py
-  - tests/test_observability.py
-  - tests/test_scope_policy.py
-  - tests/test_auth.py
-  - tests/test_audit.py
-  - tests/test_edit_structured.py
-  - tests/test_sedlike.py
-  - tests/test_validate.py
-  - tests/test_tools_registry.py
-  - tests/test_tool_reuse.py
-  - tests/test_posix.py
-  - docs/TESTS.md
-  - docs/TASKS.md
-  - src/file_tools/scope/policy.py
-  - src/file_tools/edit/sedlike.py
-  - src/file_tools/edit/__init__.py
-  - src/file_tools/validate/policy.py
-  - src/file_tools/tools/definitions.py
-  - Removed: tests/env-config-a, tests/env-config-b
-  - CONTEXT-SUMMARY.md
+## Key Files Updated
+- `src/file_mcp_server/server.py`
+- `src/file_tools/edit/jsonyaml.py`
+- `src/file_tools/edit/markdown.py`
+- `src/file_tools/audit/snapshots.py`
+- `src/file_tools/config/models.py`
+- `tests/http_integration_helpers.py`
+- `tests/test_system_read_partial_ranges.py`
+- `tests/test_system_dry_run_contract.py`
+- `tests/test_system_validate_file_tool.py`
+- `tests/test_system_snapshot_retention.py`
+- `tests/test_integration_markdown_advanced_http.py`
 
-## Notes
-- Unit tests now clear environment overrides after loading config.
-- Targeted tests executed previously: UT1.1, UT1.2, UT1.3, UT1.4, UT1.5, UT1.6, UT1.7, UT1.8, UT1.9, UT1.10, UT1.11, UT1.12, UT1.13, UT1.14, UT1.15, UT1.16, UT1.17, UT1.18, UT1.19, ST1.6.
-- UT1.3 initially failed due to glob matching and passed after fix.
-- No tests run in the current FastMCP HTTP/SSE implementation phase yet.
+## Verification
+- Syntax checks:
+  - `python3 -m py_compile src/file_mcp_server/server.py src/file_tools/edit/markdown.py src/file_tools/edit/jsonyaml.py src/file_tools/audit/snapshots.py src/file_tools/config/models.py tests/test_system_read_partial_ranges.py tests/test_system_dry_run_contract.py tests/test_system_validate_file_tool.py`
+- Focused tests:
+  - `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` -> PASS (`2 passed`)
+  - `PYTHONPATH=src pytest tests/test_system_read_partial_ranges.py` -> PASS (`2 passed`)
+- Full regression:
+  - `PYTHONPATH=src pytest` -> PASS (`125 passed`)
+
+## Remaining Notes
+- External conversion backend behavior is validated by current suite and remains environment-dependent by design.
+- API documentation artifacts have been added at repo root:
+  - `openapi.json`
+  - `API_DOCUMENTATION.md`

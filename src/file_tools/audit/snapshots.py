@@ -19,3 +19,75 @@ def create_snapshot(base_dir: Path, source: Path) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
     return target
+
+
+def _snapshot_dirs(base_dir: Path) -> list[Path]:
+    if not base_dir.exists():
+        return []
+    entries: list[tuple[datetime, Path]] = []
+    for entry in base_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        try:
+            stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        entries.append((stamp, entry))
+    entries.sort(key=lambda item: item[0], reverse=True)
+    return [entry for _, entry in entries]
+
+
+def _dir_size_bytes(path: Path) -> int:
+    total = 0
+    for item in path.rglob("*"):
+        if item.is_file():
+            try:
+                total += item.stat().st_size
+            except OSError:
+                continue
+    return total
+
+
+def prune_snapshots(
+    base_dir: Path,
+    retention_days: int | None,
+    retention_count: int | None = None,
+    max_storage_mb: int | None = None,
+) -> int:
+    entries = _snapshot_dirs(base_dir)
+    if not entries:
+        return 0
+
+    now = datetime.now(timezone.utc)
+    removed = 0
+
+    if retention_days is not None and retention_days >= 0:
+        for entry in list(entries):
+            try:
+                stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if (now - stamp).days > retention_days:
+                shutil.rmtree(entry, ignore_errors=True)
+                entries.remove(entry)
+                removed += 1
+
+    if retention_count is not None and retention_count >= 0 and len(entries) > retention_count:
+        for entry in entries[retention_count:]:
+            shutil.rmtree(entry, ignore_errors=True)
+            removed += 1
+        entries = entries[:retention_count]
+
+    if max_storage_mb is not None and max_storage_mb >= 0:
+        max_bytes = max_storage_mb * 1024 * 1024
+        total_bytes = sum(_dir_size_bytes(entry) for entry in entries)
+        idx = len(entries) - 1
+        while total_bytes > max_bytes and idx >= 0:
+            entry = entries[idx]
+            size = _dir_size_bytes(entry)
+            shutil.rmtree(entry, ignore_errors=True)
+            removed += 1
+            total_bytes -= size
+            idx -= 1
+
+    return removed

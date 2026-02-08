@@ -13,6 +13,11 @@ Recent Change History:
 
 from __future__ import annotations
 
+import asyncio
+import os
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import typer
@@ -20,8 +25,9 @@ import typer
 from file_tools.config.loader import get_profile, load_config
 from file_tools.observability import configure_operational_logger
 from file_mcp_server.lifecycle import start_pidfile, status_pidfile, stop_pidfile
+from file_mcp_server.server import run_fastmcp_http_server
 
-app = typer.Typer(help="file-mcp-server CLI (scaffold).")
+app = typer.Typer(help="file-mcp-server CLI.")
 
 
 def _default_pidfile() -> Path:
@@ -34,8 +40,10 @@ def serve(
     env_path: str | None = typer.Option(None, help="Path to .env file."),
     config_path: str | None = typer.Option(None, help="Path to config.yaml."),
     defaults_path: str | None = typer.Option(None, help="Path to defaults.yaml."),
+    pidfile: Path = typer.Option(_default_pidfile(), help="Path to PID file."),
+    force_pidfile: bool = typer.Option(False, help="Overwrite existing PID file."),
 ) -> None:
-    """Run the MCP server (not yet implemented)."""
+    """Run the FastMCP HTTP/SSE server."""
     config = load_config(
         env_path=env_path,
         config_path=config_path,
@@ -43,34 +51,87 @@ def serve(
     )
     profile_config = get_profile(config, name=profile)
     logger = configure_operational_logger(profile_config.observability)
-    scope = profile_config.scope
+    current_pid = os.getpid()
 
-    typer.echo("file-mcp-server scaffolding only. Server implementation pending.")
-    logger.info("Loaded profile '%s' with %s roots.", profile, len(scope.roots))
-    typer.echo(f"Profile: {profile}")
-    typer.echo(f"Roots: {len(scope.roots)}")
-    typer.echo(f"Allow globs: {', '.join(scope.allow_globs) if scope.allow_globs else '(none)'}")
-    typer.echo(f"Deny globs: {', '.join(scope.deny_globs) if scope.deny_globs else '(none)'}")
-    typer.echo(f"Allowed extensions: {', '.join(scope.allowed_exts) if scope.allowed_exts else '(none)'}")
-    typer.echo(
-        f"Read-only extensions: {', '.join(scope.read_only_exts) if scope.read_only_exts else '(none)'}"
-    )
+    existing = status_pidfile(pidfile)
+    if existing.running and existing.pid != current_pid and not force_pidfile:
+        typer.echo(f"PID file already owned by running process {existing.pid}. Use --force-pidfile.")
+        raise typer.Exit(1)
+
+    start_pidfile(pidfile, pid=current_pid, force=True)
+    logger.info("Server process started with pid=%s", current_pid)
+    try:
+        asyncio.run(
+            run_fastmcp_http_server(
+                profile_name=profile,
+                profile=profile_config,
+                http_config=config.http,
+                logger=logger,
+            )
+        )
+    finally:
+        stop_pidfile(pidfile, send_signal=False)
+        logger.info("Server process shutdown complete pid=%s", current_pid)
 
 
 @app.command()
 def start(
+    profile: str = typer.Option("default", help="Config profile name."),
+    env_path: str | None = typer.Option(None, help="Path to .env file."),
+    config_path: str | None = typer.Option(None, help="Path to config.yaml."),
+    defaults_path: str | None = typer.Option(None, help="Path to defaults.yaml."),
     pidfile: Path = typer.Option(_default_pidfile(), help="Path to PID file."),
     force: bool = typer.Option(False, help="Overwrite existing PID file."),
 ) -> None:
-    """Write PID file to indicate the server is running."""
-    status = start_pidfile(pidfile, force=force)
-    typer.echo(status.message)
+    """Start the server in a background process."""
+    status = status_pidfile(pidfile)
+    if status.running and not force:
+        typer.echo(status.message)
+        raise typer.Exit(1)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "file_mcp_server",
+        "serve",
+        "--profile",
+        profile,
+        "--pidfile",
+        str(pidfile),
+        "--force-pidfile",
+    ]
+    if env_path:
+        cmd.extend(["--env-path", env_path])
+    if config_path:
+        cmd.extend(["--config-path", config_path])
+    if defaults_path:
+        cmd.extend(["--defaults-path", defaults_path])
+
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+
+    for _ in range(50):
+        if process.poll() is not None:
+            typer.echo("failed to start: serve process exited early")
+            raise typer.Exit(1)
+        current = status_pidfile(pidfile)
+        if current.running and current.pid == process.pid:
+            typer.echo(f"started (pid {process.pid})")
+            return
+        time.sleep(0.1)
+
+    typer.echo("failed to start: timeout waiting for pidfile")
+    raise typer.Exit(1)
 
 
 @app.command()
 def stop(
     pidfile: Path = typer.Option(_default_pidfile(), help="Path to PID file."),
-    send_signal: bool = typer.Option(False, help="Send SIGTERM to PID before removing."),
+    send_signal: bool = typer.Option(True, help="Send SIGTERM to PID before removing."),
 ) -> None:
     """Remove PID file and optionally signal the process."""
     status = stop_pidfile(pidfile, send_signal=send_signal)

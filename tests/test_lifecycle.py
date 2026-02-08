@@ -15,7 +15,7 @@ def test_pidfile_lifecycle(tmp_path: Path) -> None:
     assert started.running
     assert read_pid(pidfile) == 1234
 
-    stopped = stop_pidfile(pidfile)
+    stopped = stop_pidfile(pidfile, send_signal=True, timeout_s=0.01)
     assert not stopped.running
     assert read_pid(pidfile) is None
 

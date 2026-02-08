@@ -1,0 +1,105 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "File MCP Server HTTP API",
+    "version": "1.0.0",
+    "description": "HTTP surface for file-mcp-server FastMCP runtime. MCP tool execution is exposed via /mcp."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Returns runtime liveness/readiness style status.",
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "service": {
+                      "type": "string",
+                      "example": "file-mcp-server"
+                    },
+                    "profile": {
+                      "type": "string",
+                      "example": "default"
+                    },
+                    "transport": {
+                      "type": "string",
+                      "example": "streamable-http"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "service",
+                    "profile",
+                    "transport"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "summary": "MCP Tool Endpoint",
+        "description": "FastMCP streamable HTTP endpoint for MCP/JSON-RPC tool discovery and invocation.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "MCP streamable HTTP request payload. Structure is MCP protocol-defined and may include method/params/id fields.",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP response payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key"
+      }
+    }
+  }
+}

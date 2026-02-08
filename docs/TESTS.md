@@ -23,6 +23,16 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 ---
 
+
+## Latest Verified Run
+
+| Date (UTC) | Scope | Command | Status | Notes |
+|------------|-------|---------|--------|-------|
+| 2026-02-08 | Full Suite | `PYTHONPATH=src pytest` | PASS | `125 passed` |
+| 2026-02-08 | ST (FR1.7) | `PYTHONPATH=src pytest tests/test_system_read_partial_ranges.py` | PASS | Partial line/byte reads + mixed-range rejection |
+| 2026-02-08 | ST (FR1.8) | `PYTHONPATH=src pytest tests/test_system_dry_run_contract.py` | PASS | Dry-run no-write contract with audit evidence |
+| 2026-02-08 | ST (FR1.18) | `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` | PASS | `validate_file` type inference + unsupported type path |
+
 ## Test Types
 
 - **UT (Unit Tests)**: Isolated modules; may use temp directories but must exercise real code paths.
@@ -125,10 +135,10 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.11** → UT1.7, IT1.5
 - **FR1.12** → UT1.8, IT1.5
 - **FR1.13** → UT1.9, UT1.10, UT1.11, IT1.3
-- **FR1.14** → UT1.9
+- **FR1.14** → UT1.9, IT1.3
 - **FR1.15** → UT1.10
 - **FR1.16** → UT1.11
-- **FR1.17** → UT1.12
+- **FR1.17** → UT1.12, IT1.3
 - **FR1.18** → UT1.13, IT1.3
 - **FR1.19** → UT1.14, ST1.3, IT1.3
 - **FR1.20** → UT1.15, ST1.4, IT1.3
@@ -216,6 +226,7 @@ Each test section’s **Run History** should be updated using this template.
 | Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
 |------------|---------|----------|---------|--------|-------|----------------|
 | 2026-02-05 | UT1.2 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_auth.py | PASS | 5 passed | N/A |
+| 2026-02-07 | UT1.2 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_auth.py | PASS | 9 passed (added FastMCP token verifier + custom header/scheme auth backend coverage) | N/A |
 
 ### UT1.3: Scope Policy Traversal & Allow/Deny
 **Goal/Outcome:** Prevent out-of-scope access and traversal attempts.
@@ -550,6 +561,7 @@ Each test section’s **Run History** should be updated using this template.
 | Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
 |------------|---------|----------|---------|--------|-------|----------------|
 | 2026-02-05 | UT1.17 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_tools_registry.py | PASS | 4 passed | N/A |
+| 2026-02-07 | UT1.17 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_tools_registry.py | PASS | 4 passed | N/A |
 
 ### UT1.18: Tool Reuse Outside Server
 **Goal/Outcome:** Confirm tool helpers are usable without server runtime.
@@ -614,7 +626,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Start server using lifecycle script with `--env private/env-test`.
 3. Verify status and stop server.
 **Expected:** Docs present; lifecycle start/status/stop succeed.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.1 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_lifecycle.py | PASS | 2 passed (pidfile lifecycle helper behavior) | N/A |
 
 ### ST1.2: Auth Enforcement & Health
 **Goal/Outcome:** Validate health endpoints and auth enforcement.
@@ -633,7 +649,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Invoke tool without key; expect rejection.
 3. Invoke tool with valid key; expect success.
 **Expected:** Health ok; unauthorized rejected; authorized succeeds.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.2 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_auth_health.py | PASS | 1 passed (HTTP `/health`, unauthorized tool rejection, authorized tool success) | N/A |
 
 ### ST1.3: Audit Log Integrity
 **Goal/Outcome:** Ensure audit logs are append-only and structured.
@@ -652,7 +672,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Confirm audit log grows and entries are JSONL.
 3. Validate permissions as configured.
 **Expected:** Append-only log with structured entries.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_audit_integrity.py | PASS | 1 passed (append-only JSONL audit entries with required fields after multiple mutations) | N/A |
 
 ### ST1.4: Snapshot Retention
 **Goal/Outcome:** Ensure snapshot retention policy is enforced.
@@ -671,7 +695,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Exceed retention threshold.
 3. Verify pruning behavior.
 **Expected:** Old snapshots pruned per policy.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.4 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_snapshot_retention.py | PASS | 1 passed (stale timestamped snapshot directory pruned; fresh snapshot created on mutation) | N/A |
 
 ### ST1.5: Conversion External Tool Optionality
 **Goal/Outcome:** Validate conversion behavior with optional external tools.
@@ -690,7 +718,15 @@ Each test section’s **Run History** should be updated using this template.
 2. Run conversion.
 3. Inspect warnings and output.
 **Expected:** Conversion succeeds or warns appropriately without crashes.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_conversion_optionality.py | PASS | 1 passed (unsupported input type returns warning payload; no server crash) | N/A |
+| 2026-02-07 | ST1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_conversion_matrix.py | PASS | 1 passed (conversion response metadata matrix: `backend`, `used_fallback`, `warnings`, `error_code`) | N/A |
+| 2026-02-07 | ST1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_conversion_backend_selection.py | PASS | 1 passed (explicit backend selection and backend-unavailable contract) | N/A |
+| 2026-02-07 | ST1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_conversion_backend_selection.py | PASS | 2 passed (added explicit external backend-available path using fake `pandoc` binary) | N/A |
+| 2026-02-07 | ST1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_conversion_real_backends.py | PASS | 1 passed, 1 skipped (real external backend execution where installed: `pandoc`/`soffice`) | N/A |
 
 ### ST1.6: Observability Separation
 **Goal/Outcome:** Ensure operational logs are separated from audit logs.
@@ -731,7 +767,59 @@ Each test section’s **Run History** should be updated using this template.
 1. Perform search that exceeds max results or file size.
 2. Trigger conversion timeout.
 **Expected:** Limit violations fail with clear errors.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.7 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_limits.py | PASS | 1 passed (search max-results and conversion max-input-size enforcement verified) | N/A |
+| 2026-02-07 | ST1.7 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_error_contract.py | PASS | 1 passed (expected operational conversion failures return consistent `{ok,warnings}` payload contract) | N/A |
+| 2026-02-07 | ST1.7 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_limits_timeout.py | PASS | 1 passed (deterministic timeout path verified; `error_code=timeout`) | N/A |
+
+### ST1.8: Structured Rollback Contract
+**Goal/Outcome:** Validate failed structured mutations are rolled back and audited.
+**Scope:** File-level JSON/YAML structured mutation failure paths.
+**Summary:** Trigger invalid structured copy/move operations and verify no file changes plus audit error events.
+**Requirements:** FR1.14, FR1.19, NF1.1
+**Architecture:** 6.5 Structured edits, 6.7 Audit logging
+**Tasks:** T9, T12
+**Preconditions:**
+- Server running with audit enabled.
+- Structured fixture files present in scope.
+**Postconditions:**
+- File content unchanged after failed mutations; audit entries captured.
+**Steps:**
+1. Execute invalid JSON/YAML structured mutation paths.
+2. Verify operation raises and original file content remains unchanged.
+3. Confirm audit error events for attempted mutations.
+**Expected:** No partial writes and append-only audit evidence for failed attempts.
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.8 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_structured_rollback_contract.py | PASS | 1 passed (failed JSON/YAML structured mutations rollback and are audited as errors) | N/A |
+
+### ST1.9: Sed Transaction Contract
+**Goal/Outcome:** Validate transactional sed contract for strict validation rollback and no-op safety.
+**Scope:** Sed-like transactional operations on JSON/text files.
+**Summary:** Trigger strict-validation failure in JSON transaction and verify rollback; verify no-op transaction succeeds without content drift.
+**Requirements:** FR1.17, FR1.18, NF1.1
+**Architecture:** 6.5.1 Sed-like edits, 6.6 Validation
+**Tasks:** T10, T11
+**Preconditions:**
+- Server running with strict JSON validation enabled.
+- JSON and text fixtures present in scope.
+**Postconditions:**
+- JSON content unchanged on validation failure; no-op text transaction preserves content.
+**Steps:**
+1. Execute invalid transactional sed edit on JSON.
+2. Execute no-op transactional sed edit on text.
+3. Verify rollback/no-op outcomes and audit statuses.
+**Expected:** Validation failure rolls back cleanly; no-op remains stable; audit captures both outcomes.
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | ST1.9 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_sed_transaction_contract.py | PASS | 1 passed (strict JSON validation rollback + no-op transaction contract) | N/A |
 
 ---
 
@@ -753,7 +841,11 @@ Each test section’s **Run History** should be updated using this template.
 1. Call `tools/list` and capture catalog.
 2. Invoke read tool on in-scope file.
 **Expected:** Catalog returned; tool invocation succeeds.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.1 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_server_dispatch.py | PASS | 3 passed (stdio `tools/list` + `tools/call` dispatch) | N/A |
 
 ### IT1.2: Scoped File Operations
 **Goal/Outcome:** Validate scoped CRUD file operations.
@@ -771,12 +863,16 @@ Each test section’s **Run History** should be updated using this template.
 1. Create, read, update, copy, move, delete within scope.
 2. Attempt operation outside scope.
 **Expected:** In-scope operations succeed; out-of-scope denied.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.2 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_scoped_ops.py | PASS | 1 passed (HTTP end-to-end write/read/copy/move/delete + out-of-scope denial) | N/A |
 
 ### IT1.3: Structured Edit Flow with Audit & Snapshot
 **Goal/Outcome:** Validate full structured edit flow with audit/snapshot.
 **Scope:** Structured edits + validation + audit + snapshots.
-**Summary:** Edit JSON/YAML via tool, validate output, verify audit and snapshots.
+**Summary:** Edit structured/text files via tool (JSON/XML/HTML/Markdown/sed-like), validate output, verify audit and snapshots.
 **Requirements:** FR1.13, FR1.18, FR1.19, FR1.20
 **Architecture:** 9.2 Structured edit flow
 **Tasks:** T9, T11, T12
@@ -790,7 +886,17 @@ Each test section’s **Run History** should be updated using this template.
 2. Validate output based on configured mode.
 3. Verify audit entry and snapshot created.
 **Expected:** Correct edits with audit and snapshot records.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_structured_audit_snapshot.py | PASS | 1 passed (HTTP `json_set_file` + post-edit validation + audit log + snapshot evidence) | N/A |
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_structured_formats.py | PASS | 1 passed (XML/HTML/Markdown file-edit flows with validation/audit/snapshot hooks) | N/A |
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_sedlike_file_http.py | PASS | 1 passed (HTTP `sed_edit_file` multi-op flow with audit evidence) | N/A |
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_yaml_file_structured_ops.py | PASS | 1 passed (YAML file-level CRUD-like structured ops with validation/audit/snapshot evidence) | N/A |
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_json_yaml_get_merge_http.py | PASS | 1 passed (JSON/YAML file-level get/merge CRUD depth over HTTP) | N/A |
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_json_yaml_get_merge_http.py | PASS | 1 passed (expanded JSON/YAML file-level operation matrix: get/set/copy/move/merge/delete) | N/A |
+| 2026-02-07 | IT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_sedlike_transaction_http.py | PASS | 2 passed (transactional sed `operations` path with atomic rollback on op-failure and strict markdown validation-failure rollback) | N/A |
 
 ### IT1.4: Search API
 **Goal/Outcome:** Validate search tool API behavior end-to-end.
@@ -808,7 +914,11 @@ Each test section’s **Run History** should be updated using this template.
 1. Search by filename and content.
 2. Validate matches and context lines.
 **Expected:** Correct matches returned within configured limits.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.4 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_search_http.py | PASS | 1 passed (search API honors deny globs, regex path search, size limits, and max-results contract over HTTP) | N/A |
 
 ### IT1.5: Diff & Meld Integration
 **Goal/Outcome:** Validate diff tool output and meld integration.
@@ -827,7 +937,12 @@ Each test section’s **Run History** should be updated using this template.
 2. Attempt meld invocation when enabled.
 3. Validate warnings when unavailable.
 **Expected:** Diff returned; meld handled gracefully.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_diff_files_http.py | PASS | 1 passed (HTTP `diff_files` API returns unified diff with expected hunks) | N/A |
+| 2026-02-07 | IT1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_meld_optionality_http.py | PASS | 1 passed (`meld_files` returns warning payload when meld is unavailable) | N/A |
 
 ### IT1.6: Conversion End-to-End
 **Goal/Outcome:** Validate conversion pipeline end-to-end.
@@ -846,7 +961,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Validate output content and location in scope.
 3. Confirm warnings if backend unavailable.
 **Expected:** Correct output; warnings only when appropriate.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.6 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_system_conversion_backend_selection.py | PASS | 4 passed (unknown backend, explicit `pandoc`, explicit `libreoffice`, and unavailable/unsupported backend contracts) | N/A |
 
 ### IT1.7: Base64 File Ops
 **Goal/Outcome:** Validate base64 tool operations via API.
@@ -863,7 +982,11 @@ Each test section’s **Run History** should be updated using this template.
 1. Encode file content.
 2. Decode and compare with original.
 **Expected:** Round-trip accuracy.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.7 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_integration_base64_file_ops.py | PASS | 1 passed (HTTP file base64 encode/decode roundtrip) | N/A |
 
 ### IT1.8: HTTP Transport & Health
 **Goal/Outcome:** Validate HTTP transport and readiness when enabled.
@@ -881,7 +1004,12 @@ Each test section’s **Run History** should be updated using this template.
 1. Call /health.
 2. Invoke a safe tool via HTTP.
 **Expected:** Health ok; tool call succeeds.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | IT1.8 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_server_runtime.py | PASS | 3 passed (HTTP settings resolution, health middleware, and registry-backed handler wiring) | N/A |
+| 2026-02-07 | IT1.8 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_server_http_integration.py | PASS | 1 passed (subprocess server boot + `/health` + authenticated HTTP `read_file` via FastMCP client) | N/A |
 
 ---
 
@@ -904,7 +1032,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Apply edit and validate output.
 3. Verify audit entry created.
 **Expected:** Correct edit with diff preview and audit trail.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.1 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_safe_edit_workflow.py | PASS | 1 passed (HTTP read + diff preview + `json_set_file` + audit evidence) | N/A |
 
 ### AT1.2: Conversion + Edit Workflow
 **Goal/Outcome:** Validate conversion-to-edit workflow.
@@ -923,7 +1055,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Apply structured Markdown edits.
 3. Validate output per policy.
 **Expected:** Converted output editable and valid.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.2 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_conversion_edit_workflow.py | PASS | 1 passed (convert `txt -> md` plus markdown section edit and audit evidence) | N/A |
 
 ### AT1.3: Security Boundary Enforcement
 **Goal/Outcome:** Confirm security boundary enforcement.
@@ -942,7 +1078,11 @@ Each test section’s **Run History** should be updated using this template.
 2. Attempt out-of-scope write.
 3. Verify denials and audit entry.
 **Expected:** Access denied; audit entry recorded.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.3 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_security_boundary.py | PASS | 1 passed (out-of-scope mutation denied and audited as error) | N/A |
 
 ### AT1.4: Operator Lifecycle Workflow
 **Goal/Outcome:** Validate operator lifecycle workflow.
@@ -961,4 +1101,97 @@ Each test section’s **Run History** should be updated using this template.
 2. Verify health endpoint.
 3. Stop server and confirm shutdown.
 **Expected:** Lifecycle commands succeed; server stops cleanly.
-**Run History:** None
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.4 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_lifecycle_workflow.py | PASS | 1 passed (`start -> status -> health -> stop -> status`) | N/A |
+
+### AT1.5: Search + Edit + Audit Workflow
+**Goal/Outcome:** Validate an end-to-end search-edit-audit workflow.
+**Scenario:** Search for target content, apply transactional edit, verify updated search results and audit events.
+**Summary:** Ensure search, sed-like mutation, and audit logging operate cohesively in one workflow.
+**Requirements:** UC1.2, UC1.3, FR1.9, FR1.17, FR1.19
+**Architecture:** 6.2 Search, 6.5.1 Sed-like edits, 6.7 Audit logging
+**Tasks:** T6, T10, T12
+**Preconditions:**
+- Server running with scoped fixtures containing searchable content.
+**Postconditions:**
+- File content updated and audit evidence captured.
+**Steps:**
+1. Execute search for target token.
+2. Apply transactional sed edit.
+3. Re-run search and confirm token removal plus audit event.
+**Expected:** Search result set changes as expected and mutation is audited.
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.5 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_search_edit_audit_workflow.py | PASS | 1 passed (search→transactional edit→search delta with audit evidence) | N/A |
+
+### AT1.6: Conversion + Structured + Diff Workflow
+**Goal/Outcome:** Validate conversion-to-structured-edit workflow with diff evidence.
+**Scenario:** Convert input to markdown, edit section content, and verify unified diff.
+**Summary:** Ensure conversion, file copy baseline, markdown structured edit, and diff APIs integrate correctly.
+**Requirements:** UC1.4, UC1.5, FR1.11, FR1.16, FR1.21
+**Architecture:** 6.4 Diff and Meld, 6.5 Structured edits, 6.9 Conversion
+**Tasks:** T8, T9, T13
+**Preconditions:**
+- Server running; conversion input fixture present in scoped root.
+**Postconditions:**
+- Converted and edited outputs verified with diff hunks.
+**Steps:**
+1. Convert source to markdown using configured backend selection.
+2. Copy baseline, apply structured markdown section edit.
+3. Diff baseline vs edited output and verify expected changes.
+**Expected:** Conversion/edit succeed and diff reflects edited content.
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.6 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_conversion_structured_workflow.py | PASS | 1 passed (conversion + markdown structured edit + diff evidence) | N/A |
+
+### AT1.7: Compound Release Workflow
+**Goal/Outcome:** Validate a compound release workflow across search, conversion, structured edits, diff, and audit.
+**Scenario:** Search TODO markers, convert notes, edit markdown + JSON release state, diff baseline, verify TODO removal in tracked state.
+**Summary:** Ensure cross-tool behavior remains coherent in a higher-complexity application path.
+**Requirements:** UC1.2, UC1.3, UC1.4, UC1.5, FR1.9, FR1.11, FR1.16, FR1.21
+**Architecture:** 6.2 Search, 6.4 Diff and Meld, 6.5 Structured edits, 6.9 Conversion
+**Tasks:** T6, T8, T9, T13
+**Preconditions:**
+- Server running; release-note source + state fixtures available under scope.
+**Postconditions:**
+- Markdown and JSON outputs updated; diff and audit evidence validated.
+**Steps:**
+1. Search TODO state markers.
+2. Convert release notes and copy baseline.
+3. Apply markdown + JSON structured edits.
+4. Diff baseline vs edited markdown and re-check TODO state query.
+**Expected:** State transitions and content diffs are correct; mutating operations are audited.
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.7 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_compound_release_workflow.py | PASS | 1 passed (compound conversion/search/structured/diff/audit workflow) | N/A |
+
+### AT1.8: Multi-File Transaction Workflow
+**Goal/Outcome:** Validate multi-file transactional edit consistency with diff and audit evidence.
+**Scenario:** Baseline copy for two files, apply transactional sed edits to each, verify cross-file diffs and audit.
+**Summary:** Ensure repeated transactional edits across multiple files remain deterministic and auditable.
+**Requirements:** UC1.2, UC1.5, FR1.11, FR1.17, FR1.19
+**Architecture:** 6.4 Diff and Meld, 6.5.1 Sed-like edits, 6.7 Audit logging
+**Tasks:** T8, T10, T12
+**Preconditions:**
+- Server running with two scoped text fixtures.
+**Postconditions:**
+- Both files updated consistently; diff and audit evidence verified.
+**Steps:**
+1. Copy per-file baselines.
+2. Apply transactional sed edits to both files.
+3. Verify diffs and audit events.
+**Expected:** Both files reflect intended state transitions with audit completeness.
+**Run History:**
+
+| Date (UTC) | Test ID | Env File | Command | Status | Notes | Logs/Artefacts |
+|------------|---------|----------|---------|--------|-------|----------------|
+| 2026-02-07 | AT1.8 | N/A (tmp env files) | PYTHONPATH=src pytest tests/test_application_multifile_transaction_workflow.py | PASS | 1 passed (multi-file transaction + cross-file diff + audit evidence) | N/A |

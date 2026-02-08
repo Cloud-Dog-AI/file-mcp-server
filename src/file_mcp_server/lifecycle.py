@@ -1,4 +1,4 @@
-"""Lifecycle helpers for PID file management (scaffold)."""
+"""Lifecycle helpers for PID file management."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Optional
 
 import os
 import signal
+import time
 
 
 @dataclass(frozen=True)
@@ -64,13 +65,25 @@ def start_pidfile(pidfile: Path, *, pid: Optional[int] = None, force: bool = Fal
     return LifecycleStatus(True, pid, f"started (pid {pid})")
 
 
-def stop_pidfile(pidfile: Path, *, send_signal: bool = False) -> LifecycleStatus:
+def stop_pidfile(pidfile: Path, *, send_signal: bool = False, timeout_s: float = 5.0) -> LifecycleStatus:
     status = status_pidfile(pidfile)
     if status.pid is None:
         return LifecycleStatus(False, None, "not running")
     if status.running:
         if send_signal:
-            os.kill(status.pid, signal.SIGTERM)
+            try:
+                os.kill(status.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pidfile.unlink(missing_ok=True)
+                return LifecycleStatus(False, status.pid, "stopped")
+
+            deadline = time.monotonic() + max(0.0, timeout_s)
+            while time.monotonic() < deadline:
+                if not _pid_is_running(status.pid):
+                    pidfile.unlink(missing_ok=True)
+                    return LifecycleStatus(False, status.pid, "stopped")
+                time.sleep(0.1)
+            return LifecycleStatus(True, status.pid, "signal sent; still running")
         else:
             return LifecycleStatus(True, status.pid, "running; no signal sent")
     pidfile.unlink(missing_ok=True)

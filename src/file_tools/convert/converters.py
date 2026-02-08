@@ -24,11 +24,24 @@ class ConversionError(RuntimeError):
     """Raised when conversion fails or no backend is available."""
 
 
+class BackendNotFoundError(ConversionError):
+    """Raised when a requested backend is unknown."""
+
+
+class BackendUnavailableError(ConversionError):
+    """Raised when a requested backend exists but is unavailable."""
+
+
+class BackendCannotHandleError(ConversionError):
+    """Raised when a requested backend cannot handle input/target."""
+
+
 @dataclass(frozen=True)
 class ConversionResult:
     output_path: Optional[Path] = None
     content: Optional[str] = None
     warnings: List[str] = field(default_factory=list)
+    backend: Optional[str] = None
 
 
 class ConverterBackend:
@@ -57,6 +70,12 @@ class ConverterRegistry:
     def register(self, backend: ConverterBackend) -> None:
         self.backends.append(backend)
 
+    def get(self, name: str) -> Optional[ConverterBackend]:
+        for backend in self.backends:
+            if backend.name == name:
+                return backend
+        return None
+
     def select(self, input_path: Path, target_format: str) -> Optional[ConverterBackend]:
         for backend in self.backends:
             if backend.is_available() and backend.can_handle(input_path, target_format):
@@ -80,11 +99,29 @@ def convert_file(
     registry: Optional[ConverterRegistry] = None,
     max_input_mb: Optional[int] = None,
     timeout_s: Optional[int] = None,
+    preferred_backend: Optional[str] = None,
 ) -> ConversionResult:
     registry = registry or default_registry()
     enforce_max_file_size(input_path, max_input_mb)
-    backend = registry.select(input_path, target_format)
-    if backend is None:
-        raise ConversionError("No available backend for conversion")
+    if preferred_backend:
+        backend = registry.get(preferred_backend)
+        if backend is None:
+            raise BackendNotFoundError(f"Unknown conversion backend: {preferred_backend}")
+        if not backend.is_available():
+            raise BackendUnavailableError(f"Requested backend unavailable: {preferred_backend}")
+        if not backend.can_handle(input_path, target_format):
+            raise BackendCannotHandleError(
+                f"Requested backend cannot handle input/target: {preferred_backend}"
+            )
+    else:
+        backend = registry.select(input_path, target_format)
+        if backend is None:
+            raise ConversionError("No available backend for conversion")
     with enforce_timeout(timeout_s):
-        return backend.convert(input_path, target_format, output_path=output_path)
+        result = backend.convert(input_path, target_format, output_path=output_path)
+    return ConversionResult(
+        output_path=result.output_path,
+        content=result.content,
+        warnings=result.warnings,
+        backend=backend.name,
+    )

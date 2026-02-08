@@ -1,3 +1,5 @@
 .venv/
 .env
 private/env-*
+__pycache__/
+*.py[cod]

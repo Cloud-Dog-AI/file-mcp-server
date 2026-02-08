@@ -1,9 +1,18 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
+from starlette.requests import HTTPConnection
 
 from tests.config_helpers import build_profile
-from file_mcp_server.auth import ApiKeyAuth, AuthError, key_fingerprint
+from file_mcp_server.auth import (
+    ApiKeyAuth,
+    ApiKeyTokenVerifier,
+    AuthError,
+    HeaderTokenAuthBackend,
+    key_fingerprint,
+)
 
 
 def _build_profile(tmp_path, *, primary: str, secondary: str) -> ApiKeyAuth:
@@ -59,3 +68,54 @@ def test_auth_rejects_invalid_key(tmp_path) -> None:
     auth = _build_profile(tmp_path, primary="secret", secondary="")
     with pytest.raises(AuthError, match="Invalid API key"):
         auth.validate("nope")
+
+
+def test_token_verifier_accepts_valid_bearer_token(tmp_path) -> None:
+    auth = _build_profile(tmp_path, primary="secret", secondary="")
+    verifier = ApiKeyTokenVerifier(auth._keys)
+    token = asyncio.run(verifier.verify_token("secret"))
+    assert token is not None
+    assert token.claims["fingerprint"].startswith("sha256:")
+
+
+def test_header_backend_accepts_custom_header_and_scheme(tmp_path) -> None:
+    auth = _build_profile(tmp_path, primary="secret", secondary="")
+    verifier = ApiKeyTokenVerifier(auth._keys, header_name="x-api-key", header_scheme="Token")
+    backend = HeaderTokenAuthBackend(verifier, header_name="x-api-key", header_scheme="Token")
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/mcp",
+            "headers": [(b"x-api-key", b"Token secret")],
+        }
+    )
+    result = asyncio.run(backend.authenticate(conn))
+    assert result is not None
+
+
+def test_header_backend_rejects_wrong_scheme(tmp_path) -> None:
+    auth = _build_profile(tmp_path, primary="secret", secondary="")
+    verifier = ApiKeyTokenVerifier(auth._keys, header_name="x-api-key", header_scheme="Token")
+    backend = HeaderTokenAuthBackend(verifier, header_name="x-api-key", header_scheme="Token")
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/mcp",
+            "headers": [(b"x-api-key", b"Bearer secret")],
+        }
+    )
+    result = asyncio.run(backend.authenticate(conn))
+    assert result is None
+
+
+def test_token_verifier_ignores_unexpanded_env_placeholders(tmp_path) -> None:
+    auth = _build_profile(tmp_path, primary="secret", secondary="")
+    verifier = ApiKeyTokenVerifier(
+        auth._keys,
+        header_name="${FILE_MCP_AUTH_HEADER_NAME}",
+        header_scheme="${FILE_MCP_AUTH_HEADER_SCHEME}",
+    )
+    assert verifier.header_name == "authorization"
+    assert verifier.header_scheme == "Bearer"

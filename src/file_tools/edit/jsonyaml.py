@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+from io import StringIO
 from typing import Any, List
 
 import json
 
 import yaml
+
+try:
+    from ruamel.yaml import YAML
+except Exception:  # pragma: no cover - optional dependency guard
+    YAML = None
+
+
+_yaml_rt = YAML() if YAML is not None else None
+if _yaml_rt is not None:
+    _yaml_rt.preserve_quotes = True
 
 
 def _parse_pointer(path: str) -> List[str | int]:
@@ -122,6 +134,18 @@ def _delete_value(data: Any, tokens: List[str | int]) -> Any:
     return data
 
 
+def _merge_nodes(base: Any, incoming: Any) -> Any:
+    if isinstance(base, dict) and isinstance(incoming, dict):
+        merged = dict(base)
+        for key, value in incoming.items():
+            if key in merged:
+                merged[key] = _merge_nodes(merged[key], value)
+            else:
+                merged[key] = deepcopy(value)
+        return merged
+    return deepcopy(incoming)
+
+
 def json_get(text: str, path: str) -> Any:
     data = json.loads(text)
     return _get_value(data, parse_path(path))
@@ -139,18 +163,104 @@ def json_delete(text: str, path: str) -> str:
     return json.dumps(updated, indent=2, ensure_ascii=False)
 
 
+def json_copy(text: str, from_path: str, to_path: str) -> str:
+    data = json.loads(text)
+    value = deepcopy(_get_value(data, parse_path(from_path)))
+    updated = _set_value(data, parse_path(to_path), value)
+    return json.dumps(updated, indent=2, ensure_ascii=False)
+
+
+def json_move(text: str, from_path: str, to_path: str) -> str:
+    data = json.loads(text)
+    value = deepcopy(_get_value(data, parse_path(from_path)))
+    updated = _delete_value(data, parse_path(from_path))
+    updated = _set_value(updated, parse_path(to_path), value)
+    return json.dumps(updated, indent=2, ensure_ascii=False)
+
+
+def json_merge(text: str, path: str, value: Any) -> str:
+    data = json.loads(text)
+    tokens = parse_path(path)
+    existing = _get_value(data, tokens) if tokens else data
+    merged = _merge_nodes(existing, value)
+    updated = _set_value(data, tokens, merged) if tokens else merged
+    return json.dumps(updated, indent=2, ensure_ascii=False)
+
+
 def yaml_get(text: str, path: str) -> Any:
-    data = yaml.safe_load(text)
+    if _yaml_rt is not None:
+        data = _yaml_rt.load(text)
+    else:
+        data = yaml.safe_load(text)
     return _get_value(data, parse_path(path))
 
 
 def yaml_set(text: str, path: str, value: Any) -> str:
-    data = yaml.safe_load(text)
+    if _yaml_rt is not None:
+        data = _yaml_rt.load(text)
+    else:
+        data = yaml.safe_load(text)
     updated = _set_value(data, parse_path(path), value)
+    if _yaml_rt is not None:
+        output = StringIO()
+        _yaml_rt.dump(updated, output)
+        return output.getvalue()
     return yaml.safe_dump(updated, sort_keys=False)
 
 
 def yaml_delete(text: str, path: str) -> str:
-    data = yaml.safe_load(text)
+    if _yaml_rt is not None:
+        data = _yaml_rt.load(text)
+    else:
+        data = yaml.safe_load(text)
     updated = _delete_value(data, parse_path(path))
+    if _yaml_rt is not None:
+        output = StringIO()
+        _yaml_rt.dump(updated, output)
+        return output.getvalue()
+    return yaml.safe_dump(updated, sort_keys=False)
+
+
+def yaml_copy(text: str, from_path: str, to_path: str) -> str:
+    if _yaml_rt is not None:
+        data = _yaml_rt.load(text)
+    else:
+        data = yaml.safe_load(text)
+    value = deepcopy(_get_value(data, parse_path(from_path)))
+    updated = _set_value(data, parse_path(to_path), value)
+    if _yaml_rt is not None:
+        output = StringIO()
+        _yaml_rt.dump(updated, output)
+        return output.getvalue()
+    return yaml.safe_dump(updated, sort_keys=False)
+
+
+def yaml_move(text: str, from_path: str, to_path: str) -> str:
+    if _yaml_rt is not None:
+        data = _yaml_rt.load(text)
+    else:
+        data = yaml.safe_load(text)
+    value = deepcopy(_get_value(data, parse_path(from_path)))
+    updated = _delete_value(data, parse_path(from_path))
+    updated = _set_value(updated, parse_path(to_path), value)
+    if _yaml_rt is not None:
+        output = StringIO()
+        _yaml_rt.dump(updated, output)
+        return output.getvalue()
+    return yaml.safe_dump(updated, sort_keys=False)
+
+
+def yaml_merge(text: str, path: str, value: Any) -> str:
+    if _yaml_rt is not None:
+        data = _yaml_rt.load(text)
+    else:
+        data = yaml.safe_load(text)
+    tokens = parse_path(path)
+    existing = _get_value(data, tokens) if tokens else data
+    merged = _merge_nodes(existing, value)
+    updated = _set_value(data, tokens, merged) if tokens else merged
+    if _yaml_rt is not None:
+        output = StringIO()
+        _yaml_rt.dump(updated, output)
+        return output.getvalue()
     return yaml.safe_dump(updated, sort_keys=False)

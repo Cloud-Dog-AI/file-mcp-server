@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+
+from fastmcp import Client
+from fastmcp.client.transports import StreamableHttpTransport
+
+from tests.http_integration_helpers import (
+    pick_free_port,
+    running_server,
+    wait_for_health,
+    write_server_config,
+)
+
+
+def test_limits_timeout_path_for_conversion(tmp_path: Path) -> None:
+    port = pick_free_port()
+    root_dir = tmp_path / "scope"
+    root_dir.mkdir(parents=True, exist_ok=True)
+    src = root_dir / "doc.txt"
+    src.write_text("hello", encoding="utf-8")
+
+    defaults_path, config_path, env_path, pidfile, _ = write_server_config(
+        tmp_path,
+        port=port,
+        root_dir=root_dir,
+        conversion_timeout_s=1,
+    )
+    repo_root = Path(__file__).resolve().parents[1]
+    with running_server(
+        repo_root,
+        defaults_path=defaults_path,
+        config_path=config_path,
+        env_path=env_path,
+        pidfile=pidfile,
+    ):
+        wait_for_health(f"http://127.0.0.1:{port}/health")
+
+        async def _call() -> dict:
+            async with Client(
+                StreamableHttpTransport(
+                    f"http://127.0.0.1:{port}/mcp",
+                    headers={"Authorization": "Bearer secret"},
+                )
+            ) as client:
+                result = await client.call_tool(
+                    "convert_file",
+                    {"path": str(src), "target_format": "md", "timeout_s": 1, "simulate_delay_s": 2.0},
+                )
+                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+
+        payload = asyncio.run(_call())
+        assert payload["ok"] is False
+        assert payload["error_code"] == "timeout"
+        assert payload["warnings"]

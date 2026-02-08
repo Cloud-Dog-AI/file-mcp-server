@@ -53,6 +53,8 @@ class SnapshotConfig(BaseModel):
     mode: Optional[str] = None
     dir: Optional[str] = None
     retention_days: Optional[int] = None
+    retention_count: Optional[int] = None
+    max_storage_mb: Optional[int] = None
 
 
 class ValidationConfig(BaseModel):

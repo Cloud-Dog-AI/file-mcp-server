@@ -1,6 +1,9 @@
 """Conversion pipeline package (scaffold)."""
 
 from .converters import (
+    BackendCannotHandleError,
+    BackendNotFoundError,
+    BackendUnavailableError,
     ConversionError,
     ConversionResult,
     ConverterBackend,
@@ -11,6 +14,9 @@ from .converters import (
 
 __all__ = [
     "ConversionError",
+    "BackendNotFoundError",
+    "BackendUnavailableError",
+    "BackendCannotHandleError",
     "ConversionResult",
     "ConverterBackend",
     "ConverterRegistry",
