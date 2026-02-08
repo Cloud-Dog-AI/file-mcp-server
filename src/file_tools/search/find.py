@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, List, Optional
 
 import re
+import os
 
 from ..limits import exceeds_max_file_size
 
@@ -29,12 +30,30 @@ class SearchMatch:
     line: Optional[str]
 
 
-def _iter_files(roots: Iterable[Path], *, recursive: bool = True) -> Iterator[Path]:
+def _iter_files(
+    roots: Iterable[Path],
+    *,
+    recursive: bool = True,
+    max_depth: int | None = None,
+) -> Iterator[Path]:
     for root in roots:
+        resolved_root = root.resolve()
         if recursive:
-            yield from (path for path in root.rglob("*") if path.is_file())
+            if max_depth is None:
+                yield from (path for path in resolved_root.rglob("*") if path.is_file())
+                continue
+            for current_root, _, files in os.walk(resolved_root):
+                current_path = Path(current_root)
+                try:
+                    depth = len(current_path.relative_to(resolved_root).parts)
+                except ValueError:
+                    continue
+                if depth > max_depth:
+                    continue
+                for file_name in files:
+                    yield current_path / file_name
         else:
-            yield from (path for path in root.iterdir() if path.is_file())
+            yield from (path for path in resolved_root.iterdir() if path.is_file())
 
 
 def search_paths(
@@ -44,10 +63,11 @@ def search_paths(
     glob: str | None = None,
     regex: bool = False,
     max_file_mb: int | None = None,
+    max_depth: int | None = None,
 ) -> List[Path]:
     pattern = re.compile(query) if regex else None
     matches: List[Path] = []
-    for path in _iter_files(roots):
+    for path in _iter_files(roots, max_depth=max_depth):
         if glob and not path.match(glob):
             continue
         try:
@@ -72,10 +92,11 @@ def search_content(
     encoding: str = "utf-8",
     max_results: int | None = None,
     max_file_mb: int | None = None,
+    max_depth: int | None = None,
 ) -> List[SearchMatch]:
     pattern = re.compile(query) if regex else None
     results: List[SearchMatch] = []
-    for path in _iter_files(roots):
+    for path in _iter_files(roots, max_depth=max_depth):
         if glob and not path.match(glob):
             continue
         try:

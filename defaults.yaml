@@ -35,6 +35,7 @@ profiles:
     limits:
       search_max_results: 250
       search_max_file_mb: 5
+      search_timeout_s: 30
       conversion_timeout_s: 60
 
 http:

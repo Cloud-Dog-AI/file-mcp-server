@@ -77,6 +77,7 @@ class ObservabilityConfig(BaseModel):
 class LimitsConfig(BaseModel):
     search_max_results: Optional[int] = None
     search_max_file_mb: Optional[int] = None
+    search_timeout_s: Optional[int] = None
     conversion_timeout_s: Optional[int] = None
 
 

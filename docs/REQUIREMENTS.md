@@ -134,6 +134,7 @@ System shall support simple server start/stop/status routines suitable for local
 ### FR1.9: Search
 - The system SHALL support filename/path search (glob/regex) and content search (literal/regex) with context lines.
 - Search SHALL honour scope deny patterns and size limits.
+- Search SHOULD support optional traversal depth and timeout controls for large trees.
 
 ### FR1.10: Base64 Encode/Decode
 - The system SHALL support base64 encode/decode for strings and bytes.

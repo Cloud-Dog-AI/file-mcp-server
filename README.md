@@ -4,7 +4,7 @@ Deterministic, scoped file tooling over MCP/JSON-RPC with FastMCP HTTP transport
 
 ## What It Provides
 - Scoped file operations: `read_file`, `write_file`, `copy_file`, `move_file`, `delete_file`, `list_dir`
-- Search: `search_paths`, `search_content`
+- Search: `search_paths`, `search_content` (with optional `max_depth` and `timeout_s`)
 - Structured edits: JSON/YAML/XML/HTML/Markdown file mutation tools
 - Sed-like transactional text editing: `sed_edit_file`
 - Validation: `validate_text`, `validate_file`
@@ -69,8 +69,14 @@ source .venv/bin/activate
 PYTHONPATH=src pytest tests/test_system_validate_file_tool.py
 ```
 
+Run the end-to-end integration harness stories:
+```bash
+source .venv/bin/activate
+PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py
+```
+
 Latest validated run in this workspace:
-- `125 passed` (`PYTHONPATH=src pytest`)
+- `131 passed, 2 skipped` (`PYTHONPATH=src pytest`)
 
 ## API Docs
 - Human-readable API docs: `API_DOCUMENTATION.md`
@@ -80,3 +86,4 @@ Latest validated run in this workspace:
 - No LLM integration.
 - All file operations are scope-constrained.
 - Mutation paths are audited; snapshots are controlled by profile configuration.
+- Real backend conversion tests for `pandoc`/`soffice` run when available; otherwise they are explicitly skipped.

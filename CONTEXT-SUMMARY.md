@@ -1,42 +1,56 @@
 # Context Summary
 
-Version: 1.8 • 2026-02-08
+Version: 1.9 • 2026-02-08
 Status: Updated
 
 ## Current State
-- Implemented and validated recent FR gap closures across server + tests:
-  - FR1.7 partial read ranges (`start_line/end_line`, `start_byte/end_byte`) in `read_file`.
-  - FR1.8 `dry_run` support across mutating tools and audit recording of dry-run attempts.
-  - FR1.14 YAML round-trip support with optional `ruamel.yaml` path for comment/order preservation where feasible.
-  - FR1.16 markdown advanced addressing (heading-path arrays, slug/anchor targeting) and frontmatter update tooling.
-  - FR1.18 new `validate_file` tool with extension-based type inference and explicit type override.
-  - FR1.20 snapshot retention expanded to days/count/max-storage.
-- Added/updated system and integration coverage for the above behavior, including real HTTP tool calls and audit effects.
+- Added search depth/timeout controls for HTTP search tools:
+  - `search_paths(..., max_depth, timeout_s)`
+  - `search_content(..., max_depth, timeout_s)`
+- Added config model/default support for search timeout:
+  - `limits.search_timeout_s`
+- Expanded integration harness capabilities:
+  - multiple API keys per profile in test env generation
+  - configurable search timeout in generated env/config
+- Added deep end-to-end integration stories requested for real multi-tool workflows:
+  - `tests/test_integration_story_multitype_crud_http.py`
+  - `tests/test_integration_iterative_cycle_guard_http.py`
+  - `tests/test_integration_config_matrix_harness_http.py`
+- Updated docs for completion/traceability and optional backend skip policy.
 
-## Key Files Updated
+## Functional Coverage Added
+- Upload/create/update/retrieve/delete in single-session flows.
+- Multi-format operations in one story: text, JSON, YAML, XML, HTML, Markdown, base64 file payloads.
+- UTF-8 and difficult characters across write/search/read/update.
+- Config matrix scenarios: rotated keys, custom auth header/scheme, scoped deny patterns, limits.
+- Iterative cycle guard flow with bounded completion and audit verification.
+- Search depth/time controls verified in integration paths.
+- Real backend conversion policy: pandoc-backed paths run when available; otherwise explicit skip.
+
+## Key Files Updated (This Cycle)
 - `src/file_mcp_server/server.py`
-- `src/file_tools/edit/jsonyaml.py`
-- `src/file_tools/edit/markdown.py`
-- `src/file_tools/audit/snapshots.py`
+- `src/file_tools/search/find.py`
 - `src/file_tools/config/models.py`
+- `defaults.yaml`
 - `tests/http_integration_helpers.py`
-- `tests/test_system_read_partial_ranges.py`
-- `tests/test_system_dry_run_contract.py`
-- `tests/test_system_validate_file_tool.py`
-- `tests/test_system_snapshot_retention.py`
-- `tests/test_integration_markdown_advanced_http.py`
+- `tests/test_integration_story_multitype_crud_http.py`
+- `tests/test_integration_iterative_cycle_guard_http.py`
+- `tests/test_integration_config_matrix_harness_http.py`
+- `docs/REQUIREMENTS.md`
+- `docs/TASKS.md`
+- `docs/TESTS.md`
 
 ## Verification
-- Syntax checks:
-  - `python3 -m py_compile src/file_mcp_server/server.py src/file_tools/edit/markdown.py src/file_tools/edit/jsonyaml.py src/file_tools/audit/snapshots.py src/file_tools/config/models.py tests/test_system_read_partial_ranges.py tests/test_system_dry_run_contract.py tests/test_system_validate_file_tool.py`
-- Focused tests:
-  - `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` -> PASS (`2 passed`)
-  - `PYTHONPATH=src pytest tests/test_system_read_partial_ranges.py` -> PASS (`2 passed`)
+- Syntax check:
+  - `python3 -m py_compile src/file_mcp_server/server.py src/file_tools/search/find.py src/file_tools/config/models.py tests/http_integration_helpers.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py tests/test_integration_config_matrix_harness_http.py`
+- New targeted integration runs:
+  - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py` -> PASS (`3 passed`)
+  - `PYTHONPATH=src pytest tests/test_integration_story_multitype_crud_http.py` -> PASS (`2 passed, 2 skipped`)
+  - `PYTHONPATH=src pytest tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`1 passed`)
+  - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`6 passed, 2 skipped`)
 - Full regression:
-  - `PYTHONPATH=src pytest` -> PASS (`125 passed`)
+  - `PYTHONPATH=src pytest` -> PASS (`131 passed, 2 skipped`)
 
-## Remaining Notes
-- External conversion backend behavior is validated by current suite and remains environment-dependent by design.
-- API documentation artifacts have been added at repo root:
-  - `openapi.json`
-  - `API_DOCUMENTATION.md`
+## Notes
+- No internet-derived fixtures were added; integration test inputs are generated locally and deterministically.
+- Optional backend tests remain explicitly skip-based when backend prerequisites are unavailable.

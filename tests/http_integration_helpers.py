@@ -35,12 +35,14 @@ def write_server_config(
     *,
     port: int,
     root_dir: Path,
+    api_keys: list[str] | None = None,
     allow_globs: list[str] | None = None,
     deny_globs: list[str] | None = None,
     auth_header_name: str = "Authorization",
     auth_header_scheme: str = "Bearer",
     search_max_results: int = 25,
     search_max_file_mb: int = 2,
+    search_timeout_s: int = 10,
     conversion_timeout_s: int = 10,
     conversion_max_input_mb: int = 25,
     snapshot_mode: str = "on_change",
@@ -60,10 +62,14 @@ def write_server_config(
 
     allow_globs = allow_globs or ["**/*"]
     deny_globs = deny_globs or []
+    api_keys = api_keys or ["secret"]
     validation_per_type = validation_per_type or {}
 
     allow_globs_yaml = "\n".join(f'        - "{item}"' for item in allow_globs)
     deny_globs_yaml = "\n".join(f'        - "{item}"' for item in deny_globs) if deny_globs else "        []"
+    api_keys_yaml = "\n".join(
+        f'        - "${{FILE_MCP_API_KEY_{index}}}"' for index, _ in enumerate(api_keys, start=1)
+    )
     validation_per_type_yaml = (
         "\n".join(f'        {key}: "{value}"' for key, value in validation_per_type.items())
         if validation_per_type
@@ -75,7 +81,7 @@ profiles:
   default:
     auth:
       api_keys:
-        - "${{FILE_MCP_API_KEY_PRIMARY}}"
+{api_keys_yaml}
       header_name: "${{FILE_MCP_AUTH_HEADER_NAME}}"
       header_scheme: "${{FILE_MCP_AUTH_HEADER_SCHEME}}"
     scope:
@@ -108,6 +114,7 @@ profiles:
     limits:
       search_max_results: ${{FILE_MCP_SEARCH_MAX_RESULTS}}
       search_max_file_mb: ${{FILE_MCP_SEARCH_MAX_FILE_MB}}
+      search_timeout_s: ${{FILE_MCP_SEARCH_TIMEOUT_S}}
       conversion_timeout_s: ${{FILE_MCP_CONVERSION_TIMEOUT_S}}
     conversion:
       enabled: true
@@ -125,36 +132,33 @@ http:
 """.lstrip()
     defaults_path.write_text(defaults_yaml, encoding="utf-8")
     config_path.write_text(defaults_yaml, encoding="utf-8")
-    env_path.write_text(
-        "\n".join(
-            [
-                "FILE_MCP_API_KEY_PRIMARY=secret",
-                f"FILE_MCP_AUTH_HEADER_NAME={auth_header_name}",
-                f"FILE_MCP_AUTH_HEADER_SCHEME={auth_header_scheme}",
-                f"FILE_MCP_ROOT={root_dir}",
-                f"FILE_MCP_SERVER_LOG={server_log}",
-                f"FILE_MCP_AUDIT_LOG={audit_log}",
-                f"FILE_MCP_SNAPSHOT_DIR={snapshot_dir}",
-                "FILE_MCP_HTTP_TRANSPORT=streamable-http",
-                "FILE_MCP_HTTP_HOST=127.0.0.1",
-                f"FILE_MCP_HTTP_PORT={port}",
-                "FILE_MCP_HTTP_BASE_PATH=/",
-                "FILE_MCP_HTTP_MCP_PATH=/mcp",
-                "FILE_MCP_HTTP_HEALTH_PATH=/health",
-                "FILE_MCP_HTTP_EVENTS_PATH=/events",
-                "FILE_MCP_HTTP_STATELESS=true",
-                f"FILE_MCP_SEARCH_MAX_RESULTS={search_max_results}",
-                f"FILE_MCP_SEARCH_MAX_FILE_MB={search_max_file_mb}",
-                f"FILE_MCP_CONVERSION_TIMEOUT_S={conversion_timeout_s}",
-                f"FILE_MCP_CONVERSION_MAX_INPUT_MB={conversion_max_input_mb}",
-                f"FILE_MCP_SNAPSHOT_RETENTION_DAYS={snapshot_retention_days}",
-                f"FILE_MCP_SNAPSHOT_RETENTION_COUNT={snapshot_retention_count if snapshot_retention_count is not None else -1}",
-                f"FILE_MCP_SNAPSHOT_MAX_STORAGE_MB={snapshot_max_storage_mb if snapshot_max_storage_mb is not None else -1}",
-            ]
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    env_lines = [
+        f"FILE_MCP_AUTH_HEADER_NAME={auth_header_name}",
+        f"FILE_MCP_AUTH_HEADER_SCHEME={auth_header_scheme}",
+        f"FILE_MCP_ROOT={root_dir}",
+        f"FILE_MCP_SERVER_LOG={server_log}",
+        f"FILE_MCP_AUDIT_LOG={audit_log}",
+        f"FILE_MCP_SNAPSHOT_DIR={snapshot_dir}",
+        "FILE_MCP_HTTP_TRANSPORT=streamable-http",
+        "FILE_MCP_HTTP_HOST=127.0.0.1",
+        f"FILE_MCP_HTTP_PORT={port}",
+        "FILE_MCP_HTTP_BASE_PATH=/",
+        "FILE_MCP_HTTP_MCP_PATH=/mcp",
+        "FILE_MCP_HTTP_HEALTH_PATH=/health",
+        "FILE_MCP_HTTP_EVENTS_PATH=/events",
+        "FILE_MCP_HTTP_STATELESS=true",
+        f"FILE_MCP_SEARCH_MAX_RESULTS={search_max_results}",
+        f"FILE_MCP_SEARCH_MAX_FILE_MB={search_max_file_mb}",
+        f"FILE_MCP_SEARCH_TIMEOUT_S={search_timeout_s}",
+        f"FILE_MCP_CONVERSION_TIMEOUT_S={conversion_timeout_s}",
+        f"FILE_MCP_CONVERSION_MAX_INPUT_MB={conversion_max_input_mb}",
+        f"FILE_MCP_SNAPSHOT_RETENTION_DAYS={snapshot_retention_days}",
+        f"FILE_MCP_SNAPSHOT_RETENTION_COUNT={snapshot_retention_count if snapshot_retention_count is not None else -1}",
+        f"FILE_MCP_SNAPSHOT_MAX_STORAGE_MB={snapshot_max_storage_mb if snapshot_max_storage_mb is not None else -1}",
+    ]
+    for index, api_key in enumerate(api_keys, start=1):
+        env_lines.insert(index - 1, f"FILE_MCP_API_KEY_{index}={api_key}")
+    env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")
     return defaults_path, config_path, env_path, pidfile, audit_log
 
 

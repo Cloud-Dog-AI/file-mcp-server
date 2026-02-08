@@ -656,16 +656,21 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
         glob: str | None = None,
         regex: bool = False,
         max_file_mb: int | None = None,
+        max_depth: int | None = None,
+        timeout_s: int | None = None,
     ) -> Dict[str, Any]:
         roots = [Path(root).resolve() for root in profile.scope.roots]
         effective_max_mb = max_file_mb if max_file_mb is not None else limits.search_max_file_mb
-        matches = search_paths(
-            query,
-            roots=roots,
-            glob=glob,
-            regex=regex,
-            max_file_mb=effective_max_mb,
-        )
+        effective_timeout = timeout_s if timeout_s is not None else limits.search_timeout_s
+        with enforce_timeout(effective_timeout):
+            matches = search_paths(
+                query,
+                roots=roots,
+                glob=glob,
+                regex=regex,
+                max_file_mb=effective_max_mb,
+                max_depth=max_depth,
+            )
         filtered: list[str] = []
         for path in matches:
             try:
@@ -682,19 +687,24 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
         max_results: int | None = None,
         encoding: str = "utf-8",
         max_file_mb: int | None = None,
+        max_depth: int | None = None,
+        timeout_s: int | None = None,
     ) -> Dict[str, Any]:
         roots = [Path(root).resolve() for root in profile.scope.roots]
         effective_max_results = max_results if max_results is not None else limits.search_max_results
         effective_max_mb = max_file_mb if max_file_mb is not None else limits.search_max_file_mb
-        matches = search_content(
-            query,
-            roots=roots,
-            glob=glob,
-            regex=regex,
-            encoding=encoding,
-            max_results=None,
-            max_file_mb=effective_max_mb,
-        )
+        effective_timeout = timeout_s if timeout_s is not None else limits.search_timeout_s
+        with enforce_timeout(effective_timeout):
+            matches = search_content(
+                query,
+                roots=roots,
+                glob=glob,
+                regex=regex,
+                encoding=encoding,
+                max_results=None,
+                max_file_mb=effective_max_mb,
+                max_depth=max_depth,
+            )
         filtered_matches = []
         for match in matches:
             try:

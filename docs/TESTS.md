@@ -28,10 +28,23 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
-| 2026-02-08 | Full Suite | `PYTHONPATH=src pytest` | PASS | `125 passed` |
+| 2026-02-08 | Full Suite | `PYTHONPATH=src pytest` | PASS | `131 passed, 2 skipped` |
 | 2026-02-08 | ST (FR1.7) | `PYTHONPATH=src pytest tests/test_system_read_partial_ranges.py` | PASS | Partial line/byte reads + mixed-range rejection |
 | 2026-02-08 | ST (FR1.8) | `PYTHONPATH=src pytest tests/test_system_dry_run_contract.py` | PASS | Dry-run no-write contract with audit evidence |
 | 2026-02-08 | ST (FR1.18) | `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` | PASS | `validate_file` type inference + unsupported type path |
+| 2026-02-08 | IT (Harness) | `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` | PASS | `6 passed, 2 skipped` |
+
+## External Backend Policy
+
+- Real-backend tests for `pandoc`/`soffice` run when binaries are present.
+- When binaries are not present, tests are explicitly marked `skip` (not pass-by-fallback).
+- This preserves deterministic CI behavior while still validating real integrations on capable runners.
+
+## Recent Integration Additions
+
+- `IT1.9` (`tests/test_integration_iterative_cycle_guard_http.py`): iterative cycle guard, search depth/time controls, UTF-8 update/search/retrieve checks, audit event count validation.
+- `IT1.10` (`tests/test_integration_story_multitype_crud_http.py`): single-session multi-tool story across upload/search/update/retrieve/delete with JSON/YAML/XML/HTML/Markdown/base64 and audit verification; pandoc/PDF path executes when available, otherwise marked skip.
+- `IT1.11` (`tests/test_integration_config_matrix_harness_http.py`): config-variant harness for rotated API keys, custom auth header/scheme, scoped deny rules, limit settings, and audit correctness.
 
 ## Test Types
 
@@ -130,7 +143,7 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.6** → UT1.3, IT1.2
 - **FR1.7** → UT1.4, IT1.2
 - **FR1.8** → UT1.4, IT1.2
-- **FR1.9** → UT1.5, IT1.4
+- **FR1.9** → UT1.5, IT1.4, IT1.9, IT1.10
 - **FR1.10** → UT1.6, IT1.7
 - **FR1.11** → UT1.7, IT1.5
 - **FR1.12** → UT1.8, IT1.5
@@ -140,9 +153,9 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.16** → UT1.11
 - **FR1.17** → UT1.12, IT1.3
 - **FR1.18** → UT1.13, IT1.3
-- **FR1.19** → UT1.14, ST1.3, IT1.3
+- **FR1.19** → UT1.14, ST1.3, IT1.3, IT1.9, IT1.10, IT1.11
 - **FR1.20** → UT1.15, ST1.4, IT1.3
-- **FR1.21** → UT1.16, ST1.5, IT1.6
+- **FR1.21** → UT1.16, ST1.5, IT1.6, IT1.10
 - **FR1.22** → ST1.1, AT1.4
 - **FR1.23** → ST1.2, IT1.8
 - **FR1.24** → UT1.18, IT1.1
