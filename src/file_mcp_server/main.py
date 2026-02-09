@@ -44,6 +44,11 @@ def serve(
     force_pidfile: bool = typer.Option(False, help="Overwrite existing PID file."),
 ) -> None:
     """Run the FastMCP HTTP/SSE server."""
+    if env_path:
+        os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = str(Path(env_path).expanduser().resolve())
+    else:
+        os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = ""
+
     config = load_config(
         env_path=env_path,
         config_path=config_path,

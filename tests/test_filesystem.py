@@ -14,17 +14,22 @@ Recent Change History:
 from __future__ import annotations
 
 from pathlib import Path
+import stat
 
 import pytest
 
 from tests.config_helpers import build_profile
 from file_tools.io import (
     atomic_write,
+    chmod_path,
     copy_file,
+    create_dir,
     delete_file,
     list_dir,
     move_file,
+    move_path,
     read_text,
+    rename_path,
     write_text,
 )
 
@@ -93,3 +98,30 @@ def test_list_dir(tmp_path: Path) -> None:
     entries = list_dir(root)
     assert len(entries) == 2
     assert {path.name for path in entries} == {"a.txt", "b.txt"}
+
+
+def test_create_dir_and_move_rename_with_utf8_names(tmp_path: Path) -> None:
+    root = _scoped_root(tmp_path)
+    source_dir = root / "naive-测试"
+    create_dir(source_dir)
+    file_path = source_dir / "cafe-🙂.txt"
+    write_text(file_path, "payload", encoding="utf-8")
+
+    moved_dir = root / "moved-δοκιμή"
+    move_path(source_dir, moved_dir)
+    assert not source_dir.exists()
+    assert (moved_dir / "cafe-🙂.txt").exists()
+
+    renamed_dir = root / "renamed-данные"
+    rename_path(moved_dir, renamed_dir)
+    assert not moved_dir.exists()
+    assert (renamed_dir / "cafe-🙂.txt").read_text(encoding="utf-8") == "payload"
+
+
+def test_chmod_path_updates_mode_for_file(tmp_path: Path) -> None:
+    root = _scoped_root(tmp_path)
+    target = root / "mode.txt"
+    write_text(target, "mode")
+    chmod_path(target, 0o640)
+    mode = stat.S_IMODE(target.stat().st_mode)
+    assert mode == 0o640

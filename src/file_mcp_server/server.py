@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional, TextIO
 
 import json
 import logging
+import os
 import sys
 import time
 
@@ -53,12 +54,15 @@ from file_tools.edit import (
 from file_tools.io import (
     b64_decode,
     b64_encode,
+    chmod_path,
     copy_file,
+    create_dir,
     delete_file,
     list_dir,
-    move_file,
+    move_path as io_move_path,
     read_bytes,
     read_text,
+    rename_path,
     write_bytes,
     write_text,
 )
@@ -175,6 +179,8 @@ class HealthCheckMiddleware:
         self.health_path = health_path
         self.profile_name = profile_name
         self.transport = transport
+        self.app_name = "file-mcp-server"
+        self.env_file = str(os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
 
     async def __call__(self, scope, receive, send) -> None:
         if (
@@ -186,6 +192,8 @@ class HealthCheckMiddleware:
                 {
                     "status": "ok",
                     "service": "file-mcp-server",
+                    "application": {"name": self.app_name},
+                    "runtime": {"env_file": self.env_file},
                     "profile": self.profile_name,
                     "transport": self.transport,
                 }
@@ -603,16 +611,99 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
             )
             raise
 
-    def move_path(src: str, dst: str, overwrite: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+    def create_dir_path(
+        path: str,
+        parents: bool = True,
+        exist_ok: bool = True,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        resolved = _resolve_path_for_tool(
+            tool_name="create_dir",
+            action="mkdir",
+            path=path,
+            operation="write",
+        )
+        try:
+            if dry_run:
+                _write_audit(
+                    tool_name="create_dir",
+                    action="mkdir",
+                    status="ok",
+                    paths={"path": str(resolved)},
+                    details={"dry_run": True, "parents": parents, "exist_ok": exist_ok},
+                )
+                return {"ok": True, "path": str(resolved), "dry_run": True}
+            create_dir(resolved, parents=parents, exist_ok=exist_ok)
+            _write_audit(
+                tool_name="create_dir",
+                action="mkdir",
+                status="ok",
+                paths={"path": str(resolved)},
+                details={"dry_run": False, "parents": parents, "exist_ok": exist_ok},
+            )
+            return {"ok": True, "path": str(resolved), "dry_run": False}
+        except Exception:
+            _write_audit(tool_name="create_dir", action="mkdir", status="error", paths={"path": str(resolved)})
+            raise
+
+    def _parse_octal_mode(mode: int | str) -> int:
+        if isinstance(mode, int):
+            return mode
+        if isinstance(mode, str):
+            normalized = mode.strip().lower()
+            if normalized.startswith("0o"):
+                return int(normalized, 8)
+            return int(normalized, 8)
+        raise ValueError("mode must be an int or octal string")
+
+    def chmod_fs_path(path: str, mode: int | str, recursive: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+        resolved = _resolve_path_for_tool(
+            tool_name="chmod_path",
+            action="chmod",
+            path=path,
+            operation="write",
+        )
+        parsed_mode = _parse_octal_mode(mode)
+        try:
+            if dry_run:
+                _write_audit(
+                    tool_name="chmod_path",
+                    action="chmod",
+                    status="ok",
+                    paths={"path": str(resolved)},
+                    details={"dry_run": True, "mode": oct(parsed_mode), "recursive": recursive},
+                )
+                return {"ok": True, "path": str(resolved), "mode": oct(parsed_mode), "dry_run": True}
+            chmod_path(resolved, parsed_mode, recursive=recursive)
+            _write_audit(
+                tool_name="chmod_path",
+                action="chmod",
+                status="ok",
+                paths={"path": str(resolved)},
+                details={"dry_run": False, "mode": oct(parsed_mode), "recursive": recursive},
+            )
+            return {"ok": True, "path": str(resolved), "mode": oct(parsed_mode), "dry_run": False}
+        except Exception:
+            _write_audit(tool_name="chmod_path", action="chmod", status="error", paths={"path": str(resolved)})
+            raise
+
+    def move_path_handler(
+        src: str,
+        dst: str,
+        overwrite: bool = False,
+        dry_run: bool = False,
+        *,
+        tool_name: str = "move_file",
+    ) -> Dict[str, Any]:
         resolved_src = _resolve_path_for_tool(
-            tool_name="move_file",
+            tool_name=tool_name,
             action="move",
             path=src,
             operation="move",
             path_key="src",
         )
         resolved_dst = _resolve_path_for_tool(
-            tool_name="move_file",
+            tool_name=tool_name,
             action="move",
             path=dst,
             operation="move",
@@ -621,16 +712,16 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
         try:
             if dry_run:
                 _write_audit(
-                    tool_name="move_file",
+                    tool_name=tool_name,
                     action="move",
                     status="ok",
                     paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                     details={"dry_run": True},
                 )
                 return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
-            move_file(resolved_src, resolved_dst, overwrite=overwrite)
+            io_move_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
-                tool_name="move_file",
+                tool_name=tool_name,
                 action="move",
                 status="ok",
                 paths={"src": str(resolved_src), "dst": str(resolved_dst)},
@@ -639,8 +730,51 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
             return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": False}
         except Exception:
             _write_audit(
-                tool_name="move_file",
+                tool_name=tool_name,
                 action="move",
+                status="error",
+                paths={"src": str(resolved_src), "dst": str(resolved_dst)},
+            )
+            raise
+
+    def rename_path_handler(src: str, dst: str, overwrite: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+        resolved_src = _resolve_path_for_tool(
+            tool_name="rename_path",
+            action="rename",
+            path=src,
+            operation="move",
+            path_key="src",
+        )
+        resolved_dst = _resolve_path_for_tool(
+            tool_name="rename_path",
+            action="rename",
+            path=dst,
+            operation="move",
+            path_key="dst",
+        )
+        try:
+            if dry_run:
+                _write_audit(
+                    tool_name="rename_path",
+                    action="rename",
+                    status="ok",
+                    paths={"src": str(resolved_src), "dst": str(resolved_dst)},
+                    details={"dry_run": True},
+                )
+                return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
+            rename_path(resolved_src, resolved_dst, overwrite=overwrite)
+            _write_audit(
+                tool_name="rename_path",
+                action="rename",
+                status="ok",
+                paths={"src": str(resolved_src), "dst": str(resolved_dst)},
+                details={"dry_run": False},
+            )
+            return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": False}
+        except Exception:
+            _write_audit(
+                tool_name="rename_path",
+                action="rename",
                 status="error",
                 paths={"src": str(resolved_src), "dst": str(resolved_dst)},
             )
@@ -1323,12 +1457,62 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
     tools.register(
         ToolDefinition(
             meta=ToolMeta(
-                name="move_file",
-                description="Move a file",
+                name="create_dir",
+                description="Create a directory",
                 mutating=True,
                 supports_dry_run=True,
             ),
-            handler=move_path,
+            handler=create_dir_path,
+        )
+    )
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(
+                name="chmod_path",
+                description="Change file or directory mode",
+                mutating=True,
+                supports_dry_run=True,
+            ),
+            handler=chmod_fs_path,
+        )
+    )
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(
+                name="move_file",
+                description="Move a file or directory",
+                mutating=True,
+                supports_dry_run=True,
+            ),
+            handler=move_path_handler,
+        )
+    )
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(
+                name="move_path",
+                description="Move a file or directory",
+                mutating=True,
+                supports_dry_run=True,
+            ),
+            handler=lambda src, dst, overwrite=False, dry_run=False: move_path_handler(
+                src,
+                dst,
+                overwrite=overwrite,
+                dry_run=dry_run,
+                tool_name="move_path",
+            ),
+        )
+    )
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(
+                name="rename_path",
+                description="Rename a file or directory",
+                mutating=True,
+                supports_dry_run=True,
+            ),
+            handler=rename_path_handler,
         )
     )
     tools.register(

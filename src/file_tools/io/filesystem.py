@@ -60,13 +60,43 @@ def copy_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
     shutil.copy2(src, dst)
 
 
-def move_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+def _remove_existing_target(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+        return
+    path.unlink()
+
+
+def move_path(src: Path, dst: Path, *, overwrite: bool = False) -> None:
     if dst.exists() and not overwrite:
         raise FileExistsError(f"Target already exists: {dst}")
     ensure_parent(dst)
     if dst.exists() and overwrite:
-        dst.unlink()
+        _remove_existing_target(dst)
     shutil.move(str(src), str(dst))
+
+
+def move_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+    move_path(src, dst, overwrite=overwrite)
+
+
+def rename_path(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+    move_path(src, dst, overwrite=overwrite)
+
+
+def create_dir(path: Path, *, parents: bool = True, exist_ok: bool = True) -> None:
+    path.mkdir(parents=parents, exist_ok=exist_ok)
+
+
+def chmod_path(path: Path, mode: int, *, recursive: bool = False) -> None:
+    os.chmod(path, mode)
+    if recursive and path.is_dir():
+        for dirpath, dirnames, filenames in os.walk(path):
+            current = Path(dirpath)
+            for name in dirnames:
+                os.chmod(current / name, mode)
+            for name in filenames:
+                os.chmod(current / name, mode)
 
 
 def delete_file(path: Path, *, missing_ok: bool = False) -> None:
