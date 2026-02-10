@@ -1,0 +1,13 @@
+# Apache-2.0
+# Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+
+# Non-secret defaults for container operation.
+# OS environment variables and mounted env files override these values.
+FILE_MCP_HTTP_TRANSPORT=streamable-http
+FILE_MCP_HTTP_HOST=0.0.0.0
+FILE_MCP_HTTP_PORT=8000
+FILE_MCP_HTTP_BASE_PATH=/
+FILE_MCP_HTTP_MCP_PATH=/mcp
+FILE_MCP_HTTP_HEALTH_PATH=/health
+FILE_MCP_HTTP_EVENTS_PATH=/events
+FILE_MCP_HTTP_STATELESS=true

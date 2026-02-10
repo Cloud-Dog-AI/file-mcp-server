@@ -1,0 +1,55 @@
+# Apache-2.0
+# Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+
+profiles:
+  default:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_PRIMARY}"
+      header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
+      header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    scope:
+      roots:
+        - "${FILE_MCP_ROOT}"
+      allow_globs:
+        - "**/*"
+      deny_globs:
+        - "**/.git/**"
+      allowed_exts: []
+      read_only_exts: []
+    audit:
+      log_path: "${FILE_MCP_AUDIT_LOG}"
+      include_content_hashes: true
+    snapshots:
+      enabled: true
+      mode: "on_change"
+      dir: "${FILE_MCP_SNAPSHOT_DIR}"
+      retention_days: ${FILE_MCP_SNAPSHOT_RETENTION_DAYS}
+      retention_count: ${FILE_MCP_SNAPSHOT_RETENTION_COUNT}
+      max_storage_mb: ${FILE_MCP_SNAPSHOT_MAX_STORAGE_MB}
+    validation:
+      default_mode: "warn"
+      per_type: {}
+    conversion:
+      enabled: true
+      backends: []
+      max_input_mb: ${FILE_MCP_CONVERSION_MAX_INPUT_MB}
+    observability:
+      enabled: true
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "INFO"
+    limits:
+      search_max_results: ${FILE_MCP_SEARCH_MAX_RESULTS}
+      search_max_file_mb: ${FILE_MCP_SEARCH_MAX_FILE_MB}
+      search_timeout_s: ${FILE_MCP_SEARCH_TIMEOUT_S}
+      conversion_timeout_s: ${FILE_MCP_CONVERSION_TIMEOUT_S}
+
+http:
+  transport: "${FILE_MCP_HTTP_TRANSPORT}"
+  host: "${FILE_MCP_HTTP_HOST}"
+  port: "${FILE_MCP_HTTP_PORT}"
+  base_path: "${FILE_MCP_HTTP_BASE_PATH}"
+  mcp_path: "${FILE_MCP_HTTP_MCP_PATH}"
+  health_path: "${FILE_MCP_HTTP_HEALTH_PATH}"
+  events_path: "${FILE_MCP_HTTP_EVENTS_PATH}"
+  stateless_http: "${FILE_MCP_HTTP_STATELESS}"

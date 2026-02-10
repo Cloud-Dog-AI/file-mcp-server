@@ -17,11 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, TextIO
 
+import contextvars
+import inspect
 import json
 import logging
 import os
 import sys
 import time
+import uuid
 
 from fastmcp import FastMCP
 from file_tools.config.models import HttpServerConfig, ProfileConfig, ValidationConfig
@@ -213,6 +216,49 @@ class HealthCheckMiddleware:
         await self.app(scope, receive, send)
 
 
+_request_client_ip: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "file_mcp_request_client_ip", default=None
+)
+_request_session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "file_mcp_request_session_id", default=None
+)
+
+
+class RequestContextMiddleware:
+    """Capture request context for per-tool operational logging."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        client = scope.get("client") or ()
+        client_ip = client[0] if isinstance(client, tuple) and client else None
+        headers = {
+            (key.decode("latin-1").lower() if isinstance(key, bytes) else str(key).lower()):
+            (value.decode("latin-1") if isinstance(value, bytes) else str(value))
+            for key, value in (scope.get("headers") or [])
+        }
+        if headers.get("x-forwarded-for"):
+            client_ip = headers["x-forwarded-for"].split(",")[0].strip()
+        session_id = (
+            headers.get("x-session-id")
+            or headers.get("x-request-id")
+            or str(uuid.uuid4())
+        )
+
+        ip_token = _request_client_ip.set(client_ip)
+        sid_token = _request_session_id.set(session_id)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _request_client_ip.reset(ip_token)
+            _request_session_id.reset(sid_token)
+
+
 def _to_bool(value: Any, default: bool) -> bool:
     if value is None:
         return default
@@ -321,7 +367,7 @@ def _normalize_optional_path(value: str | None) -> Path | None:
     return Path(cleaned)
 
 
-def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
+def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default") -> ToolRegistry:
     policy = ScopePolicy(
         roots=profile.scope.roots,
         allow_globs=profile.scope.allow_globs,
@@ -342,6 +388,9 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
         tool_name: str,
         action: str,
         status: str,
+        params: Dict[str, Any] | None = None,
+        duration_ms: float | None = None,
+        outcome: str | None = None,
         paths: Dict[str, str] | None = None,
         details: Dict[str, Any] | None = None,
     ) -> None:
@@ -352,7 +401,12 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
                 tool=tool_name,
                 action=action,
                 status=status,
-                profile="default",
+                outcome=outcome or status,
+                profile=profile_name,
+                session_id=_request_session_id.get(),
+                client_ip=_request_client_ip.get(),
+                duration_ms=duration_ms,
+                params=params or {},
                 paths=paths or {},
                 details=details or {},
             )
@@ -1880,15 +1934,138 @@ def build_tool_registry(profile: ProfileConfig) -> ToolRegistry:
             handler=sed_edit_file,
         )
     )
+    setattr(tools, "audit_writer", _write_audit)
     return tools
 
 
-def register_tools_with_fastmcp(server: FastMCP, registry: ToolRegistry) -> None:
+def _truncate_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value if len(value) <= 500 else f"{value[:500]}...[truncated]"
+    if isinstance(value, dict):
+        return {str(key): _truncate_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_truncate_value(item) for item in value]
+    return value
+
+
+def register_tools_with_fastmcp(
+    server: FastMCP,
+    registry: ToolRegistry,
+    *,
+    profile_name: str,
+    logger: logging.Logger | None = None,
+) -> None:
+    audit_writer = getattr(registry, "audit_writer", None)
+
+    def _extract_paths_from_params(params: Dict[str, Any]) -> Dict[str, str]:
+        path_keys = ("path", "src", "dst", "path_a", "path_b")
+        extracted: Dict[str, str] = {}
+        for key in path_keys:
+            value = params.get(key)
+            if isinstance(value, str):
+                extracted[key] = value
+        return extracted
+
+    def build_wrapped_handler(handler, tool_name: str):
+        def wrapped_handler(*args, **kwargs):
+            started = time.perf_counter()
+            params = _truncate_value(kwargs)
+            paths = _extract_paths_from_params(kwargs)
+            if logger:
+                logger.info(
+                    json.dumps(
+                        {
+                            "event": "tool_call",
+                            "profile": profile_name,
+                            "tool": tool_name,
+                            "params": params,
+                            "session_id": _request_session_id.get(),
+                            "client_ip": _request_client_ip.get(),
+                        },
+                        ensure_ascii=False,
+                    )
+                )
+            try:
+                result = handler(*args, **kwargs)
+                elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
+                if logger:
+                    logger.info(
+                        json.dumps(
+                            {
+                                "event": "tool_result",
+                                "profile": profile_name,
+                                "tool": tool_name,
+                                "outcome": "ok",
+                                "duration_ms": elapsed_ms,
+                                "session_id": _request_session_id.get(),
+                                "client_ip": _request_client_ip.get(),
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                if audit_writer:
+                    audit_writer(
+                        tool_name=tool_name,
+                        action="tool_call",
+                        status="ok",
+                        outcome="ok",
+                        params=params if isinstance(params, dict) else {},
+                        duration_ms=elapsed_ms,
+                        paths=paths,
+                    )
+                return result
+            except Exception as exc:
+                elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
+                if logger:
+                    logger.info(
+                        json.dumps(
+                            {
+                                "event": "tool_result",
+                                "profile": profile_name,
+                                "tool": tool_name,
+                                "outcome": "error",
+                                "error": str(exc),
+                                "duration_ms": elapsed_ms,
+                                "session_id": _request_session_id.get(),
+                                "client_ip": _request_client_ip.get(),
+                            },
+                            ensure_ascii=False,
+                        )
+                    )
+                if audit_writer:
+                    audit_writer(
+                        tool_name=tool_name,
+                        action="tool_call",
+                        status="error",
+                        outcome="error",
+                        params=params if isinstance(params, dict) else {},
+                        duration_ms=elapsed_ms,
+                        paths=paths,
+                        details={"error": str(exc)},
+                    )
+                raise
+
+        wrapped_handler.__signature__ = inspect.signature(handler)
+        wrapped_handler.__name__ = handler.__name__
+        wrapped_handler.__doc__ = handler.__doc__
+        wrapped_handler.__annotations__ = getattr(handler, "__annotations__", {})
+        wrapped_handler.__module__ = handler.__module__
+        return wrapped_handler
+
     for definition in registry.list_tools():
-        server.tool(name=definition.meta.name, description=definition.meta.description)(definition.handler)
+        handler = definition.handler
+        tool_name = definition.meta.name
+        wrapped_handler = build_wrapped_handler(handler, tool_name)
+        server.tool(name=definition.meta.name, description=definition.meta.description)(wrapped_handler)
 
 
-def build_fastmcp_server(profile_name: str, profile: ProfileConfig, http: HttpRuntimeSettings) -> FastMCP:
+def build_fastmcp_server(
+    profile_name: str,
+    profile: ProfileConfig,
+    http: HttpRuntimeSettings,
+    *,
+    logger: logging.Logger | None = None,
+) -> FastMCP:
     if not profile.auth.api_keys:
         raise ValueError("No API keys configured for selected profile")
 
@@ -1902,7 +2079,12 @@ def build_fastmcp_server(profile_name: str, profile: ProfileConfig, http: HttpRu
         name=f"file-mcp-server:{profile_name}",
         auth=auth,
     )
-    register_tools_with_fastmcp(server, build_tool_registry(profile))
+    register_tools_with_fastmcp(
+        server,
+        build_tool_registry(profile, profile_name=profile_name),
+        profile_name=profile_name,
+        logger=logger,
+    )
     return server
 
 
@@ -1914,9 +2096,10 @@ async def run_fastmcp_http_server(
     logger: logging.Logger | None = None,
 ) -> None:
     http = resolve_http_settings(http_config)
-    server = build_fastmcp_server(profile_name, profile, http)
+    server = build_fastmcp_server(profile_name, profile, http, logger=logger)
     endpoint_path = http.events_path if http.transport == "sse" else http.mcp_path
     middleware = [
+        Middleware(RequestContextMiddleware),
         Middleware(
             HealthCheckMiddleware,
             health_path=http.health_path,

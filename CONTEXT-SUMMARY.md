@@ -99,3 +99,27 @@ Status: Updated
 
 ### Verification (latest)
 - `PYTHONPATH=src PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest tests/test_filesystem.py tests/test_server_runtime.py tests/test_integration_filesystem_path_tools_http.py -q` -> PASS (`11 passed`)
+
+## Update: 2026-02-10 (Docker Multi-Config + Extended Audit Schema)
+
+### Runtime/audit enhancements
+- Added request-context middleware for HTTP calls to capture:
+  - `session_id` (from `X-Session-Id` / `X-Request-Id`, fallback generated)
+  - `client_ip` (supports `X-Forwarded-For`)
+- Added structured per-tool operational logging in `src/file_mcp_server/server.py`:
+  - `event`, `profile`, `tool`, `params`, `outcome`, `duration_ms`, `session_id`, `client_ip`
+- Enforced extended fields directly in audit events (`src/file_tools/audit/logger.py`):
+  - `outcome`, `session_id`, `client_ip`, `duration_ms`, `params` (alongside existing fields)
+- Registered an audit writer hook in the tool registry and now emit `tool_call` audit events for all tool invocations with extended metadata.
+
+### Docker integration coverage
+- Expanded `tests/test_docker_container_runtime.py` to validate:
+  - host-network container run + authenticated MCP call
+  - multi-env precedence (`FILE_MCP_ENV_PATH` layered env files)
+  - two-folder scope controls with allow/deny behavior
+  - strict audit event schema assertions (including extended fields)
+  - operational log assertions for `tool_call`/`tool_result` metadata
+- Bridge publish mode remains optional via `FILE_MCP_RUN_DOCKER_BRIDGE_TESTS=1`.
+
+### Verification (this update)
+- `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q` -> PASS (`5 passed, 1 skipped`)

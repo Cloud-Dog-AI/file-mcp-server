@@ -33,6 +33,7 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 | 2026-02-08 | ST (FR1.8) | `PYTHONPATH=src pytest tests/test_system_dry_run_contract.py` | PASS | Dry-run no-write contract with audit evidence |
 | 2026-02-08 | ST (FR1.18) | `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` | PASS | `validate_file` type inference + unsupported type path |
 | 2026-02-08 | IT (Harness) | `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` | PASS | `7 passed` |
+| 2026-02-10 | IT (Docker) | `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q` | PASS | `5 passed, 1 skipped` (bridge mode optional) |
 
 ## External Backend Policy
 
@@ -45,6 +46,17 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 - `IT1.9` (`tests/test_integration_iterative_cycle_guard_http.py`): iterative cycle guard, search depth/time controls, UTF-8 update/search/retrieve checks, audit event count validation.
 - `IT1.10` (`tests/test_integration_story_multitype_crud_http.py`): single-session multi-tool story across upload/search/update/retrieve/delete with JSON/YAML/XML/HTML/Markdown/base64 and audit verification, including deterministic PDF-to-Markdown flow.
 - `IT1.11` (`tests/test_integration_config_matrix_harness_http.py`): config-variant harness for rotated API keys, custom auth header/scheme, scoped deny rules, limit settings, and audit correctness.
+- `IT1.12` (`tests/test_docker_container_runtime.py`): Dockerized runtime verification including host-network execution, layered env precedence (`FILE_MCP_ENV_PATH`), multi-folder allow/deny scope policy checks, and strict audit schema assertions for extended fields.
+
+## Audit/Observability Schema Assertions
+
+- Docker integration assertions enforce audit event keys:
+  - `tool`, `action`, `status`, `outcome`, `timestamp`, `profile`,
+  - `session_id`, `client_ip`, `duration_ms`, `params`, `paths`, `details`
+- Assertions additionally enforce expected types and non-empty values for `session_id`/`client_ip` on `tool_call` audit events.
+- Operational logs are asserted for:
+  - `event=tool_call|tool_result`
+  - `profile`, `tool`, `params`, `outcome`, `duration_ms`, `session_id`, `client_ip`
 
 ## Test Types
 

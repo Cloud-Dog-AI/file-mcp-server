@@ -15,10 +15,15 @@ class AuditEvent:
     tool: str
     action: str
     status: str
+    outcome: str
     timestamp: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
     profile: Optional[str] = None
+    session_id: Optional[str] = None
+    client_ip: Optional[str] = None
+    duration_ms: Optional[float] = None
+    params: Dict[str, Any] = field(default_factory=dict)
     paths: Dict[str, str] = field(default_factory=dict)
     details: Dict[str, Any] = field(default_factory=dict)
 
@@ -39,7 +44,12 @@ def build_event(
     tool: str,
     action: str,
     status: str,
+    outcome: Optional[str] = None,
     profile: Optional[str] = None,
+    session_id: Optional[str] = None,
+    client_ip: Optional[str] = None,
+    duration_ms: Optional[float] = None,
+    params: Optional[Dict[str, Any]] = None,
     paths: Optional[Dict[str, str]] = None,
     details: Optional[Dict[str, Any]] = None,
 ) -> AuditEvent:
@@ -47,7 +57,12 @@ def build_event(
         tool=tool,
         action=action,
         status=status,
+        outcome=outcome or status,
         profile=profile,
+        session_id=session_id,
+        client_ip=client_ip,
+        duration_ms=duration_ms,
+        params=params or {},
         paths=paths or {},
         details=details or {},
     )

@@ -1,0 +1,246 @@
+<!--
+Apache-2.0
+Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+-->
+
+# file-mcp-server Docker Deployment Guide
+
+This guide covers image build, certs, runtime configuration, deployment modes, server control, and Docker-specific tests.
+
+## 1. Build the image
+
+```bash
+./docker-build.sh cloud-dog/file-mcp-server:latest
+```
+
+With custom CA for build-time TLS trust:
+
+```bash
+CUSTOM_CA_CERT=/path/to/enterprise-ca.crt \
+HTTP_PROXY=http://proxy.local:3128 \
+HTTPS_PROXY=http://proxy.local:3128 \
+./docker-build.sh cloud-dog/file-mcp-server:latest
+```
+
+Direct Docker build:
+
+```bash
+docker buildx build --load --network=host -t cloud-dog/file-mcp-server:latest .
+```
+
+## 2. Runtime files and mounts
+
+Prepare runtime directories and env:
+
+```bash
+mkdir -p run/workspace run/logs certs
+cp docker-env.example run/env.base
+```
+
+Container mount strategy:
+- `run/workspace` -> file scope root and operational storage
+- `run/logs` -> audit/server logs and snapshots
+- `certs` -> optional CA bundle(s)
+- env files -> mounted into `/workspace/*.env`
+
+## 3. Single-config run (host network)
+
+```bash
+docker run --rm --name file-mcp-server \
+  --network=host \
+  -v "$(pwd)/run/workspace:/workspace" \
+  -v "$(pwd)/run/logs:/workspace/logs" \
+  -v "$(pwd)/run/env.base:/workspace/env.base:ro" \
+  -e FILE_MCP_ENV_PATH=/workspace/env.base \
+  -e FILE_MCP_CONFIG_PATH=/app/config.yaml \
+  -e FILE_MCP_DEFAULTS_PATH=/app/defaults.yaml \
+  cloud-dog/file-mcp-server:latest
+```
+
+Health check:
+
+```bash
+curl -s http://127.0.0.1:8000/health
+```
+
+## 4. Multi-configuration run (layered env files)
+
+`file_mcp_server` supports comma-separated env file paths. Use this to keep base + environment overlays.
+
+Example:
+
+```bash
+cat > run/env.prod <<'ENV'
+FILE_MCP_API_KEY_PRIMARY=prod-secret
+FILE_MCP_ROOT=/workspace
+FILE_MCP_AUDIT_LOG=/workspace/logs/audit.log.jsonl
+FILE_MCP_SERVER_LOG=/workspace/logs/server.log
+FILE_MCP_SNAPSHOT_DIR=/workspace/logs/snapshots
+FILE_MCP_HTTP_TRANSPORT=streamable-http
+FILE_MCP_HTTP_HOST=0.0.0.0
+FILE_MCP_HTTP_PORT=8000
+FILE_MCP_HTTP_BASE_PATH=/
+FILE_MCP_HTTP_MCP_PATH=/mcp
+FILE_MCP_HTTP_HEALTH_PATH=/health
+FILE_MCP_HTTP_EVENTS_PATH=/events
+FILE_MCP_HTTP_STATELESS=true
+FILE_MCP_SEARCH_MAX_RESULTS=500
+ENV
+```
+
+```bash
+cat > run/env.override <<'ENV'
+FILE_MCP_SEARCH_TIMEOUT_S=10
+FILE_MCP_CONVERSION_TIMEOUT_S=20
+ENV
+```
+
+```bash
+docker run --rm --name file-mcp-server \
+  --network=host \
+  -v "$(pwd)/run/workspace:/workspace" \
+  -v "$(pwd)/run/logs:/workspace/logs" \
+  -v "$(pwd)/run/env.prod:/workspace/env.prod:ro" \
+  -v "$(pwd)/run/env.override:/workspace/env.override:ro" \
+  -e FILE_MCP_ENV_PATH=/workspace/env.prod,/workspace/env.override \
+  cloud-dog/file-mcp-server:latest
+```
+
+Precedence:
+1. OS environment (`docker run -e ...`)
+2. Left-to-right env file list (`FILE_MCP_ENV_PATH=file1,file2`)
+3. `config.yaml`
+4. `defaults.yaml`
+
+## 5. Certificate management (CERTS)
+
+Mount a CA bundle and point runtime to it:
+
+```bash
+docker run --rm --name file-mcp-server \
+  --network=host \
+  -v "$(pwd)/run/workspace:/workspace" \
+  -v "$(pwd)/certs:/app/certs:ro" \
+  -v "$(pwd)/run/env.base:/workspace/env.base:ro" \
+  -e FILE_MCP_ENV_PATH=/workspace/env.base \
+  -e FILE_MCP_TLS_CA_BUNDLE=/app/certs/ca.crt \
+  cloud-dog/file-mcp-server:latest
+```
+
+The entrypoint installs `FILE_MCP_TLS_CA_BUNDLE` into system trust and exports:
+- `REQUESTS_CA_BUNDLE`
+- `SSL_CERT_FILE`
+- `CURL_CA_BUNDLE`
+
+## 6. Managing and controlling the containerized server
+
+### Foreground (default)
+
+```bash
+docker run --rm ... cloud-dog/file-mcp-server:latest
+```
+
+### Lifecycle control using `server_control.sh` in container
+
+```bash
+docker run -d --name file-mcp-server ... cloud-dog/file-mcp-server:latest sleep infinity
+```
+
+```bash
+docker exec -it file-mcp-server ./server_control.sh \
+  --env /workspace/env.base \
+  --config /app/config.yaml \
+  --defaults /app/defaults.yaml \
+  start
+```
+
+```bash
+docker exec -it file-mcp-server ./server_control.sh \
+  --env /workspace/env.base \
+  --config /app/config.yaml \
+  --defaults /app/defaults.yaml \
+  status
+```
+
+```bash
+docker exec -it file-mcp-server ./server_control.sh \
+  --env /workspace/env.base \
+  --config /app/config.yaml \
+  --defaults /app/defaults.yaml \
+  stop
+```
+
+## 7. Remote Docker host (optional)
+
+Use the same commands with `-H`:
+
+```bash
+docker -H tcp://remote-docker-host:2375 run --rm --name file-mcp-server \
+  --network=host \
+  -v /srv/file-mcp/workspace:/workspace \
+  -v /srv/file-mcp/logs:/workspace/logs \
+  -v /srv/file-mcp/env.base:/workspace/env.base:ro \
+  -e FILE_MCP_ENV_PATH=/workspace/env.base \
+  cloud-dog/file-mcp-server:latest
+```
+
+## 8. MCP tools available
+
+Core tools exposed through MCP include:
+- File IO: `read_file`, `write_file`, `copy_file`, `move_file`, `move_path`, `rename_path`, `delete_file`, `create_dir`, `chmod_path`, `list_dir`
+- Search: `search_paths`, `search_content`
+- Diff/Base64: `diff_text`, `diff_files`, `b64_encode`, `b64_decode`, `b64_encode_file`, `b64_decode_to_file`
+- Validation: `validate_text`, `validate_file`
+- Structured edits: JSON/YAML/XML/HTML/Markdown operations, including `*_file` variants
+- Conversion and transactional editing: `convert_file`, `sed_edit_file`
+
+## 9. Deploying to production
+
+1. Build and push image:
+```bash
+./docker-build.sh registry.example.com/cloud-dog/file-mcp-server:2026.02
+```
+```bash
+docker push registry.example.com/cloud-dog/file-mcp-server:2026.02
+```
+2. Provision host directories for workspace/logs/certs/env.
+3. Run container using host network or published ports.
+4. Validate:
+```bash
+curl -s http://127.0.0.1:8000/health
+```
+5. Validate authenticated MCP call with client integration test.
+
+## 10. Docker-focused test suite
+
+Run command-only tests (no Docker daemon required):
+
+```bash
+source .venv/bin/activate
+PYTHONPATH=src pytest tests/test_docker_container_runtime.py -k command -q
+```
+
+Run full Docker integration tests locally (`--network=host` and bridge mode):
+
+```bash
+source .venv/bin/activate
+FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src \
+pytest tests/test_docker_container_runtime.py -q
+```
+
+Enable optional bridge publish validation:
+
+```bash
+source .venv/bin/activate
+FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_BRIDGE_TESTS=1 PYTHONPATH=src \
+pytest tests/test_docker_container_runtime.py -q
+```
+
+Run against remote Docker host:
+
+```bash
+source .venv/bin/activate
+FILE_MCP_RUN_DOCKER_TESTS=1 \
+FILE_MCP_DOCKER_HOST=tcp://remote-docker-host:2375 \
+PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q
+```

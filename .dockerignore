@@ -1,0 +1,38 @@
+# Apache-2.0
+# Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.venv/
+venv/
+env/
+
+.git/
+.gitignore
+
+archive/
+working/
+logs/
+tmp/
+storage/
+
+*.log
+*.pid
+
+# Runtime-local files should be mounted, not baked in.
+private/
+
+# Tests and docs are not needed in runtime image.
+tests/
+test/
+docs/
+CONTEXT-SUMMARY.md
+RULES.md
+API_DOCUMENTATION.md
+openapi.json
