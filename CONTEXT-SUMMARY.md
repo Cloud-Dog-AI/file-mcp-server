@@ -170,3 +170,21 @@ Additional completion runs:
 - Docker runtime reload validation:
   - `POST /admin/reload` returned `{"ok": true, ...}`
   - MCP `backend_status` returned healthy `local` backend state from the running container.
+
+## 7) Exhaustive backend tool audit (2026-02-11, latest)
+
+Command executed:
+- `source .venv/bin/activate && PYTHONPATH=src:. FILE_MCP_EXHAUSTIVE_BACKENDS=webdav,ftp,s3,google_drive FILE_MCP_EXHAUSTIVE_TOOL_TIMEOUT_S=60 python3 scripts/exhaustive_backend_tool_audit.py`
+
+Result summary:
+- `webdav: pass=52 not_supported=2 optional_fail=0 fail=0`
+- `ftp: pass=52 not_supported=2 optional_fail=0 fail=0`
+- `s3: pass=51 not_supported=3 optional_fail=0 fail=0`
+- `google_drive: pass=52 not_supported=2 optional_fail=0 fail=0`
+
+Artefact:
+- `working/exhaustive_backend_tool_audit.json`
+
+Notes:
+- `not_supported` entries are deterministic backend contract responses (for example `chmod_path` on non-POSIX backends).
+- No unexpected tool failures remain in this latest exhaustive run.

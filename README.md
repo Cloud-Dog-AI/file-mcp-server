@@ -224,12 +224,28 @@ Use an OAuth **Web application** credential in Google with redirect URI:
 4. Configure OAuth consent screen:
    - APIs & Services -> OAuth consent screen
    - choose External (or Internal), set app details
-   - add test users if required
+   - in **Audience**, keep Publishing status as `Testing` during development
+   - add test users (must include the account used to log in)
 5. Create credentials:
    - APIs & Services -> Credentials -> Create Credentials -> OAuth client ID
-   - Application type: **Desktop app**
+   - Application type: **Web application**
+   - add Authorized redirect URI(s), for example:
+     - `http://127.0.0.1:8000/admin/google-drive/callback`
+     - `http://<host-or-dns>:8000/admin/google-drive/callback`
 6. Copy values from the created credential:
    - Client ID -> `FILE_MCP_GDRIVE_CLIENT_ID`
    - Client secret -> `FILE_MCP_GDRIVE_CLIENT_SECRET`
 
-After you have the client ID, the setup script prints a Google challenge URL for authorization, then asks for the returned code.
+### Google OAuth troubleshooting (common)
+
+- **Google hasn’t verified this app**:
+  - expected for test-mode apps
+  - ensure your login account is listed in OAuth consent screen -> **Audience** -> **Test users**
+  - continue via `Advanced` -> `Go to <app> (unsafe)` (test users only)
+- **Where is Publishing status?**
+  - Google Cloud Console -> APIs & Services -> OAuth consent screen -> **Audience** section
+  - label appears as `Publishing status` (`Testing` or `In production`)
+- **Unauthorized / redirect mismatch**:
+  - ensure OAuth client type is **Web application**
+  - ensure the Redirect URI entered in file-mcp-server exactly matches one Authorized redirect URI in Google
+  - host, scheme (`http/https`), port, and path must match exactly

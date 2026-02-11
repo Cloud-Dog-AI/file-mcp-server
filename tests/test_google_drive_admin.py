@@ -12,6 +12,7 @@ Tests: UT1.32
 from __future__ import annotations
 
 from pathlib import Path
+import requests
 
 from file_mcp_server import google_drive_admin as admin
 
@@ -80,3 +81,44 @@ def test_complete_oauth_callback_updates_config_with_monkeypatched_network(tmp_p
     assert result.folder_id == "folder1"
     updated = cfg.read_text(encoding="utf-8")
     assert "backend: google_drive" in updated
+
+
+def test_fetch_folder_falls_back_to_name_lookup_on_404(monkeypatch) -> None:
+    class _Resp:
+        def __init__(self, status_code: int, data: dict) -> None:
+            self.status_code = status_code
+            self._data = data
+
+        def json(self):
+            return self._data
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"status={self.status_code}")
+
+    calls = {"n": 0}
+
+    def _fake_get(url, headers=None, params=None, timeout=None):  # noqa: ANN001
+        calls["n"] += 1
+        if "/drive/v3/files/Test" in url:
+            return _Resp(404, {})
+        return _Resp(
+            200,
+            {
+                "files": [
+                    {
+                        "id": "folder123",
+                        "name": "Test",
+                        "webViewLink": "https://drive.google.com/drive/folders/folder123",
+                        "mimeType": "application/vnd.google-apps.folder",
+                    }
+                ]
+            },
+        )
+
+    monkeypatch.setattr(admin.requests, "get", _fake_get)
+    folder_id, folder_name, folder_url = admin._fetch_folder("atok", "Test")
+    assert folder_id == "folder123"
+    assert folder_name == "Test"
+    assert "folder123" in folder_url
+    assert calls["n"] == 2

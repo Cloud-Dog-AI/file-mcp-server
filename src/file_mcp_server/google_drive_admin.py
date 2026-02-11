@@ -216,11 +216,12 @@ def _fetch_folder(access_token: str, folder_input: str) -> tuple[str, str, str]:
             params={"fields": "id,name,mimeType,webViewLink"},
             timeout=30,
         )
-        response.raise_for_status()
-        data = response.json()
-        if data.get("mimeType") != "application/vnd.google-apps.folder":
-            raise RuntimeError("Resolved id is not a Google Drive folder")
-        return data["id"], data.get("name", ""), folder_url or data.get("webViewLink", "")
+        if response.status_code != 404:
+            response.raise_for_status()
+            data = response.json()
+            if data.get("mimeType") != "application/vnd.google-apps.folder":
+                raise RuntimeError("Resolved id is not a Google Drive folder")
+            return data["id"], data.get("name", ""), folder_url or data.get("webViewLink", "")
 
     escaped = folder_input.replace("'", "\\'")
     q = f"name = '{escaped}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"

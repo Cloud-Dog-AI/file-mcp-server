@@ -5,7 +5,7 @@ from __future__ import annotations
 import posixpath
 import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterable, Optional
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -212,12 +212,17 @@ class WebDavStorage(StorageBackend):
         else:
             headers = {}
         url = _join_url(self._base_url, path)
-        resp = self._request("PUT", url, headers=headers, data=data)
-        if resp.status_code in (200, 201, 204):
-            return
-        if resp.status_code == 412 and not overwrite:
-            raise FileExistsError(path)
-        resp.raise_for_status()
+        attempts = self._move_retry_count + 1
+        for attempt in range(1, attempts + 1):
+            resp = self._request("PUT", url, headers=headers, data=data)
+            if resp.status_code in (200, 201, 204):
+                return
+            if resp.status_code == 412 and not overwrite:
+                raise FileExistsError(path)
+            if self._is_transient_status(resp.status_code) and attempt < attempts:
+                time.sleep(self._move_retry_backoff_s * attempt)
+                continue
+            resp.raise_for_status()
 
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
         url = _join_url(self._base_url, path)
@@ -258,6 +263,25 @@ class WebDavStorage(StorageBackend):
                 continue
             cleaned.append(StorageEntry(path=item.path, is_dir=item.is_dir))
         return cleaned
+
+    def iter_paths(self, roots: Iterable[str], *, max_depth: int | None = None) -> Iterable[str]:
+        for root in roots:
+            base = _clean_posix(root)
+            queue: list[tuple[str, int]] = [(base, 0)]
+            while queue:
+                current, depth = queue.pop(0)
+                try:
+                    entries = self.list_dir(current, recursive=False)
+                except FileNotFoundError:
+                    continue
+                for entry in entries:
+                    next_depth = depth + 1
+                    if entry.is_dir:
+                        if max_depth is None or next_depth <= max_depth:
+                            queue.append((entry.path, next_depth))
+                        continue
+                    if max_depth is None or next_depth <= max_depth:
+                        yield entry.path
 
     def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
         # WebDAV MKCOL does not create parents; create chain if requested.

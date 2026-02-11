@@ -13,7 +13,7 @@ import mimetypes
 import posixpath
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
@@ -124,7 +124,20 @@ class GoogleDriveStorage(StorageBackend):
     def _request(self, method: str, url: str, **kwargs) -> requests.Response:
         headers = dict(kwargs.pop("headers", {}) or {})
         headers.update(self._headers())
-        return requests.request(method, url, headers=headers, timeout=self._timeout_s, verify=self._verify, **kwargs)
+        params = dict(kwargs.pop("params", {}) or {})
+        if "googleapis.com/drive/v3/" in url:
+            params.setdefault("supportsAllDrives", True)
+            if url.rstrip("/").endswith("/files"):
+                params.setdefault("includeItemsFromAllDrives", True)
+        return requests.request(
+            method,
+            url,
+            headers=headers,
+            params=params,
+            timeout=self._timeout_s,
+            verify=self._verify,
+            **kwargs,
+        )
 
     def _lookup_child(self, parent_id: str, name: str) -> dict[str, Any] | None:
         escaped_name = name.replace("'", "\\'")
@@ -206,11 +219,21 @@ class GoogleDriveStorage(StorageBackend):
             raise FileExistsError(path)
 
         metadata = {"name": name, "parents": [parent_id]}
-        files = {"metadata": ("metadata", json.dumps(metadata), "application/json"), "file": (name, data, mime_type)}
         if existing:
+            # Updating an existing file should not force parent rewrites; some
+            # shared/linked folders allow content updates but reject parent changes.
+            patch_meta = {"name": name}
+            files = {
+                "metadata": ("metadata", json.dumps(patch_meta), "application/json"),
+                "file": (name, data, mime_type),
+            }
             url = f"https://www.googleapis.com/upload/drive/v3/files/{existing['id']}"
             resp = self._request("PATCH", url, params={"uploadType": "multipart"}, files=files)
         else:
+            files = {
+                "metadata": ("metadata", json.dumps(metadata), "application/json"),
+                "file": (name, data, mime_type),
+            }
             url = "https://www.googleapis.com/upload/drive/v3/files"
             resp = self._request("POST", url, params={"uploadType": "multipart"}, files=files)
         resp.raise_for_status()
@@ -266,6 +289,25 @@ class GoogleDriveStorage(StorageBackend):
                 if recursive and child_is_dir:
                     queue.append((item["id"], child_path))
         return entries
+
+    def iter_paths(self, roots: Iterable[str], *, max_depth: int | None = None) -> Iterable[str]:
+        for root in roots:
+            base = _clean_posix(root)
+            queue: list[tuple[str, int]] = [(base, 0)]
+            while queue:
+                current, depth = queue.pop(0)
+                try:
+                    entries = self.list_dir(current, recursive=False)
+                except FileNotFoundError:
+                    continue
+                for entry in entries:
+                    next_depth = depth + 1
+                    if entry.is_dir:
+                        if max_depth is None or next_depth <= max_depth:
+                            queue.append((entry.path, next_depth))
+                        continue
+                    if max_depth is None or next_depth <= max_depth:
+                        yield entry.path
 
     def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
         logical = _clean_posix(path)

@@ -195,6 +195,7 @@ class HealthCheckMiddleware:
         self.profile_name = profile_name
         self.transport = transport
         self.reload_callback = reload_callback
+        self.logger = logging.getLogger("file_mcp_server.admin")
         self.app_name = "file-mcp-server"
         self.env_file = str(os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
         self.active_config = str(os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml")
@@ -308,10 +309,19 @@ class HealthCheckMiddleware:
             body = await self._read_http_body(receive)
             try:
                 data = parse_form_urlencoded(body)
+                callback_uri = (data.get("redirect_uri") or "").strip()
+                self.logger.info(
+                    "admin_google_drive_start profile=%s callback_uri=%s has_client_id=%s has_client_secret=%s",
+                    (data.get("profile") or "").strip(),
+                    callback_uri,
+                    bool((data.get("client_id") or "").strip()),
+                    bool((data.get("client_secret") or "").strip()),
+                )
                 location = begin_oauth(data)
                 await self._send_redirect(send, location=location)
                 return
             except Exception as exc:
+                self.logger.exception("admin_google_drive_start_failed error=%s", exc)
                 html = render_setup_page(
                     callback_url="",
                     profiles=self.profile_names or [self.profile_name],
@@ -324,7 +334,16 @@ class HealthCheckMiddleware:
             query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
             state = (query.get("state") or [""])[0]
             code = (query.get("code") or [""])[0]
+            oauth_error = (query.get("error") or [""])[0]
+            oauth_error_description = (query.get("error_description") or [""])[0]
             if not state or not code:
+                self.logger.warning(
+                    "admin_google_drive_callback_missing_code_or_state error=%s error_description=%s has_state=%s has_code=%s",
+                    oauth_error,
+                    oauth_error_description,
+                    bool(state),
+                    bool(code),
+                )
                 await self._send_html(send, status=400, html="<h1>Missing state or code in callback.</h1>")
                 return
             try:
@@ -348,9 +367,20 @@ class HealthCheckMiddleware:
                     f"<p>Folder URL: <a href=\"{result.folder_url}\">{result.folder_url}</a></p>"
                     f"<p>{escape(reload_message)}</p>"
                 )
+                self.logger.info(
+                    "admin_google_drive_callback_success profile=%s folder_id=%s config_path=%s",
+                    result.profile,
+                    result.folder_id,
+                    result.config_path,
+                )
                 await self._send_html(send, status=200, html=html)
                 return
             except Exception as exc:
+                self.logger.exception(
+                    "admin_google_drive_callback_failed state=%s error=%s",
+                    state,
+                    exc,
+                )
                 await self._send_html(send, status=400, html=f"<h1>OAuth callback failed</h1><pre>{exc}</pre>")
                 return
         if scope.get("type") == "http" and scope.get("method") == "POST" and scope.get("path") == "/admin/reload":
@@ -1083,34 +1113,39 @@ def build_tool_registry(
             return len(rel.parts) <= max_depth
 
         filtered: list[str] = []
-        with enforce_timeout(effective_timeout):
-            for candidate in backend.iter_paths(roots, max_depth=max_depth):
-                if glob and not PurePosixPath(candidate).match(glob):
-                    continue
-                if not any(_depth_ok(root, candidate) for root in roots):
-                    continue
-                try:
-                    if effective_max_mb is not None:
-                        stat = backend.stat(candidate)
-                        if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
-                            continue
-                except Exception:
-                    continue
-                if regex:
-                    if pattern and pattern.search(candidate):
-                        pass
-                    else:
+        timed_out = False
+        started = time.monotonic()
+        for candidate in backend.iter_paths(roots, max_depth=max_depth):
+            if effective_timeout is not None and effective_timeout > 0:
+                if (time.monotonic() - started) >= effective_timeout:
+                    timed_out = True
+                    break
+            if glob and not PurePosixPath(candidate).match(glob):
+                continue
+            if not any(_depth_ok(root, candidate) for root in roots):
+                continue
+            try:
+                if effective_max_mb is not None:
+                    stat = backend.stat(candidate)
+                    if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
                         continue
+            except Exception:
+                continue
+            if regex:
+                if pattern and pattern.search(candidate):
+                    pass
                 else:
-                    if query not in candidate:
-                        continue
-                try:
-                    assert isinstance(policy, PosixScopePolicy)
-                    policy.require(candidate, operation="read")
-                except Exception:
                     continue
-                filtered.append(candidate)
-        return {"matches": filtered}
+            else:
+                if query not in candidate:
+                    continue
+            try:
+                assert isinstance(policy, PosixScopePolicy)
+                policy.require(candidate, operation="read")
+            except Exception:
+                continue
+            filtered.append(candidate)
+        return {"matches": filtered, "timed_out": timed_out}
 
     def search_text_content(
         query: str,
@@ -1172,35 +1207,40 @@ def build_tool_registry(
                 return False
             return len(rel.parts) <= max_depth
 
-        with enforce_timeout(effective_timeout):
-            for candidate in backend.iter_paths(roots, max_depth=max_depth):
-                if glob and not PurePosixPath(candidate).match(glob):
-                    continue
-                if not any(_depth_ok(root, candidate) for root in roots):
-                    continue
-                try:
-                    assert isinstance(policy, PosixScopePolicy)
-                    policy.require(candidate, operation="read")
-                except Exception:
-                    continue
-                try:
-                    if effective_max_mb is not None:
-                        stat = backend.stat(candidate)
-                        if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
-                            continue
-                except Exception:
-                    continue
-                try:
-                    text = backend.read_bytes(candidate).decode(encoding, errors="replace")
-                except Exception:
-                    continue
-                for line_no, line in enumerate(text.splitlines(), start=1):
-                    ok = pattern.search(line) is not None if regex else (query in line)
-                    if ok:
-                        results.append({"path": candidate, "line_no": line_no, "line": line})
-                        if effective_max_results is not None and len(results) >= effective_max_results:
-                            return {"matches": results}
-        return {"matches": results}
+        timed_out = False
+        started = time.monotonic()
+        for candidate in backend.iter_paths(roots, max_depth=max_depth):
+            if effective_timeout is not None and effective_timeout > 0:
+                if (time.monotonic() - started) >= effective_timeout:
+                    timed_out = True
+                    break
+            if glob and not PurePosixPath(candidate).match(glob):
+                continue
+            if not any(_depth_ok(root, candidate) for root in roots):
+                continue
+            try:
+                assert isinstance(policy, PosixScopePolicy)
+                policy.require(candidate, operation="read")
+            except Exception:
+                continue
+            try:
+                if effective_max_mb is not None:
+                    stat = backend.stat(candidate)
+                    if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
+                        continue
+            except Exception:
+                continue
+            try:
+                text = backend.read_bytes(candidate).decode(encoding, errors="replace")
+            except Exception:
+                continue
+            for line_no, line in enumerate(text.splitlines(), start=1):
+                ok = pattern.search(line) is not None if regex else (query in line)
+                if ok:
+                    results.append({"path": candidate, "line_no": line_no, "line": line})
+                    if effective_max_results is not None and len(results) >= effective_max_results:
+                        return {"matches": results, "timed_out": timed_out}
+        return {"matches": results, "timed_out": timed_out}
 
     def json_set_file(
         path: str,

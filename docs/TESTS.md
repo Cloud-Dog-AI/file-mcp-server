@@ -28,6 +28,7 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
+| 2026-02-11 | IT (Exhaustive Per-Tool Backend Audit: WebDAV/FTP/S3/Google Drive) | `source .venv/bin/activate && PYTHONPATH=src:. FILE_MCP_EXHAUSTIVE_BACKENDS=webdav,ftp,s3,google_drive FILE_MCP_EXHAUSTIVE_TOOL_TIMEOUT_S=60 python3 scripts/exhaustive_backend_tool_audit.py` | PASS | `webdav: pass=52 not_supported=2 fail=0; ftp: pass=52 not_supported=2 fail=0; s3: pass=51 not_supported=3 fail=0; google_drive: pass=52 not_supported=2 fail=0; report=working/exhaustive_backend_tool_audit.json` |
 | 2026-02-11 | Full Suite Re-run | `PYTHONPATH=src pytest -q` | PASS | `166 passed, 14 skipped` |
 | 2026-02-11 | IT (Google Live, env-gated) | `FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1 PYTHONPATH=src pytest -q tests/test_integration_google_drive_live_http.py -rs` | SKIP | `1 skipped` (missing `FILE_MCP_GDRIVE_CLIENT_ID`, `FILE_MCP_GDRIVE_CLIENT_SECRET`) |
 | 2026-02-11 | IT (Remote Backend Matrix) | `FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 PYTHONPATH=src pytest -q tests/test_integration_remote_backend_tool_matrix_http.py -rs` | PASS | `3 passed, 1 skipped` (Google Drive credentials not configured for matrix) |
