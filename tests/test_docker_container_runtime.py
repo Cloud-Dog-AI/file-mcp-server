@@ -73,6 +73,10 @@ def _common_env_lines(*, host_port: int, root: str) -> list[str]:
         "FILE_MCP_SEARCH_MAX_RESULTS=50",
         "FILE_MCP_SEARCH_MAX_FILE_MB=5",
         "FILE_MCP_SEARCH_TIMEOUT_S=15",
+        "FILE_MCP_STORAGE_BACKEND=local",
+        "FILE_MCP_STORAGE_TLS_INSECURE=false",
+        "FILE_MCP_STORAGE_TLS_CA_BUNDLE=",
+        "FILE_MCP_STORAGE_TIMEOUT_S=30",
         "FILE_MCP_CONVERSION_TIMEOUT_S=30",
         "FILE_MCP_CONVERSION_MAX_INPUT_MB=20",
         "FILE_MCP_SNAPSHOT_RETENTION_DAYS=30",
@@ -120,6 +124,19 @@ def _docker_available() -> bool:
     return True
 
 
+def _detect_docker_host_endpoint() -> str | None:
+    try:
+        proc = _run(
+            ["docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}"],
+            cwd=Path.cwd(),
+            check=True,
+        )
+    except Exception:
+        return None
+    host = (proc.stdout or "").strip()
+    return host or None
+
+
 @pytest.fixture(scope="session")
 def docker_image() -> str:
     if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
@@ -156,6 +173,27 @@ def test_docker_command_builder_defaults_to_local_daemon() -> None:
             os.environ["FILE_MCP_DOCKER_HOST"] = prev
 
 
+def test_docker_remote_host_exec_path_if_enabled() -> None:
+    if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
+        pytest.skip("Set FILE_MCP_RUN_DOCKER_TESTS=1 to enable Docker integration tests")
+    if not _docker_available():
+        pytest.skip("Docker daemon unavailable")
+    docker_host = _detect_docker_host_endpoint()
+    if not docker_host:
+        pytest.skip("Unable to detect a Docker host endpoint from docker context")
+
+    prev = os.environ.get("FILE_MCP_DOCKER_HOST")
+    os.environ["FILE_MCP_DOCKER_HOST"] = docker_host
+    try:
+        result = _run(_docker_cmd("ps"), cwd=Path.cwd(), check=True)
+        assert result.returncode == 0
+    finally:
+        if prev is None:
+            os.environ.pop("FILE_MCP_DOCKER_HOST", None)
+        else:
+            os.environ["FILE_MCP_DOCKER_HOST"] = prev
+
+
 def test_container_smoke_with_host_network_and_mcp_call(docker_image: str, tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     host_port = _pick_free_port()
@@ -172,7 +210,6 @@ def test_container_smoke_with_host_network_and_mcp_call(docker_image: str, tmp_p
         [
             "run",
             "-d",
-            "--rm",
             "--name",
             container_name,
             "--network=host",
@@ -227,7 +264,6 @@ def test_container_smoke_with_bridge_network_port_publish(docker_image: str, tmp
         [
             "run",
             "-d",
-            "--rm",
             "--name",
             container_name,
             "-p",
@@ -286,7 +322,6 @@ def test_container_multi_env_override_changes_root_and_api_key(docker_image: str
         [
             "run",
             "-d",
-            "--rm",
             "--name",
             container_name,
             "--network=host",
@@ -366,6 +401,29 @@ profiles:
         - "${FILE_MCP_API_KEY_PRIMARY}"
       header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
       header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    storage:
+      backend: "${FILE_MCP_STORAGE_BACKEND}"
+      tls:
+        insecure_skip_verify: "${FILE_MCP_STORAGE_TLS_INSECURE}"
+        ca_bundle_path: "${FILE_MCP_STORAGE_TLS_CA_BUNDLE}"
+      s3:
+        endpoint: "${FILE_MCP_S3_ENDPOINT}"
+        bucket: "${FILE_MCP_S3_BUCKET}"
+        region: "${FILE_MCP_S3_REGION}"
+        access_key: "${FILE_MCP_S3_ACCESS_KEY}"
+        secret_key: "${FILE_MCP_S3_SECRET_KEY}"
+        prefix: "${FILE_MCP_S3_PREFIX}"
+      webdav:
+        base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
+        username: "${FILE_MCP_WEBDAV_USERNAME}"
+        password: "${FILE_MCP_WEBDAV_PASSWORD}"
+      ftp:
+        host: "${FILE_MCP_FTP_HOST}"
+        port: "${FILE_MCP_FTP_PORT}"
+        username: "${FILE_MCP_FTP_USERNAME}"
+        password: "${FILE_MCP_FTP_PASSWORD}"
+        base_dir: "${FILE_MCP_FTP_BASE_DIR}"
+        use_tls: "${FILE_MCP_FTP_USE_TLS}"
     scope:
       roots:
         - "${FILE_MCP_ROOT}"
@@ -401,6 +459,7 @@ profiles:
       search_max_results: 250
       search_max_file_mb: 5
       search_timeout_s: 30
+      storage_timeout_s: 30
       conversion_timeout_s: 60
 http:
   transport: "${FILE_MCP_HTTP_TRANSPORT}"
@@ -421,7 +480,6 @@ http:
         [
             "run",
             "-d",
-            "--rm",
             "--name",
             container_name,
             "--network=host",

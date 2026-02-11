@@ -16,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, TextIO
+from threading import Lock
+from html import escape
 
 import contextvars
 import inspect
@@ -25,10 +27,12 @@ import os
 import sys
 import time
 import uuid
+from urllib.parse import parse_qs
 
 from fastmcp import FastMCP
 from file_tools.config.models import HttpServerConfig, ProfileConfig, ValidationConfig
-from file_tools.audit import AuditLogger, build_event, create_snapshot, prune_snapshots
+from file_tools.config.loader import get_profile, load_config
+from file_tools.audit import AuditLogger, build_event, create_snapshot, create_snapshot_bytes, prune_snapshots
 from file_tools.diff import diff_files, diff_text, launch_meld
 from file_tools.edit import (
     delete_matching_lines,
@@ -69,8 +73,9 @@ from file_tools.io import (
     write_bytes,
     write_text,
 )
-from file_tools.scope import ScopePolicy
+from file_tools.scope import ScopePolicy, PosixScopePolicy
 from file_tools.search import search_content, search_paths
+from file_tools.storage import NotSupportedError, StorageBackend, build_storage_backend
 from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry
 from file_tools.convert import (
     BackendCannotHandleError,
@@ -84,6 +89,13 @@ from file_tools.validate.policy import validate_with_mode
 from starlette.middleware import Middleware
 
 from .auth import ApiKeyTokenVerifier
+from .endpoint_health import ENDPOINT_HEALTH_MANAGER
+from .google_drive_admin import (
+    begin_oauth,
+    complete_oauth_callback,
+    parse_form_urlencoded,
+    render_setup_page,
+)
 
 
 @dataclass(frozen=True)
@@ -177,15 +189,70 @@ class StdioServer:
 class HealthCheckMiddleware:
     """Minimal unauthenticated health endpoint for transport app."""
 
-    def __init__(self, app, *, health_path: str, profile_name: str, transport: str) -> None:
+    def __init__(self, app, *, health_path: str, profile_name: str, transport: str, reload_callback=None) -> None:
         self.app = app
         self.health_path = health_path
         self.profile_name = profile_name
         self.transport = transport
+        self.reload_callback = reload_callback
         self.app_name = "file-mcp-server"
         self.env_file = str(os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
+        self.active_config = str(os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml")
+        self.profile_names = [
+            name.strip()
+            for name in (os.getenv("FILE_MCP_ACTIVE_PROFILE_NAMES") or profile_name).split(",")
+            if name.strip()
+        ]
+        self.admin_ui_enabled = _to_bool(os.getenv("FILE_MCP_ADMIN_UI_ENABLED"), default=False)
+        self.admin_ui_token = str(os.getenv("FILE_MCP_ADMIN_UI_TOKEN") or "").strip()
+        self.admin_apply_on_callback = _to_bool(os.getenv("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True)
+
+    async def _read_http_body(self, receive) -> bytes:
+        body = b""
+        while True:
+            event = await receive()
+            if event.get("type") != "http.request":
+                continue
+            body += event.get("body", b"")
+            if not event.get("more_body", False):
+                break
+        return body
+
+    async def _send_bytes(self, send, *, status: int, body: bytes, content_type: str = "text/plain; charset=utf-8") -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [
+                    (b"content-type", content_type.encode("utf-8")),
+                    (b"content-length", str(len(body)).encode("utf-8")),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+    async def _send_html(self, send, *, status: int, html: str) -> None:
+        await self._send_bytes(send, status=status, body=html.encode("utf-8"), content_type="text/html; charset=utf-8")
+
+    async def _send_redirect(self, send, *, location: str) -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 302,
+                "headers": [(b"location", location.encode("utf-8"))],
+            }
+        )
+        await send({"type": "http.response.body", "body": b""})
 
     async def __call__(self, scope, receive, send) -> None:
+        headers = {
+            (k.decode("latin-1").lower() if isinstance(k, bytes) else str(k).lower()): (
+                v.decode("latin-1") if isinstance(v, bytes) else str(v)
+            )
+            for k, v in (scope.get("headers") or [])
+        }
+        path = str(scope.get("path") or "")
+        is_admin_route = path.startswith("/admin/")
         if (
             scope.get("type") == "http"
             and scope.get("method") == "GET"
@@ -213,6 +280,92 @@ class HealthCheckMiddleware:
             )
             await send({"type": "http.response.body", "body": body})
             return
+        if scope.get("type") == "http" and is_admin_route:
+            if not self.admin_ui_enabled:
+                await self._send_bytes(send, status=404, body=b"Not Found")
+                return
+            if self.admin_ui_token:
+                query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
+                provided = (query.get("token") or [""])[0]
+                if not provided:
+                    provided = headers.get("x-admin-token", "")
+                if provided != self.admin_ui_token:
+                    await self._send_bytes(send, status=401, body=b"Unauthorized")
+                    return
+
+        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/admin/google-drive":
+            scheme = scope.get("scheme") or "http"
+            host = headers.get("host", "localhost")
+            callback_url = f"{scheme}://{host}/admin/google-drive/callback"
+            html = render_setup_page(
+                callback_url=callback_url,
+                profiles=self.profile_names or [self.profile_name],
+                status_message="",
+            )
+            await self._send_html(send, status=200, html=html)
+            return
+        if scope.get("type") == "http" and scope.get("method") == "POST" and scope.get("path") == "/admin/google-drive/start":
+            body = await self._read_http_body(receive)
+            try:
+                data = parse_form_urlencoded(body)
+                location = begin_oauth(data)
+                await self._send_redirect(send, location=location)
+                return
+            except Exception as exc:
+                html = render_setup_page(
+                    callback_url="",
+                    profiles=self.profile_names or [self.profile_name],
+                    status_message=f"Failed to start OAuth flow: {exc}",
+                    status_type="warn",
+                )
+                await self._send_html(send, status=400, html=html)
+                return
+        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/admin/google-drive/callback":
+            query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
+            state = (query.get("state") or [""])[0]
+            code = (query.get("code") or [""])[0]
+            if not state or not code:
+                await self._send_html(send, status=400, html="<h1>Missing state or code in callback.</h1>")
+                return
+            try:
+                result = complete_oauth_callback(
+                    state=state,
+                    code=code,
+                    config_path=Path(self.active_config),
+                )
+                reload_message = "Restart server to apply updated config."
+                if self.admin_apply_on_callback and callable(self.reload_callback):
+                    try:
+                        reload_info = self.reload_callback()
+                        reload_message = f"Config hot-reloaded for profile {reload_info.get('profile', self.profile_name)}."
+                    except Exception as exc:
+                        reload_message = f"Config written but hot-reload failed: {exc}"
+                html = (
+                    "<h1>Google Drive linked successfully</h1>"
+                    f"<p>Profile: <b>{result.profile}</b></p>"
+                    f"<p>Folder: <b>{result.folder_name}</b> ({result.folder_id})</p>"
+                    f"<p>Config updated: <code>{result.config_path}</code></p>"
+                    f"<p>Folder URL: <a href=\"{result.folder_url}\">{result.folder_url}</a></p>"
+                    f"<p>{escape(reload_message)}</p>"
+                )
+                await self._send_html(send, status=200, html=html)
+                return
+            except Exception as exc:
+                await self._send_html(send, status=400, html=f"<h1>OAuth callback failed</h1><pre>{exc}</pre>")
+                return
+        if scope.get("type") == "http" and scope.get("method") == "POST" and scope.get("path") == "/admin/reload":
+            if not callable(self.reload_callback):
+                await self._send_bytes(send, status=501, body=b"Reload callback not configured")
+                return
+            try:
+                result = self.reload_callback()
+                body = json.dumps({"ok": True, "result": result}).encode("utf-8")
+                await self._send_bytes(send, status=200, body=body, content_type="application/json")
+                return
+            except Exception as exc:
+                body = json.dumps({"ok": False, "error": str(exc)}).encode("utf-8")
+                await self._send_bytes(send, status=500, body=body, content_type="application/json")
+                return
         await self.app(scope, receive, send)
 
 
@@ -330,10 +483,14 @@ def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
     )
 
 
-def _resolve_path(policy: ScopePolicy, path: str, *, operation: str) -> Path:
-    resolved = policy.normalize(path)
-    policy.require(resolved, operation=operation)
-    return resolved
+def _resolve_path(policy: ScopePolicy | PosixScopePolicy, path: str, *, operation: str) -> str:
+    if isinstance(policy, ScopePolicy):
+        resolved = policy.normalize(path)
+        policy.require(resolved, operation=operation)
+        return str(resolved)
+    resolved_posix = policy.normalize(path)
+    policy.require(str(resolved_posix), operation=operation)
+    return str(resolved_posix)
 
 
 def _validate_text(content_type: str, text: str, validation: ValidationConfig) -> Dict[str, Any]:
@@ -341,8 +498,8 @@ def _validate_text(content_type: str, text: str, validation: ValidationConfig) -
     return {"valid": result.valid, "errors": result.errors, "warnings": result.warnings}
 
 
-def _infer_content_type(path: Path) -> str:
-    suffix = path.suffix.lower()
+def _infer_content_type(path: str | Path) -> str:
+    suffix = (Path(path).suffix.lower() if isinstance(path, str) else path.suffix.lower())
     mapping = {
         ".json": "json",
         ".yaml": "yaml",
@@ -367,16 +524,34 @@ def _normalize_optional_path(value: str | None) -> Path | None:
     return Path(cleaned)
 
 
-def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default") -> ToolRegistry:
-    policy = ScopePolicy(
-        roots=profile.scope.roots,
-        allow_globs=profile.scope.allow_globs,
-        deny_globs=profile.scope.deny_globs,
-        allowed_exts=profile.scope.allowed_exts,
-        read_only_exts=profile.scope.read_only_exts,
-    )
+def build_tool_registry(
+    profile: ProfileConfig,
+    *,
+    profile_name: str = "default",
+    logger: logging.Logger | None = None,
+) -> ToolRegistry:
+    backend = build_storage_backend(profile)
+    # Alias to avoid accidental shadowing by tool parameters (e.g. convert_file has a `backend` arg).
+    storage_backend = backend
+    if backend.backend_name == "local":
+        policy: ScopePolicy | PosixScopePolicy = ScopePolicy(
+            roots=profile.scope.roots,
+            allow_globs=profile.scope.allow_globs,
+            deny_globs=profile.scope.deny_globs,
+            allowed_exts=profile.scope.allowed_exts,
+            read_only_exts=profile.scope.read_only_exts,
+        )
+    else:
+        policy = PosixScopePolicy(
+            roots=profile.scope.roots,
+            allow_globs=profile.scope.allow_globs,
+            deny_globs=profile.scope.deny_globs,
+            allowed_exts=profile.scope.allowed_exts,
+            read_only_exts=profile.scope.read_only_exts,
+        )
     limits = profile.limits
     validation = profile.validation
+    active_backend = storage_backend.backend_name
     audit_log_path = _normalize_optional_path(profile.audit.log_path)
     audit_logger = AuditLogger(audit_log_path) if audit_log_path else None
     snapshot_dir = _normalize_optional_path(profile.snapshots.dir)
@@ -412,10 +587,20 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
             )
         )
 
-    def _snapshot_if_enabled(path: Path) -> Path | None:
-        if not snapshots_enabled or not snapshot_dir or not path.exists():
+    def _snapshot_if_enabled(resolved_path: str) -> Path | None:
+        if not snapshots_enabled or not snapshot_dir:
             return None
-        snapshot = create_snapshot(snapshot_dir, path)
+        if backend.backend_name == "local":
+            p = Path(resolved_path)
+            if not p.exists():
+                return None
+            snapshot = create_snapshot(snapshot_dir, p)
+        else:
+            stat = backend.stat(resolved_path)
+            if stat is None:
+                return None
+            data = backend.read_bytes(resolved_path)
+            snapshot = create_snapshot_bytes(snapshot_dir, resolved_path, data)
         prune_snapshots(
             snapshot_dir,
             snapshot_retention_days,
@@ -424,6 +609,14 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         )
         return snapshot
 
+    def _backend_health_snapshot() -> Dict[str, Any]:
+        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+        return {
+            "profile": profile_name,
+            "active_backend": active_backend,
+            "states": {name: state.__dict__.copy() for name, state in states.items()},
+        }
+
     def _resolve_path_for_tool(
         *,
         tool_name: str,
@@ -431,7 +624,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         path: str,
         operation: str,
         path_key: str = "path",
-    ) -> Path:
+    ) -> str:
         try:
             return _resolve_path(policy, path, operation=operation)
         except Exception:
@@ -461,7 +654,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
             operation=operation,
         )
         snapshot = _snapshot_if_enabled(resolved)
-        before = read_text(resolved, encoding=encoding)
+        before = backend.read_bytes(resolved).decode(encoding, errors="replace")
         try:
             updated = transform(before)
         except Exception as exc:
@@ -504,7 +697,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                 "warnings": validation_result.warnings,
             }
 
-        write_text(resolved, updated, encoding=encoding, overwrite=True)
+        backend.write_bytes(resolved, updated.encode(encoding), overwrite=True)
         _write_audit(
             tool_name=tool_name,
             action=f"edit_{content_type}",
@@ -523,6 +716,9 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
             "warnings": validation_result.warnings,
         }
 
+    def backend_status() -> Dict[str, Any]:
+        return _backend_health_snapshot()
+
     def read_file(
         path: str,
         encoding: str = "utf-8",
@@ -535,15 +731,15 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         if (start_line is not None or end_line is not None) and (start_byte is not None or end_byte is not None):
             raise ValueError("Cannot combine line and byte ranges")
 
+        data = backend.read_bytes(resolved)
         if start_byte is not None or end_byte is not None:
-            data = read_bytes(resolved)
             start = 0 if start_byte is None else max(start_byte, 0)
             end = len(data) if end_byte is None else max(end_byte, 0)
             if end < start:
                 raise ValueError("end_byte must be >= start_byte")
             return data[start:end].decode(encoding, errors="replace")
 
-        text = read_text(resolved, encoding=encoding)
+        text = data.decode(encoding, errors="replace")
         if start_line is None and end_line is None:
             return text
 
@@ -578,7 +774,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True, "snapshot_path": str(snapshot) if snapshot else None},
                 )
                 return {"ok": True, "path": str(resolved), "dry_run": True}
-            write_text(resolved, content, encoding=encoding, overwrite=overwrite)
+            backend.write_bytes(resolved, content.encode(encoding), overwrite=overwrite)
             _write_audit(
                 tool_name="write_file",
                 action="write",
@@ -609,7 +805,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True, "snapshot_path": str(snapshot) if snapshot else None},
                 )
                 return {"ok": True, "path": str(resolved), "dry_run": True}
-            delete_file(resolved, missing_ok=missing_ok)
+            backend.delete_path(resolved, missing_ok=missing_ok)
             _write_audit(
                 tool_name="delete_file",
                 action="delete",
@@ -647,7 +843,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True},
                 )
                 return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
-            copy_file(resolved_src, resolved_dst, overwrite=overwrite)
+            backend.copy_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
                 tool_name="copy_file",
                 action="copy",
@@ -687,7 +883,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True, "parents": parents, "exist_ok": exist_ok},
                 )
                 return {"ok": True, "path": str(resolved), "dry_run": True}
-            create_dir(resolved, parents=parents, exist_ok=exist_ok)
+            backend.create_dir(resolved, parents=parents, exist_ok=exist_ok)
             _write_audit(
                 tool_name="create_dir",
                 action="mkdir",
@@ -728,7 +924,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True, "mode": oct(parsed_mode), "recursive": recursive},
                 )
                 return {"ok": True, "path": str(resolved), "mode": oct(parsed_mode), "dry_run": True}
-            chmod_path(resolved, parsed_mode, recursive=recursive)
+            backend.chmod_path(resolved, parsed_mode, recursive=recursive)
             _write_audit(
                 tool_name="chmod_path",
                 action="chmod",
@@ -773,7 +969,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True},
                 )
                 return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
-            io_move_path(resolved_src, resolved_dst, overwrite=overwrite)
+            backend.move_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
                 tool_name=tool_name,
                 action="move",
@@ -816,7 +1012,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     details={"dry_run": True},
                 )
                 return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
-            rename_path(resolved_src, resolved_dst, overwrite=overwrite)
+            backend.rename_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
                 tool_name="rename_path",
                 action="rename",
@@ -836,7 +1032,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
 
     def list_path(path: str, recursive: bool = False) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
-        entries = [str(item) for item in list_dir(resolved, recursive=recursive)]
+        entries = [entry.path for entry in backend.list_dir(resolved, recursive=recursive)]
         return {"path": str(resolved), "entries": entries}
 
     def search_path_names(
@@ -847,25 +1043,73 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
-        roots = [Path(root).resolve() for root in profile.scope.roots]
         effective_max_mb = max_file_mb if max_file_mb is not None else limits.search_max_file_mb
         effective_timeout = timeout_s if timeout_s is not None else limits.search_timeout_s
-        with enforce_timeout(effective_timeout):
-            matches = search_paths(
-                query,
-                roots=roots,
-                glob=glob,
-                regex=regex,
-                max_file_mb=effective_max_mb,
-                max_depth=max_depth,
-            )
-        filtered: list[str] = []
-        for path in matches:
+
+        if backend.backend_name == "local":
+            roots = [Path(root).resolve() for root in profile.scope.roots]
+            with enforce_timeout(effective_timeout):
+                matches = search_paths(
+                    query,
+                    roots=roots,
+                    glob=glob,
+                    regex=regex,
+                    max_file_mb=effective_max_mb,
+                    max_depth=max_depth,
+                )
+            filtered: list[str] = []
+            for path_obj in matches:
+                try:
+                    assert isinstance(policy, ScopePolicy)
+                    policy.require(path_obj.resolve(), operation="read")
+                    filtered.append(str(path_obj))
+                except Exception:
+                    continue
+            return {"matches": filtered}
+
+        import re
+        from pathlib import PurePosixPath
+
+        pattern = re.compile(query) if regex else None
+        roots = [str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots]  # type: ignore[arg-type]
+
+        def _depth_ok(root: str, candidate: str) -> bool:
+            if max_depth is None:
+                return True
             try:
-                policy.require(path.resolve(), operation="read")
-                filtered.append(str(path))
+                rel = PurePosixPath(candidate).relative_to(PurePosixPath(root))
             except Exception:
-                continue
+                return False
+            return len(rel.parts) <= max_depth
+
+        filtered: list[str] = []
+        with enforce_timeout(effective_timeout):
+            for candidate in backend.iter_paths(roots, max_depth=max_depth):
+                if glob and not PurePosixPath(candidate).match(glob):
+                    continue
+                if not any(_depth_ok(root, candidate) for root in roots):
+                    continue
+                try:
+                    if effective_max_mb is not None:
+                        stat = backend.stat(candidate)
+                        if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
+                            continue
+                except Exception:
+                    continue
+                if regex:
+                    if pattern and pattern.search(candidate):
+                        pass
+                    else:
+                        continue
+                else:
+                    if query not in candidate:
+                        continue
+                try:
+                    assert isinstance(policy, PosixScopePolicy)
+                    policy.require(candidate, operation="read")
+                except Exception:
+                    continue
+                filtered.append(candidate)
         return {"matches": filtered}
 
     def search_text_content(
@@ -878,36 +1122,85 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
-        roots = [Path(root).resolve() for root in profile.scope.roots]
         effective_max_results = max_results if max_results is not None else limits.search_max_results
         effective_max_mb = max_file_mb if max_file_mb is not None else limits.search_max_file_mb
         effective_timeout = timeout_s if timeout_s is not None else limits.search_timeout_s
-        with enforce_timeout(effective_timeout):
-            matches = search_content(
-                query,
-                roots=roots,
-                glob=glob,
-                regex=regex,
-                encoding=encoding,
-                max_results=None,
-                max_file_mb=effective_max_mb,
-                max_depth=max_depth,
-            )
-        filtered_matches = []
-        for match in matches:
+
+        if backend.backend_name == "local":
+            roots = [Path(root).resolve() for root in profile.scope.roots]
+            with enforce_timeout(effective_timeout):
+                matches = search_content(
+                    query,
+                    roots=roots,
+                    glob=glob,
+                    regex=regex,
+                    encoding=encoding,
+                    max_results=None,
+                    max_file_mb=effective_max_mb,
+                    max_depth=max_depth,
+                )
+            filtered_matches = []
+            for match in matches:
+                try:
+                    assert isinstance(policy, ScopePolicy)
+                    policy.require(match.path.resolve(), operation="read")
+                    filtered_matches.append(match)
+                    if effective_max_results is not None and len(filtered_matches) >= effective_max_results:
+                        break
+                except Exception:
+                    continue
+            return {
+                "matches": [
+                    {"path": str(match.path), "line_no": match.line_no, "line": match.line}
+                    for match in filtered_matches
+                ]
+            }
+
+        import re
+        from pathlib import PurePosixPath
+
+        pattern = re.compile(query) if regex else None
+        roots = [str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots]  # type: ignore[arg-type]
+        results: list[dict[str, Any]] = []
+
+        def _depth_ok(root: str, candidate: str) -> bool:
+            if max_depth is None:
+                return True
             try:
-                policy.require(match.path.resolve(), operation="read")
-                filtered_matches.append(match)
-                if effective_max_results is not None and len(filtered_matches) >= effective_max_results:
-                    break
+                rel = PurePosixPath(candidate).relative_to(PurePosixPath(root))
             except Exception:
-                continue
-        return {
-            "matches": [
-                {"path": str(match.path), "line_no": match.line_no, "line": match.line}
-                for match in filtered_matches
-            ]
-        }
+                return False
+            return len(rel.parts) <= max_depth
+
+        with enforce_timeout(effective_timeout):
+            for candidate in backend.iter_paths(roots, max_depth=max_depth):
+                if glob and not PurePosixPath(candidate).match(glob):
+                    continue
+                if not any(_depth_ok(root, candidate) for root in roots):
+                    continue
+                try:
+                    assert isinstance(policy, PosixScopePolicy)
+                    policy.require(candidate, operation="read")
+                except Exception:
+                    continue
+                try:
+                    if effective_max_mb is not None:
+                        stat = backend.stat(candidate)
+                        if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
+                            continue
+                except Exception:
+                    continue
+                try:
+                    text = backend.read_bytes(candidate).decode(encoding, errors="replace")
+                except Exception:
+                    continue
+                for line_no, line in enumerate(text.splitlines(), start=1):
+                    ok = pattern.search(line) is not None if regex else (query in line)
+                    if ok:
+                        results.append({"path": candidate, "line_no": line_no, "line": line})
+                        if effective_max_results is not None and len(results) >= effective_max_results:
+                            return {"matches": results}
+        return {"matches": results}
 
     def json_set_file(
         path: str,
@@ -1028,7 +1321,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
 
     def json_get_file(path: str, json_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
-        text = read_text(resolved, encoding=encoding)
+        text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         return {"ok": True, "path": str(resolved), "value": json_get(text, json_path)}
 
     def json_copy_file(
@@ -1084,7 +1377,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
 
     def yaml_get_file(path: str, yaml_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
-        text = read_text(resolved, encoding=encoding)
+        text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         return {"ok": True, "path": str(resolved), "value": yaml_get(text, yaml_path)}
 
     def yaml_copy_file(
@@ -1164,11 +1457,11 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         try:
             if backend == "builtin-text-copy":
                 text_like_exts = {".txt", ".md", ".json", ".yaml", ".yml", ".html", ".xml"}
-                if resolved.suffix.lower() not in text_like_exts or target_format not in {"txt", "md"}:
+                if Path(resolved).suffix.lower() not in text_like_exts or target_format not in {"txt", "md"}:
                     return _fail("builtin-text-copy backend does not support input/target combination", code="unsupported_format")
-                content = read_text(resolved, encoding="utf-8")
+                content = storage_backend.read_bytes(resolved).decode("utf-8", errors="replace")
                 if resolved_output:
-                    write_text(resolved_output, content, encoding="utf-8", overwrite=True)
+                    storage_backend.write_bytes(resolved_output, content.encode("utf-8"), overwrite=True)
                     return {
                         "ok": True,
                         "backend": "builtin-text-copy",
@@ -1187,14 +1480,39 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
             with enforce_timeout(effective_timeout):
                 if simulate_delay_s and simulate_delay_s > 0:
                     time.sleep(simulate_delay_s)
-                result = run_convert_file(
-                    resolved,
-                    target_format,
-                    output_path=resolved_output,
-                    max_input_mb=effective_max_mb,
-                    timeout_s=None,
-                    preferred_backend=backend if backend else None,
-                )
+                # Conversion backends operate on local filesystem paths. For remote storage,
+                # stage the input into a temporary file and optionally upload the output.
+                if storage_backend.backend_name == "local":
+                    input_path = Path(resolved)
+                    output_path_local = Path(resolved_output) if resolved_output else None
+                    result = run_convert_file(
+                        input_path,
+                        target_format,
+                        output_path=output_path_local,
+                        max_input_mb=effective_max_mb,
+                        timeout_s=None,
+                        preferred_backend=backend if backend else None,
+                    )
+                else:
+                    import tempfile
+
+                    suffix = Path(resolved).suffix or ""
+                    with tempfile.TemporaryDirectory() as td:
+                        in_path = Path(td) / f"input{suffix}"
+                        in_path.write_bytes(storage_backend.read_bytes(resolved))
+                        out_path = Path(td) / f"output.{target_format}"
+                        result = run_convert_file(
+                            in_path,
+                            target_format,
+                            output_path=out_path,
+                            max_input_mb=effective_max_mb,
+                            timeout_s=None,
+                            preferred_backend=backend if backend else None,
+                        )
+                        if resolved_output and result.output_path:
+                            storage_backend.write_bytes(
+                                resolved_output, Path(result.output_path).read_bytes(), overwrite=True
+                            )
             payload: Dict[str, Any] = {
                 "ok": True,
                 "backend": result.backend or "auto",
@@ -1202,7 +1520,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                 "warnings": result.warnings,
             }
             if result.output_path:
-                payload["output_path"] = str(result.output_path)
+                payload["output_path"] = str(resolved_output) if resolved_output else str(result.output_path)
             if result.content is not None:
                 payload["content"] = result.content
             return payload
@@ -1215,12 +1533,12 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
         except ConversionError as exc:
             # Deterministic built-in fallback for text-like sources when external backends are unavailable.
             text_like_exts = {".txt", ".md", ".json", ".yaml", ".yml", ".html", ".xml"}
-            if resolved.suffix.lower() in text_like_exts and target_format in {"txt", "md"}:
+            if Path(resolved).suffix.lower() in text_like_exts and target_format in {"txt", "md"}:
                 if backend and backend != "builtin-text-copy":
                     return _fail(str(exc), code="backend_unavailable")
-                content = read_text(resolved, encoding="utf-8")
+                content = storage_backend.read_bytes(resolved).decode("utf-8", errors="replace")
                 if resolved_output:
-                    write_text(resolved_output, content, encoding="utf-8", overwrite=True)
+                    storage_backend.write_bytes(resolved_output, content.encode("utf-8"), overwrite=True)
                     return {
                         "ok": True,
                         "backend": "builtin-text-copy",
@@ -1244,7 +1562,9 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
     def meld_files_tool(path_a: str, path_b: str) -> Dict[str, Any]:
         resolved_a = _resolve_path(policy, path_a, operation="read")
         resolved_b = _resolve_path(policy, path_b, operation="read")
-        ok, message = launch_meld(resolved_a, resolved_b)
+        if backend.backend_name != "local":
+            raise NotSupportedError("meld_files", backend=backend.backend_name)
+        ok, message = launch_meld(Path(resolved_a), Path(resolved_b))
         return {
             "ok": ok,
             "path_a": str(resolved_a),
@@ -1255,7 +1575,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
 
     def b64_encode_file(path: str, urlsafe: bool = False) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
-        data = read_bytes(resolved)
+        data = backend.read_bytes(resolved)
         return {"ok": True, "data": b64_encode(data, urlsafe=urlsafe)}
 
     def b64_decode_to_file(
@@ -1287,7 +1607,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     },
                 )
                 return {"ok": True, "path": str(resolved), "dry_run": True, "bytes_written": len(decoded)}
-            write_bytes(resolved, decoded, overwrite=overwrite)
+            backend.write_bytes(resolved, decoded, overwrite=overwrite)
             _write_audit(
                 tool_name="b64_decode_to_file",
                 action="write",
@@ -1308,7 +1628,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
     def validate_file(path: str, content_type: str | None = None, encoding: str = "utf-8") -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
         resolved_type = content_type or _infer_content_type(resolved)
-        text = read_text(resolved, encoding=encoding)
+        text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         result = validate_with_mode(resolved_type, text, validation)
         return {
             "ok": True,
@@ -1322,9 +1642,11 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
     def diff_files_tool(path_a: str, path_b: str, encoding: str = "utf-8", context: int = 3) -> Dict[str, Any]:
         resolved_a = _resolve_path(policy, path_a, operation="read")
         resolved_b = _resolve_path(policy, path_b, operation="read")
+        a_text = backend.read_bytes(resolved_a).decode(encoding, errors="replace")
+        b_text = backend.read_bytes(resolved_b).decode(encoding, errors="replace")
         return {
             "ok": True,
-            "diff": diff_files(resolved_a, resolved_b, encoding=encoding, context=context),
+            "diff": diff_text(a_text, b_text, context=context, fromfile=str(resolved_a), tofile=str(resolved_b)),
             "path_a": str(resolved_a),
             "path_b": str(resolved_b),
         }
@@ -1351,7 +1673,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
             operation="edit",
         )
         snapshot = _snapshot_if_enabled(resolved)
-        before = read_text(resolved, encoding=encoding)
+        before = backend.read_bytes(resolved).decode(encoding, errors="replace")
 
         def _apply_single(current: str, op_args: Dict[str, Any]) -> str:
             single_op = op_args.get("op")
@@ -1420,7 +1742,16 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                 },
             )
 
-        content_type = "markdown" if resolved.suffix.lower() == ".md" else "html" if resolved.suffix.lower() == ".html" else "json" if resolved.suffix.lower() == ".json" else ""
+        suffix = Path(resolved).suffix.lower()
+        content_type = (
+            "markdown"
+            if suffix == ".md"
+            else "html"
+            if suffix == ".html"
+            else "json"
+            if suffix == ".json"
+            else ""
+        )
         if content_type:
             validation_result = validate_with_mode(content_type, updated, validation)
             if not validation_result.valid:
@@ -1450,7 +1781,7 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
                     },
                 )
                 return {"ok": True, "path": str(resolved), "warnings": warnings, "dry_run": True}
-            write_text(resolved, updated, encoding=encoding, overwrite=True)
+            backend.write_bytes(resolved, updated.encode(encoding), overwrite=True)
             _write_audit(
                 tool_name="sed_edit_file",
                 action="edit_text",
@@ -1934,6 +2265,20 @@ def build_tool_registry(profile: ProfileConfig, *, profile_name: str = "default"
             handler=sed_edit_file,
         )
     )
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(
+                name="backend_status",
+                description="Return endpoint health states for configured storage backends",
+            ),
+            handler=backend_status,
+        )
+    )
+    setattr(tools, "profile_config", profile)
+    setattr(tools, "profile_name", profile_name)
+    setattr(tools, "storage_backend_name", active_backend)
+    setattr(tools, "endpoint_health_manager", ENDPOINT_HEALTH_MANAGER)
+    setattr(tools, "logger", logger)
     setattr(tools, "audit_writer", _write_audit)
     return tools
 
@@ -1950,12 +2295,12 @@ def _truncate_value(value: Any) -> Any:
 
 def register_tools_with_fastmcp(
     server: FastMCP,
-    registry: ToolRegistry,
+    registry_provider,
     *,
     profile_name: str,
     logger: logging.Logger | None = None,
 ) -> None:
-    audit_writer = getattr(registry, "audit_writer", None)
+    current_registry = registry_provider()
 
     def _extract_paths_from_params(params: Dict[str, Any]) -> Dict[str, str]:
         path_keys = ("path", "src", "dst", "path_a", "path_b")
@@ -1966,11 +2311,59 @@ def register_tools_with_fastmcp(
                 extracted[key] = value
         return extracted
 
-    def build_wrapped_handler(handler, tool_name: str):
+    def build_wrapped_handler(tool_name: str):
         def wrapped_handler(*args, **kwargs):
             started = time.perf_counter()
             params = _truncate_value(kwargs)
             paths = _extract_paths_from_params(kwargs)
+            registry = registry_provider()
+            current_def = registry.get(tool_name)
+            handler = current_def.handler
+            audit_writer = getattr(registry, "audit_writer", None)
+            endpoint_health_manager = getattr(registry, "endpoint_health_manager", None)
+            storage_backend_name = getattr(registry, "storage_backend_name", None)
+            profile_config = getattr(registry, "profile_config", None)
+            restart_on_threshold = (
+                _to_bool(getattr(profile_config.endpoint_health, "restart_on_threshold", None), default=False)
+                if profile_config is not None
+                else False
+            )
+            restart_exit_code = (
+                _to_int(getattr(profile_config.endpoint_health, "restart_exit_code", None), default=75)
+                if profile_config is not None
+                else 75
+            )
+            if (
+                endpoint_health_manager is not None
+                and storage_backend_name
+                and profile_config is not None
+                and tool_name != "backend_status"
+            ):
+                state = endpoint_health_manager.get_state(profile_name, storage_backend_name)
+                if state is not None and state.status != "healthy":
+                    state = endpoint_health_manager.maybe_recover_backend(
+                        profile_name=profile_name,
+                        profile=profile_config,
+                        backend_name=storage_backend_name,
+                        logger=logger,
+                    ) or state
+                    if state.status != "healthy":
+                        message = (
+                            f"Backend unavailable: backend={storage_backend_name} "
+                            f"status={state.status} reason={state.reason} "
+                            f"requires_restart={state.requires_restart}"
+                        )
+                        if logger:
+                            logger.warning(message)
+                        if state.requires_restart and restart_on_threshold:
+                            if logger:
+                                logger.error(
+                                    "Endpoint restart threshold reached for backend=%s; exiting process with code=%s",
+                                    storage_backend_name,
+                                    restart_exit_code,
+                                )
+                            raise SystemExit(restart_exit_code)
+                        raise RuntimeError(message)
             if logger:
                 logger.info(
                     json.dumps(
@@ -2046,16 +2439,16 @@ def register_tools_with_fastmcp(
                 raise
 
         wrapped_handler.__signature__ = inspect.signature(handler)
-        wrapped_handler.__name__ = handler.__name__
-        wrapped_handler.__doc__ = handler.__doc__
+        wrapped_handler.__name__ = f"wrapped_{tool_name}"
+        wrapped_handler.__doc__ = f"Dynamic wrapper for tool {tool_name}"
         wrapped_handler.__annotations__ = getattr(handler, "__annotations__", {})
-        wrapped_handler.__module__ = handler.__module__
+        wrapped_handler.__module__ = getattr(handler, "__module__", __name__)
         return wrapped_handler
 
-    for definition in registry.list_tools():
+    for definition in current_registry.list_tools():
         handler = definition.handler
         tool_name = definition.meta.name
-        wrapped_handler = build_wrapped_handler(handler, tool_name)
+        wrapped_handler = build_wrapped_handler(tool_name)
         server.tool(name=definition.meta.name, description=definition.meta.description)(wrapped_handler)
 
 
@@ -2079,9 +2472,34 @@ def build_fastmcp_server(
         name=f"file-mcp-server:{profile_name}",
         auth=auth,
     )
+    registry_lock = Lock()
+    registry_holder: dict[str, ToolRegistry] = {
+        "registry": build_tool_registry(profile, profile_name=profile_name, logger=logger)
+    }
+
+    def _registry_provider() -> ToolRegistry:
+        with registry_lock:
+            return registry_holder["registry"]
+
+    def _reload_registry(*, env_path: str | None, config_path: str | None, defaults_path: str | None) -> dict[str, Any]:
+        cfg = load_config(env_path=env_path, config_path=config_path, defaults_path=defaults_path)
+        next_profile = get_profile(cfg, name=profile_name)
+        with registry_lock:
+            registry_holder["registry"] = build_tool_registry(next_profile, profile_name=profile_name, logger=logger)
+        ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=profile_name, profile=next_profile, logger=logger)
+        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+        return {
+            "profile": profile_name,
+            "reloaded": True,
+            "endpoint_health": {name: state.__dict__.copy() for name, state in states.items()},
+        }
+
+    setattr(server, "_file_mcp_registry_provider", _registry_provider)
+    setattr(server, "_file_mcp_reload_registry", _reload_registry)
+
     register_tools_with_fastmcp(
         server,
-        build_tool_registry(profile, profile_name=profile_name),
+        _registry_provider,
         profile_name=profile_name,
         logger=logger,
     )
@@ -2096,7 +2514,30 @@ async def run_fastmcp_http_server(
     logger: logging.Logger | None = None,
 ) -> None:
     http = resolve_http_settings(http_config)
+    ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=profile_name, profile=profile, logger=logger)
+    if _to_bool(profile.endpoint_health.restart_on_threshold, default=False):
+        exit_code = _to_int(profile.endpoint_health.restart_exit_code, default=75)
+        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+        for state in states.values():
+            if state.requires_restart:
+                if logger:
+                    logger.error(
+                        "Endpoint startup health exceeded restart threshold for backend=%s; exiting with code=%s",
+                        state.backend,
+                        exit_code,
+                    )
+                raise SystemExit(exit_code)
     server = build_fastmcp_server(profile_name, profile, http, logger=logger)
+    reload_fn = getattr(server, "_file_mcp_reload_registry", None)
+    env_path = os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or None
+    config_path = os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or None
+    defaults_path = os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or None
+
+    def _reload_callback():
+        if not callable(reload_fn):
+            raise RuntimeError("reload function unavailable")
+        return reload_fn(env_path=env_path, config_path=config_path, defaults_path=defaults_path)
+
     endpoint_path = http.events_path if http.transport == "sse" else http.mcp_path
     middleware = [
         Middleware(RequestContextMiddleware),
@@ -2105,6 +2546,7 @@ async def run_fastmcp_http_server(
             health_path=http.health_path,
             profile_name=profile_name,
             transport=http.transport,
+            reload_callback=_reload_callback,
         )
     ]
     if logger:

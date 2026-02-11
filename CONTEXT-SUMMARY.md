@@ -1,125 +1,172 @@
 # Context Summary
 
-Version: 1.11 • 2026-02-08
-Status: Updated
+Version: 1.14 • 2026-02-11
+Status: Active (remote storage + endpoint health + Google Drive + expanded matrix/restart tests + admin hot-reload)
 
-## Current State
-- Added search depth/timeout controls for HTTP search tools:
-  - `search_paths(..., max_depth, timeout_s)`
-  - `search_content(..., max_depth, timeout_s)`
-- Added config model/default support for search timeout:
-  - `limits.search_timeout_s`
-- Expanded integration harness capabilities:
-  - multiple API keys per profile in test env generation
-  - configurable search timeout in generated env/config
-- Added deep end-to-end integration stories requested for real multi-tool workflows:
-  - `tests/test_integration_story_multitype_crud_http.py`
-  - `tests/test_integration_iterative_cycle_guard_http.py`
-  - `tests/test_integration_config_matrix_harness_http.py`
-- Updated docs for completion/traceability and final zero-skip full-suite evidence in this environment.
-- Final documentation hardening completed for external-agent onboarding:
-  - `README.md` rewritten with transport usage, tool examples, and lifecycle commands.
-  - `docs/ARCHITECTURE.md` rewritten to align with actual runtime/tool surface.
-  - `API_DOCUMENTATION.md` updated with streamable/non-streaming/SSE transport clarity.
-  - `server_control.sh` added (`start|stop|status|restart|serve`, required `--env`).
+## 1) What changed in this cycle
 
-## Functional Coverage Added
-- Upload/create/update/retrieve/delete in single-session flows.
-- Multi-format operations in one story: text, JSON, YAML, XML, HTML, Markdown, base64 file payloads.
-- UTF-8 and difficult characters across write/search/read/update.
-- Config matrix scenarios: rotated keys, custom auth header/scheme, scoped deny patterns, limits.
-- Iterative cycle guard flow with bounded completion and audit verification.
-- Search depth/time controls verified in integration paths.
-- PDF story flow now uses an in-test generated PDF fixture (dependency-free) for deterministic execution.
+### Storage/backends
+- Added/extended multi-backend storage support:
+  - `local`, `webdav`, `ftp`, `s3`, `google_drive`
+- Added Google Drive backend implementation:
+  - `src/file_tools/storage/google_drive.py`
+  - OAuth token refresh support
+  - folder binding via `folder_id` or `folder_url`
+  - deterministic not-supported behavior for unsupported operations (`chmod_path`)
+- Storage backend factory updated:
+  - `src/file_tools/storage/factory.py` supports `google_drive|gdrive|drive`
 
-## Key Files Updated (This Cycle)
-- `src/file_mcp_server/server.py`
-- `src/file_tools/search/find.py`
-- `src/file_tools/config/models.py`
-- `defaults.yaml`
-- `tests/http_integration_helpers.py`
-- `tests/test_integration_story_multitype_crud_http.py`
-- `tests/test_integration_iterative_cycle_guard_http.py`
-- `tests/test_integration_config_matrix_harness_http.py`
-- `docs/REQUIREMENTS.md`
-- `docs/TASKS.md`
-- `docs/TESTS.md`
-- `docs/ARCHITECTURE.md`
-- `README.md`
-- `API_DOCUMENTATION.md`
-- `server_control.sh`
+### Endpoint health/recovery
+- Added runtime endpoint health manager:
+  - `src/file_mcp_server/endpoint_health.py`
+- Added profile config section:
+  - `profiles.<name>.endpoint_health.*`
+- Startup probe + retry/recovery wiring added to runtime:
+  - `src/file_mcp_server/server.py`
+- Added optional restart-exit policy when endpoint threshold is exceeded:
+  - `endpoint_health.restart_on_threshold`
+  - `endpoint_health.restart_exit_code`
+- Added MCP tool:
+  - `backend_status` (returns per-backend health state)
 
-## Verification
-- Syntax check:
-  - `python3 -m py_compile src/file_mcp_server/server.py src/file_tools/search/find.py src/file_tools/config/models.py tests/http_integration_helpers.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py tests/test_integration_config_matrix_harness_http.py`
-- New targeted integration runs:
-  - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py` -> PASS (`3 passed`)
-  - `PYTHONPATH=src pytest tests/test_integration_story_multitype_crud_http.py` -> PASS (`3 passed`)
-  - `PYTHONPATH=src pytest tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`1 passed`)
-  - `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` -> PASS (`7 passed`)
-- Full regression:
-  - `PYTHONPATH=src pytest` -> PASS (`132 passed`)
-- Lifecycle script validation:
-  - `bash -n server_control.sh` -> PASS
-  - `./server_control.sh --help` -> PASS
+### Config/env model
+- Added Google Drive config model fields:
+  - `storage.google_drive.*`
+- Added endpoint health config fields:
+  - `endpoint_health.enabled`, `check_on_startup`, `check_all_configured_backends`,
+    `max_retries`, `retry_interval_s`, `retry_window_s`,
+    `max_failures_before_restart`, `recover_after_s`,
+    `restart_on_threshold`, `restart_exit_code`
+- Updated:
+  - `defaults.yaml`
+  - `config.yaml`
+  - `docker-env.example`
 
-## Notes
-- No internet-derived fixtures were added; integration test inputs are generated locally and deterministically.
-- Remaining optional backend behavior is covered in dedicated backend tests and remains environment-dependent by design.
-- Latest commits in sequence:
-  - `a60016b` (docs + lifecycle script refinement)
-  - `05b2f7c` (zero-skip compliance pass)
-  - `62a2bfc` (search controls + deep integration harness)
+### OAuth helper
+- Added helper script:
+  - `scripts/google_drive_oauth_helper.py`
+- Purpose:
+  - generate Google auth URL
+  - exchange auth code
+  - print env-variable output for runtime config
 
-## Update: 2026-02-09 (Filesystem Path Tools)
+### Documentation updates
+- Updated/extended:
+  - `README.md`
+  - `DOCKER-README.me`
+  - `docs/REQUIREMENTS.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/TESTS.md`
 
-### Added filesystem/path tool capability
-- New MCP tools:
-  - `create_dir`
-  - `chmod_path`
-  - `rename_path`
-  - `move_path` (in addition to backward-compatible `move_file`)
-- `_health` now includes:
-  - `application.name`
-  - `runtime.env_file`
+### Tests added
+- `tests/test_endpoint_health.py`
+  - startup healthy state
+  - exception classification
+  - recovery after prior failure
+- `tests/test_google_drive_storage.py`
+  - folder URL -> folder ID parsing
+  - required config validation checks
+- `tests/test_server_runtime.py`
+  - asserts `backend_status` tool is present and callable
+- `tests/test_google_drive_oauth_helper.py`
+  - OAuth helper URL generation and optional live code exchange flow
+- `tests/test_integration_google_drive_live_http.py`
+  - env-gated live Google Drive backend integration
+- `tests/test_integration_remote_backend_tool_matrix_http.py`
+  - broad tool matrix across webdav/ftp/s3 (+google when creds are present)
+- `tests/test_system_endpoint_restart_threshold.py`
+  - process exit behavior when restart threshold is reached
 
-### IO layer hardening
-- `move_path` now supports safe overwrite for files and directories.
-- Added reusable filesystem helpers:
-  - `create_dir`, `chmod_path`, `rename_path`, `move_path`
+## 2) Critical fixes during this cycle
 
-### Tests added/updated
-- Unit:
-  - `tests/test_filesystem.py` expanded for UTF-8 dir/file move+rename and chmod assertions.
-- Integration:
-  - `tests/test_integration_filesystem_path_tools_http.py` added for end-to-end HTTP tool validation:
-    - create/rename/move/chmod across file + folder
-    - UTF-8 path coverage
-    - audit verification
+- Fixed config validation break when endpoint-health env vars were unresolved placeholders:
+  - endpoint-health model fields changed to string-compatible config values
+  - parsing is handled by runtime conversion helpers
+- Fixed Google Drive backend issues:
+  - multipart metadata serialization now uses `json.dumps`
+  - fixed f-string escaping bug in Drive query path lookup
 
-### Verification (latest)
-- `PYTHONPATH=src PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest tests/test_filesystem.py tests/test_server_runtime.py tests/test_integration_filesystem_path_tools_http.py -q` -> PASS (`11 passed`)
+## 3) Verified test status
 
-## Update: 2026-02-10 (Docker Multi-Config + Extended Audit Schema)
+Executed and passing in this environment:
+- `PYTHONPATH=src pytest -q tests/test_endpoint_health.py tests/test_google_drive_storage.py tests/test_server_runtime.py`
+  - `11 passed`
+- `PYTHONPATH=src pytest -q tests/test_integration_remote_storage_backends_http.py tests/test_docker_container_remote_storage_backends.py tests/test_system_conversion_real_backends.py`
+  - `5 passed, 3 skipped`
+- `PYTHONPATH=src pytest -q tests/test_server_http_integration.py tests/test_config_loader.py`
+  - `8 passed`
+- `PYTHONPATH=src pytest -q`
+  - `148 passed, 7 skipped`
+- `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 PYTHONPATH=src pytest -q`
+  - `161 passed, 4 skipped`
+- Focused expanded suite:
+  - `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 PYTHONPATH=src pytest -q tests/test_system_endpoint_restart_threshold.py tests/test_google_drive_oauth_helper.py tests/test_integration_google_drive_live_http.py tests/test_integration_remote_backend_tool_matrix_http.py tests/test_integration_remote_storage_backends_http.py tests/test_docker_container_runtime.py tests/test_docker_container_remote_storage_backends.py`
+  - `18 passed, 4 skipped`
 
-### Runtime/audit enhancements
-- Added request-context middleware for HTTP calls to capture:
-  - `session_id` (from `X-Session-Id` / `X-Request-Id`, fallback generated)
-  - `client_ip` (supports `X-Forwarded-For`)
-- Added structured per-tool operational logging in `src/file_mcp_server/server.py`:
-  - `event`, `profile`, `tool`, `params`, `outcome`, `duration_ms`, `session_id`, `client_ip`
-- Enforced extended fields directly in audit events (`src/file_tools/audit/logger.py`):
-  - `outcome`, `session_id`, `client_ip`, `duration_ms`, `params` (alongside existing fields)
-- Registered an audit writer hook in the tool registry and now emit `tool_call` audit events for all tool invocations with extended metadata.
+Google-specific live status:
+- Live Google Drive/OAuth tests are present and runnable.
+- They are currently env-gated and skip when Google credentials/auth code are not provided.
+- Required flags/vars: `FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1`, `FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST=1`, `FILE_MCP_GDRIVE_*`, and one-time `FILE_MCP_GDRIVE_AUTH_CODE` for exchange tests.
 
-### Docker integration coverage
-- Expanded `tests/test_docker_container_runtime.py` to validate:
-  - host-network container run + authenticated MCP call
-  - multi-env precedence (`FILE_MCP_ENV_PATH` layered env files)
-  - two-folder scope controls with allow/deny behavior
-  - strict audit event schema assertions (including extended fields)
-  - operational log assertions for `tool_call`/`tool_result` metadata
-- Bridge publish mode remains optional via `FILE_MCP_RUN_DOCKER_BRIDGE_TESTS=1`.
+## 4) Execution environment/network timeline (factual)
 
-### Verification (this update)
-- `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q` -> PASS (`5 passed, 1 skipped`)
+Observed during this project work:
+- Earlier in-session runs occurred under restricted execution settings where direct socket/network operations from the sandboxed command runner failed.
+- Later, runner settings changed to a mode with full filesystem access and network enabled, and integration tests requiring local HTTP and remote endpoint calls succeeded.
+
+What this means operationally:
+- The repository code does not itself control sandbox ACL/network policy.
+- Whether endpoint/network tests can run depends on the active runner policy at execution time.
+- Current runner state (this update): network-capable; remote-backend tests are passing.
+
+## 5) Current implementation status
+
+- Multi-backend support: implemented for `local/webdav/ftp/s3/google_drive`.
+- Endpoint health startup/recovery framework: implemented and wired.
+- Restart-threshold process-exit policy: implemented and tested.
+- Deterministic unsupported-backend errors: implemented via `NotSupportedError` contract.
+- Docker/env/cert guidance: implemented in docs and templates.
+
+## 6) Latest delta (2026-02-11, hot-reload/admin flow)
+
+Code updates:
+- Added missing `escape` import in `src/file_mcp_server/server.py` (OAuth callback success page path).
+- Hardened admin gate in middleware so **all** `/admin/*` routes are protected by:
+  - `FILE_MCP_ADMIN_UI_ENABLED=true`
+  - optional `FILE_MCP_ADMIN_UI_TOKEN` (query `token=` or `X-Admin-Token` header).
+- Kept/confirmed `POST /admin/reload` endpoint and wired hot reload callback in HTTP runtime.
+- Extended reload callback to rerun endpoint startup health checks and return endpoint health state in response payload.
+- Confirmed callback auto-apply path:
+  - successful `/admin/google-drive/callback` invokes hot reload when `FILE_MCP_ADMIN_APPLY_ON_CALLBACK=true`.
+
+Test updates:
+- Added middleware coverage in `tests/test_server_runtime.py` for:
+  - `/admin/reload` blocked when admin UI disabled.
+  - `/admin/reload` token enforcement and JSON success payload.
+  - `/admin/google-drive/callback` auto-reload execution on successful OAuth callback.
+
+Latest test execution (this run):
+- `PYTHONPATH=src pytest -q tests/test_server_runtime.py tests/test_google_drive_admin.py`
+  - `11 passed`
+- `PYTHONPATH=src pytest -q -k "not live"`
+  - `1 failed, 160 passed, 12 skipped, 2 deselected`
+  - failing test: `tests/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[webdav]`
+  - observed failure: remote WebDAV endpoint returned HTTP 500 on `move_path` (`MOVE`).
+
+Remediation applied after that failure:
+- Implemented transient WebDAV `MOVE` retry/backoff with "already applied" detection in `src/file_tools/storage/webdav.py`.
+- Added unit coverage in `tests/test_webdav_storage.py` for:
+  - transient 5xx retry then success
+  - success when operation was already applied despite transient response
+  - non-transient hard failure path
+- Revalidated:
+  - `PYTHONPATH=src pytest -q tests/test_webdav_storage.py` -> `3 passed`
+  - `PYTHONPATH=src pytest -q tests/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[webdav] -rs` -> `1 passed`
+  - `PYTHONPATH=src pytest -q tests/test_integration_remote_storage_backends_http.py -rs` -> `3 passed`
+
+Additional completion runs:
+- `PYTHONPATH=src pytest -q` -> `166 passed, 14 skipped`
+- `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 PYTHONPATH=src pytest -q tests/test_docker_container_remote_storage_backends.py -rs` -> `3 passed`
+- Docker runtime reload validation:
+  - `POST /admin/reload` returned `{"ok": true, ...}`
+  - MCP `backend_status` returned healthy `local` backend state from the running container.

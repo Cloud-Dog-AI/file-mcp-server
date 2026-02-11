@@ -48,12 +48,18 @@ def serve(
         os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = str(Path(env_path).expanduser().resolve())
     else:
         os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = ""
+    if config_path:
+        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(Path(config_path).expanduser().resolve())
+    else:
+        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str((Path.cwd() / "config.yaml").resolve())
+    os.environ["FILE_MCP_ACTIVE_PROFILE"] = profile
 
     config = load_config(
         env_path=env_path,
         config_path=config_path,
         defaults_path=defaults_path,
     )
+    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
     profile_config = get_profile(config, name=profile)
     logger = configure_operational_logger(profile_config.observability)
     current_pid = os.getpid()

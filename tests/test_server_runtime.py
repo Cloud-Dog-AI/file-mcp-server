@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 
 from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
@@ -10,6 +11,15 @@ from file_mcp_server.server import (
     build_tool_registry,
     resolve_http_settings,
 )
+
+
+class _FakeBindResult:
+    def __init__(self) -> None:
+        self.profile = "default"
+        self.folder_name = "test"
+        self.folder_id = "folder123"
+        self.config_path = "/tmp/config.yaml"
+        self.folder_url = "https://drive.google.com/drive/folders/folder123"
 
 
 def _profile(tmp_path):
@@ -81,6 +91,15 @@ def test_build_tool_registry_wires_real_handlers(tmp_path) -> None:
     assert read_handler(str(target)) == "hello"
 
 
+def test_build_tool_registry_includes_backend_status(tmp_path) -> None:
+    profile = _profile(tmp_path)
+    registry = build_tool_registry(profile)
+    status = registry.get("backend_status").handler()
+    assert status["profile"] == "default"
+    assert status["active_backend"] == "local"
+    assert isinstance(status["states"], dict)
+
+
 def test_health_middleware_returns_ok() -> None:
     sent = []
 
@@ -111,3 +130,197 @@ def test_health_middleware_returns_ok() -> None:
     body = json.loads(sent[1]["body"].decode("utf-8"))
     assert status == 200
     assert body["status"] == "ok"
+
+
+def test_health_middleware_serves_google_drive_admin_page() -> None:
+    sent = []
+    previous = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
+    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/admin/google-drive",
+            "headers": [(b"host", b"127.0.0.1:8000")],
+            "scheme": "http",
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run())
+        assert sent[0]["status"] == 200
+        assert b"Google Drive Profile Setup" in sent[1]["body"]
+    finally:
+        if previous is None:
+            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+        else:
+            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = previous
+
+
+def test_health_middleware_reload_requires_admin_gate() -> None:
+    sent = []
+    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
+    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "false"
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        reload_callback=lambda: {"profile": "default", "reloaded": True},
+    )
+
+    async def _run() -> None:
+        scope = {"type": "http", "method": "POST", "path": "/admin/reload"}
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run())
+        assert sent[0]["status"] == 404
+    finally:
+        if prev_enabled is None:
+            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+        else:
+            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+
+
+def test_health_middleware_reload_enforces_token_and_returns_json() -> None:
+    sent_unauthorized = []
+    sent_authorized = []
+    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
+    prev_token = os.environ.get("FILE_MCP_ADMIN_UI_TOKEN")
+    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    os.environ["FILE_MCP_ADMIN_UI_TOKEN"] = "secret-token"
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        reload_callback=lambda: {"profile": "default", "reloaded": True},
+    )
+
+    async def _run(scope, sent) -> None:
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run({"type": "http", "method": "POST", "path": "/admin/reload"}, sent_unauthorized))
+        assert sent_unauthorized[0]["status"] == 401
+
+        asyncio.run(
+            _run(
+                {
+                    "type": "http",
+                    "method": "POST",
+                    "path": "/admin/reload",
+                    "headers": [(b"x-admin-token", b"secret-token")],
+                },
+                sent_authorized,
+            )
+        )
+        assert sent_authorized[0]["status"] == 200
+        payload = json.loads(sent_authorized[1]["body"].decode("utf-8"))
+        assert payload["ok"] is True
+        assert payload["result"]["reloaded"] is True
+    finally:
+        if prev_enabled is None:
+            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+        else:
+            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+        if prev_token is None:
+            os.environ.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            os.environ["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
+
+
+def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
+    sent = []
+    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
+    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    monkeypatch.setattr("file_mcp_server.server.complete_oauth_callback", lambda **kwargs: _FakeBindResult())
+    reload_calls: list[bool] = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    def _reload():
+        reload_calls.append(True)
+        return {"profile": "default", "reloaded": True}
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        reload_callback=_reload,
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/admin/google-drive/callback",
+            "query_string": b"state=s123&code=c123",
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run())
+        assert sent[0]["status"] == 200
+        body = sent[1]["body"].decode("utf-8")
+        assert "Google Drive linked successfully" in body
+        assert "hot-reloaded" in body
+        assert len(reload_calls) == 1
+    finally:
+        if prev_enabled is None:
+            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+        else:
+            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled

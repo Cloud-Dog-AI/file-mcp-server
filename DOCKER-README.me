@@ -127,10 +127,144 @@ docker run --rm --name file-mcp-server \
   cloud-dog/file-mcp-server:latest
 ```
 
-The entrypoint installs `FILE_MCP_TLS_CA_BUNDLE` into system trust and exports:
+The entrypoint installs `FILE_MCP_TLS_CA_BUNDLE` (or `FILE_MCP_STORAGE_TLS_CA_BUNDLE`) into system trust and exports:
 - `REQUESTS_CA_BUNDLE`
 - `SSL_CERT_FILE`
 - `CURL_CA_BUNDLE`
+
+Remote storage backends also support a backend-specific TLS bundle setting:
+- `FILE_MCP_STORAGE_TLS_CA_BUNDLE=/app/certs/ca.crt`
+
+To ignore TLS verification errors for remote backends (explicit opt-in):
+- `FILE_MCP_STORAGE_TLS_INSECURE=true`
+
+## 5.1 Remote Storage Backends (local|webdav|ftp|s3|google_drive)
+
+Use the same container image and tool surface. Select backend in the env file:
+
+```bash
+FILE_MCP_STORAGE_BACKEND=webdav
+```
+
+WebDAV example:
+
+```bash
+FILE_MCP_STORAGE_BACKEND=webdav
+FILE_MCP_ROOT=/
+FILE_MCP_WEBDAV_BASE_URL=https://files.example.com/remote.php/dav/files/user/root
+FILE_MCP_WEBDAV_USERNAME=user
+FILE_MCP_WEBDAV_PASSWORD=secret
+# Optional MOVE resilience controls
+FILE_MCP_WEBDAV_MOVE_RETRY_COUNT=2
+FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S=0.35
+FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S=5
+FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES=408,409,423,425,429,500,502,503,504
+```
+
+FTP example:
+
+```bash
+FILE_MCP_STORAGE_BACKEND=ftp
+FILE_MCP_ROOT=/
+FILE_MCP_FTP_HOST=ftp.example.com
+FILE_MCP_FTP_PORT=21
+FILE_MCP_FTP_USERNAME=user
+FILE_MCP_FTP_PASSWORD=secret
+FILE_MCP_FTP_BASE_DIR=/
+FILE_MCP_FTP_USE_TLS=false
+```
+
+S3 example:
+
+```bash
+FILE_MCP_STORAGE_BACKEND=s3
+FILE_MCP_ROOT=/
+FILE_MCP_S3_ENDPOINT=https://storage.example.com
+FILE_MCP_S3_BUCKET=my-bucket
+FILE_MCP_S3_REGION=us-east-1
+FILE_MCP_S3_ACCESS_KEY=...
+FILE_MCP_S3_SECRET_KEY=...
+FILE_MCP_S3_PREFIX=
+```
+
+Google Drive example:
+
+```bash
+FILE_MCP_STORAGE_BACKEND=google_drive
+FILE_MCP_ROOT=/
+FILE_MCP_GDRIVE_FOLDER_ID=1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn
+FILE_MCP_GDRIVE_CLIENT_ID=...
+FILE_MCP_GDRIVE_CLIENT_SECRET=...
+FILE_MCP_GDRIVE_REFRESH_TOKEN=...
+FILE_MCP_GDRIVE_TOKEN_URI=https://oauth2.googleapis.com/token
+```
+
+### 5.2 Running Each Backend Type (Container, Host Network)
+
+The image is identical for all backends; only the env differs.
+
+1. Local filesystem backend:
+```bash
+cp docker-env.example run/env.local
+sed -i 's/^FILE_MCP_STORAGE_BACKEND=.*/FILE_MCP_STORAGE_BACKEND=local/' run/env.local
+```
+```bash
+docker run --rm --name file-mcp-local --network=host \
+  -v "$(pwd)/run/workspace:/workspace" \
+  -v "$(pwd)/run/logs:/workspace/logs" \
+  -v "$(pwd)/run/env.local:/workspace/env.base:ro" \
+  -e FILE_MCP_ENV_PATH=/workspace/env.base \
+  cloud-dog/file-mcp-server:latest
+```
+
+2. WebDAV backend:
+```bash
+cp docker-env.example run/env.webdav
+sed -i 's/^FILE_MCP_STORAGE_BACKEND=.*/FILE_MCP_STORAGE_BACKEND=webdav/' run/env.webdav
+```
+Set: `FILE_MCP_WEBDAV_BASE_URL`, `FILE_MCP_WEBDAV_USERNAME`, `FILE_MCP_WEBDAV_PASSWORD`.
+
+3. FTP backend:
+```bash
+cp docker-env.example run/env.ftp
+sed -i 's/^FILE_MCP_STORAGE_BACKEND=.*/FILE_MCP_STORAGE_BACKEND=ftp/' run/env.ftp
+```
+Set: `FILE_MCP_FTP_HOST`, `FILE_MCP_FTP_USERNAME`, `FILE_MCP_FTP_PASSWORD` (and optional FTP vars).
+
+4. S3 backend:
+```bash
+cp docker-env.example run/env.s3
+sed -i 's/^FILE_MCP_STORAGE_BACKEND=.*/FILE_MCP_STORAGE_BACKEND=s3/' run/env.s3
+```
+Set: `FILE_MCP_S3_ENDPOINT`, `FILE_MCP_S3_BUCKET`, `FILE_MCP_S3_ACCESS_KEY`, `FILE_MCP_S3_SECRET_KEY` (and optional S3 vars).
+
+5. Google Drive backend:
+```bash
+cp docker-env.example run/env.gdrive
+sed -i 's/^FILE_MCP_STORAGE_BACKEND=.*/FILE_MCP_STORAGE_BACKEND=google_drive/' run/env.gdrive
+```
+Set: `FILE_MCP_GDRIVE_FOLDER_ID` (or `FILE_MCP_GDRIVE_FOLDER_URL`), `FILE_MCP_GDRIVE_CLIENT_ID`, `FILE_MCP_GDRIVE_CLIENT_SECRET`, and `FILE_MCP_GDRIVE_REFRESH_TOKEN`.
+
+Health check (any backend):
+```bash
+curl -s http://127.0.0.1:8000/health
+```
+
+## 5.3 Endpoint Health Controls
+
+These env vars configure startup endpoint validation and runtime recovery:
+- `FILE_MCP_ENDPOINT_HEALTH_ENABLED`
+- `FILE_MCP_ENDPOINT_HEALTH_CHECK_ON_STARTUP`
+- `FILE_MCP_ENDPOINT_HEALTH_CHECK_ALL`
+- `FILE_MCP_ENDPOINT_HEALTH_MAX_RETRIES`
+- `FILE_MCP_ENDPOINT_HEALTH_RETRY_INTERVAL_S`
+- `FILE_MCP_ENDPOINT_HEALTH_RETRY_WINDOW_S`
+- `FILE_MCP_ENDPOINT_HEALTH_MAX_FAILURES_BEFORE_RESTART`
+- `FILE_MCP_ENDPOINT_HEALTH_RECOVER_AFTER_S`
+- `FILE_MCP_ENDPOINT_HEALTH_RESTART_ON_THRESHOLD`
+- `FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE`
+
+Use MCP tool `backend_status` to inspect current endpoint state.
 
 ## 6. Managing and controlling the containerized server
 
@@ -218,6 +352,21 @@ Run command-only tests (no Docker daemon required):
 ```bash
 source .venv/bin/activate
 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -k command -q
+```
+
+Run container runtime tests (host network) against the built image:
+
+```bash
+source .venv/bin/activate
+FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q -rs
+```
+
+Run containerized remote storage backend tests (WebDAV/FTP/S3) using `private/env-remote-storage`:
+
+```bash
+source .venv/bin/activate
+FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 \
+PYTHONPATH=src pytest tests/test_docker_container_remote_storage_backends.py -q -rs
 ```
 
 Run full Docker integration tests locally (`--network=host` and bridge mode):

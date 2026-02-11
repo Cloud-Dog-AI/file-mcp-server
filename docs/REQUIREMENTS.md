@@ -206,6 +206,53 @@ System shall support simple server start/stop/status routines suitable for local
 ### FR1.25: POSIX Compliance
 - The system SHALL operate correctly on POSIX systems and avoid non-portable filesystem behaviors.
 
+### FR1.26: Remote Storage Backends
+- The system SHALL support configurable storage backends per profile: `local`, `s3`, `webdav`, `ftp`, `google_drive`.
+- The system SHALL expose the same MCP tool surface for all backends where semantics are supported.
+- For capabilities that cannot be meaningfully implemented on a backend (e.g., POSIX chmod on object storage), the system SHALL return a deterministic `not supported for backend` error.
+
+### FR1.27: Remote Backend Path Semantics
+- For non-local backends, tool `path` parameters SHALL be treated as logical POSIX paths.
+- Scope roots for non-local backends SHALL be evaluated as logical prefix roots (not OS filesystem paths).
+
+### FR1.28: Remote Backend TLS Controls
+- For HTTPS/TLS remote backends, the system SHALL support:
+  - ignoring TLS verification errors (explicit opt-in)
+  - trusting a provided CA bundle path
+- Raw credentials MUST NOT be logged.
+
+### FR1.29: Remote Backend Timeouts
+- Remote backend operations SHALL honor a configurable timeout (per profile limits) to bound request duration.
+
+### FR1.30: Endpoint Health Startup Checks
+- On startup, the system SHALL probe configured storage endpoints and record per-backend status (`healthy`, `temporary_unavailable`, `busy_temporary`, `auth_failed`, `failed`).
+- Startup checks SHALL support configurable retry behavior (`max_retries`, `retry_interval_s`, `retry_window_s`).
+- The server SHALL log startup endpoint status to console and operational logs.
+
+### FR1.31: Endpoint Health Runtime Recovery
+- The system SHALL support runtime recovery attempts for unhealthy backends after a configurable cooldown (`recover_after_s`).
+- The system SHALL track consecutive failures and a restart-required threshold (`max_failures_before_restart`).
+- Tool calls against unhealthy backends SHALL return deterministic, structured backend-unavailable errors.
+
+### FR1.32: Google Drive OAuth and Folder Binding
+- The system SHALL support Google Drive as a configured backend using OAuth credentials.
+- The configuration SHALL accept either a folder id or a folder URL and resolve to the target Drive folder.
+- The project SHALL provide an OAuth helper script that generates an auth URL and exchanges auth code for tokens suitable for env configuration.
+
+### FR1.33: Restart Threshold Exit Policy
+- The system SHALL support an optional restart-exit policy when endpoint health reaches restart threshold.
+- When enabled, the server SHALL exit with a configurable non-zero exit code to allow container/supervisor restart policies.
+
+### FR1.34: Admin Config Hot Reload
+- The system SHALL expose an admin reload operation to rebind the active profile tool registry without process restart.
+- Admin routes SHALL be gated behind explicit enablement and optional token auth.
+- Successful Google Drive OAuth callback SHOULD auto-apply the updated profile when configured.
+
+### FR1.35: WebDAV Transient MOVE Resilience
+- The system SHALL support configurable retry handling for transient WebDAV `MOVE` failures.
+- Retry controls SHALL be configuration-driven (retry count, backoff, probe timeout, and retriable status list).
+- If a transient `MOVE` response occurs but destination state confirms operation already applied, the system SHALL treat it as successful.
+
 ---
 
 ## 5. Use Cases (UC)
@@ -230,6 +277,24 @@ Operator lists snapshot history or audit trail to trace changes.
 
 ### UC1.7: Start/Stop Server for Local Testing
 Operator uses the approved script or command to start/stop/status the server using an env file.
+
+### UC1.8: Remote Storage Safe Edit Workflow
+Client performs the safe edit workflow (read -> diff -> edit -> validate -> audit) against a configured remote backend within scope and limits.
+
+### UC1.9: Remote Storage Search Workflow
+Client searches filenames and content across a remote backend root with depth/timeout/result limits enforced.
+
+### UC1.10: Startup Health and Degraded Endpoint Handling
+Operator starts the server, receives endpoint health status, and the system reports retry/recovery/failure states consistently to logs and tool callers.
+
+### UC1.11: Google Drive Managed File Workflow
+Client performs scoped file operations against a configured Google Drive folder using OAuth-managed credentials.
+
+### UC1.12: Restart on Endpoint Degradation
+Operator enables restart-threshold policy and the server exits deterministically when endpoint failure thresholds are reached.
+
+### UC1.13: Remote OAuth Bind Without Restart
+Operator binds Google Drive to a profile through admin pages and the server applies the updated profile configuration immediately.
 
 ---
 

@@ -15,7 +15,10 @@ echo "============================================================"
 mkdir -p /app/.run /app/logs /app/certs
 
 install_ca_bundle() {
-  local ca_path="${FILE_MCP_TLS_CA_BUNDLE:-${REQUESTS_CA_BUNDLE:-}}"
+  # Support both the generic container trust bundle and the remote-storage TLS
+  # bundle path. For remote backends, `FILE_MCP_STORAGE_TLS_CA_BUNDLE` is the
+  # canonical config value used by backend clients (requests/ftplib TLS).
+  local ca_path="${FILE_MCP_TLS_CA_BUNDLE:-${FILE_MCP_STORAGE_TLS_CA_BUNDLE:-${REQUESTS_CA_BUNDLE:-}}}"
   if [[ -z "${ca_path}" ]]; then
     return 0
   fi
@@ -23,9 +26,12 @@ install_ca_bundle() {
   if [[ -f "${ca_path}" ]]; then
     echo "Installing CA bundle: ${ca_path}"
     cp "${ca_path}" /usr/local/share/ca-certificates/file-mcp-custom-ca.crt
-    update-ca-certificates
+    # Don't hard-fail container startup if the bundle can't be installed into
+    # the system trust store; the server can still use the bundle directly via
+    # `FILE_MCP_STORAGE_TLS_CA_BUNDLE` and standard TLS env vars.
+    update-ca-certificates || echo "WARNING: update-ca-certificates failed; continuing"
   else
-    echo "WARNING: FILE_MCP_TLS_CA_BUNDLE file not found: ${ca_path}"
+    echo "WARNING: CA bundle file not found: ${ca_path}"
   fi
 }
 

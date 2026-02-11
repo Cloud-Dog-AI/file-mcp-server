@@ -51,6 +51,7 @@ def write_server_config(
     snapshot_max_storage_mb: int | None = None,
     validation_default_mode: str = "warn",
     validation_per_type: dict[str, str] | None = None,
+    extra_env_lines: list[str] | None = None,
 ) -> tuple[Path, Path, Path, Path, Path]:
     defaults_path = base_dir / "defaults.yaml"
     config_path = base_dir / "config.yaml"
@@ -84,6 +85,29 @@ profiles:
 {api_keys_yaml}
       header_name: "${{FILE_MCP_AUTH_HEADER_NAME}}"
       header_scheme: "${{FILE_MCP_AUTH_HEADER_SCHEME}}"
+    storage:
+      backend: "${{FILE_MCP_STORAGE_BACKEND}}"
+      tls:
+        insecure_skip_verify: "${{FILE_MCP_STORAGE_TLS_INSECURE}}"
+        ca_bundle_path: "${{FILE_MCP_STORAGE_TLS_CA_BUNDLE}}"
+      s3:
+        endpoint: "${{FILE_MCP_S3_ENDPOINT}}"
+        bucket: "${{FILE_MCP_S3_BUCKET}}"
+        region: "${{FILE_MCP_S3_REGION}}"
+        access_key: "${{FILE_MCP_S3_ACCESS_KEY}}"
+        secret_key: "${{FILE_MCP_S3_SECRET_KEY}}"
+        prefix: "${{FILE_MCP_S3_PREFIX}}"
+      webdav:
+        base_url: "${{FILE_MCP_WEBDAV_BASE_URL}}"
+        username: "${{FILE_MCP_WEBDAV_USERNAME}}"
+        password: "${{FILE_MCP_WEBDAV_PASSWORD}}"
+      ftp:
+        host: "${{FILE_MCP_FTP_HOST}}"
+        port: "${{FILE_MCP_FTP_PORT}}"
+        username: "${{FILE_MCP_FTP_USERNAME}}"
+        password: "${{FILE_MCP_FTP_PASSWORD}}"
+        base_dir: "${{FILE_MCP_FTP_BASE_DIR}}"
+        use_tls: "${{FILE_MCP_FTP_USE_TLS}}"
     scope:
       roots:
         - "${{FILE_MCP_ROOT}}"
@@ -115,6 +139,7 @@ profiles:
       search_max_results: ${{FILE_MCP_SEARCH_MAX_RESULTS}}
       search_max_file_mb: ${{FILE_MCP_SEARCH_MAX_FILE_MB}}
       search_timeout_s: ${{FILE_MCP_SEARCH_TIMEOUT_S}}
+      storage_timeout_s: ${{FILE_MCP_STORAGE_TIMEOUT_S}}
       conversion_timeout_s: ${{FILE_MCP_CONVERSION_TIMEOUT_S}}
     conversion:
       enabled: true
@@ -150,12 +175,33 @@ http:
         f"FILE_MCP_SEARCH_MAX_RESULTS={search_max_results}",
         f"FILE_MCP_SEARCH_MAX_FILE_MB={search_max_file_mb}",
         f"FILE_MCP_SEARCH_TIMEOUT_S={search_timeout_s}",
+        "FILE_MCP_STORAGE_BACKEND=local",
+        "FILE_MCP_STORAGE_TLS_INSECURE=false",
+        "FILE_MCP_STORAGE_TLS_CA_BUNDLE=",
+        f"FILE_MCP_STORAGE_TIMEOUT_S={search_timeout_s}",
+        "FILE_MCP_S3_ENDPOINT=",
+        "FILE_MCP_S3_BUCKET=",
+        "FILE_MCP_S3_REGION=",
+        "FILE_MCP_S3_ACCESS_KEY=",
+        "FILE_MCP_S3_SECRET_KEY=",
+        "FILE_MCP_S3_PREFIX=",
+        "FILE_MCP_WEBDAV_BASE_URL=",
+        "FILE_MCP_WEBDAV_USERNAME=",
+        "FILE_MCP_WEBDAV_PASSWORD=",
+        "FILE_MCP_FTP_HOST=",
+        "FILE_MCP_FTP_PORT=",
+        "FILE_MCP_FTP_USERNAME=",
+        "FILE_MCP_FTP_PASSWORD=",
+        "FILE_MCP_FTP_BASE_DIR=/",
+        "FILE_MCP_FTP_USE_TLS=false",
         f"FILE_MCP_CONVERSION_TIMEOUT_S={conversion_timeout_s}",
         f"FILE_MCP_CONVERSION_MAX_INPUT_MB={conversion_max_input_mb}",
         f"FILE_MCP_SNAPSHOT_RETENTION_DAYS={snapshot_retention_days}",
         f"FILE_MCP_SNAPSHOT_RETENTION_COUNT={snapshot_retention_count if snapshot_retention_count is not None else -1}",
         f"FILE_MCP_SNAPSHOT_MAX_STORAGE_MB={snapshot_max_storage_mb if snapshot_max_storage_mb is not None else -1}",
     ]
+    if extra_env_lines:
+        env_lines.extend(extra_env_lines)
     for index, api_key in enumerate(api_keys, start=1):
         env_lines.insert(index - 1, f"FILE_MCP_API_KEY_{index}={api_key}")
     env_path.write_text("\n".join(env_lines) + "\n", encoding="utf-8")

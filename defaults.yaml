@@ -4,6 +4,43 @@ profiles:
       api_keys: []
       header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
       header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    storage:
+      backend: "${FILE_MCP_STORAGE_BACKEND}"
+      tls:
+        insecure_skip_verify: "${FILE_MCP_STORAGE_TLS_INSECURE}"
+        ca_bundle_path: "${FILE_MCP_STORAGE_TLS_CA_BUNDLE}"
+      s3:
+        endpoint: "${FILE_MCP_S3_ENDPOINT}"
+        bucket: "${FILE_MCP_S3_BUCKET}"
+        region: "${FILE_MCP_S3_REGION}"
+        access_key: "${FILE_MCP_S3_ACCESS_KEY}"
+        secret_key: "${FILE_MCP_S3_SECRET_KEY}"
+        prefix: "${FILE_MCP_S3_PREFIX}"
+      webdav:
+        base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
+        username: "${FILE_MCP_WEBDAV_USERNAME}"
+        password: "${FILE_MCP_WEBDAV_PASSWORD}"
+        move_retry_count: "${FILE_MCP_WEBDAV_MOVE_RETRY_COUNT}"
+        move_retry_backoff_s: "${FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S}"
+        move_probe_timeout_s: "${FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S}"
+        move_retry_statuses: "${FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES}"
+      ftp:
+        host: "${FILE_MCP_FTP_HOST}"
+        port: "${FILE_MCP_FTP_PORT}"
+        username: "${FILE_MCP_FTP_USERNAME}"
+        password: "${FILE_MCP_FTP_PASSWORD}"
+        base_dir: "${FILE_MCP_FTP_BASE_DIR}"
+        use_tls: "${FILE_MCP_FTP_USE_TLS}"
+      google_drive:
+        user_email: "${FILE_MCP_GDRIVE_USER_EMAIL}"
+        folder_id: "${FILE_MCP_GDRIVE_FOLDER_ID}"
+        folder_url: "${FILE_MCP_GDRIVE_FOLDER_URL}"
+        client_id: "${FILE_MCP_GDRIVE_CLIENT_ID}"
+        client_secret: "${FILE_MCP_GDRIVE_CLIENT_SECRET}"
+        refresh_token: "${FILE_MCP_GDRIVE_REFRESH_TOKEN}"
+        access_token: "${FILE_MCP_GDRIVE_ACCESS_TOKEN}"
+        redirect_uri: "${FILE_MCP_GDRIVE_REDIRECT_URI}"
+        token_uri: "${FILE_MCP_GDRIVE_TOKEN_URI}"
     scope:
       roots:
         - "${FILE_MCP_ROOT}"
@@ -36,7 +73,19 @@ profiles:
       search_max_results: 250
       search_max_file_mb: 5
       search_timeout_s: 30
+      storage_timeout_s: 30
       conversion_timeout_s: 60
+    endpoint_health:
+      enabled: true
+      check_on_startup: true
+      check_all_configured_backends: true
+      max_retries: 3
+      retry_interval_s: 2
+      retry_window_s: 30
+      max_failures_before_restart: 5
+      recover_after_s: 30
+      restart_on_threshold: false
+      restart_exit_code: 75
 
 http:
   transport: "${FILE_MCP_HTTP_TRANSPORT}"

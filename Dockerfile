@@ -88,6 +88,8 @@ COPY docker-env.example ./docker-env.example
 COPY env-docker-defaults ./env-docker-defaults
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 COPY healthcheck.sh ./healthcheck.sh
+COPY DOCKER-README.me ./DOCKER-README.me
+COPY certs ./certs
 
 RUN mkdir -p /app/.run /app/logs /app/certs /app/storage /app/tmp /app/archive /app/database
 RUN chmod +x /app/docker-entrypoint.sh /app/healthcheck.sh /app/server_control.sh

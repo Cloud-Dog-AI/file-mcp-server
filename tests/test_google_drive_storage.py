@@ -1,0 +1,50 @@
+"""Google Drive storage unit tests.
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Limited
+Description: Validate URL parsing and required config checks for Google Drive backend.
+Requirements: FR2.5
+Tasks: T23
+Architecture: 4. Storage Backends
+Tests: UT1.29
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from file_tools.config.models import StorageConfig
+from file_tools.storage.google_drive import GoogleDriveStorage, _extract_folder_id
+
+
+def test_extract_folder_id_from_drive_url() -> None:
+    folder_id = _extract_folder_id(
+        None,
+        "https://drive.google.com/drive/folders/1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn?usp=drive_link",
+    )
+    assert folder_id == "1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn"
+
+
+def test_google_drive_requires_folder_id_or_url() -> None:
+    storage = StorageConfig(
+        backend="google_drive",
+        google_drive={
+            "client_id": "id",
+            "client_secret": "secret",
+            "refresh_token": "token",
+        },
+    )
+    with pytest.raises(ValueError, match="folder_id or google_drive.folder_url"):
+        GoogleDriveStorage(storage)
+
+
+def test_google_drive_requires_oauth_client() -> None:
+    storage = StorageConfig(
+        backend="google_drive",
+        google_drive={
+            "folder_id": "folder",
+            "refresh_token": "token",
+        },
+    )
+    with pytest.raises(ValueError, match="client_id and google_drive.client_secret"):
+        GoogleDriveStorage(storage)

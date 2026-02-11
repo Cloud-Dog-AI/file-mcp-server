@@ -28,12 +28,29 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
+| 2026-02-11 | Full Suite | `PYTHONPATH=src pytest -q` | PASS | `166 passed, 14 skipped` |
+| 2026-02-11 | IT (Docker Remote Backends) | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 PYTHONPATH=src pytest -q tests/test_docker_container_remote_storage_backends.py -rs` | PASS | `3 passed` |
+| 2026-02-11 | Runtime Admin Reload + Status | `curl -X POST /admin/reload` + MCP `backend_status` against running container | PASS | reload returns `ok:true`; `backend_status` healthy |
+| 2026-02-11 | IT (Remote Storage HTTP, all backends) | `PYTHONPATH=src pytest -q tests/test_integration_remote_storage_backends_http.py -rs` | PASS | `3 passed` (WebDAV/FTP/S3) |
+| 2026-02-11 | IT (Remote Storage HTTP, WebDAV focus) | `PYTHONPATH=src pytest -q tests/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[webdav] -rs` | PASS | `1 passed` |
+| 2026-02-11 | UT (WebDAV retry logic) | `PYTHONPATH=src pytest -q tests/test_webdav_storage.py` | PASS | `3 passed` |
+| 2026-02-11 | Non-live Full Suite + Admin Reload | `PYTHONPATH=src pytest -q -k "not live"` | FAIL | `1 failed, 160 passed, 12 skipped, 2 deselected`; failure on live WebDAV `MOVE` returning remote HTTP 500 in `tests/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[webdav]` |
+| 2026-02-11 | UT (Admin Google + Reload) | `PYTHONPATH=src pytest -q tests/test_server_runtime.py tests/test_google_drive_admin.py` | PASS | `11 passed` |
+| 2026-02-11 | Full Suite (all flags) | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 PYTHONPATH=src pytest -q` | PASS | `161 passed, 4 skipped` |
+| 2026-02-11 | Focused Remote/Docker/Restart/Google Harness | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 PYTHONPATH=src pytest -q tests/test_system_endpoint_restart_threshold.py tests/test_google_drive_oauth_helper.py tests/test_integration_google_drive_live_http.py tests/test_integration_remote_backend_tool_matrix_http.py tests/test_integration_remote_storage_backends_http.py tests/test_docker_container_runtime.py tests/test_docker_container_remote_storage_backends.py` | PASS | `18 passed, 4 skipped` |
+| 2026-02-11 | Full Suite | `PYTHONPATH=src pytest -q` | PASS | `148 passed, 7 skipped` |
+| 2026-02-11 | UT (Endpoint Health + Drive) | `PYTHONPATH=src pytest -q tests/test_endpoint_health.py tests/test_google_drive_storage.py tests/test_server_runtime.py` | PASS | `11 passed` |
+| 2026-02-11 | IT (Remote + Docker + Conversion) | `PYTHONPATH=src pytest -q tests/test_integration_remote_storage_backends_http.py tests/test_docker_container_remote_storage_backends.py tests/test_system_conversion_real_backends.py` | PASS | `5 passed, 3 skipped` |
 | 2026-02-08 | Full Suite | `PYTHONPATH=src pytest` | PASS | `132 passed` |
 | 2026-02-08 | ST (FR1.7) | `PYTHONPATH=src pytest tests/test_system_read_partial_ranges.py` | PASS | Partial line/byte reads + mixed-range rejection |
 | 2026-02-08 | ST (FR1.8) | `PYTHONPATH=src pytest tests/test_system_dry_run_contract.py` | PASS | Dry-run no-write contract with audit evidence |
 | 2026-02-08 | ST (FR1.18) | `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` | PASS | `validate_file` type inference + unsupported type path |
 | 2026-02-08 | IT (Harness) | `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` | PASS | `7 passed` |
 | 2026-02-10 | IT (Docker) | `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q` | PASS | `5 passed, 1 skipped` (bridge mode optional) |
+| 2026-02-10 | IT (Remote Storage) | `.venv/bin/python -m pytest -q tests/test_integration_remote_storage_backends_http.py -k remote -rs` | PASS | `3 passed` (WebDAV/FTP/S3 via `private/env-remote-storage`) |
+| 2026-02-10 | IT (Docker + Remote Storage) | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_remote_storage_backends.py -q -rs` | PASS | container host-network + WebDAV/FTP/S3 endpoints |
+| 2026-02-10 | IT (Docker Runtime) | `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q -rs` | PASS | `5 passed, 1 skipped` |
+| 2026-02-10 | Full Suite | `PYTHONPATH=src .venv/bin/python -m pytest -q` | PASS | `140 passed, 7 skipped` (Docker-gated tests skipped by default) |
 
 ## External Backend Policy
 
@@ -47,6 +64,17 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 - `IT1.10` (`tests/test_integration_story_multitype_crud_http.py`): single-session multi-tool story across upload/search/update/retrieve/delete with JSON/YAML/XML/HTML/Markdown/base64 and audit verification, including deterministic PDF-to-Markdown flow.
 - `IT1.11` (`tests/test_integration_config_matrix_harness_http.py`): config-variant harness for rotated API keys, custom auth header/scheme, scoped deny rules, limit settings, and audit correctness.
 - `IT1.12` (`tests/test_docker_container_runtime.py`): Dockerized runtime verification including host-network execution, layered env precedence (`FILE_MCP_ENV_PATH`), multi-folder allow/deny scope policy checks, and strict audit schema assertions for extended fields.
+- `IT1.13` (`tests/test_integration_remote_storage_backends_http.py`): real remote storage backend validation (WebDAV/FTP/S3), deterministic not-supported backend errors, and audit evidence generation using `private/env-remote-storage`.
+- `IT1.14` (`tests/test_docker_container_remote_storage_backends.py`): containerized remote storage backend validation over host networking for WebDAV/FTP/S3 using `private/env-remote-storage`.
+- `UT1.28` (`tests/test_endpoint_health.py`): startup probe classification, retry/failure state, and delayed recovery behavior for endpoint health manager.
+- `UT1.29` (`tests/test_google_drive_storage.py`): Google Drive folder-id extraction and required OAuth/target configuration validation.
+- `UT1.30` (`tests/test_google_drive_oauth_helper.py`): OAuth helper auth URL generation plus optional live code exchange.
+- `UT1.31` (`tests/test_google_drive_setup_script.py`): interactive setup helper folder parsing and env-file update behavior.
+- `UT1.32` (`tests/test_server_runtime.py`, `tests/test_google_drive_admin.py`): admin route gating/token auth, Google callback config bind, and `/admin/reload` hot-apply behavior.
+- `UT1.33` (`tests/test_webdav_storage.py`): WebDAV transient `MOVE` retry/backoff, "already applied" state detection, and retry-config parsing.
+- `ST1.8` (`tests/test_system_endpoint_restart_threshold.py`): restart-threshold exit policy verification with deterministic non-zero exit code.
+- `IT1.15` (`tests/test_integration_google_drive_live_http.py`): live Google Drive backend integration (env-gated).
+- `IT1.16` (`tests/test_integration_remote_backend_tool_matrix_http.py`): broad filesystem-backed MCP tool matrix across WebDAV/FTP/S3 and optional Google Drive.
 
 ## Audit/Observability Schema Assertions
 
@@ -108,6 +136,23 @@ Folder names must match test IDs and map to entries in this document.
 - **Snapshots:** path configured via config (default example: `.file-mcp/snapshots/` in scope).
 - **Test run artefacts:** `working/test-runs/<test-id>/` (stdout, stderr, inputs, outputs, diffs).
 - **Test data:** `tests/<type>/<test-id>/data/` (when persistent fixtures are required).
+
+### Remote Storage Backend Test Env (IT1.13)
+
+The real-backend remote storage integration test requires credentials and endpoints in an env file that is ignored by git:
+- Env file: `private/env-remote-storage`
+- Test: `tests/test_integration_remote_storage_backends_http.py`
+
+Required variables (names only; values are secrets and must not be committed):
+- Core: `FILE_MCP_API_KEY_PRIMARY`
+- WebDAV: `FILE_MCP_WEBDAV_BASE_URL`, `FILE_MCP_WEBDAV_USERNAME`, `FILE_MCP_WEBDAV_PASSWORD`
+- FTP: `FILE_MCP_FTP_HOST`, `FILE_MCP_FTP_USERNAME`, `FILE_MCP_FTP_PASSWORD` (optional: `FILE_MCP_FTP_PORT`, `FILE_MCP_FTP_BASE_DIR`, `FILE_MCP_FTP_USE_TLS`)
+- S3: `FILE_MCP_S3_ENDPOINT`, `FILE_MCP_S3_BUCKET`, `FILE_MCP_S3_ACCESS_KEY`, `FILE_MCP_S3_SECRET_KEY` (optional: `FILE_MCP_S3_REGION`, `FILE_MCP_S3_PREFIX`)
+- Google Drive (optional for Drive-backed tests): `FILE_MCP_GDRIVE_FOLDER_ID` (or `FILE_MCP_GDRIVE_FOLDER_URL`), `FILE_MCP_GDRIVE_CLIENT_ID`, `FILE_MCP_GDRIVE_CLIENT_SECRET`, `FILE_MCP_GDRIVE_REFRESH_TOKEN` (optional: `FILE_MCP_GDRIVE_TOKEN_URI`, `FILE_MCP_GDRIVE_USER_EMAIL`)
+- TLS controls (optional): `FILE_MCP_STORAGE_TLS_INSECURE`, `FILE_MCP_STORAGE_TLS_CA_BUNDLE`
+- Endpoint health controls (optional): `FILE_MCP_ENDPOINT_HEALTH_ENABLED`, `FILE_MCP_ENDPOINT_HEALTH_MAX_RETRIES`, `FILE_MCP_ENDPOINT_HEALTH_RETRY_INTERVAL_S`, `FILE_MCP_ENDPOINT_HEALTH_RETRY_WINDOW_S`, `FILE_MCP_ENDPOINT_HEALTH_MAX_FAILURES_BEFORE_RESTART`, `FILE_MCP_ENDPOINT_HEALTH_RECOVER_AFTER_S`
+- Restart exit controls (optional): `FILE_MCP_ENDPOINT_HEALTH_RESTART_ON_THRESHOLD`, `FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE`
+- Google live-test flags (optional): `FILE_MCP_RUN_GOOGLE_LIVE_TESTS`, `FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST`, `FILE_MCP_GDRIVE_AUTH_CODE`
 
 ---
 
@@ -172,6 +217,14 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.23** → ST1.2, IT1.8
 - **FR1.24** → UT1.18, IT1.1
 - **FR1.25** → UT1.19
+- **FR1.26** → IT1.13, IT1.15, IT1.16
+- **FR1.27** → IT1.13, IT1.15, IT1.16
+- **FR1.28** → IT1.13, IT1.15, IT1.16
+- **FR1.29** → IT1.13, IT1.15, IT1.16
+- **FR1.30** → UT1.28
+- **FR1.31** → UT1.28, ST1.1, ST1.8
+- **FR1.32** → UT1.29, UT1.30, IT1.15
+- **FR1.33** → ST1.8
 
 ### Use Cases (UC)
 - **UC1.1** → IT1.2, AT1.1
@@ -181,6 +234,11 @@ Each test section’s **Run History** should be updated using this template.
 - **UC1.5** → IT1.5, AT1.1
 - **UC1.6** → ST1.3, AT1.1
 - **UC1.7** → ST1.1, AT1.4
+- **UC1.8** → IT1.13, IT1.15, IT1.16
+- **UC1.9** → IT1.13, IT1.15, IT1.16
+- **UC1.10** → UT1.28, ST1.1
+- **UC1.11** → UT1.29
+- **UC1.12** → ST1.8
 
 ### Cyber Security (CS)
 - **CS1.1** → UT1.2, ST1.2

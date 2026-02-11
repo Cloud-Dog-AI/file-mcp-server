@@ -72,6 +72,9 @@ Primary Docker runtime variables:
 - `FILE_MCP_CONFIG_PATH`
 - `FILE_MCP_DEFAULTS_PATH`
 - `FILE_MCP_TLS_CA_BUNDLE`
+- `FILE_MCP_STORAGE_BACKEND` (`local|webdav|ftp|s3|google_drive`)
+- `FILE_MCP_STORAGE_TLS_INSECURE` / `FILE_MCP_STORAGE_TLS_CA_BUNDLE` (remote backends)
+- `FILE_MCP_ENDPOINT_HEALTH_*` (startup probe + retry/recovery policy)
 
 ## CERTS support
 
@@ -85,6 +88,12 @@ docker run --rm --network=host \
 ```
 
 Entry-point logic installs this CA into container trust and exports TLS env vars for Python/curl.
+
+WebDAV move resilience is configurable through env/config:
+- `FILE_MCP_WEBDAV_MOVE_RETRY_COUNT`
+- `FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S`
+- `FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S`
+- `FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES`
 
 ## Managing server lifecycle
 
@@ -110,6 +119,7 @@ docker exec -it file-mcp-server ./server_control.sh --env /workspace/env.base st
 - Diff and base64: `diff_text`, `diff_files`, `b64_encode`, `b64_decode`, `b64_encode_file`, `b64_decode_to_file`
 - Structured tools: JSON/YAML/XML/HTML/Markdown get/set/merge/move/copy and `*_file` variants
 - Advanced tools: `convert_file`, `sed_edit_file`, `meld_files` (optional)
+- Runtime status: `backend_status` (endpoint state per profile/backend)
 
 ## Testing
 
@@ -133,6 +143,16 @@ FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src \
 pytest tests/test_docker_container_runtime.py -q
 ```
 
+Expanded remote matrix + Docker suite:
+
+```bash
+source .venv/bin/activate
+FILE_MCP_RUN_DOCKER_TESTS=1 \
+FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 \
+FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 \
+PYTHONPATH=src pytest -q
+```
+
 Optional remote Docker host:
 
 ```bash
@@ -148,3 +168,68 @@ PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q
 - `docs/ARCHITECTURE.md`
 - `docs/TASKS.md`
 - `docs/TESTS.md`
+
+## Google Drive interactive setup
+
+Use the interactive helper to configure Google Drive credentials into your preferred env file:
+
+```bash
+./scripts/setup-google-drive.sh private/env-google-drive
+```
+
+Equivalent direct command:
+
+```bash
+python scripts/google_drive_setup.py --env-path private/env-google-drive
+```
+
+It prompts for:
+- Google account email
+- Folder id, folder share URL, or folder name
+- OAuth client id/secret
+- Authorization code
+- Target env file path
+
+Then it validates token + folder access and writes `FILE_MCP_GDRIVE_*` settings.
+
+When using a localhost redirect URI (for example `http://localhost`), the setup script can auto-capture the authorization code from the callback and continue without manual copy/paste.
+
+## Server-hosted Google Drive setup pages
+
+For client-site deployments where the server is remote, use built-in admin pages:
+
+1. Enable admin UI in env:
+   - `FILE_MCP_ADMIN_UI_ENABLED=true`
+   - optionally set `FILE_MCP_ADMIN_UI_TOKEN=<secret>`
+2. Open:
+   - `http(s)://<server-host>:<port>/admin/google-drive`
+   - if token is set, pass `?token=<secret>` or header `X-Admin-Token: <secret>`
+3. Select target profile and complete OAuth flow.
+
+Use an OAuth **Web application** credential in Google with redirect URI:
+- `http(s)://<server-host>:<port>/admin/google-drive/callback`
+
+### Apply config without restart
+
+- `POST /admin/reload` hot-reloads the active profile registry from current env/config/defaults.
+- The same admin gate applies (`FILE_MCP_ADMIN_UI_ENABLED` and optional token).
+- If `FILE_MCP_ADMIN_APPLY_ON_CALLBACK=true`, successful `/admin/google-drive/callback` auto-runs reload.
+
+### How to get `FILE_MCP_GDRIVE_CLIENT_ID` and `FILE_MCP_GDRIVE_CLIENT_SECRET`
+
+1. Open Google Cloud Console: `https://console.cloud.google.com/`
+2. Create/select a project.
+3. Enable **Google Drive API**:
+   - APIs & Services -> Library -> Google Drive API -> Enable
+4. Configure OAuth consent screen:
+   - APIs & Services -> OAuth consent screen
+   - choose External (or Internal), set app details
+   - add test users if required
+5. Create credentials:
+   - APIs & Services -> Credentials -> Create Credentials -> OAuth client ID
+   - Application type: **Desktop app**
+6. Copy values from the created credential:
+   - Client ID -> `FILE_MCP_GDRIVE_CLIENT_ID`
+   - Client secret -> `FILE_MCP_GDRIVE_CLIENT_SECRET`
+
+After you have the client ID, the setup script prints a Google challenge URL for authorization, then asks for the returned code.

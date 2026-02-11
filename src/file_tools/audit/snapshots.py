@@ -21,6 +21,24 @@ def create_snapshot(base_dir: Path, source: Path) -> Path:
     return target
 
 
+def snapshot_path_for_logical(base_dir: Path, logical_path: str) -> Path:
+    """
+    Build a snapshot path for a logical (non-local) path.
+
+    logical_path should be a POSIX absolute path (e.g. `/docs/a.txt`).
+    """
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    relative = logical_path.lstrip("/")
+    return base_dir / timestamp / relative
+
+
+def create_snapshot_bytes(base_dir: Path, logical_path: str, data: bytes) -> Path:
+    target = snapshot_path_for_logical(base_dir, logical_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return target
+
+
 def _snapshot_dirs(base_dir: Path) -> list[Path]:
     if not base_dir.exists():
         return []

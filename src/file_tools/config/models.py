@@ -78,11 +78,97 @@ class LimitsConfig(BaseModel):
     search_max_results: Optional[int] = None
     search_max_file_mb: Optional[int] = None
     search_timeout_s: Optional[int] = None
+    storage_timeout_s: Optional[int] = None
     conversion_timeout_s: Optional[int] = None
+
+
+class TlsConfig(BaseModel):
+    """
+    TLS controls for outbound connections to remote storage backends.
+
+    - insecure_skip_verify: when true, disable certificate verification.
+    - ca_bundle_path: optional CA bundle file path to trust.
+    """
+
+    insecure_skip_verify: Optional[str] = None
+    ca_bundle_path: Optional[str] = None
+
+
+class S3StorageConfig(BaseModel):
+    endpoint: Optional[str] = None
+    bucket: Optional[str] = None
+    region: Optional[str] = None
+    access_key: Optional[str] = None
+    secret_key: Optional[str] = None
+    prefix: Optional[str] = None
+
+
+class WebDavStorageConfig(BaseModel):
+    base_url: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    move_retry_count: Optional[str] = None
+    move_retry_backoff_s: Optional[str] = None
+    move_probe_timeout_s: Optional[str] = None
+    move_retry_statuses: Optional[str] = None
+
+
+class FtpStorageConfig(BaseModel):
+    host: Optional[str] = None
+    port: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    base_dir: Optional[str] = None
+    use_tls: Optional[str] = None
+
+
+class GoogleDriveStorageConfig(BaseModel):
+    user_email: Optional[str] = None
+    folder_id: Optional[str] = None
+    folder_url: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    refresh_token: Optional[str] = None
+    access_token: Optional[str] = None
+    redirect_uri: Optional[str] = None
+    token_uri: Optional[str] = None
+
+
+class StorageConfig(BaseModel):
+    """
+    Storage backend configuration.
+
+    backend:
+      - local: native filesystem paths (current behavior)
+      - s3: S3-compatible object storage (keyspace)
+      - webdav: WebDAV over HTTP(S)
+      - ftp: FTP/FTPS
+    """
+
+    backend: Optional[str] = None
+    tls: TlsConfig = Field(default_factory=TlsConfig)
+    s3: S3StorageConfig = Field(default_factory=S3StorageConfig)
+    webdav: WebDavStorageConfig = Field(default_factory=WebDavStorageConfig)
+    ftp: FtpStorageConfig = Field(default_factory=FtpStorageConfig)
+    google_drive: GoogleDriveStorageConfig = Field(default_factory=GoogleDriveStorageConfig)
+
+
+class EndpointHealthConfig(BaseModel):
+    enabled: Optional[bool | str] = None
+    check_on_startup: Optional[bool | str] = None
+    check_all_configured_backends: Optional[bool | str] = None
+    max_retries: Optional[int | str] = None
+    retry_interval_s: Optional[int | str] = None
+    retry_window_s: Optional[int | str] = None
+    max_failures_before_restart: Optional[int | str] = None
+    recover_after_s: Optional[int | str] = None
+    restart_on_threshold: Optional[bool | str] = None
+    restart_exit_code: Optional[int | str] = None
 
 
 class ProfileConfig(BaseModel):
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     scope: ScopeConfig = Field(default_factory=ScopeConfig)
     audit: AuditConfig = Field(default_factory=AuditConfig)
     snapshots: SnapshotConfig = Field(default_factory=SnapshotConfig)
@@ -90,6 +176,7 @@ class ProfileConfig(BaseModel):
     conversion: ConversionConfig = Field(default_factory=ConversionConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
+    endpoint_health: EndpointHealthConfig = Field(default_factory=EndpointHealthConfig)
 
 
 class ServerConfig(BaseModel):

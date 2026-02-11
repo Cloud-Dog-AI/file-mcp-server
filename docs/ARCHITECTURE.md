@@ -1,5 +1,5 @@
 # File MCP Server — ARCHITECTURE.md
-Version: 0.3 • 2026-02-08
+Version: 0.4 • 2026-02-11
 Status: Active
 
 ## 1. System Overview
@@ -25,16 +25,19 @@ Out of scope:
 1. Load config via precedence chain.
 2. Select profile.
 3. Build auth verifier and tool registry.
-4. For each call: authenticate -> scope-check -> execute handler -> return structured output/error.
-5. For mutating calls: optional snapshot + validation + append-only audit event.
+4. Run endpoint health startup checks for configured backends.
+5. For each call: authenticate -> scope-check -> backend health gate -> execute handler -> return structured output/error.
+6. For mutating calls: optional snapshot + validation + append-only audit event.
 
 ### 2.3 Key Modules
 - `src/file_mcp_server/server.py`: FastMCP transport wiring, middleware, tool registration, file-level handlers.
 - `src/file_mcp_server/main.py`: CLI commands (`serve`, `start`, `stop`, `status`).
 - `src/file_mcp_server/lifecycle.py`: pidfile and lifecycle primitives.
+- `src/file_mcp_server/endpoint_health.py`: endpoint probe/retry/recovery manager.
 - `src/file_tools/config/loader.py`: environment/config precedence and profile loading.
 - `src/file_tools/scope/policy.py`: path and allow/deny enforcement.
 - `src/file_tools/audit/*`: audit event model + snapshot retention.
+- `src/file_tools/storage/google_drive.py`: Google Drive backend implementation.
 
 ## 3. Configuration Model
 
@@ -46,12 +49,15 @@ Out of scope:
 
 ### 3.2 Profile Areas
 - `auth`: API keys, header name/scheme
+- `storage`: backend selection (local/s3/webdav/ftp/google_drive) and TLS controls
 - `scope`: roots, allow/deny globs, extension constraints
 - `audit`: log path and options
 - `snapshots`: mode + retention (`days`, `count`, `max_storage_mb`)
 - `validation`: per-type policy (`strict` / `warn` / `ignore`)
-- `limits`: search limits (`max_results`, `max_file_mb`, `search_timeout_s`) and conversion timeout
+- `limits`: search limits (`max_results`, `max_file_mb`, `search_timeout_s`), storage timeout, and conversion timeout
 - `conversion`: backends and input-size limit
+- `endpoint_health`: startup checks, retry policy, recovery cooldown, restart threshold
+  - includes optional process-exit policy (`restart_on_threshold`, `restart_exit_code`)
 
 ## 4. Transport & Interface
 
@@ -63,6 +69,11 @@ Configured by `http.transport`:
 
 Health endpoint:
 - `GET http.health_path` (default `/health`)
+- Admin endpoints (when enabled):
+  - `GET /admin/google-drive`
+  - `POST /admin/google-drive/start`
+  - `GET /admin/google-drive/callback`
+  - `POST /admin/reload`
 
 ### 4.2 Authentication
 - API key required for tool calls.
@@ -80,6 +91,7 @@ Tool groups:
 - conversion (`convert_file`)
 - diff and optional GUI compare (`diff_text`, `diff_files`, `meld_files`)
 - base64 operations (`b64_*`)
+- runtime status (`backend_status`)
 
 Mutating operations support `dry_run` where deterministic preview is possible.
 
@@ -125,15 +137,41 @@ Project-provided wrapper:
 
 `--env` is required by design for explicit operational context.
 
-## 9. Testing Architecture
+### 8.3 Endpoint Health Lifecycle
+- Startup probes evaluate configured backends and classify status (`healthy`, `temporary_unavailable`, `busy_temporary`, `auth_failed`, `failed`).
+- Runtime calls trigger delayed recovery attempts for unhealthy backends.
+- Endpoint state is queryable via the `backend_status` tool and logged during startup and retries.
+- When `restart_on_threshold` is enabled and threshold is reached, the server exits with `restart_exit_code` so an external supervisor/container policy can restart it.
+
+### 8.4 Runtime Reload Lifecycle
+- Middleware hosts admin routes for Google Drive onboarding and profile rebinding.
+- `POST /admin/reload` rebuilds the active profile registry from current env/config/defaults.
+- Reload path reruns endpoint startup checks and updates `backend_status` state.
+- Admin route access is explicitly gated by `FILE_MCP_ADMIN_UI_ENABLED` and optional `FILE_MCP_ADMIN_UI_TOKEN`.
+
+## 9. Storage Backend Architecture
+
+### 9.1 Shared Backend Contract
+- Backends implement `StorageBackend` with logical POSIX path semantics.
+- Unsupported capabilities return deterministic `Not supported for backend` errors.
+- Local and remote backends share the same MCP tool surface where semantics are valid.
+- WebDAV backend includes configurable transient `MOVE` retry/backoff logic with destination-state confirmation for partial-success cases.
+
+### 9.2 Google Drive Backend
+- Uses OAuth credentials and token refresh against Google OAuth token endpoint.
+- Resolves target root from `folder_id` or Google Drive folder URL.
+- Supports read/write/list/delete/copy/move/create-dir semantics scoped to the configured Drive folder.
+- Returns deterministic not-supported for POSIX-only operations such as `chmod_path`.
+
+## 10. Testing Architecture
 - Unit tests for module correctness.
 - System tests for runtime contracts.
 - Integration tests for multi-module behavior over real HTTP tool calls.
 - Application tests for realistic multi-step workflows.
 
-Current baseline: full suite green (`132 passed`).
+Current baseline: full suite green (`161 passed, 4 skipped`) with Docker/remote-matrix flags enabled.
 
-## 10. Documentation Map
+## 11. Documentation Map
 - Requirements: `docs/REQUIREMENTS.md`
 - Tasks traceability: `docs/TASKS.md`
 - Test traceability + run evidence: `docs/TESTS.md`
