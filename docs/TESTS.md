@@ -28,6 +28,10 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
+| 2026-02-11 | Full Suite Re-run | `PYTHONPATH=src pytest -q` | PASS | `166 passed, 14 skipped` |
+| 2026-02-11 | IT (Google Live, env-gated) | `FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1 PYTHONPATH=src pytest -q tests/test_integration_google_drive_live_http.py -rs` | SKIP | `1 skipped` (missing `FILE_MCP_GDRIVE_CLIENT_ID`, `FILE_MCP_GDRIVE_CLIENT_SECRET`) |
+| 2026-02-11 | IT (Remote Backend Matrix) | `FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 PYTHONPATH=src pytest -q tests/test_integration_remote_backend_tool_matrix_http.py -rs` | PASS | `3 passed, 1 skipped` (Google Drive credentials not configured for matrix) |
+| 2026-02-11 | IT (Docker Runtime + Remote Backends) | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 PYTHONPATH=src pytest -q tests/test_docker_container_runtime.py tests/test_docker_container_remote_storage_backends.py -rs` | PASS | `9 passed, 1 skipped` (bridge test flag not enabled) |
 | 2026-02-11 | Full Suite | `PYTHONPATH=src pytest -q` | PASS | `166 passed, 14 skipped` |
 | 2026-02-11 | IT (Docker Remote Backends) | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 PYTHONPATH=src pytest -q tests/test_docker_container_remote_storage_backends.py -rs` | PASS | `3 passed` |
 | 2026-02-11 | Runtime Admin Reload + Status | `curl -X POST /admin/reload` + MCP `backend_status` against running container | PASS | reload returns `ok:true`; `backend_status` healthy |
