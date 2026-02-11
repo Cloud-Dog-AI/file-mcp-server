@@ -188,3 +188,30 @@ Artefact:
 Notes:
 - `not_supported` entries are deterministic backend contract responses (for example `chmod_path` on non-POSIX backends).
 - No unexpected tool failures remain in this latest exhaustive run.
+
+## 8) Multi-profile single-server routing (2026-02-11)
+
+Implemented:
+- One server process now serves multiple profiles concurrently.
+- Per-request profile selection:
+  - query parameter: `?profile=<name>`
+  - header: `X-File-MCP-Profile: <name>`
+  - fallback: server default profile (`FILE_MCP_PROFILE` / `--profile`).
+- Authentication is profile-aware:
+  - selected-profile API keys are enforced
+  - cross-profile key reuse is rejected.
+- Tool execution is profile-routed with profile-local controls:
+  - scope roots, deny/allow globs
+  - allowed extensions, read-only extensions
+  - limits and backend settings.
+
+Tests added:
+- `tests/test_integration_multi_profile_routing_http.py`
+  - verifies 5-profile concurrent operation in one server process
+  - validates selector + default fallback
+  - validates per-profile auth/scope/type controls.
+- `tests/test_auth.py` additions for profile-aware verifier behavior.
+
+Verification:
+- `PYTHONPATH=src pytest -q tests/test_auth.py tests/test_server_runtime.py tests/test_integration_multi_profile_routing_http.py -rs` -> `22 passed`
+- `PYTHONPATH=src pytest -q` -> `172 passed, 14 skipped`

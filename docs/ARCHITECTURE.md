@@ -23,8 +23,8 @@ Out of scope:
 
 ### 2.2 Core Runtime Flow
 1. Load config via precedence chain.
-2. Select profile.
-3. Build auth verifier and tool registry.
+2. Load all configured profiles and set a server default profile.
+3. Resolve active profile per request (query/header with default fallback), then apply profile-aware auth and registry routing.
 4. Run endpoint health startup checks for configured backends.
 5. For each call: authenticate -> scope-check -> backend health gate -> execute handler -> return structured output/error.
 6. For mutating calls: optional snapshot + validation + append-only audit event.
@@ -78,7 +78,15 @@ Health endpoint:
 ### 4.2 Authentication
 - API key required for tool calls.
 - Header name and scheme are profile-configurable.
+- Validation is profile-aware: selected-profile keys are accepted, cross-profile keys are rejected.
 - Raw secrets are never written to logs.
+
+### 4.3 Profile Selection
+- Server default profile is set by `FILE_MCP_PROFILE` / CLI `--profile`.
+- Request-level override is supported by:
+  - query parameter `profile=<name>`
+  - header `X-File-MCP-Profile: <name>`
+- If override is missing or unknown, server default profile is used.
 
 ## 5. Tool Surface
 

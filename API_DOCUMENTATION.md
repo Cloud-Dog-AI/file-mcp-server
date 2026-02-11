@@ -4,6 +4,7 @@
 `file-mcp-server` exposes MCP tools over FastMCP HTTP transports.
 
 Default endpoint paths:
+- `GET /` (status summary page for browser; JSON when `Accept: application/json`)
 - `GET /health`
 - `POST /mcp`
 - `GET /admin/google-drive` (when admin UI is enabled)
@@ -32,6 +33,12 @@ Typical workflow:
 1. Discover tools.
 2. Call a tool with JSON arguments.
 3. Receive structured tool result or structured tool error.
+
+Profile routing:
+- default profile is server-configured
+- request override via query parameter `profile=<name>`
+- request override via header `X-File-MCP-Profile: <name>`
+- selected profile controls auth key set, scope rules, and type restrictions
 
 ## Core Tool Groups
 - Filesystem: `read_file`, `write_file`, `copy_file`, `move_file`, `delete_file`, `list_dir`

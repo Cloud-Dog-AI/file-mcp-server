@@ -11,6 +11,30 @@
     }
   ],
   "paths": {
+    "/": {
+      "get": {
+        "summary": "Root Status Summary",
+        "description": "Returns server status summary. Browser clients receive HTML; API clients can request JSON with Accept: application/json.",
+        "responses": {
+          "200": {
+            "description": "Status summary",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health Check",
@@ -82,7 +106,27 @@
     "/mcp": {
       "post": {
         "summary": "MCP Tool Endpoint",
-        "description": "FastMCP streamable HTTP endpoint for MCP/JSON-RPC tool discovery and invocation.",
+        "description": "FastMCP streamable HTTP endpoint for MCP/JSON-RPC tool discovery and invocation. Profile override is supported via query parameter or X-File-MCP-Profile header.",
+        "parameters": [
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional profile override. If omitted, server default profile is used."
+          },
+          {
+            "name": "X-File-MCP-Profile",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional profile override header. If omitted, server default profile is used."
+          }
+        ],
         "security": [
           {
             "bearerAuth": []

@@ -132,6 +132,106 @@ def test_health_middleware_returns_ok() -> None:
     assert body["status"] == "ok"
 
 
+def test_root_status_page_returns_html_summary(tmp_path) -> None:
+    sent = []
+    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        (
+            "profiles:\n"
+            "  local:\n"
+            "    storage:\n"
+            "      backend: local\n"
+            "  s3:\n"
+            "    storage:\n"
+            "      backend: s3\n"
+        ),
+        encoding="utf-8",
+    )
+    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="local",
+        transport="streamable-http",
+    )
+
+    async def _run() -> None:
+        scope = {"type": "http", "method": "GET", "path": "/", "headers": [(b"accept", b"text/html")]}
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run())
+        assert sent[0]["status"] == 200
+        body = sent[1]["body"].decode("utf-8")
+        assert "file-mcp-server status" in body
+        assert "Configured Profiles" in body
+        assert "local" in body
+        assert "s3" in body
+    finally:
+        if prev_config is None:
+            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+        else:
+            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+
+
+def test_root_status_page_returns_json_for_api_accept(tmp_path) -> None:
+    sent = []
+    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "profiles:\n  ftp:\n    storage:\n      backend: ftp\n",
+        encoding="utf-8",
+    )
+    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="local",
+        transport="streamable-http",
+    )
+
+    async def _run() -> None:
+        scope = {"type": "http", "method": "GET", "path": "/", "headers": [(b"accept", b"application/json")]}
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run())
+        assert sent[0]["status"] == 200
+        payload = json.loads(sent[1]["body"].decode("utf-8"))
+        assert payload["status"] == "ok"
+        assert payload["profiles"]["ftp"] == "ftp"
+    finally:
+        if prev_config is None:
+            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+        else:
+            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+
+
 def test_health_middleware_serves_google_drive_admin_page() -> None:
     sent = []
     previous = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")

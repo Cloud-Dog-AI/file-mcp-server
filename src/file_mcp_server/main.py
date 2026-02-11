@@ -74,8 +74,8 @@ def serve(
     try:
         asyncio.run(
             run_fastmcp_http_server(
-                profile_name=profile,
-                profile=profile_config,
+                default_profile_name=profile,
+                config=config,
                 http_config=config.http,
                 logger=logger,
             )

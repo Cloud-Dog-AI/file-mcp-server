@@ -28,6 +28,8 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
+| 2026-02-11 | Full Suite (Post Multi-Profile Routing) | `source .venv/bin/activate && PYTHONPATH=src pytest -q` | PASS | `172 passed, 14 skipped` |
+| 2026-02-11 | IT/UT (Multi-Profile Routing + Auth) | `source .venv/bin/activate && PYTHONPATH=src pytest -q tests/test_auth.py tests/test_server_runtime.py tests/test_integration_multi_profile_routing_http.py -rs` | PASS | `22 passed` |
 | 2026-02-11 | IT (Exhaustive Per-Tool Backend Audit: WebDAV/FTP/S3/Google Drive) | `source .venv/bin/activate && PYTHONPATH=src:. FILE_MCP_EXHAUSTIVE_BACKENDS=webdav,ftp,s3,google_drive FILE_MCP_EXHAUSTIVE_TOOL_TIMEOUT_S=60 python3 scripts/exhaustive_backend_tool_audit.py` | PASS | `webdav: pass=52 not_supported=2 fail=0; ftp: pass=52 not_supported=2 fail=0; s3: pass=51 not_supported=3 fail=0; google_drive: pass=52 not_supported=2 fail=0; report=working/exhaustive_backend_tool_audit.json` |
 | 2026-02-11 | Full Suite Re-run | `PYTHONPATH=src pytest -q` | PASS | `166 passed, 14 skipped` |
 | 2026-02-11 | IT (Google Live, env-gated) | `FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1 PYTHONPATH=src pytest -q tests/test_integration_google_drive_live_http.py -rs` | SKIP | `1 skipped` (missing `FILE_MCP_GDRIVE_CLIENT_ID`, `FILE_MCP_GDRIVE_CLIENT_SECRET`) |
@@ -80,6 +82,7 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 - `ST1.8` (`tests/test_system_endpoint_restart_threshold.py`): restart-threshold exit policy verification with deterministic non-zero exit code.
 - `IT1.15` (`tests/test_integration_google_drive_live_http.py`): live Google Drive backend integration (env-gated).
 - `IT1.16` (`tests/test_integration_remote_backend_tool_matrix_http.py`): broad filesystem-backed MCP tool matrix across WebDAV/FTP/S3 and optional Google Drive.
+- `IT1.17` (`tests/test_integration_multi_profile_routing_http.py`): single-server multi-profile routing with per-profile API keys (query/header selectors + default fallback) and profile-specific scope controls (root restriction, deny globs, allowed extensions, read-only extensions).
 
 ## Audit/Observability Schema Assertions
 
@@ -201,7 +204,8 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.2** → IT1.1, IT1.8
 - **FR1.3** → UT1.1
 - **FR1.4** → UT1.1
-- **FR1.5** → UT1.2, ST1.2
+- **FR1.4** → UT1.1, IT1.17
+- **FR1.5** → UT1.2, ST1.2, IT1.17
 - **FR1.6** → UT1.3, IT1.2
 - **FR1.7** → UT1.4, IT1.2
 - **FR1.8** → UT1.4, IT1.2
@@ -230,6 +234,7 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.31** → UT1.28, ST1.1, ST1.8
 - **FR1.32** → UT1.29, UT1.30, IT1.15
 - **FR1.33** → ST1.8
+- **FR1.36** → IT1.17
 
 ### Use Cases (UC)
 - **UC1.1** → IT1.2, AT1.1
@@ -244,6 +249,8 @@ Each test section’s **Run History** should be updated using this template.
 - **UC1.10** → UT1.28, ST1.1
 - **UC1.11** → UT1.29
 - **UC1.12** → ST1.8
+- **UC1.13** → UT1.32
+- **UC1.14** → IT1.17
 
 ### Cyber Security (CS)
 - **CS1.1** → UT1.2, ST1.2

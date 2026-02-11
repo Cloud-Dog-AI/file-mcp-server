@@ -29,9 +29,10 @@ import time
 import uuid
 from urllib.parse import parse_qs
 
+import yaml
 from fastmcp import FastMCP
-from file_tools.config.models import HttpServerConfig, ProfileConfig, ValidationConfig
-from file_tools.config.loader import get_profile, load_config
+from file_tools.config.models import HttpServerConfig, ProfileConfig, ServerConfig, ValidationConfig
+from file_tools.config.loader import load_config
 from file_tools.audit import AuditLogger, build_event, create_snapshot, create_snapshot_bytes, prune_snapshots
 from file_tools.diff import diff_files, diff_text, launch_meld
 from file_tools.edit import (
@@ -88,7 +89,7 @@ from file_tools.limits import LimitError, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
 from starlette.middleware import Middleware
 
-from .auth import ApiKeyTokenVerifier
+from .auth import MultiProfileApiKeyTokenVerifier, get_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
 from .google_drive_admin import (
     begin_oauth,
@@ -245,6 +246,94 @@ class HealthCheckMiddleware:
         )
         await send({"type": "http.response.body", "body": b""})
 
+    def _read_profile_backends(self) -> dict[str, str]:
+        config_path = Path(self.active_config)
+        if not config_path.exists():
+            return {}
+        try:
+            parsed = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        except Exception:
+            return {}
+        profiles = parsed.get("profiles")
+        if not isinstance(profiles, dict):
+            return {}
+        summary: dict[str, str] = {}
+        for name, profile in profiles.items():
+            if not isinstance(profile, dict):
+                continue
+            backend = ((profile.get("storage") or {}).get("backend")) if isinstance(profile.get("storage"), dict) else None
+            summary[str(name)] = str(backend or "unknown")
+        return summary
+
+    def _build_root_summary(self) -> dict[str, Any]:
+        profile_backends = self._read_profile_backends()
+        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(self.profile_name)
+        endpoint_states = {
+            name: {
+                "backend": state.backend,
+                "status": state.status,
+                "reason": state.reason,
+                "requires_restart": state.requires_restart,
+            }
+            for name, state in states.items()
+        }
+        return {
+            "status": "ok",
+            "service": self.app_name,
+            "profile": self.profile_name,
+            "transport": self.transport,
+            "env_file": self.env_file,
+            "config_path": self.active_config,
+            "profiles": profile_backends,
+            "endpoint_health": endpoint_states,
+            "mcp_endpoint": "/mcp",
+            "health_endpoint": self.health_path,
+        }
+
+    def _render_root_summary_html(self, summary: dict[str, Any]) -> str:
+        profile_rows = "".join(
+            f"<tr><td>{escape(name)}</td><td>{escape(backend)}</td></tr>"
+            for name, backend in sorted((summary.get("profiles") or {}).items())
+        )
+        if not profile_rows:
+            profile_rows = "<tr><td colspan='2'><em>No profiles discovered</em></td></tr>"
+        health_rows = "".join(
+            "<tr>"
+            f"<td>{escape(name)}</td>"
+            f"<td>{escape(str(state.get('backend', '')))}</td>"
+            f"<td>{escape(str(state.get('status', '')))}</td>"
+            f"<td>{escape(str(state.get('reason', '')))}</td>"
+            "</tr>"
+            for name, state in sorted((summary.get("endpoint_health") or {}).items())
+        )
+        if not health_rows:
+            health_rows = "<tr><td colspan='4'><em>No endpoint-health state yet</em></td></tr>"
+        return (
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            "<title>file-mcp-server status</title>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;margin:20px;color:#111;}"
+            "table{border-collapse:collapse;width:100%;max-width:980px;margin-bottom:18px;}"
+            "th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:14px;}"
+            "th{background:#f3f4f6;}"
+            "code{background:#f3f4f6;padding:2px 4px;border-radius:3px;}"
+            "</style></head><body>"
+            "<h1>file-mcp-server status</h1>"
+            f"<p><strong>Profile:</strong> {escape(str(summary.get('profile')))}<br>"
+            f"<strong>Transport:</strong> {escape(str(summary.get('transport')))}<br>"
+            f"<strong>Env file:</strong> <code>{escape(str(summary.get('env_file') or ''))}</code><br>"
+            f"<strong>Config:</strong> <code>{escape(str(summary.get('config_path') or ''))}</code><br>"
+            f"<strong>MCP endpoint:</strong> <code>{escape(str(summary.get('mcp_endpoint') or '/mcp'))}</code><br>"
+            f"<strong>Health endpoint:</strong> <code>{escape(str(summary.get('health_endpoint') or self.health_path))}</code></p>"
+            "<h2>Configured Profiles</h2>"
+            "<table><thead><tr><th>Profile</th><th>Backend</th></tr></thead><tbody>"
+            f"{profile_rows}</tbody></table>"
+            "<h2>Endpoint Health (Active Profile)</h2>"
+            "<table><thead><tr><th>Name</th><th>Backend</th><th>Status</th><th>Reason</th></tr></thead><tbody>"
+            f"{health_rows}</tbody></table>"
+            "</body></html>"
+        )
+
     async def __call__(self, scope, receive, send) -> None:
         headers = {
             (k.decode("latin-1").lower() if isinstance(k, bytes) else str(k).lower()): (
@@ -253,7 +342,16 @@ class HealthCheckMiddleware:
             for k, v in (scope.get("headers") or [])
         }
         path = str(scope.get("path") or "")
+        accept = headers.get("accept", "")
         is_admin_route = path.startswith("/admin/")
+        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/":
+            summary = self._build_root_summary()
+            if "application/json" in accept and "text/html" not in accept:
+                body = json.dumps(summary).encode("utf-8")
+                await self._send_bytes(send, status=200, body=body, content_type="application/json")
+                return
+            await self._send_html(send, status=200, html=self._render_root_summary_html(summary))
+            return
         if (
             scope.get("type") == "http"
             and scope.get("method") == "GET"
@@ -2337,7 +2435,7 @@ def register_tools_with_fastmcp(
     server: FastMCP,
     registry_provider,
     *,
-    profile_name: str,
+    default_profile_name: str,
     logger: logging.Logger | None = None,
 ) -> None:
     current_registry = registry_provider()
@@ -2356,6 +2454,7 @@ def register_tools_with_fastmcp(
             started = time.perf_counter()
             params = _truncate_value(kwargs)
             paths = _extract_paths_from_params(kwargs)
+            profile_name = get_request_profile_name(default_profile_name) or default_profile_name
             registry = registry_provider()
             current_def = registry.get(tool_name)
             handler = current_def.handler
@@ -2493,44 +2592,60 @@ def register_tools_with_fastmcp(
 
 
 def build_fastmcp_server(
-    profile_name: str,
-    profile: ProfileConfig,
+    default_profile_name: str,
+    config: ServerConfig,
     http: HttpRuntimeSettings,
     *,
     logger: logging.Logger | None = None,
 ) -> FastMCP:
-    if not profile.auth.api_keys:
-        raise ValueError("No API keys configured for selected profile")
+    if default_profile_name not in config.profiles:
+        raise ValueError(f"Unknown default profile: {default_profile_name}")
+    for name, profile in config.profiles.items():
+        if not profile.auth.api_keys:
+            raise ValueError(f"No API keys configured for profile '{name}'")
 
-    auth = ApiKeyTokenVerifier(
-        profile.auth.api_keys,
-        header_name=profile.auth.header_name,
-        header_scheme=profile.auth.header_scheme,
+    auth = MultiProfileApiKeyTokenVerifier(
+        {
+            name: (profile.auth.api_keys, profile.auth.header_name, profile.auth.header_scheme)
+            for name, profile in config.profiles.items()
+        },
+        default_profile=default_profile_name,
     )
 
     server = FastMCP(
-        name=f"file-mcp-server:{profile_name}",
+        name=f"file-mcp-server:{default_profile_name}",
         auth=auth,
     )
     registry_lock = Lock()
-    registry_holder: dict[str, ToolRegistry] = {
-        "registry": build_tool_registry(profile, profile_name=profile_name, logger=logger)
-    }
+    profiles_holder: dict[str, ProfileConfig] = dict(config.profiles)
+    registry_by_profile: dict[str, ToolRegistry] = {}
 
     def _registry_provider() -> ToolRegistry:
+        profile_name = get_request_profile_name(default_profile_name) or default_profile_name
         with registry_lock:
-            return registry_holder["registry"]
+            registry = registry_by_profile.get(profile_name)
+            if registry is None:
+                profile = profiles_holder.get(profile_name)
+                if profile is None:
+                    profile = profiles_holder[default_profile_name]
+                    profile_name = default_profile_name
+                registry = build_tool_registry(profile, profile_name=profile_name, logger=logger)
+                registry_by_profile[profile_name] = registry
+            return registry
 
     def _reload_registry(*, env_path: str | None, config_path: str | None, defaults_path: str | None) -> dict[str, Any]:
         cfg = load_config(env_path=env_path, config_path=config_path, defaults_path=defaults_path)
-        next_profile = get_profile(cfg, name=profile_name)
         with registry_lock:
-            registry_holder["registry"] = build_tool_registry(next_profile, profile_name=profile_name, logger=logger)
-        ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=profile_name, profile=next_profile, logger=logger)
-        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+            profiles_holder.clear()
+            profiles_holder.update(cfg.profiles)
+            registry_by_profile.clear()
+        for name, profile in cfg.profiles.items():
+            ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=name, profile=profile, logger=logger)
+        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(default_profile_name)
         return {
-            "profile": profile_name,
+            "profile": default_profile_name,
             "reloaded": True,
+            "profiles": sorted(cfg.profiles.keys()),
             "endpoint_health": {name: state.__dict__.copy() for name, state in states.items()},
         }
 
@@ -2540,7 +2655,7 @@ def build_fastmcp_server(
     register_tools_with_fastmcp(
         server,
         _registry_provider,
-        profile_name=profile_name,
+        default_profile_name=default_profile_name,
         logger=logger,
     )
     return server
@@ -2548,26 +2663,28 @@ def build_fastmcp_server(
 
 async def run_fastmcp_http_server(
     *,
-    profile_name: str,
-    profile: ProfileConfig,
+    default_profile_name: str,
+    config: ServerConfig,
     http_config: HttpServerConfig,
     logger: logging.Logger | None = None,
 ) -> None:
     http = resolve_http_settings(http_config)
-    ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=profile_name, profile=profile, logger=logger)
-    if _to_bool(profile.endpoint_health.restart_on_threshold, default=False):
-        exit_code = _to_int(profile.endpoint_health.restart_exit_code, default=75)
-        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
-        for state in states.values():
-            if state.requires_restart:
-                if logger:
-                    logger.error(
-                        "Endpoint startup health exceeded restart threshold for backend=%s; exiting with code=%s",
-                        state.backend,
-                        exit_code,
-                    )
-                raise SystemExit(exit_code)
-    server = build_fastmcp_server(profile_name, profile, http, logger=logger)
+    for profile_name, profile in config.profiles.items():
+        ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=profile_name, profile=profile, logger=logger)
+        if _to_bool(profile.endpoint_health.restart_on_threshold, default=False):
+            exit_code = _to_int(profile.endpoint_health.restart_exit_code, default=75)
+            states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+            for state in states.values():
+                if state.requires_restart:
+                    if logger:
+                        logger.error(
+                            "Endpoint startup health exceeded restart threshold for profile=%s backend=%s; exiting with code=%s",
+                            profile_name,
+                            state.backend,
+                            exit_code,
+                        )
+                    raise SystemExit(exit_code)
+    server = build_fastmcp_server(default_profile_name, config, http, logger=logger)
     reload_fn = getattr(server, "_file_mcp_reload_registry", None)
     env_path = os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or None
     config_path = os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or None
@@ -2584,7 +2701,7 @@ async def run_fastmcp_http_server(
         Middleware(
             HealthCheckMiddleware,
             health_path=http.health_path,
-            profile_name=profile_name,
+            profile_name=default_profile_name,
             transport=http.transport,
             reload_callback=_reload_callback,
         )

@@ -126,6 +126,48 @@ Define profile-specific backends in mounted `config.yaml`, then select with `FIL
 Optional hot reload endpoint after config update:
 - `POST /admin/reload`
 
+### 4.3 Required changes for one-container, four-profile deployment
+
+Deployment agent checklist:
+1. Use a mounted multi-profile config file:
+   - `docker-config.profiles.example.yaml` -> `/srv/file-mcp/config.yaml`
+2. Provide one API key per profile in env:
+   - `FILE_MCP_API_KEY_LOCAL`
+   - `FILE_MCP_API_KEY_S3`
+   - `FILE_MCP_API_KEY_WEBDAV`
+   - `FILE_MCP_API_KEY_FTP`
+3. Provide endpoint credentials in env:
+   - S3: `FILE_MCP_S3_ENDPOINT`, `FILE_MCP_S3_BUCKET`, `FILE_MCP_S3_ACCESS_KEY`, `FILE_MCP_S3_SECRET_KEY`
+   - WebDAV: `FILE_MCP_WEBDAV_BASE_URL`, `FILE_MCP_WEBDAV_USERNAME`, `FILE_MCP_WEBDAV_PASSWORD`
+   - FTP: `FILE_MCP_FTP_HOST`, `FILE_MCP_FTP_USERNAME`, `FILE_MCP_FTP_PASSWORD`
+4. Set server default profile:
+   - `FILE_MCP_PROFILE=local` (recommended default)
+5. Mount config and env into container and set:
+   - `FILE_MCP_CONFIG_PATH=/workspace/config.yaml`
+   - `FILE_MCP_ENV_PATH=/workspace/env.base`
+
+Example run (all 4 profiles active in one process):
+
+```bash
+docker run -d --name file-mcp-server \
+  --network=host \
+  -v /srv/file-mcp/workspace:/workspace \
+  -v /srv/file-mcp/logs:/workspace/logs \
+  -v /srv/file-mcp/certs:/app/certs:ro \
+  -v /srv/file-mcp/env/base.env:/workspace/env.base:ro \
+  -v /srv/file-mcp/config.yaml:/workspace/config.yaml:ro \
+  -e FILE_MCP_ENV_PATH=/workspace/env.base \
+  -e FILE_MCP_CONFIG_PATH=/workspace/config.yaml \
+  -e FILE_MCP_PROFILE=local \
+  cloud-dog/file-mcp-server:latest
+```
+
+Profile selection at runtime:
+- default/fallback profile: `FILE_MCP_PROFILE`
+- query selector: `POST /mcp?profile=s3`
+- header selector: `X-File-MCP-Profile: webdav`
+- each selected profile requires its own API key.
+
 ## 5. Certificates and TLS behavior
 
 Mount certs and trust bundle:
@@ -242,6 +284,7 @@ Endpoints:
 
 ## 9. HTTP/API endpoints for deployment
 
+- `GET /` (status summary; browser HTML or JSON with `Accept: application/json`)
 - `GET /health`
 - `POST /mcp`
 - `GET /admin/google-drive` (if admin UI enabled)
@@ -250,6 +293,11 @@ Endpoints:
 - `POST /admin/reload` (if admin UI enabled)
 
 Authoritative machine-readable spec: `openapi.json`
+
+Per-request profile override on `/mcp`:
+- query: `?profile=<profile-name>`
+- header: `X-File-MCP-Profile: <profile-name>`
+- fallback: server default profile (`FILE_MCP_PROFILE`)
 
 ## 10. Container management
 

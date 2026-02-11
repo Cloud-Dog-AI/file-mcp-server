@@ -108,11 +108,17 @@ System shall support simple server start/stop/status routines suitable for local
 ### FR1.4: Configuration Profiles
 - The system SHALL support multiple named profiles, including `default` and additional profiles.
 - The system SHALL allow selecting an active profile per request (or via server default).
+- Per-request profile selection SHALL support:
+  - query parameter `profile=<name>`
+  - header `X-File-MCP-Profile: <name>`
+  - fallback to server default profile when omitted/invalid
 - Each profile SHALL define API keys, scope, allowed types, audit, snapshots, validation, and conversion settings.
+- A single server instance SHALL support serving multiple profiles concurrently.
 
 ### FR1.5: Authentication
 - The system SHALL require an API key for all tool calls.
 - The system SHALL support multiple keys per profile (key rotation).
+- API key validation SHALL be profile-aware; a key valid for profile `A` SHALL NOT authenticate profile `B`.
 - The system SHALL NOT log raw API keys.
 
 ### FR1.6: Scope Enforcement
@@ -253,6 +259,11 @@ System shall support simple server start/stop/status routines suitable for local
 - Retry controls SHALL be configuration-driven (retry count, backoff, probe timeout, and retriable status list).
 - If a transient `MOVE` response occurs but destination state confirms operation already applied, the system SHALL treat it as successful.
 
+### FR1.36: Single-Server Multi-Profile Routing
+- One server process SHALL host multiple profiles concurrently and route each tool call to the selected profile context.
+- Profile selection SHALL support request query/header selectors with deterministic fallback to server default profile.
+- Profile routing SHALL enforce profile-local controls (API keys, scope roots, allow/deny patterns, allowed extensions, read-only extensions, limits).
+
 ---
 
 ## 5. Use Cases (UC)
@@ -295,6 +306,9 @@ Operator enables restart-threshold policy and the server exits deterministically
 
 ### UC1.13: Remote OAuth Bind Without Restart
 Operator binds Google Drive to a profile through admin pages and the server applies the updated profile configuration immediately.
+
+### UC1.14: Multi-Profile Single-Server Routing
+Operator runs one server instance with multiple profiles loaded. Clients select profile per request via query/header and receive profile-specific auth, scope, and type-policy enforcement.
 
 ---
 

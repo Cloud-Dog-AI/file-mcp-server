@@ -7,6 +7,12 @@
 
 # Authentication
 FILE_MCP_API_KEY_PRIMARY=change-me
+# Multi-profile single-server keys (recommended when using mounted multi-profile config):
+# FILE_MCP_API_KEY_LOCAL=change-me-local
+# FILE_MCP_API_KEY_S3=change-me-s3
+# FILE_MCP_API_KEY_WEBDAV=change-me-webdav
+# FILE_MCP_API_KEY_FTP=change-me-ftp
+# FILE_MCP_API_KEY_GDRIVE=change-me-gdrive
 FILE_MCP_AUTH_HEADER_NAME=Authorization
 FILE_MCP_AUTH_HEADER_SCHEME=Bearer
 
@@ -47,6 +53,11 @@ FILE_MCP_CONVERSION_MAX_INPUT_MB=25
 
 # Storage backend (default: local filesystem)
 FILE_MCP_STORAGE_BACKEND=local
+# Default profile used when no per-request profile selector is supplied.
+# Per-request selector options:
+#   query:  /mcp?profile=<profile-name>
+#   header: X-File-MCP-Profile: <profile-name>
+FILE_MCP_PROFILE=local
 # Backend TLS controls (remote backends only)
 FILE_MCP_STORAGE_TLS_INSECURE=false
 # FILE_MCP_STORAGE_TLS_CA_BUNDLE=/app/certs/ca.crt

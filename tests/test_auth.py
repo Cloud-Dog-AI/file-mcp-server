@@ -11,6 +11,7 @@ from file_mcp_server.auth import (
     ApiKeyTokenVerifier,
     AuthError,
     HeaderTokenAuthBackend,
+    MultiProfileApiKeyTokenVerifier,
     key_fingerprint,
 )
 
@@ -119,3 +120,50 @@ def test_token_verifier_ignores_unexpanded_env_placeholders(tmp_path) -> None:
     )
     assert verifier.header_name == "authorization"
     assert verifier.header_scheme == "Bearer"
+
+
+def test_multi_profile_verifier_query_profile_and_key_routing() -> None:
+    verifier = MultiProfileApiKeyTokenVerifier(
+        {
+            "default": (["key-default"], "Authorization", "Bearer"),
+            "s3": (["key-s3"], "Authorization", "Bearer"),
+        },
+        default_profile="default",
+    )
+    backend = HeaderTokenAuthBackend(verifier, header_name="authorization", header_scheme="Bearer")
+
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": b"profile=s3",
+            "headers": [(b"authorization", b"Bearer key-s3")],
+        }
+    )
+    result = asyncio.run(backend.authenticate(conn))
+    assert result is not None
+    assert verifier.resolve_profile(conn) == "s3"
+
+
+def test_multi_profile_verifier_rejects_wrong_profile_key() -> None:
+    verifier = MultiProfileApiKeyTokenVerifier(
+        {
+            "default": (["key-default"], "Authorization", "Bearer"),
+            "ftp": (["key-ftp"], "Authorization", "Bearer"),
+        },
+        default_profile="default",
+    )
+    backend = HeaderTokenAuthBackend(verifier, header_name="authorization", header_scheme="Bearer")
+
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": b"profile=ftp",
+            "headers": [(b"authorization", b"Bearer key-default")],
+        }
+    )
+    result = asyncio.run(backend.authenticate(conn))
+    assert result is None

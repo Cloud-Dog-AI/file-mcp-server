@@ -58,6 +58,7 @@ docker run --rm --name file-mcp-server \
 Detailed Docker deployment, certs, multi-config, and remote host examples:
 - `DOCKER-README.me`
 - `docker-env.example`
+- `docker-config.profiles.example.yaml` (single-container multi-profile template: local/s3/webdav/ftp)
 
 ## Configuration model
 
@@ -79,6 +80,9 @@ Primary Docker runtime variables:
 
 For multi-profile deployments, mount a custom `config.yaml` with multiple profiles and select using:
 - `FILE_MCP_PROFILE=<profile-name>`
+- Per-request override is also supported:
+  - query parameter `profile=<name>`
+  - header `X-File-MCP-Profile: <name>`
 
 ## CERTS support
 
@@ -127,6 +131,7 @@ docker exec -it file-mcp-server ./server_control.sh --env /workspace/env.base st
 
 ## HTTP/API surface
 
+- `GET /` (status summary page; JSON when `Accept: application/json`)
 - `GET /health`
 - `POST /mcp`
 - `GET /admin/google-drive` (admin UI enabled only)

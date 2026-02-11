@@ -1,0 +1,247 @@
+# Apache-2.0
+# Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+# Example multi-profile config for one file-mcp-server process.
+# Mount this file and set FILE_MCP_CONFIG_PATH to use it.
+
+profiles:
+  local:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_LOCAL}"
+      header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
+      header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    storage:
+      backend: local
+    scope:
+      roots:
+        - "/workspace"
+      allow_globs: ["**/*"]
+      deny_globs: ["**/.git/**"]
+      allowed_exts: []
+      read_only_exts: []
+    audit:
+      log_path: "${FILE_MCP_AUDIT_LOG}"
+      include_content_hashes: true
+    snapshots:
+      enabled: true
+      mode: "on_change"
+      dir: "${FILE_MCP_SNAPSHOT_DIR}"
+      retention_days: 30
+      retention_count: -1
+      max_storage_mb: -1
+    validation:
+      default_mode: "warn"
+      per_type: {}
+    conversion:
+      enabled: true
+      backends: []
+      max_input_mb: 25
+    observability:
+      enabled: true
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "INFO"
+    limits:
+      search_max_results: 250
+      search_max_file_mb: 5
+      search_timeout_s: 30
+      storage_timeout_s: 30
+      conversion_timeout_s: 60
+    endpoint_health:
+      enabled: true
+      check_on_startup: true
+      check_all_configured_backends: false
+      max_retries: 3
+      retry_interval_s: 2
+      retry_window_s: 30
+      max_failures_before_restart: 5
+      recover_after_s: 30
+      restart_on_threshold: false
+      restart_exit_code: 75
+
+  s3:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_S3}"
+      header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
+      header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    storage:
+      backend: s3
+      tls:
+        insecure_skip_verify: "${FILE_MCP_STORAGE_TLS_INSECURE}"
+        ca_bundle_path: "${FILE_MCP_STORAGE_TLS_CA_BUNDLE}"
+      s3:
+        endpoint: "${FILE_MCP_S3_ENDPOINT}"
+        bucket: "${FILE_MCP_S3_BUCKET}"
+        region: "${FILE_MCP_S3_REGION}"
+        access_key: "${FILE_MCP_S3_ACCESS_KEY}"
+        secret_key: "${FILE_MCP_S3_SECRET_KEY}"
+        prefix: "${FILE_MCP_S3_PREFIX}"
+    scope:
+      roots: ["/"]
+      allow_globs: ["**/*"]
+      deny_globs: ["**/.git/**"]
+      allowed_exts: []
+      read_only_exts: []
+    audit:
+      log_path: "${FILE_MCP_AUDIT_LOG}"
+      include_content_hashes: true
+    snapshots:
+      enabled: false
+      mode: "none"
+      dir: "${FILE_MCP_SNAPSHOT_DIR}"
+    validation:
+      default_mode: "warn"
+      per_type: {}
+    conversion:
+      enabled: true
+      backends: []
+      max_input_mb: 25
+    observability:
+      enabled: true
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "INFO"
+    limits:
+      search_max_results: 250
+      search_max_file_mb: 5
+      search_timeout_s: 30
+      storage_timeout_s: 30
+      conversion_timeout_s: 60
+    endpoint_health:
+      enabled: true
+      check_on_startup: true
+      check_all_configured_backends: false
+      max_retries: 3
+      retry_interval_s: 2
+      retry_window_s: 30
+      max_failures_before_restart: 5
+      recover_after_s: 30
+      restart_on_threshold: false
+      restart_exit_code: 75
+
+  webdav:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_WEBDAV}"
+      header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
+      header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    storage:
+      backend: webdav
+      tls:
+        insecure_skip_verify: "${FILE_MCP_STORAGE_TLS_INSECURE}"
+        ca_bundle_path: "${FILE_MCP_STORAGE_TLS_CA_BUNDLE}"
+      webdav:
+        base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
+        username: "${FILE_MCP_WEBDAV_USERNAME}"
+        password: "${FILE_MCP_WEBDAV_PASSWORD}"
+        move_retry_count: "${FILE_MCP_WEBDAV_MOVE_RETRY_COUNT}"
+        move_retry_backoff_s: "${FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S}"
+        move_probe_timeout_s: "${FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S}"
+        move_retry_statuses: "${FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES}"
+    scope:
+      roots: ["/"]
+      allow_globs: ["**/*"]
+      deny_globs: ["**/.git/**"]
+      allowed_exts: []
+      read_only_exts: []
+    audit:
+      log_path: "${FILE_MCP_AUDIT_LOG}"
+      include_content_hashes: true
+    snapshots:
+      enabled: false
+      mode: "none"
+      dir: "${FILE_MCP_SNAPSHOT_DIR}"
+    validation:
+      default_mode: "warn"
+      per_type: {}
+    conversion:
+      enabled: true
+      backends: []
+      max_input_mb: 25
+    observability:
+      enabled: true
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "INFO"
+    limits:
+      search_max_results: 250
+      search_max_file_mb: 5
+      search_timeout_s: 30
+      storage_timeout_s: 30
+      conversion_timeout_s: 60
+    endpoint_health:
+      enabled: true
+      check_on_startup: true
+      check_all_configured_backends: false
+      max_retries: 3
+      retry_interval_s: 2
+      retry_window_s: 30
+      max_failures_before_restart: 5
+      recover_after_s: 30
+      restart_on_threshold: false
+      restart_exit_code: 75
+
+  ftp:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_FTP}"
+      header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
+      header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
+    storage:
+      backend: ftp
+      ftp:
+        host: "${FILE_MCP_FTP_HOST}"
+        port: "${FILE_MCP_FTP_PORT}"
+        username: "${FILE_MCP_FTP_USERNAME}"
+        password: "${FILE_MCP_FTP_PASSWORD}"
+        base_dir: "${FILE_MCP_FTP_BASE_DIR}"
+        use_tls: "${FILE_MCP_FTP_USE_TLS}"
+    scope:
+      roots: ["/"]
+      allow_globs: ["**/*"]
+      deny_globs: ["**/.git/**"]
+      allowed_exts: []
+      read_only_exts: []
+    audit:
+      log_path: "${FILE_MCP_AUDIT_LOG}"
+      include_content_hashes: true
+    snapshots:
+      enabled: false
+      mode: "none"
+      dir: "${FILE_MCP_SNAPSHOT_DIR}"
+    validation:
+      default_mode: "warn"
+      per_type: {}
+    conversion:
+      enabled: true
+      backends: []
+      max_input_mb: 25
+    observability:
+      enabled: true
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "INFO"
+    limits:
+      search_max_results: 250
+      search_max_file_mb: 5
+      search_timeout_s: 30
+      storage_timeout_s: 30
+      conversion_timeout_s: 60
+    endpoint_health:
+      enabled: true
+      check_on_startup: true
+      check_all_configured_backends: false
+      max_retries: 3
+      retry_interval_s: 2
+      retry_window_s: 30
+      max_failures_before_restart: 5
+      recover_after_s: 30
+      restart_on_threshold: false
+      restart_exit_code: 75
+
+http:
+  transport: "${FILE_MCP_HTTP_TRANSPORT}"
+  host: "${FILE_MCP_HTTP_HOST}"
+  port: "${FILE_MCP_HTTP_PORT}"
+  base_path: "${FILE_MCP_HTTP_BASE_PATH}"
+  mcp_path: "${FILE_MCP_HTTP_MCP_PATH}"
+  health_path: "${FILE_MCP_HTTP_HEALTH_PATH}"
+  events_path: "${FILE_MCP_HTTP_EVENTS_PATH}"
+  stateless_http: "${FILE_MCP_HTTP_STATELESS}"

@@ -16,8 +16,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from hmac import compare_digest
-from typing import Iterable, List
+from typing import Iterable, List, Mapping
 
+import contextvars
 import time
 
 from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
@@ -38,6 +39,22 @@ class AuthError(ValueError):
 class AuthResult:
     ok: bool
     key_fingerprint: str
+
+
+_request_profile_name: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "file_mcp_request_profile_name", default=None
+)
+
+
+def set_request_profile_name(profile_name: str) -> None:
+    _request_profile_name.set(profile_name)
+
+
+def get_request_profile_name(default: str | None = None) -> str | None:
+    value = _request_profile_name.get()
+    if value:
+        return value
+    return default
 
 
 def key_fingerprint(api_key: str) -> str:
@@ -84,6 +101,23 @@ class HeaderTokenAuthBackend(AuthenticationBackend):
         return value
 
     async def authenticate(self, conn: HTTPConnection):
+        if hasattr(self.token_verifier, "resolve_profile"):
+            profile_name = self.token_verifier.resolve_profile(conn)  # type: ignore[attr-defined]
+            set_request_profile_name(profile_name)
+            header_name, header_scheme = self.token_verifier.header_for_profile(profile_name)  # type: ignore[attr-defined]
+            raw_header = conn.headers.get(header_name)
+            if not raw_header:
+                return None
+            token = self._extract_token(raw_header, header_scheme)
+            if not token:
+                return None
+            auth_info = await self.token_verifier.verify_token_for_profile(token, profile_name)  # type: ignore[attr-defined]
+            if not auth_info:
+                return None
+            if auth_info.expires_at and auth_info.expires_at < int(time.time()):
+                return None
+            return AuthCredentials(auth_info.scopes), AuthenticatedUser(auth_info)
+
         raw_header = conn.headers.get(self.header_name)
         if not raw_header:
             return None
@@ -153,6 +187,116 @@ class ApiKeyTokenVerifier(TokenVerifier):
                     self,
                     header_name=self.header_name,
                     header_scheme=self.header_scheme,
+                ),
+            ),
+            Middleware(AuthContextMiddleware),  # type: ignore[arg-type]
+        ]
+
+
+class MultiProfileApiKeyTokenVerifier(TokenVerifier):
+    """Profile-aware API key verifier for single-process multi-profile runtime."""
+
+    def __init__(
+        self,
+        profile_auth: Mapping[str, tuple[Iterable[str], str | None, str | None]],
+        *,
+        default_profile: str,
+        profile_header_name: str = "x-file-mcp-profile",
+        profile_query_name: str = "profile",
+        required_scopes: list[str] | None = None,
+    ) -> None:
+        super().__init__(required_scopes=required_scopes)
+        if default_profile not in profile_auth:
+            raise ValueError(f"default profile '{default_profile}' missing from profile_auth")
+
+        self.default_profile = default_profile
+        self.profile_header_name = profile_header_name.strip().lower()
+        self.profile_query_name = profile_query_name.strip()
+        self._profile_auth: dict[str, ApiKeyAuth] = {}
+        self._profile_header: dict[str, str] = {}
+        self._profile_scheme: dict[str, str | None] = {}
+
+        for profile_name, (api_keys, header_name, header_scheme) in profile_auth.items():
+            normalized_header_name = self._normalize_optional_text(header_name)
+            normalized_header_scheme = self._normalize_optional_text(header_scheme)
+            final_header_name = (normalized_header_name or "authorization").strip().lower()
+            if normalized_header_scheme is None and final_header_name == "authorization":
+                final_header_scheme = "Bearer"
+            else:
+                final_header_scheme = normalized_header_scheme
+            self._profile_auth[profile_name] = ApiKeyAuth(api_keys)
+            self._profile_header[profile_name] = final_header_name
+            self._profile_scheme[profile_name] = final_header_scheme
+
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned or "${" in cleaned:
+            return None
+        return cleaned
+
+    def _resolve_profile_from_path(self, path: str) -> str | None:
+        # Optional path selector format: /mcp/<profile>/...
+        parts = [part for part in path.split("/") if part]
+        if len(parts) >= 2 and parts[0].lower() == "mcp":
+            candidate = parts[1].strip()
+            if candidate in self._profile_auth:
+                return candidate
+        return None
+
+    def resolve_profile(self, conn: HTTPConnection) -> str:
+        query_candidate = conn.query_params.get(self.profile_query_name)
+        if query_candidate and query_candidate in self._profile_auth:
+            return query_candidate
+
+        header_candidate = conn.headers.get(self.profile_header_name)
+        if header_candidate and header_candidate in self._profile_auth:
+            return header_candidate
+
+        path_candidate = self._resolve_profile_from_path(conn.url.path or "")
+        if path_candidate:
+            return path_candidate
+
+        return self.default_profile
+
+    def header_for_profile(self, profile_name: str) -> tuple[str, str | None]:
+        return self._profile_header[profile_name], self._profile_scheme[profile_name]
+
+    async def verify_token_for_profile(self, token: str, profile_name: str) -> AccessToken | None:
+        auth = self._profile_auth.get(profile_name)
+        if auth is None:
+            return None
+        try:
+            result = auth.validate(token)
+        except AuthError:
+            return None
+
+        scopes = list(self.required_scopes or [])
+        if f"profile:{profile_name}" not in scopes:
+            scopes.append(f"profile:{profile_name}")
+        return AccessToken(
+            token=result.key_fingerprint,
+            client_id="file-mcp-client",
+            scopes=scopes,
+            claims={"fingerprint": result.key_fingerprint, "profile": profile_name},
+        )
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        # Fallback for interfaces that do not pass request context.
+        return await self.verify_token_for_profile(token, self.default_profile)
+
+    def get_middleware(self) -> list:
+        # HeaderTokenAuthBackend will call resolve_profile/header_for_profile/
+        # verify_token_for_profile when available on the verifier.
+        return [
+            Middleware(
+                AuthenticationMiddleware,  # type: ignore[arg-type]
+                backend=HeaderTokenAuthBackend(
+                    self,
+                    header_name="authorization",
+                    header_scheme="Bearer",
                 ),
             ),
             Middleware(AuthContextMiddleware),  # type: ignore[arg-type]
