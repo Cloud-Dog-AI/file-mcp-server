@@ -57,6 +57,7 @@ docker run --rm --name file-mcp-server \
 
 Detailed Docker deployment, certs, multi-config, and remote host examples:
 - `DOCKER-README.me`
+- `docker-env.example`
 
 ## Configuration model
 
@@ -75,6 +76,9 @@ Primary Docker runtime variables:
 - `FILE_MCP_STORAGE_BACKEND` (`local|webdav|ftp|s3|google_drive`)
 - `FILE_MCP_STORAGE_TLS_INSECURE` / `FILE_MCP_STORAGE_TLS_CA_BUNDLE` (remote backends)
 - `FILE_MCP_ENDPOINT_HEALTH_*` (startup probe + retry/recovery policy)
+
+For multi-profile deployments, mount a custom `config.yaml` with multiple profiles and select using:
+- `FILE_MCP_PROFILE=<profile-name>`
 
 ## CERTS support
 
@@ -120,6 +124,19 @@ docker exec -it file-mcp-server ./server_control.sh --env /workspace/env.base st
 - Structured tools: JSON/YAML/XML/HTML/Markdown get/set/merge/move/copy and `*_file` variants
 - Advanced tools: `convert_file`, `sed_edit_file`, `meld_files` (optional)
 - Runtime status: `backend_status` (endpoint state per profile/backend)
+
+## HTTP/API surface
+
+- `GET /health`
+- `POST /mcp`
+- `GET /admin/google-drive` (admin UI enabled only)
+- `POST /admin/google-drive/start` (admin UI enabled only)
+- `GET /admin/google-drive/callback` (admin UI enabled only)
+- `POST /admin/reload` (admin UI enabled only)
+
+OpenAPI specification:
+- `openapi.json`
+- `API_DOCUMENTATION.md`
 
 ## Testing
 

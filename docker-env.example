@@ -1,6 +1,9 @@
 # Apache-2.0
 # Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
 # Copy this file and adapt values for your deployment.
+# IMPORTANT: choose one storage backend per running profile/environment.
+# For multiple backend profiles at once, define profiles in config.yaml and
+# select with FILE_MCP_PROFILE (or hot-reload via admin UI).
 
 # Authentication
 FILE_MCP_API_KEY_PRIMARY=change-me
@@ -12,6 +15,11 @@ FILE_MCP_ROOT=/workspace
 FILE_MCP_AUDIT_LOG=/workspace/logs/audit.log.jsonl
 FILE_MCP_SERVER_LOG=/workspace/logs/server.log
 FILE_MCP_SNAPSHOT_DIR=/workspace/logs/snapshots
+# Recommended persistent volume mounts:
+#   -v /srv/file-mcp/workspace:/workspace
+#   -v /srv/file-mcp/logs:/workspace/logs
+# Optional cert mount:
+#   -v /srv/file-mcp/certs:/app/certs:ro
 
 # HTTP runtime
 FILE_MCP_HTTP_TRANSPORT=streamable-http
@@ -57,6 +65,8 @@ FILE_MCP_ENDPOINT_HEALTH_RESTART_ON_THRESHOLD=false
 FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE=75
 
 # S3 backend settings
+# Example backend selection:
+# FILE_MCP_STORAGE_BACKEND=s3
 # FILE_MCP_S3_ENDPOINT=https://storage.example.com
 # FILE_MCP_S3_BUCKET=my-bucket
 # FILE_MCP_S3_REGION=us-east-1
@@ -65,6 +75,8 @@ FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE=75
 # FILE_MCP_S3_PREFIX=
 
 # WebDAV backend settings
+# Example backend selection:
+# FILE_MCP_STORAGE_BACKEND=webdav
 # FILE_MCP_WEBDAV_BASE_URL=https://files.example.com/remote.php/dav/files/user/root
 # FILE_MCP_WEBDAV_USERNAME=...
 # FILE_MCP_WEBDAV_PASSWORD=...
@@ -75,6 +87,8 @@ FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE=75
 # FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES=408,409,423,425,429,500,502,503,504
 
 # FTP backend settings
+# Example backend selection:
+# FILE_MCP_STORAGE_BACKEND=ftp
 # FILE_MCP_FTP_HOST=ftp.example.com
 # FILE_MCP_FTP_PORT=21
 # FILE_MCP_FTP_USERNAME=...

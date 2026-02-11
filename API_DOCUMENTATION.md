@@ -6,6 +6,10 @@
 Default endpoint paths:
 - `GET /health`
 - `POST /mcp`
+- `GET /admin/google-drive` (when admin UI is enabled)
+- `POST /admin/google-drive/start` (when admin UI is enabled)
+- `GET /admin/google-drive/callback` (when admin UI is enabled)
+- `POST /admin/reload` (when admin UI is enabled)
 
 Configured transport modes:
 - `streamable-http` (default): streamable MCP on `/mcp`
@@ -38,6 +42,7 @@ Typical workflow:
 - Validation: `validate_text`, `validate_file`
 - Conversion: `convert_file`
 - Optional compare UI bridge: `meld_files`
+- Runtime backend status: `backend_status`
 
 ## Dry-Run Support
 Mutating tools that can compute outcomes without writes expose `dry_run=true` behavior and return `dry_run` in payload. Audit entries are still emitted for attempts.
@@ -47,6 +52,19 @@ Validation behavior is policy-driven (`strict`, `warn`, `ignore` per type/defaul
 
 ## Health Endpoint
 `GET /health` returns service status payload without secrets, including transport/profile indicators.
+
+## Admin/OAuth Endpoints
+
+Admin endpoints are available only when `FILE_MCP_ADMIN_UI_ENABLED=true`.
+If `FILE_MCP_ADMIN_UI_TOKEN` is set, requests must include either:
+- query `?token=<value>`; or
+- header `X-Admin-Token: <value>`.
+
+Endpoints:
+- `GET /admin/google-drive`: setup form for Google Drive profile binding.
+- `POST /admin/google-drive/start`: validates form input and redirects (302) to Google OAuth.
+- `GET /admin/google-drive/callback`: exchanges authorization code, validates folder, updates config.
+- `POST /admin/reload`: hot-reloads config/profile bindings in-process.
 
 ## OpenAPI
 Machine-readable HTTP surface documentation is in `openapi.json`.
