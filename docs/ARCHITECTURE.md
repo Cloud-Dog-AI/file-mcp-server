@@ -1,6 +1,6 @@
 # File MCP Server — ARCHITECTURE.md
-Version: 0.4 • 2026-02-11
-Status: Active
+Version: 0.5 • 2026-02-12
+Status: Active (Release Candidate)
 
 ## 1. System Overview
 `file-mcp-server` is a transport-facing MCP service backed by a reusable `file_tools` library.

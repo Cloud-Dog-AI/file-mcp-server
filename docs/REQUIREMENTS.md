@@ -1,6 +1,6 @@
 # File MCP Server — REQUIREMENTS.md
-Version: 0.2 • 2026-02-05
-Status: Draft (expanded)
+Version: 0.3 • 2026-02-12
+Status: Active (Release Candidate)
 
 ## Document Structure
 

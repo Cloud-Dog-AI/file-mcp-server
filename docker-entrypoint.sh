@@ -42,33 +42,41 @@ export SSL_CERT_FILE="${SSL_CERT_FILE:-/etc/ssl/certs/ca-certificates.crt}"
 export CURL_CA_BUNDLE="${CURL_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}"
 
 PROFILE="${FILE_MCP_PROFILE:-default}"
-ENV_PATH="${FILE_MCP_ENV_PATH:-/app/env-docker-defaults}"
+ENV_PATH="${FILE_MCP_ENV_PATH:-}"
 CONFIG_PATH="${FILE_MCP_CONFIG_PATH:-/app/config.yaml}"
 DEFAULTS_PATH="${FILE_MCP_DEFAULTS_PATH:-/app/defaults.yaml}"
 PIDFILE="${FILE_MCP_PIDFILE:-/app/.run/file-mcp-server.pid}"
 
-if [[ ! -f "${ENV_PATH%%,*}" ]]; then
+if [[ -n "${ENV_PATH}" && ! -f "${ENV_PATH%%,*}" ]]; then
   echo "WARNING: env file not found at ${ENV_PATH}. Continuing with OS environment only."
 fi
 
 case "${1:-serve}" in
   serve)
-    exec python3 -m file_mcp_server serve \
-      --profile "${PROFILE}" \
-      --env-path "${ENV_PATH}" \
-      --config-path "${CONFIG_PATH}" \
-      --defaults-path "${DEFAULTS_PATH}" \
-      --pidfile "${PIDFILE}" \
+    ARGS=(
+      --profile "${PROFILE}"
+      --config-path "${CONFIG_PATH}"
+      --defaults-path "${DEFAULTS_PATH}"
+      --pidfile "${PIDFILE}"
       --force-pidfile
+    )
+    if [[ -n "${ENV_PATH}" ]]; then
+      ARGS+=(--env-path "${ENV_PATH}")
+    fi
+    exec python3 -m file_mcp_server serve "${ARGS[@]}"
     ;;
   start|stop|status|restart)
-    exec ./server_control.sh \
-      --env "${ENV_PATH}" \
-      --config "${CONFIG_PATH}" \
-      --defaults "${DEFAULTS_PATH}" \
-      --profile "${PROFILE}" \
-      --pidfile "${PIDFILE}" \
+    CONTROL_ARGS=(
+      --config "${CONFIG_PATH}"
+      --defaults "${DEFAULTS_PATH}"
+      --profile "${PROFILE}"
+      --pidfile "${PIDFILE}"
       "$1"
+    )
+    if [[ -n "${ENV_PATH}" ]]; then
+      CONTROL_ARGS=(--env "${ENV_PATH}" "${CONTROL_ARGS[@]}")
+    fi
+    exec ./server_control.sh "${CONTROL_ARGS[@]}"
     ;;
   shell)
     exec /bin/bash

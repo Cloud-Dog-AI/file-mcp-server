@@ -94,14 +94,30 @@ def render_setup_page(
     *,
     callback_url: str,
     profiles: list[str],
+    selected_profile: str | None = None,
+    lock_profile: bool = False,
     status_message: str = "",
     status_type: str = "info",
 ) -> str:
-    options = "".join(f'<option value="{escape(name)}">{escape(name)}</option>' for name in profiles)
+    resolved_profile = selected_profile if selected_profile in profiles else (profiles[0] if profiles else "")
+    options = "".join(
+        f'<option value="{escape(name)}"{" selected" if name == resolved_profile else ""}>{escape(name)}</option>'
+        for name in profiles
+    )
+    if lock_profile:
+        profile_input = (
+            f"<input type='hidden' name='profile' value='{escape(resolved_profile)}' />"
+            f"<input value='{escape(resolved_profile)}' disabled />"
+            "<div class='hint'>Profile is fixed for this authorization flow.</div>"
+        )
+    else:
+        profile_input = f"<select name='profile'>{options}</select>"
     status_html = ""
     if status_message:
         color = "#0b5" if status_type == "ok" else "#b50" if status_type == "warn" else "#444"
         status_html = f'<p style="padding:8px;border:1px solid {color};color:{color};">{escape(status_message)}</p>'
+    default_redirect = escape(callback_url)
+    default_token_uri = escape(DEFAULT_TOKEN_URI)
     return f"""<!doctype html>
 <html>
 <head>
@@ -122,7 +138,7 @@ def render_setup_page(
   <p>Configure Google Drive for a selected file-mcp-server profile.</p>
   <form method="post" action="/admin/google-drive/start">
     <label>Profile</label>
-    <select name="profile">{options}</select>
+    {profile_input}
     <label>Google account email</label>
     <input name="user_email" placeholder="name@example.com" />
     <label>Folder input</label>
@@ -133,11 +149,68 @@ def render_setup_page(
     <label>OAuth client secret</label>
     <input name="client_secret" type="password" />
     <label>Redirect URI</label>
-    <input name="redirect_uri" value="{escape(callback_url)}" />
+    <input name="redirect_uri" value="{default_redirect}" />
     <label>Token URI</label>
-    <input name="token_uri" value="{escape(DEFAULT_TOKEN_URI)}" />
+    <input name="token_uri" value="{default_token_uri}" />
     <button type="submit">Start Google Authorization</button>
   </form>
+  <script>
+    (function () {{
+      var storageKey = "file_mcp_google_drive_setup_v1";
+      var fields = ["profile", "user_email", "folder_input", "client_id", "redirect_uri", "token_uri"];
+      var defaults = {{
+        redirect_uri: "{default_redirect}",
+        token_uri: "{default_token_uri}"
+      }};
+
+      function readStored() {{
+        try {{
+          var raw = window.localStorage.getItem(storageKey);
+          if (!raw) return {{}};
+          var parsed = JSON.parse(raw);
+          return parsed && typeof parsed === "object" ? parsed : {{}};
+        }} catch (_) {{
+          return {{}};
+        }}
+      }}
+
+      function writeStored(next) {{
+        try {{
+          window.localStorage.setItem(storageKey, JSON.stringify(next));
+        }} catch (_) {{
+          // ignore storage errors
+        }}
+      }}
+
+      var form = document.querySelector("form[action='/admin/google-drive/start']");
+      if (!form) return;
+      var stored = readStored();
+      fields.forEach(function (name) {{
+        var el = form.elements.namedItem(name);
+        if (!el) return;
+        if (typeof stored[name] === "string" && stored[name].length > 0) {{
+          el.value = stored[name];
+        }}
+        if ((name === "redirect_uri" || name === "token_uri") && (!el.value || el.value.trim() === "")) {{
+          el.value = defaults[name] || "";
+        }}
+        el.addEventListener("input", function () {{
+          if ((name === "redirect_uri" || name === "token_uri") && (!el.value || el.value.trim() === "")) {{
+            el.value = defaults[name] || "";
+          }}
+          stored[name] = el.value || "";
+          writeStored(stored);
+        }});
+        el.addEventListener("change", function () {{
+          if ((name === "redirect_uri" || name === "token_uri") && (!el.value || el.value.trim() === "")) {{
+            el.value = defaults[name] || "";
+          }}
+          stored[name] = el.value || "";
+          writeStored(stored);
+        }});
+      }});
+    }})();
+  </script>
 </body>
 </html>
 """

@@ -28,6 +28,7 @@ import sys
 import time
 import uuid
 from urllib.parse import parse_qs
+import re
 
 import yaml
 from fastmcp import FastMCP
@@ -246,7 +247,18 @@ class HealthCheckMiddleware:
         )
         await send({"type": "http.response.body", "body": b""})
 
-    def _read_profile_backends(self) -> dict[str, str]:
+    def _resolve_config_value(self, value: Any) -> str:
+        if value is None:
+            return ""
+        text = str(value).strip()
+        if not text:
+            return ""
+        match = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", text)
+        if not match:
+            return text
+        return str(os.getenv(match.group(1), "")).strip()
+
+    def _read_profile_metadata(self) -> dict[str, dict[str, Any]]:
         config_path = Path(self.active_config)
         if not config_path.exists():
             return {}
@@ -257,26 +269,56 @@ class HealthCheckMiddleware:
         profiles = parsed.get("profiles")
         if not isinstance(profiles, dict):
             return {}
-        summary: dict[str, str] = {}
+        summary: dict[str, dict[str, Any]] = {}
         for name, profile in profiles.items():
             if not isinstance(profile, dict):
                 continue
-            backend = ((profile.get("storage") or {}).get("backend")) if isinstance(profile.get("storage"), dict) else None
-            summary[str(name)] = str(backend or "unknown")
+            storage = profile.get("storage")
+            backend = ((storage or {}).get("backend")) if isinstance(storage, dict) else None
+            backend_name = str(backend or "unknown")
+            metadata: dict[str, Any] = {"backend": backend_name, "google_auth_required": False}
+            if backend_name.strip().lower() in {"google_drive", "gdrive", "drive"} and isinstance(storage, dict):
+                gcfg = storage.get("google_drive")
+                if isinstance(gcfg, dict):
+                    client_id = self._resolve_config_value(gcfg.get("client_id"))
+                    client_secret = self._resolve_config_value(gcfg.get("client_secret"))
+                    folder_id = self._resolve_config_value(gcfg.get("folder_id"))
+                    folder_url = self._resolve_config_value(gcfg.get("folder_url"))
+                    refresh_token = self._resolve_config_value(gcfg.get("refresh_token"))
+                    access_token = self._resolve_config_value(gcfg.get("access_token"))
+                    auth_present = bool(refresh_token or access_token)
+                    metadata["google_auth_required"] = not auth_present
+                    metadata["google_setup_present"] = bool(client_id and client_secret and (folder_id or folder_url))
+            summary[str(name)] = metadata
         return summary
 
     def _build_root_summary(self) -> dict[str, Any]:
-        profile_backends = self._read_profile_backends()
-        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(self.profile_name)
-        endpoint_states = {
-            name: {
+        profile_metadata = self._read_profile_metadata()
+        profile_backends = {
+            name: str(meta.get("backend", "unknown")) for name, meta in profile_metadata.items()
+        }
+        profile_health: dict[str, Any] = {}
+        for name, backend in profile_backends.items():
+            state = ENDPOINT_HEALTH_MANAGER.get_state(name, backend)
+            if state is None:
+                states_for_profile = ENDPOINT_HEALTH_MANAGER.get_profile_states(name)
+                state = states_for_profile.get(backend) if states_for_profile else None
+            if state is None:
+                profile_health[name] = {
+                    "backend": backend,
+                    "status": "unknown",
+                    "reason": "not_checked",
+                    "requires_restart": False,
+                    "signal": "red",
+                }
+                continue
+            profile_health[name] = {
                 "backend": state.backend,
                 "status": state.status,
                 "reason": state.reason,
                 "requires_restart": state.requires_restart,
+                "signal": "green" if state.status == "healthy" else "red",
             }
-            for name, state in states.items()
-        }
         return {
             "status": "ok",
             "service": self.app_name,
@@ -285,18 +327,38 @@ class HealthCheckMiddleware:
             "env_file": self.env_file,
             "config_path": self.active_config,
             "profiles": profile_backends,
-            "endpoint_health": endpoint_states,
+            "profile_metadata": profile_metadata,
+            "profile_health": profile_health,
             "mcp_endpoint": "/mcp",
             "health_endpoint": self.health_path,
         }
 
     def _render_root_summary_html(self, summary: dict[str, Any]) -> str:
+        profile_health = summary.get("profile_health") or {}
+        profile_metadata = summary.get("profile_metadata") or {}
+
+        def _action_cell(name: str) -> str:
+            metadata = profile_metadata.get(name) or {}
+            requires_auth = bool(metadata.get("google_auth_required", False))
+            if not requires_auth:
+                return ""
+            if not self.admin_ui_enabled:
+                return "Enable admin UI to authorize"
+            return f"<a class='btn' href='/admin/google-drive?profile={escape(name)}'>Authorize Google Drive</a>"
+
         profile_rows = "".join(
-            f"<tr><td>{escape(name)}</td><td>{escape(backend)}</td></tr>"
+            "<tr>"
+            f"<td>{escape(name)}</td>"
+            f"<td>{escape(backend)}</td>"
+            f"<td><span class='status-dot {escape(str((profile_health.get(name) or {}).get('signal', 'red')))}'></span> "
+            f"{escape(str((profile_health.get(name) or {}).get('status', 'unknown')))}</td>"
+            f"<td>{escape(str((profile_health.get(name) or {}).get('reason', 'not_checked')))}</td>"
+            f"<td>{_action_cell(name)}</td>"
+            "</tr>"
             for name, backend in sorted((summary.get("profiles") or {}).items())
         )
         if not profile_rows:
-            profile_rows = "<tr><td colspan='2'><em>No profiles discovered</em></td></tr>"
+            profile_rows = "<tr><td colspan='5'><em>No profiles discovered</em></td></tr>"
         health_rows = "".join(
             "<tr>"
             f"<td>{escape(name)}</td>"
@@ -304,7 +366,7 @@ class HealthCheckMiddleware:
             f"<td>{escape(str(state.get('status', '')))}</td>"
             f"<td>{escape(str(state.get('reason', '')))}</td>"
             "</tr>"
-            for name, state in sorted((summary.get("endpoint_health") or {}).items())
+            for name, state in sorted(profile_health.items())
         )
         if not health_rows:
             health_rows = "<tr><td colspan='4'><em>No endpoint-health state yet</em></td></tr>"
@@ -317,6 +379,10 @@ class HealthCheckMiddleware:
             "th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:14px;}"
             "th{background:#f3f4f6;}"
             "code{background:#f3f4f6;padding:2px 4px;border-radius:3px;}"
+            ".status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;}"
+            ".status-dot.green{background:#15803d;}"
+            ".status-dot.red{background:#b91c1c;}"
+            ".btn{display:inline-block;padding:6px 10px;background:#0f766e;color:#fff;text-decoration:none;border-radius:4px;font-size:12px;}"
             "</style></head><body>"
             "<h1>file-mcp-server status</h1>"
             f"<p><strong>Profile:</strong> {escape(str(summary.get('profile')))}<br>"
@@ -326,9 +392,9 @@ class HealthCheckMiddleware:
             f"<strong>MCP endpoint:</strong> <code>{escape(str(summary.get('mcp_endpoint') or '/mcp'))}</code><br>"
             f"<strong>Health endpoint:</strong> <code>{escape(str(summary.get('health_endpoint') or self.health_path))}</code></p>"
             "<h2>Configured Profiles</h2>"
-            "<table><thead><tr><th>Profile</th><th>Backend</th></tr></thead><tbody>"
+            "<table><thead><tr><th>Profile</th><th>Backend</th><th>Signal</th><th>Reason</th><th>Action</th></tr></thead><tbody>"
             f"{profile_rows}</tbody></table>"
-            "<h2>Endpoint Health (Active Profile)</h2>"
+            "<h2>Endpoint Health (Per Profile)</h2>"
             "<table><thead><tr><th>Name</th><th>Backend</th><th>Status</th><th>Reason</th></tr></thead><tbody>"
             f"{health_rows}</tbody></table>"
             "</body></html>"
@@ -393,12 +459,21 @@ class HealthCheckMiddleware:
                     return
 
         if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/admin/google-drive":
-            scheme = scope.get("scheme") or "http"
+            forwarded_proto = (headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+            if forwarded_proto in {"http", "https"}:
+                scheme = forwarded_proto
+            else:
+                scheme = scope.get("scheme") or "http"
             host = headers.get("host", "localhost")
             callback_url = f"{scheme}://{host}/admin/google-drive/callback"
+            query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
+            selected_profile = (query.get("profile") or [""])[0].strip()
+            lock_profile = bool(selected_profile)
             html = render_setup_page(
                 callback_url=callback_url,
                 profiles=self.profile_names or [self.profile_name],
+                selected_profile=selected_profile,
+                lock_profile=lock_profile,
                 status_message="",
             )
             await self._send_html(send, status=200, html=html)
@@ -495,6 +570,63 @@ class HealthCheckMiddleware:
                 await self._send_bytes(send, status=500, body=body, content_type="application/json")
                 return
         await self.app(scope, receive, send)
+
+
+class StreamableHttpAcceptCompatibilityMiddleware:
+    """Normalize Accept header for clients that only advertise JSON."""
+
+    def __init__(self, app, *, mcp_path: str) -> None:
+        self.app = app
+        self.mcp_path = mcp_path
+
+    @staticmethod
+    def _text(value: bytes | str) -> str:
+        if isinstance(value, bytes):
+            return value.decode("latin-1")
+        return str(value)
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        if str(scope.get("path") or "") != self.mcp_path or str(scope.get("method") or "").upper() != "POST":
+            await self.app(scope, receive, send)
+            return
+
+        headers = list(scope.get("headers") or [])
+        accept_idx: int | None = None
+        accept_value = ""
+        for idx, (key, value) in enumerate(headers):
+            if self._text(key).lower() == "accept":
+                accept_idx = idx
+                accept_value = self._text(value)
+                break
+
+        normalized = accept_value.lower()
+        has_json = "application/json" in normalized or "*/*" in normalized
+        has_stream = "text/event-stream" in normalized or "*/*" in normalized
+        if has_json and has_stream:
+            await self.app(scope, receive, send)
+            return
+
+        patched_accept = accept_value.strip()
+        if not patched_accept:
+            patched_accept = "application/json, text/event-stream"
+        else:
+            if not has_json:
+                patched_accept = f"{patched_accept}, application/json"
+            if not has_stream:
+                patched_accept = f"{patched_accept}, text/event-stream"
+
+        patched_scope = dict(scope)
+        patched_headers = list(headers)
+        if accept_idx is None:
+            patched_headers.append((b"accept", patched_accept.encode("latin-1")))
+        else:
+            key, _ = patched_headers[accept_idx]
+            patched_headers[accept_idx] = (key, patched_accept.encode("latin-1"))
+        patched_scope["headers"] = patched_headers
+        await self.app(patched_scope, receive, send)
 
 
 _request_client_ip: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -2698,6 +2830,10 @@ async def run_fastmcp_http_server(
     endpoint_path = http.events_path if http.transport == "sse" else http.mcp_path
     middleware = [
         Middleware(RequestContextMiddleware),
+        Middleware(
+            StreamableHttpAcceptCompatibilityMiddleware,
+            mcp_path=http.mcp_path,
+        ),
         Middleware(
             HealthCheckMiddleware,
             health_path=http.health_path,

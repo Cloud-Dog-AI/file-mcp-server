@@ -1,6 +1,6 @@
 # File MCP Server — TESTS.md
 Version: 0.1 • 2026-02-05
-Status: Draft
+Status: Active (Release Candidate)
 
 ## Purpose
 This document defines the test plan for `file-mcp-server`, aligned to:
@@ -28,6 +28,14 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
+| 2026-02-12 | Full Suite (Release Candidate Validation) | `source .venv/bin/activate && PYTHONPATH=src pytest -q -rs` | PASS | `179 passed, 15 skipped` |
+| 2026-02-12 | Google-first validation suite | `source .venv/bin/activate && FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1 PYTHONPATH=src pytest -q tests/test_google_drive_storage.py tests/test_google_drive_admin.py tests/test_google_drive_oauth_helper.py tests/test_google_drive_setup_script.py tests/test_integration_google_drive_live_http.py -rs` | PASS | `13 passed, 2 skipped` (expected env-gated live skips) |
+| 2026-02-11 | AT (Preprod Multi-Profile Chain Flow) | `FILE_MCP_RUN_PREPROD_AT=1 FILE_MCP_PREPROD_URL=https://filemcpserver0.cloud-dog.net FILE_MCP_PREPROD_PROFILE_LOCAL=default FILE_MCP_PREPROD_PROFILE_S3=s3 FILE_MCP_PREPROD_PROFILE_WEBDAV=webdav FILE_MCP_PREPROD_PROFILE_FTP=ftp FILE_MCP_PREPROD_KEY_LOCAL=... FILE_MCP_PREPROD_KEY_S3=... FILE_MCP_PREPROD_KEY_WEBDAV=... FILE_MCP_PREPROD_KEY_FTP=... PYTHONPATH=src pytest -q tests/test_application_preprod_profile_chain_http.py -rs` | PASS | `1 passed` (single flow: local add/update/download, carry to s3 update/download, then webdav update/download, then ftp update/download) |
+| 2026-02-11 | UT (HTTP Accept Compatibility Middleware) | `source .venv/bin/activate && PYTHONPATH=src pytest -q tests/test_server_runtime.py -rs` | PASS | `11 passed` |
+| 2026-02-11 | Smoke (server_control lifecycle + JSON-only Accept POST /mcp) | `./server_control.sh --env private/env-accept-smoke --profile default restart/status/stop` + `curl -X POST http://127.0.0.1:18090/mcp -H 'Accept: application/json' ...` | PASS | returned `200` SSE message, no `406 Not Acceptable` |
+| 2026-02-11 | Full Suite (Config Precedence Hardening) | `source .venv/bin/activate && PYTHONPATH=src pytest -q -rs` | PASS | `174 passed, 14 skipped` |
+| 2026-02-11 | UT (Config Loader Precedence) | `source .venv/bin/activate && PYTHONPATH=src pytest -q tests/test_config_loader.py -rs` | PASS | `4 passed` |
+| 2026-02-11 | IT/UT (Auth + Multi-Profile Routing) | `source .venv/bin/activate && PYTHONPATH=src pytest -q tests/test_auth.py tests/test_integration_multi_profile_routing_http.py -rs` | PASS | `12 passed` |
 | 2026-02-11 | Full Suite (Post Multi-Profile Routing) | `source .venv/bin/activate && PYTHONPATH=src pytest -q` | PASS | `172 passed, 14 skipped` |
 | 2026-02-11 | IT/UT (Multi-Profile Routing + Auth) | `source .venv/bin/activate && PYTHONPATH=src pytest -q tests/test_auth.py tests/test_server_runtime.py tests/test_integration_multi_profile_routing_http.py -rs` | PASS | `22 passed` |
 | 2026-02-11 | IT (Exhaustive Per-Tool Backend Audit: WebDAV/FTP/S3/Google Drive) | `source .venv/bin/activate && PYTHONPATH=src:. FILE_MCP_EXHAUSTIVE_BACKENDS=webdav,ftp,s3,google_drive FILE_MCP_EXHAUSTIVE_TOOL_TIMEOUT_S=60 python3 scripts/exhaustive_backend_tool_audit.py` | PASS | `webdav: pass=52 not_supported=2 fail=0; ftp: pass=52 not_supported=2 fail=0; s3: pass=51 not_supported=3 fail=0; google_drive: pass=52 not_supported=2 fail=0; report=working/exhaustive_backend_tool_audit.json` |
@@ -234,7 +242,7 @@ Each test section’s **Run History** should be updated using this template.
 - **FR1.31** → UT1.28, ST1.1, ST1.8
 - **FR1.32** → UT1.29, UT1.30, IT1.15
 - **FR1.33** → ST1.8
-- **FR1.36** → IT1.17
+- **FR1.35** → IT1.17
 
 ### Use Cases (UC)
 - **UC1.1** → IT1.2, AT1.1

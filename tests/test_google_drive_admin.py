@@ -21,12 +21,26 @@ def test_render_setup_page_contains_form_and_profiles() -> None:
     html = admin.render_setup_page(
         callback_url="http://example.test/admin/google-drive/callback",
         profiles=["default", "profile2"],
+        selected_profile="profile2",
         status_message="ready",
         status_type="ok",
     )
     assert "Google Drive Profile Setup" in html
     assert "profile2" in html
     assert "/admin/google-drive/start" in html
+    assert "selected" in html
+
+
+def test_render_setup_page_locks_profile_when_requested() -> None:
+    html = admin.render_setup_page(
+        callback_url="http://example.test/admin/google-drive/callback",
+        profiles=["default", "google_drive"],
+        selected_profile="google_drive",
+        lock_profile=True,
+    )
+    assert "Profile is fixed for this authorization flow." in html
+    assert "name='profile'" in html
+    assert "disabled" in html
 
 
 def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> None:

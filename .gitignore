@@ -1,5 +1,11 @@
 .venv/
 .env
 private/env-*
+private/*
 __pycache__/
 *.py[cod]
+docker-build.log
+run/certs/
+run/env.handoff
+run/logs/
+working/

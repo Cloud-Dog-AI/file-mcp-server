@@ -4,6 +4,7 @@ Deterministic, scoped file operations exposed over MCP transports (`streamable-h
 
 License: Apache-2.0  
 Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+Release status: Release Candidate
 
 ## What this server provides
 
@@ -227,6 +228,8 @@ For client-site deployments where the server is remote, use built-in admin pages
    - `http(s)://<server-host>:<port>/admin/google-drive`
    - if token is set, pass `?token=<secret>` or header `X-Admin-Token: <secret>`
 3. Select target profile and complete OAuth flow.
+   - Profile-pinned mode: open `/admin/google-drive?profile=<name>` to lock profile selection.
+   - Form values are remembered on refresh (except client secret).
 
 Use an OAuth **Web application** credential in Google with redirect URI:
 - `http(s)://<server-host>:<port>/admin/google-drive/callback`

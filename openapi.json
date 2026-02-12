@@ -166,6 +166,17 @@
       "get": {
         "summary": "Google Drive Setup Page",
         "description": "Returns HTML setup form for Google Drive OAuth/profile binding. Requires admin UI enablement.",
+        "parameters": [
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional profile pinning for OAuth flow. When set, profile selection is locked on the setup page."
+          }
+        ],
         "security": [
           {
             "adminTokenHeader": []

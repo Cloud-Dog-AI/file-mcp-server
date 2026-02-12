@@ -1,4 +1,5 @@
 # File MCP Server - Description
+Release Status: Release Candidate (2026-02-12)
 
 ## Overview (50 words)
 file-mcp-server is a language-neutral MCP service for deterministic file operations within configured scope boundaries. It delivers secure read/write/search/edit/conversion tools, structured document manipulation, validation, snapshots, and append-only audit trails. Profiles, API-key authentication, and transport options enable reliable automation across local runtimes, containers, and test-driven operational workflows for engineering and compliance needs.

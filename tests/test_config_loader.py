@@ -121,3 +121,85 @@ def test_load_config_os_environ_precedence(tmp_path: Path, monkeypatch) -> None:
 
     assert profile.observability.log_path == env_override
     assert profile.observability.level == expected_level
+
+
+def test_load_config_env_overrides_literal_config_values(tmp_path: Path, monkeypatch) -> None:
+    defaults_path = tmp_path / "defaults.yaml"
+    config_path = tmp_path / "config.yaml"
+    env_path = tmp_path / "env"
+
+    _write_yaml(
+        defaults_path,
+        """
+profiles:
+  default:
+    observability:
+      log_path: "${FILE_MCP_SERVER_LOG}"
+      level: "INFO"
+""".lstrip(),
+    )
+    _write_yaml(
+        config_path,
+        """
+profiles:
+  default:
+    observability:
+      log_path: "/literal/from/config.log"
+      level: "WARN"
+""".lstrip(),
+    )
+    _write_env(
+        env_path,
+        {
+            "FILE_MCP_SERVER_LOG": str(tmp_path / "from-env-file.log"),
+        },
+    )
+
+    monkeypatch.delenv("FILE_MCP_SERVER_LOG", raising=False)
+    config = load_config(
+        env_path=[env_path],
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+    monkeypatch.delenv("FILE_MCP_SERVER_LOG", raising=False)
+
+    assert profile.observability.log_path == str(tmp_path / "from-env-file.log")
+    assert profile.observability.level == "WARN"
+
+
+def test_load_config_os_environ_overrides_env_file_and_config(tmp_path: Path, monkeypatch) -> None:
+    defaults_path = tmp_path / "defaults.yaml"
+    config_path = tmp_path / "config.yaml"
+    env_path = tmp_path / "env"
+
+    _write_yaml(
+        defaults_path,
+        """
+profiles:
+  default:
+    observability:
+      log_path: "${FILE_MCP_SERVER_LOG}"
+""".lstrip(),
+    )
+    _write_yaml(
+        config_path,
+        """
+profiles:
+  default:
+    observability:
+      log_path: "/literal/from/config.log"
+""".lstrip(),
+    )
+    _write_env(env_path, {"FILE_MCP_SERVER_LOG": str(tmp_path / "from-env-file.log")})
+    monkeypatch.setenv("FILE_MCP_SERVER_LOG", str(tmp_path / "from-os-env.log"))
+
+    config = load_config(
+        env_path=[env_path],
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+    monkeypatch.delenv("FILE_MCP_SERVER_LOG", raising=False)
+
+    assert profile.observability.log_path == str(tmp_path / "from-os-env.log")

@@ -69,6 +69,7 @@ If `FILE_MCP_ADMIN_UI_TOKEN` is set, requests must include either:
 
 Endpoints:
 - `GET /admin/google-drive`: setup form for Google Drive profile binding.
+  - optional query `profile=<name>` pins/locks the selected profile for the flow
 - `POST /admin/google-drive/start`: validates form input and redirects (302) to Google OAuth.
 - `GET /admin/google-drive/callback`: exchanges authorization code, validates folder, updates config.
 - `POST /admin/reload`: hot-reloads config/profile bindings in-process.
