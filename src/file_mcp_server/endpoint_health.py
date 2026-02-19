@@ -10,12 +10,11 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import logging
 from pathlib import Path
 import socket
 import threading
 import time
-from typing import Any
+from typing import Any, Protocol
 
 import requests
 
@@ -34,6 +33,12 @@ class EndpointState:
     consecutive_failures: int
     retries_used: int
     requires_restart: bool
+
+
+class LogLike(Protocol):
+    def info(self, msg: str, **extra: Any) -> None: ...
+
+    def warning(self, msg: str, **extra: Any) -> None: ...
 
 
 class EndpointHealthManager:
@@ -137,7 +142,7 @@ class EndpointHealthManager:
         *,
         profile_name: str,
         profile: ProfileConfig,
-        logger: logging.Logger | None,
+        logger: LogLike | None,
     ) -> None:
         cfg = self._health_cfg(profile)
         if not self._bool_or(cfg.enabled, True):
@@ -188,12 +193,12 @@ class EndpointHealthManager:
                     failures_in_window = len(dq)
                     if logger:
                         logger.warning(
-                            "endpoint-check backend=%s attempt=%s/%s status=%s error=%s",
-                            backend_name,
-                            attempts,
-                            max_retries + 1,
-                            category,
-                            exc,
+                            "endpoint-check",
+                            backend=backend_name,
+                            attempt=attempts,
+                            max_attempts=max_retries + 1,
+                            status=category,
+                            error=str(exc),
                         )
                     can_retry = (
                         category in {"temporary_unavailable", "busy_temporary"}
@@ -232,18 +237,12 @@ class EndpointHealthManager:
             self._set_state(profile_name, state)
             if logger:
                 logger.info(
-                    "endpoint-startup-status backend=%s status=%s retries_used=%s failures_in_window=%s requires_restart=%s",
-                    backend_name,
-                    state.status,
-                    state.retries_used,
-                    state.failures_in_window,
-                    state.requires_restart,
-                )
-            else:
-                print(
-                    f"[endpoint-startup-status] backend={backend_name} status={state.status} "
-                    f"retries={state.retries_used} failures_in_window={state.failures_in_window} "
-                    f"requires_restart={state.requires_restart}"
+                    "endpoint-startup-status",
+                    backend=backend_name,
+                    status=state.status,
+                    retries_used=state.retries_used,
+                    failures_in_window=state.failures_in_window,
+                    requires_restart=state.requires_restart,
                 )
 
     def maybe_recover_backend(
@@ -252,7 +251,7 @@ class EndpointHealthManager:
         profile_name: str,
         profile: ProfileConfig,
         backend_name: str,
-        logger: logging.Logger | None,
+        logger: LogLike | None,
     ) -> EndpointState | None:
         cfg = self._health_cfg(profile)
         if not self._bool_or(cfg.enabled, True):
@@ -273,9 +272,9 @@ class EndpointHealthManager:
         profile_for_backend.storage.backend = backend_name
         if logger:
             logger.info(
-                "endpoint-recover-attempt backend=%s previous_status=%s",
-                backend_name,
-                state.status,
+                "endpoint-recover-attempt",
+                backend=backend_name,
+                previous_status=state.status,
             )
         try:
             backend = build_storage_backend(profile_for_backend)
@@ -294,7 +293,7 @@ class EndpointHealthManager:
             )
             self._set_state(profile_name, recovered)
             if logger:
-                logger.info("endpoint-recover-success backend=%s", backend_name)
+                logger.info("endpoint-recover-success", backend=backend_name)
             return recovered
         except Exception as exc:  # pragma: no cover - network dependent
             category = self.classify_exception(exc)
@@ -313,10 +312,10 @@ class EndpointHealthManager:
             self._set_state(profile_name, failed)
             if logger:
                 logger.warning(
-                    "endpoint-recover-failed backend=%s status=%s error=%s",
-                    backend_name,
-                    category,
-                    exc,
+                    "endpoint-recover-failed",
+                    backend=backend_name,
+                    status=category,
+                    error=str(exc),
                 )
             return failed
 

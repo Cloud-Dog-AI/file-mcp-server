@@ -1,6 +1,6 @@
 # Context Summary
 
-Version: 1.17 • 2026-02-19
+Version: 1.18 • 2026-02-19
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
 ## 1) Current release-candidate scope
@@ -59,6 +59,14 @@ Changes:
 - Kept `ServerConfig` and `ProfileConfig` as domain models and bound adapter output into them.
 - Removed bespoke adapter env parsing/override logic; adapter is a thin bridge (platform load -> thaw -> model bind).
 
+### 2.5 Logging migration to cloud_dog_logging (PS-40)
+- Replaced bespoke logging plumbing with platform logging:
+  - `src/file_tools/observability.py` now configures `cloud_dog_logging` from loaded profile config.
+  - `src/file_tools/audit/adapter.py` maps domain audit events to PS-40 schema while preserving legacy fields required by tests/consumers.
+  - `src/file_mcp_server/server.py` switched request correlation to `cloud_dog_logging.correlation` and removed manual JSON serialisation logging.
+- Added runtime redaction presets for sensitive fields (`token`, `secret`, `password`, `api_key`).
+- Removed direct `print()` usage in server/file_tools logging paths.
+
 ## 3) Live deployment state validated
 
 Validated on preprod endpoint:
@@ -100,6 +108,16 @@ Command:
 Result:
 - `12 passed, 1 skipped`
 - validates adapter migration path, multi-profile routing, and limits behaviour.
+
+### 4.5 Logging migration gate set
+Commands:
+- `source .venv/bin/activate && PYTHONPATH=src pytest tests/test_audit.py tests/test_observability.py -v --env private/env-accept-smoke`
+- `source .venv/bin/activate && PYTHONPATH=src pytest tests/test_audit.py tests/test_observability.py tests/test_system_audit_integrity.py tests/test_system_snapshot_retention.py tests/test_integration_structured_audit_snapshot.py tests/test_application_search_edit_audit_workflow.py -v --env private/env-accept-smoke`
+
+Results:
+- smoke: `5 passed`
+- regression: `9 passed`
+- runtime checks: audit JSONL parseable with required fields; request-scoped tool logs include correlation IDs (`tool_entries=2`, `missing_correlation=0`); sensitive values redacted (`redaction_leaks=0`).
 
 ## 5) What is still intentionally gated (not silently ignored)
 

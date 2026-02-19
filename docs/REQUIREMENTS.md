@@ -1,5 +1,5 @@
 # File MCP Server — REQUIREMENTS.md
-Version: 0.3 • 2026-02-12
+Version: 0.4 • 2026-02-19
 Status: Active (Release Candidate)
 
 ## Document Structure
@@ -103,6 +103,7 @@ System shall support simple server start/stop/status routines suitable for local
 ### FR1.3: Configuration Precedence & Zero Hardcoding
 - Configuration SHALL load via precedence: `os.environ` → env file → `config.yaml` → `defaults.yaml`.
 - Configuration loading SHALL be delegated to `cloud_dog_config` (PS-80) via the project adapter.
+- Logging configuration SHALL resolve from loaded profile config (via `cloud_dog_config`), not direct `os.environ` reads in `file_tools`.
 - The system SHALL NOT hardcode API keys, scope roots, allowed extensions, or log paths.
 - The config compiler SHALL support environment and Vault interpolation in YAML values (e.g., `${VAR}`, `${vault.*}`).
 
@@ -185,7 +186,9 @@ System shall support simple server start/stop/status routines suitable for local
 ### FR1.19: Audit Logging
 - The system SHALL write append-only audit entries for all mutating operations and attempts.
 - Audit entries SHALL include timestamp, tool name, paths, hashes, diff summary/reference, validation results, snapshot reference, and status.
-- Audit output format SHOULD be JSONL for easy ingestion.
+- Audit/operational logging plumbing SHALL be delegated to `cloud_dog_logging` (PS-40), with structured JSONL output.
+- Request-scoped log entries SHALL include correlation identifiers propagated through middleware/context.
+- Sensitive fields (`token`, `secret`, `password`, `api_key`) SHALL be redacted in log output.
 
 ### FR1.20: Snapshots / Backups
 - The system SHALL provide snapshot capability controlled by configuration: disabled, on-change, or scheduled (optional).

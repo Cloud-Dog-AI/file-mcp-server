@@ -15,11 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, TextIO, cast
+from typing import Any, Dict, Literal, Optional, Protocol, TextIO, cast
 from threading import Lock
 from html import escape
 
-import contextvars
 import inspect
 import json
 import logging
@@ -32,6 +31,11 @@ import re
 
 import yaml
 from fastmcp import FastMCP
+from cloud_dog_logging.correlation import (  # type: ignore[import-untyped]
+    clear_correlation_id,
+    get_correlation_id,
+    set_correlation_id,
+)
 from file_tools.config.models import (
     HttpServerConfig,
     ProfileConfig,
@@ -104,6 +108,16 @@ from .google_drive_admin import (
 class JsonRpcError:
     code: int
     message: str
+
+
+class LogLike(Protocol):
+    def info(self, msg: str, **extra: Any) -> None: ...
+
+    def warning(self, msg: str, **extra: Any) -> None: ...
+
+    def error(self, msg: str, **extra: Any) -> None: ...
+
+    def exception(self, msg: str, **extra: Any) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -564,17 +578,24 @@ class HealthCheckMiddleware:
                 data = parse_form_urlencoded(body)
                 callback_uri = (data.get("redirect_uri") or "").strip()
                 self.logger.info(
-                    "admin_google_drive_start profile=%s callback_uri=%s has_client_id=%s has_client_secret=%s",
-                    (data.get("profile") or "").strip(),
-                    callback_uri,
-                    bool((data.get("client_id") or "").strip()),
-                    bool((data.get("client_secret") or "").strip()),
+                    "admin_google_drive_start",
+                    extra={
+                        "profile": (data.get("profile") or "").strip(),
+                        "callback_uri": callback_uri,
+                        "has_client_id": bool((data.get("client_id") or "").strip()),
+                        "has_client_secret": bool(
+                            (data.get("client_secret") or "").strip()
+                        ),
+                    },
                 )
                 location = begin_oauth(data)
                 await self._send_redirect(send, location=location)
                 return
             except Exception as exc:
-                self.logger.exception("admin_google_drive_start_failed error=%s", exc)
+                self.logger.exception(
+                    "admin_google_drive_start_failed",
+                    extra={"error": str(exc)},
+                )
                 html = render_setup_page(
                     callback_url="",
                     profiles=self.profile_names or [self.profile_name],
@@ -597,11 +618,13 @@ class HealthCheckMiddleware:
             oauth_error_description = (query.get("error_description") or [""])[0]
             if not state or not code:
                 self.logger.warning(
-                    "admin_google_drive_callback_missing_code_or_state error=%s error_description=%s has_state=%s has_code=%s",
-                    oauth_error,
-                    oauth_error_description,
-                    bool(state),
-                    bool(code),
+                    "admin_google_drive_callback_missing_code_or_state",
+                    extra={
+                        "error": oauth_error,
+                        "error_description": oauth_error_description,
+                        "has_state": bool(state),
+                        "has_code": bool(code),
+                    },
                 )
                 await self._send_html(
                     send, status=400, html="<h1>Missing state or code in callback.</h1>"
@@ -629,18 +652,19 @@ class HealthCheckMiddleware:
                     f"<p>{escape(reload_message)}</p>"
                 )
                 self.logger.info(
-                    "admin_google_drive_callback_success profile=%s folder_id=%s config_path=%s",
-                    result.profile,
-                    result.folder_id,
-                    result.config_path,
+                    "admin_google_drive_callback_success",
+                    extra={
+                        "profile": result.profile,
+                        "folder_id": result.folder_id,
+                        "config_path": result.config_path,
+                    },
                 )
                 await self._send_html(send, status=200, html=html)
                 return
             except Exception as exc:
                 self.logger.exception(
-                    "admin_google_drive_callback_failed state=%s error=%s",
-                    state,
-                    exc,
+                    "admin_google_drive_callback_failed",
+                    extra={"state": state, "error": str(exc)},
                 )
                 await self._send_html(
                     send,
@@ -734,14 +758,6 @@ class StreamableHttpAcceptCompatibilityMiddleware:
         await self.app(patched_scope, receive, send)
 
 
-_request_client_ip: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "file_mcp_request_client_ip", default=None
-)
-_request_session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "file_mcp_request_session_id", default=None
-)
-
-
 class RequestContextMiddleware:
     """Capture request context for per-tool operational logging."""
 
@@ -753,8 +769,6 @@ class RequestContextMiddleware:
             await self.app(scope, receive, send)
             return
 
-        client = scope.get("client") or ()
-        client_ip = client[0] if isinstance(client, tuple) and client else None
         headers = {
             (
                 key.decode("latin-1").lower()
@@ -763,21 +777,16 @@ class RequestContextMiddleware:
             ): (value.decode("latin-1") if isinstance(value, bytes) else str(value))
             for key, value in (scope.get("headers") or [])
         }
-        if headers.get("x-forwarded-for"):
-            client_ip = headers["x-forwarded-for"].split(",")[0].strip()
-        session_id = (
+        correlation_id = (
             headers.get("x-session-id")
             or headers.get("x-request-id")
-            or str(uuid.uuid4())
+            or uuid.uuid4().hex
         )
-
-        ip_token = _request_client_ip.set(client_ip)
-        sid_token = _request_session_id.set(session_id)
+        set_correlation_id(correlation_id)
         try:
             await self.app(scope, receive, send)
         finally:
-            _request_client_ip.reset(ip_token)
-            _request_session_id.reset(sid_token)
+            clear_correlation_id()
 
 
 def _to_bool(value: Any, default: bool) -> bool:
@@ -906,7 +915,7 @@ def build_tool_registry(
     profile: ProfileConfig,
     *,
     profile_name: str = "default",
-    logger: logging.Logger | None = None,
+    logger: LogLike | None = None,
 ) -> ToolRegistry:
     backend = build_storage_backend(profile)
     # Alias to avoid accidental shadowing by tool parameters (e.g. convert_file has a `backend` arg).
@@ -958,12 +967,13 @@ def build_tool_registry(
                 status=status,
                 outcome=outcome or status,
                 profile=profile_name,
-                session_id=_request_session_id.get(),
-                client_ip=_request_client_ip.get(),
                 duration_ms=duration_ms,
                 params=params or {},
                 paths=paths or {},
-                details=details or {},
+                details={
+                    "correlation_id": get_correlation_id(),
+                    **(details or {}),
+                },
             )
         )
 
@@ -2984,7 +2994,7 @@ def register_tools_with_fastmcp(
     registry_provider,
     *,
     default_profile_name: str,
-    logger: logging.Logger | None = None,
+    logger: LogLike | None = None,
 ) -> None:
     current_registry = registry_provider()
 
@@ -3056,47 +3066,41 @@ def register_tools_with_fastmcp(
                             f"requires_restart={state.requires_restart}"
                         )
                         if logger:
-                            logger.warning(message)
+                            logger.warning(
+                                message,
+                                backend=storage_backend_name,
+                                profile=profile_name,
+                            )
                         if state.requires_restart and restart_on_threshold:
                             if logger:
                                 logger.error(
-                                    "Endpoint restart threshold reached for backend=%s; exiting process with code=%s",
-                                    storage_backend_name,
-                                    restart_exit_code,
+                                    "Endpoint restart threshold reached",
+                                    backend=storage_backend_name,
+                                    restart_exit_code=restart_exit_code,
                                 )
                             raise SystemExit(restart_exit_code)
                         raise RuntimeError(message)
             if logger:
                 logger.info(
-                    json.dumps(
-                        {
-                            "event": "tool_call",
-                            "profile": profile_name,
-                            "tool": tool_name,
-                            "params": params,
-                            "session_id": _request_session_id.get(),
-                            "client_ip": _request_client_ip.get(),
-                        },
-                        ensure_ascii=False,
-                    )
+                    "tool_call",
+                    event="tool_call",
+                    profile=profile_name,
+                    tool=tool_name,
+                    params=params,
+                    correlation_id=get_correlation_id(),
                 )
             try:
                 result = handler(*args, **kwargs)
                 elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
                 if logger:
                     logger.info(
-                        json.dumps(
-                            {
-                                "event": "tool_result",
-                                "profile": profile_name,
-                                "tool": tool_name,
-                                "outcome": "ok",
-                                "duration_ms": elapsed_ms,
-                                "session_id": _request_session_id.get(),
-                                "client_ip": _request_client_ip.get(),
-                            },
-                            ensure_ascii=False,
-                        )
+                        "tool_result",
+                        event="tool_result",
+                        profile=profile_name,
+                        tool=tool_name,
+                        outcome="ok",
+                        duration_ms=elapsed_ms,
+                        correlation_id=get_correlation_id(),
                     )
                 if audit_writer:
                     audit_writer(
@@ -3113,19 +3117,14 @@ def register_tools_with_fastmcp(
                 elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
                 if logger:
                     logger.info(
-                        json.dumps(
-                            {
-                                "event": "tool_result",
-                                "profile": profile_name,
-                                "tool": tool_name,
-                                "outcome": "error",
-                                "error": str(exc),
-                                "duration_ms": elapsed_ms,
-                                "session_id": _request_session_id.get(),
-                                "client_ip": _request_client_ip.get(),
-                            },
-                            ensure_ascii=False,
-                        )
+                        "tool_result",
+                        event="tool_result",
+                        profile=profile_name,
+                        tool=tool_name,
+                        outcome="error",
+                        error=str(exc),
+                        duration_ms=elapsed_ms,
+                        correlation_id=get_correlation_id(),
                     )
                 if audit_writer:
                     audit_writer(
@@ -3161,7 +3160,7 @@ def build_fastmcp_server(
     config: ServerConfig,
     http: HttpRuntimeSettings,
     *,
-    logger: logging.Logger | None = None,
+    logger: LogLike | None = None,
 ) -> FastMCP:
     if default_profile_name not in config.profiles:
         raise ValueError(f"Unknown default profile: {default_profile_name}")
@@ -3247,7 +3246,7 @@ async def run_fastmcp_http_server(
     default_profile_name: str,
     config: ServerConfig,
     http_config: HttpServerConfig,
-    logger: logging.Logger | None = None,
+    logger: LogLike | None = None,
 ) -> None:
     http = resolve_http_settings(http_config)
     for profile_name, profile in config.profiles.items():
@@ -3261,10 +3260,10 @@ async def run_fastmcp_http_server(
                 if state.requires_restart:
                     if logger:
                         logger.error(
-                            "Endpoint startup health exceeded restart threshold for profile=%s backend=%s; exiting with code=%s",
-                            profile_name,
-                            state.backend,
-                            exit_code,
+                            "Endpoint startup health exceeded restart threshold",
+                            profile=profile_name,
+                            backend=state.backend,
+                            restart_exit_code=exit_code,
                         )
                     raise SystemExit(exit_code)
     server = build_fastmcp_server(default_profile_name, config, http, logger=logger)
@@ -3297,12 +3296,12 @@ async def run_fastmcp_http_server(
     ]
     if logger:
         logger.info(
-            "Starting FastMCP transport=%s host=%s port=%s endpoint=%s health=%s",
-            http.transport,
-            http.host,
-            http.port,
-            endpoint_path,
-            http.health_path,
+            "Starting FastMCP",
+            transport=http.transport,
+            host=http.host,
+            port=http.port,
+            endpoint=endpoint_path,
+            health=http.health_path,
         )
 
     await server.run_http_async(

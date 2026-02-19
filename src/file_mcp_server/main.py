@@ -23,7 +23,7 @@ from pathlib import Path
 import typer
 
 from file_tools.config.adapter import get_profile, load_config
-from file_tools.observability import configure_operational_logger
+from file_tools.logging_adapter import configure_logging_for_profile
 from file_mcp_server.lifecycle import start_pidfile, status_pidfile, stop_pidfile
 from file_mcp_server.server import run_fastmcp_http_server
 
@@ -75,7 +75,7 @@ def serve(
     )
     os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
     profile_config = get_profile(config, name=profile)
-    logger = configure_operational_logger(profile_config.observability)
+    logger = configure_logging_for_profile(profile_config)
     current_pid = os.getpid()
 
     existing = status_pidfile(pidfile)
@@ -86,7 +86,7 @@ def serve(
         raise typer.Exit(1)
 
     start_pidfile(pidfile, pid=current_pid, force=True)
-    logger.info("Server process started with pid=%s", current_pid)
+    logger.info("Server process started", pid=current_pid)
     try:
         asyncio.run(
             run_fastmcp_http_server(
@@ -98,7 +98,7 @@ def serve(
         )
     finally:
         stop_pidfile(pidfile, send_signal=False)
-        logger.info("Server process shutdown complete pid=%s", current_pid)
+        logger.info("Server process shutdown complete", pid=current_pid)
 
 
 @app.command()

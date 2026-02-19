@@ -1,5 +1,5 @@
 # File MCP Server — ARCHITECTURE.md
-Version: 0.5 • 2026-02-12
+Version: 0.6 • 2026-02-19
 Status: Active (Release Candidate)
 
 ## 1. System Overview
@@ -26,8 +26,10 @@ Out of scope:
 2. Load all configured profiles and set a server default profile.
 3. Resolve active profile per request (query/header with default fallback), then apply profile-aware auth and registry routing.
 4. Run endpoint health startup checks for configured backends.
-5. For each call: authenticate -> scope-check -> backend health gate -> execute handler -> return structured output/error.
-6. For mutating calls: optional snapshot + validation + append-only audit event.
+5. Configure structured operational/audit logging through `cloud_dog_logging` (PS-40) using loaded profile config paths/levels.
+6. For each call: authenticate -> scope-check -> backend health gate -> execute handler -> return structured output/error.
+7. Propagate correlation ID through request middleware into app + audit entries for tool call/result tracing.
+8. For mutating calls: optional snapshot + validation + append-only audit event.
 
 ### 2.3 Key Modules
 - `src/file_mcp_server/server.py`: FastMCP transport wiring, middleware, tool registration, file-level handlers.
@@ -36,8 +38,11 @@ Out of scope:
 - `src/file_mcp_server/endpoint_health.py`: endpoint probe/retry/recovery manager.
 - `src/file_tools/config/adapter.py`: `cloud_dog_config` bridge that binds output into `ServerConfig`.
 - `cloud_dog_config`: platform config package handling precedence, compile, Vault expressions, and immutable snapshots.
+- `src/file_tools/observability.py`: bridge configuring PS-40 logging from loaded `ProfileConfig`.
+- `src/file_tools/audit/adapter.py`: audit compatibility adapter mapping domain events to PS-40 audit schema.
+- `cloud_dog_logging`: platform logging package handling JSONL formatting, redaction, sinks, and correlation context.
 - `src/file_tools/scope/policy.py`: path and allow/deny enforcement.
-- `src/file_tools/audit/*`: audit event model + snapshot retention.
+- `src/file_tools/audit/snapshots.py`: domain snapshot lifecycle/retention.
 - `src/file_tools/storage/google_drive.py`: Google Drive backend implementation.
 
 ## 3. Configuration Model
@@ -178,7 +183,7 @@ Project-provided wrapper:
 - Integration tests for multi-module behavior over real HTTP tool calls.
 - Application tests for realistic multi-step workflows.
 
-Current baseline: full suite green (`161 passed, 4 skipped`) with Docker/remote-matrix flags enabled.
+Current baseline: full suite green (`181 passed, 15 skipped`) under smoke env; additional suites remain explicitly flag-gated (docker, remote matrix, live OAuth/live Drive, preprod).
 
 ## 11. Documentation Map
 - Requirements: `docs/REQUIREMENTS.md`

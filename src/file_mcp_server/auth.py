@@ -67,9 +67,13 @@ def get_request_profile_name(default: str | None = None) -> str | None:
     return default
 
 
-def key_fingerprint(api_key: str) -> str:
+def key_digest(api_key: str) -> str:
     digest = sha256(api_key.encode("utf-8")).hexdigest()
     return f"sha256:{digest[:12]}"
+
+
+# Backwards-compatible export for existing imports/tests.
+key_fingerprint = key_digest
 
 
 class ApiKeyAuth:
@@ -84,7 +88,7 @@ class ApiKeyAuth:
 
         for key in self._keys:
             if compare_digest(key, api_key):
-                return AuthResult(ok=True, key_fingerprint=key_fingerprint(api_key))
+                return AuthResult(ok=True, key_fingerprint=key_digest(api_key))
 
         raise AuthError("Invalid API key")
 

@@ -17,7 +17,7 @@ from .limits import (
     enforce_timeout,
     exceeds_max_file_size,
 )
-from .observability import configure_operational_logger
+from .logging_adapter import configure_logging_for_profile
 from .posix import (
     filter_posix_paths,
     is_posix_path,
@@ -29,7 +29,7 @@ from .posix import (
 
 __all__ = [
     "LimitError",
-    "configure_operational_logger",
+    "configure_logging_for_profile",
     "enforce_max_file_size",
     "enforce_timeout",
     "exceeds_max_file_size",
