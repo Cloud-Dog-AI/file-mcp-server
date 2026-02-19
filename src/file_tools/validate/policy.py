@@ -54,7 +54,9 @@ def apply_validation_mode(result: ValidationResult, mode: str) -> ValidationResu
     raise ValueError(f"Unknown validation mode: {mode}")
 
 
-def validate_with_mode(content_type: str, text: str, validation: ValidationConfig) -> ValidationResult:
+def validate_with_mode(
+    content_type: str, text: str, validation: ValidationConfig
+) -> ValidationResult:
     if content_type not in _VALIDATORS:
         raise ValueError(f"Unsupported validation type: {content_type}")
     mode = select_validation_mode(validation, content_type)

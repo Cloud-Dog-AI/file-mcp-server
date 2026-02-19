@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable, List
+from typing import Callable, Iterable
 
 import re
 
@@ -57,7 +57,9 @@ def delete_matching_lines(text: str, pattern: str) -> EditResult:
     return EditResult(text="\n".join(kept), changed=len(kept) != len(lines))
 
 
-def replace_line_range(text: str, start: int, end: int, replacement: Iterable[str]) -> EditResult:
+def replace_line_range(
+    text: str, start: int, end: int, replacement: Iterable[str]
+) -> EditResult:
     lines = text.splitlines()
     if start < 1 or end < start or end > len(lines):
         raise IndexError("range out of bounds")

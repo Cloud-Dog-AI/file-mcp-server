@@ -10,13 +10,16 @@ import json
 
 import yaml
 
+_RuamelYAMLClass: Any | None
 try:
-    from ruamel.yaml import YAML
+    from ruamel.yaml import YAML as _ImportedRuamelYAML
+
+    _RuamelYAMLClass = _ImportedRuamelYAML
 except Exception:  # pragma: no cover - optional dependency guard
-    YAML = None
+    _RuamelYAMLClass = None
 
 
-_yaml_rt = YAML() if YAML is not None else None
+_yaml_rt = _RuamelYAMLClass() if _RuamelYAMLClass is not None else None
 if _yaml_rt is not None:
     _yaml_rt.preserve_quotes = True
 

@@ -106,10 +106,18 @@ def search_content(
                 for line_no, line in enumerate(handle, start=1):
                     if regex:
                         if pattern and pattern.search(line):
-                            results.append(SearchMatch(path=path, line_no=line_no, line=line.rstrip("\n")))
+                            results.append(
+                                SearchMatch(
+                                    path=path, line_no=line_no, line=line.rstrip("\n")
+                                )
+                            )
                     else:
                         if query in line:
-                            results.append(SearchMatch(path=path, line_no=line_no, line=line.rstrip("\n")))
+                            results.append(
+                                SearchMatch(
+                                    path=path, line_no=line_no, line=line.rstrip("\n")
+                                )
+                            )
                     if max_results is not None and len(results) >= max_results:
                         return results
         except (OSError, UnicodeError):

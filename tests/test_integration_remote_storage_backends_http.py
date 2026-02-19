@@ -40,7 +40,11 @@ def _parse_env_file(path: Path) -> dict[str, str]:
 def _require(env: Mapping[str, str], name: str) -> str:
     value = env.get(name, "").strip()
     if not value:
-        raise RuntimeError(f"Missing required env var: {name}")
+        pytest.skip(f"Missing required env var for live remote backend test: {name}")
+    if value.startswith("${") and value.endswith("}"):
+        pytest.skip(
+            f"Unresolved placeholder for live remote backend test env var: {name}"
+        )
     return value
 
 

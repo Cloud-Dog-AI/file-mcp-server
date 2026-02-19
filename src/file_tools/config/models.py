@@ -150,7 +150,9 @@ class StorageConfig(BaseModel):
     s3: S3StorageConfig = Field(default_factory=S3StorageConfig)
     webdav: WebDavStorageConfig = Field(default_factory=WebDavStorageConfig)
     ftp: FtpStorageConfig = Field(default_factory=FtpStorageConfig)
-    google_drive: GoogleDriveStorageConfig = Field(default_factory=GoogleDriveStorageConfig)
+    google_drive: GoogleDriveStorageConfig = Field(
+        default_factory=GoogleDriveStorageConfig
+    )
 
 
 class EndpointHealthConfig(BaseModel):

@@ -22,7 +22,7 @@ from pathlib import Path
 
 import typer
 
-from file_tools.config.loader import get_profile, load_config
+from file_tools.config.adapter import get_profile, load_config
 from file_tools.observability import configure_operational_logger
 from file_mcp_server.lifecycle import start_pidfile, status_pidfile, stop_pidfile
 from file_mcp_server.server import run_fastmcp_http_server
@@ -45,13 +45,27 @@ def serve(
 ) -> None:
     """Run the FastMCP HTTP/SSE server."""
     if env_path:
-        os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = str(Path(env_path).expanduser().resolve())
+        os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = str(
+            Path(env_path).expanduser().resolve()
+        )
     else:
         os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = ""
     if config_path:
-        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(Path(config_path).expanduser().resolve())
+        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
+            Path(config_path).expanduser().resolve()
+        )
     else:
-        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str((Path.cwd() / "config.yaml").resolve())
+        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
+            (Path.cwd() / "config.yaml").resolve()
+        )
+    if defaults_path:
+        os.environ["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
+            Path(defaults_path).expanduser().resolve()
+        )
+    else:
+        os.environ["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
+            (Path.cwd() / "defaults.yaml").resolve()
+        )
     os.environ["FILE_MCP_ACTIVE_PROFILE"] = profile
 
     config = load_config(
@@ -66,7 +80,9 @@ def serve(
 
     existing = status_pidfile(pidfile)
     if existing.running and existing.pid != current_pid and not force_pidfile:
-        typer.echo(f"PID file already owned by running process {existing.pid}. Use --force-pidfile.")
+        typer.echo(
+            f"PID file already owned by running process {existing.pid}. Use --force-pidfile."
+        )
         raise typer.Exit(1)
 
     start_pidfile(pidfile, pid=current_pid, force=True)

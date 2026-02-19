@@ -5,7 +5,7 @@ profiles:
   default:
     auth:
       api_keys:
-        - "${FILE_MCP_API_KEY_PRIMARY}"
+        - "${vault.dev.keys.api_key || FILE_MCP_API_KEY_PRIMARY}"
       header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
       header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
     storage:
@@ -17,13 +17,13 @@ profiles:
         endpoint: "${FILE_MCP_S3_ENDPOINT}"
         bucket: "${FILE_MCP_S3_BUCKET}"
         region: "${FILE_MCP_S3_REGION}"
-        access_key: "${FILE_MCP_S3_ACCESS_KEY}"
-        secret_key: "${FILE_MCP_S3_SECRET_KEY}"
+        access_key: "${vault.dev.storage.s3.access_key || FILE_MCP_S3_ACCESS_KEY}"
+        secret_key: "${vault.dev.storage.s3.secret_key || FILE_MCP_S3_SECRET_KEY}"
         prefix: "${FILE_MCP_S3_PREFIX}"
       webdav:
         base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
-        username: "${FILE_MCP_WEBDAV_USERNAME}"
-        password: "${FILE_MCP_WEBDAV_PASSWORD}"
+        username: "${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME}"
+        password: "${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD}"
         move_retry_count: "${FILE_MCP_WEBDAV_MOVE_RETRY_COUNT}"
         move_retry_backoff_s: "${FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S}"
         move_probe_timeout_s: "${FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S}"
@@ -31,16 +31,16 @@ profiles:
       ftp:
         host: "${FILE_MCP_FTP_HOST}"
         port: "${FILE_MCP_FTP_PORT}"
-        username: "${FILE_MCP_FTP_USERNAME}"
-        password: "${FILE_MCP_FTP_PASSWORD}"
+        username: "${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME}"
+        password: "${vault.dev.storage.ftp.password || FILE_MCP_FTP_PASSWORD}"
         base_dir: "${FILE_MCP_FTP_BASE_DIR}"
         use_tls: "${FILE_MCP_FTP_USE_TLS}"
       google_drive:
         user_email: "${FILE_MCP_GDRIVE_USER_EMAIL}"
         folder_id: "${FILE_MCP_GDRIVE_FOLDER_ID}"
         folder_url: "${FILE_MCP_GDRIVE_FOLDER_URL}"
-        client_id: "${FILE_MCP_GDRIVE_CLIENT_ID}"
-        client_secret: "${FILE_MCP_GDRIVE_CLIENT_SECRET}"
+        client_id: "${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID}"
+        client_secret: "${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET}"
         refresh_token: "${FILE_MCP_GDRIVE_REFRESH_TOKEN}"
         access_token: "${FILE_MCP_GDRIVE_ACCESS_TOKEN}"
         redirect_uri: "${FILE_MCP_GDRIVE_REDIRECT_URI}"

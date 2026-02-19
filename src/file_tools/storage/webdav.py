@@ -5,7 +5,7 @@ from __future__ import annotations
 import posixpath
 import time
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Iterable
 from urllib.parse import quote, urljoin, urlparse
 
 import requests
@@ -146,7 +146,9 @@ class WebDavStorage(StorageBackend):
         if not storage.webdav.base_url:
             raise ValueError("WebDAV storage requires webdav.base_url")
         self._base_url = storage.webdav.base_url.rstrip("/")
-        self._auth = HTTPBasicAuth(storage.webdav.username or "", storage.webdav.password or "")
+        self._auth = HTTPBasicAuth(
+            storage.webdav.username or "", storage.webdav.password or ""
+        )
         self._verify: bool | str = True
         insecure = (storage.tls.insecure_skip_verify or "").strip().lower()
         if insecure in {"1", "true", "yes", "on"}:
@@ -154,14 +156,20 @@ class WebDavStorage(StorageBackend):
         elif storage.tls.ca_bundle_path:
             self._verify = storage.tls.ca_bundle_path
 
-        self._timeout_s: float | None = float(timeout_s) if timeout_s is not None else None
+        self._timeout_s: float | None = (
+            float(timeout_s) if timeout_s is not None else None
+        )
         self._move_retry_count = _to_int(storage.webdav.move_retry_count, default=2)
-        self._move_retry_backoff_s = _to_float(storage.webdav.move_retry_backoff_s, default=0.35)
+        self._move_retry_backoff_s = _to_float(
+            storage.webdav.move_retry_backoff_s, default=0.35
+        )
         self._move_probe_timeout_s = _to_float(
             storage.webdav.move_probe_timeout_s,
             default=min(5.0, self._timeout_s or 5.0),
         )
-        self._move_retry_statuses = _parse_retry_statuses(storage.webdav.move_retry_statuses)
+        self._move_retry_statuses = _parse_retry_statuses(
+            storage.webdav.move_retry_statuses
+        )
 
     def _is_transient_status(self, status_code: int) -> bool:
         return status_code in self._move_retry_statuses
@@ -169,7 +177,12 @@ class WebDavStorage(StorageBackend):
     def _path_exists(self, path: str) -> bool:
         try:
             url = _join_url(self._base_url, path)
-            resp = self._request("PROPFIND", url, headers={"Depth": "0"}, timeout_s=self._move_probe_timeout_s)
+            resp = self._request(
+                "PROPFIND",
+                url,
+                headers={"Depth": "0"},
+                timeout_s=self._move_probe_timeout_s,
+            )
             if resp.status_code == 404:
                 return False
             resp.raise_for_status()
@@ -184,8 +197,16 @@ class WebDavStorage(StorageBackend):
         dst_exists = self._path_exists(dst)
         return (not src_exists) and dst_exists
 
-    def _request(self, method: str, url: str, *, headers: dict[str, str] | None = None, data: bytes | None = None,
-                 timeout_s: float | None = None, stream: bool = False) -> requests.Response:
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        data: bytes | None = None,
+        timeout_s: float | None = None,
+        stream: bool = False,
+    ) -> requests.Response:
         return requests.request(
             method,
             url,
@@ -264,7 +285,9 @@ class WebDavStorage(StorageBackend):
             cleaned.append(StorageEntry(path=item.path, is_dir=item.is_dir))
         return cleaned
 
-    def iter_paths(self, roots: Iterable[str], *, max_depth: int | None = None) -> Iterable[str]:
+    def iter_paths(
+        self, roots: Iterable[str], *, max_depth: int | None = None
+    ) -> Iterable[str]:
         for root in roots:
             base = _clean_posix(root)
             queue: list[tuple[str, int]] = [(base, 0)]
@@ -283,7 +306,9 @@ class WebDavStorage(StorageBackend):
                     if max_depth is None or next_depth <= max_depth:
                         yield entry.path
 
-    def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_dir(
+        self, path: str, *, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         # WebDAV MKCOL does not create parents; create chain if requested.
         target = _clean_posix(path)
         parts = [p for p in target.split("/") if p]

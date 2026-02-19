@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, TextIO
+from typing import Any, Dict, Literal, Optional, TextIO, cast
 from threading import Lock
 from html import escape
 
@@ -32,10 +32,21 @@ import re
 
 import yaml
 from fastmcp import FastMCP
-from file_tools.config.models import HttpServerConfig, ProfileConfig, ServerConfig, ValidationConfig
-from file_tools.config.loader import load_config
-from file_tools.audit import AuditLogger, build_event, create_snapshot, create_snapshot_bytes, prune_snapshots
-from file_tools.diff import diff_files, diff_text, launch_meld
+from file_tools.config.models import (
+    HttpServerConfig,
+    ProfileConfig,
+    ServerConfig,
+    ValidationConfig,
+)
+from file_tools.config.adapter import load_config
+from file_tools.audit import (
+    AuditLogger,
+    build_event,
+    create_snapshot,
+    create_snapshot_bytes,
+    prune_snapshots,
+)
+from file_tools.diff import diff_text, launch_meld
 from file_tools.edit import (
     delete_matching_lines,
     html_set,
@@ -63,21 +74,10 @@ from file_tools.edit import (
 from file_tools.io import (
     b64_decode,
     b64_encode,
-    chmod_path,
-    copy_file,
-    create_dir,
-    delete_file,
-    list_dir,
-    move_path as io_move_path,
-    read_bytes,
-    read_text,
-    rename_path,
-    write_bytes,
-    write_text,
 )
 from file_tools.scope import ScopePolicy, PosixScopePolicy
 from file_tools.search import search_content, search_paths
-from file_tools.storage import NotSupportedError, StorageBackend, build_storage_backend
+from file_tools.storage import NotSupportedError, build_storage_backend
 from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry
 from file_tools.convert import (
     BackendCannotHandleError,
@@ -117,7 +117,9 @@ class HttpRuntimeSettings:
     stateless_http: bool
 
 
-def _build_response(request_id: Any, result: Any = None, error: JsonRpcError | None = None) -> Dict[str, Any]:
+def _build_response(
+    request_id: Any, result: Any = None, error: JsonRpcError | None = None
+) -> Dict[str, Any]:
     payload: Dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
     if error:
         payload["error"] = {"code": error.code, "message": error.message}
@@ -142,7 +144,9 @@ class StdioServer:
         params = payload.get("params") or {}
 
         if not method:
-            return _build_response(request_id, error=JsonRpcError(-32600, "Missing method"))
+            return _build_response(
+                request_id, error=JsonRpcError(-32600, "Missing method")
+            )
 
         try:
             if method == "tools/list":
@@ -171,7 +175,12 @@ class StdioServer:
         except Exception as exc:  # pragma: no cover - defensive
             return _build_response(request_id, error=JsonRpcError(-32000, str(exc)))
 
-    def serve(self, *, input_stream: Optional[TextIO] = None, output_stream: Optional[TextIO] = None) -> None:
+    def serve(
+        self,
+        *,
+        input_stream: Optional[TextIO] = None,
+        output_stream: Optional[TextIO] = None,
+    ) -> None:
         in_stream = input_stream or sys.stdin
         out_stream = output_stream or sys.stdout
         for line in in_stream:
@@ -191,7 +200,15 @@ class StdioServer:
 class HealthCheckMiddleware:
     """Minimal unauthenticated health endpoint for transport app."""
 
-    def __init__(self, app, *, health_path: str, profile_name: str, transport: str, reload_callback=None) -> None:
+    def __init__(
+        self,
+        app,
+        *,
+        health_path: str,
+        profile_name: str,
+        transport: str,
+        reload_callback=None,
+    ) -> None:
         self.app = app
         self.health_path = health_path
         self.profile_name = profile_name
@@ -200,15 +217,23 @@ class HealthCheckMiddleware:
         self.logger = logging.getLogger("file_mcp_server.admin")
         self.app_name = "file-mcp-server"
         self.env_file = str(os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
-        self.active_config = str(os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml")
+        self.active_config = str(
+            os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml"
+        )
         self.profile_names = [
             name.strip()
-            for name in (os.getenv("FILE_MCP_ACTIVE_PROFILE_NAMES") or profile_name).split(",")
+            for name in (
+                os.getenv("FILE_MCP_ACTIVE_PROFILE_NAMES") or profile_name
+            ).split(",")
             if name.strip()
         ]
-        self.admin_ui_enabled = _to_bool(os.getenv("FILE_MCP_ADMIN_UI_ENABLED"), default=False)
+        self.admin_ui_enabled = _to_bool(
+            os.getenv("FILE_MCP_ADMIN_UI_ENABLED"), default=False
+        )
         self.admin_ui_token = str(os.getenv("FILE_MCP_ADMIN_UI_TOKEN") or "").strip()
-        self.admin_apply_on_callback = _to_bool(os.getenv("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True)
+        self.admin_apply_on_callback = _to_bool(
+            os.getenv("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
+        )
 
     async def _read_http_body(self, receive) -> bytes:
         body = b""
@@ -221,7 +246,14 @@ class HealthCheckMiddleware:
                 break
         return body
 
-    async def _send_bytes(self, send, *, status: int, body: bytes, content_type: str = "text/plain; charset=utf-8") -> None:
+    async def _send_bytes(
+        self,
+        send,
+        *,
+        status: int,
+        body: bytes,
+        content_type: str = "text/plain; charset=utf-8",
+    ) -> None:
         await send(
             {
                 "type": "http.response.start",
@@ -235,7 +267,12 @@ class HealthCheckMiddleware:
         await send({"type": "http.response.body", "body": body})
 
     async def _send_html(self, send, *, status: int, html: str) -> None:
-        await self._send_bytes(send, status=status, body=html.encode("utf-8"), content_type="text/html; charset=utf-8")
+        await self._send_bytes(
+            send,
+            status=status,
+            body=html.encode("utf-8"),
+            content_type="text/html; charset=utf-8",
+        )
 
     async def _send_redirect(self, send, *, location: str) -> None:
         await send(
@@ -274,28 +311,44 @@ class HealthCheckMiddleware:
             if not isinstance(profile, dict):
                 continue
             storage = profile.get("storage")
-            backend = ((storage or {}).get("backend")) if isinstance(storage, dict) else None
+            backend = (
+                ((storage or {}).get("backend")) if isinstance(storage, dict) else None
+            )
             backend_name = str(backend or "unknown")
-            metadata: dict[str, Any] = {"backend": backend_name, "google_auth_required": False}
-            if backend_name.strip().lower() in {"google_drive", "gdrive", "drive"} and isinstance(storage, dict):
+            metadata: dict[str, Any] = {
+                "backend": backend_name,
+                "google_auth_required": False,
+            }
+            if backend_name.strip().lower() in {
+                "google_drive",
+                "gdrive",
+                "drive",
+            } and isinstance(storage, dict):
                 gcfg = storage.get("google_drive")
                 if isinstance(gcfg, dict):
                     client_id = self._resolve_config_value(gcfg.get("client_id"))
-                    client_secret = self._resolve_config_value(gcfg.get("client_secret"))
+                    client_secret = self._resolve_config_value(
+                        gcfg.get("client_secret")
+                    )
                     folder_id = self._resolve_config_value(gcfg.get("folder_id"))
                     folder_url = self._resolve_config_value(gcfg.get("folder_url"))
-                    refresh_token = self._resolve_config_value(gcfg.get("refresh_token"))
+                    refresh_token = self._resolve_config_value(
+                        gcfg.get("refresh_token")
+                    )
                     access_token = self._resolve_config_value(gcfg.get("access_token"))
                     auth_present = bool(refresh_token or access_token)
                     metadata["google_auth_required"] = not auth_present
-                    metadata["google_setup_present"] = bool(client_id and client_secret and (folder_id or folder_url))
+                    metadata["google_setup_present"] = bool(
+                        client_id and client_secret and (folder_id or folder_url)
+                    )
             summary[str(name)] = metadata
         return summary
 
     def _build_root_summary(self) -> dict[str, Any]:
         profile_metadata = self._read_profile_metadata()
         profile_backends = {
-            name: str(meta.get("backend", "unknown")) for name, meta in profile_metadata.items()
+            name: str(meta.get("backend", "unknown"))
+            for name, meta in profile_metadata.items()
         }
         profile_health: dict[str, Any] = {}
         for name, backend in profile_backends.items():
@@ -358,7 +411,9 @@ class HealthCheckMiddleware:
             for name, backend in sorted((summary.get("profiles") or {}).items())
         )
         if not profile_rows:
-            profile_rows = "<tr><td colspan='5'><em>No profiles discovered</em></td></tr>"
+            profile_rows = (
+                "<tr><td colspan='5'><em>No profiles discovered</em></td></tr>"
+            )
         health_rows = "".join(
             "<tr>"
             f"<td>{escape(name)}</td>"
@@ -369,7 +424,9 @@ class HealthCheckMiddleware:
             for name, state in sorted(profile_health.items())
         )
         if not health_rows:
-            health_rows = "<tr><td colspan='4'><em>No endpoint-health state yet</em></td></tr>"
+            health_rows = (
+                "<tr><td colspan='4'><em>No endpoint-health state yet</em></td></tr>"
+            )
         return (
             "<!doctype html><html><head><meta charset='utf-8'>"
             "<title>file-mcp-server status</title>"
@@ -410,13 +467,21 @@ class HealthCheckMiddleware:
         path = str(scope.get("path") or "")
         accept = headers.get("accept", "")
         is_admin_route = path.startswith("/admin/")
-        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/":
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and scope.get("path") == "/"
+        ):
             summary = self._build_root_summary()
             if "application/json" in accept and "text/html" not in accept:
                 body = json.dumps(summary).encode("utf-8")
-                await self._send_bytes(send, status=200, body=body, content_type="application/json")
+                await self._send_bytes(
+                    send, status=200, body=body, content_type="application/json"
+                )
                 return
-            await self._send_html(send, status=200, html=self._render_root_summary_html(summary))
+            await self._send_html(
+                send, status=200, html=self._render_root_summary_html(summary)
+            )
             return
         if (
             scope.get("type") == "http"
@@ -450,7 +515,10 @@ class HealthCheckMiddleware:
                 await self._send_bytes(send, status=404, body=b"Not Found")
                 return
             if self.admin_ui_token:
-                query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
+                query = parse_qs(
+                    scope.get("query_string", b"").decode("utf-8"),
+                    keep_blank_values=True,
+                )
                 provided = (query.get("token") or [""])[0]
                 if not provided:
                     provided = headers.get("x-admin-token", "")
@@ -458,15 +526,23 @@ class HealthCheckMiddleware:
                     await self._send_bytes(send, status=401, body=b"Unauthorized")
                     return
 
-        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/admin/google-drive":
-            forwarded_proto = (headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and scope.get("path") == "/admin/google-drive"
+        ):
+            forwarded_proto = (
+                (headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+            )
             if forwarded_proto in {"http", "https"}:
                 scheme = forwarded_proto
             else:
                 scheme = scope.get("scheme") or "http"
             host = headers.get("host", "localhost")
             callback_url = f"{scheme}://{host}/admin/google-drive/callback"
-            query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
+            query = parse_qs(
+                scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True
+            )
             selected_profile = (query.get("profile") or [""])[0].strip()
             lock_profile = bool(selected_profile)
             html = render_setup_page(
@@ -478,7 +554,11 @@ class HealthCheckMiddleware:
             )
             await self._send_html(send, status=200, html=html)
             return
-        if scope.get("type") == "http" and scope.get("method") == "POST" and scope.get("path") == "/admin/google-drive/start":
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "POST"
+            and scope.get("path") == "/admin/google-drive/start"
+        ):
             body = await self._read_http_body(receive)
             try:
                 data = parse_form_urlencoded(body)
@@ -503,8 +583,14 @@ class HealthCheckMiddleware:
                 )
                 await self._send_html(send, status=400, html=html)
                 return
-        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/admin/google-drive/callback":
-            query = parse_qs(scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True)
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and scope.get("path") == "/admin/google-drive/callback"
+        ):
+            query = parse_qs(
+                scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True
+            )
             state = (query.get("state") or [""])[0]
             code = (query.get("code") or [""])[0]
             oauth_error = (query.get("error") or [""])[0]
@@ -517,7 +603,9 @@ class HealthCheckMiddleware:
                     bool(state),
                     bool(code),
                 )
-                await self._send_html(send, status=400, html="<h1>Missing state or code in callback.</h1>")
+                await self._send_html(
+                    send, status=400, html="<h1>Missing state or code in callback.</h1>"
+                )
                 return
             try:
                 result = complete_oauth_callback(
@@ -537,7 +625,7 @@ class HealthCheckMiddleware:
                     f"<p>Profile: <b>{result.profile}</b></p>"
                     f"<p>Folder: <b>{result.folder_name}</b> ({result.folder_id})</p>"
                     f"<p>Config updated: <code>{result.config_path}</code></p>"
-                    f"<p>Folder URL: <a href=\"{result.folder_url}\">{result.folder_url}</a></p>"
+                    f'<p>Folder URL: <a href="{result.folder_url}">{result.folder_url}</a></p>'
                     f"<p>{escape(reload_message)}</p>"
                 )
                 self.logger.info(
@@ -554,20 +642,34 @@ class HealthCheckMiddleware:
                     state,
                     exc,
                 )
-                await self._send_html(send, status=400, html=f"<h1>OAuth callback failed</h1><pre>{exc}</pre>")
+                await self._send_html(
+                    send,
+                    status=400,
+                    html=f"<h1>OAuth callback failed</h1><pre>{exc}</pre>",
+                )
                 return
-        if scope.get("type") == "http" and scope.get("method") == "POST" and scope.get("path") == "/admin/reload":
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "POST"
+            and scope.get("path") == "/admin/reload"
+        ):
             if not callable(self.reload_callback):
-                await self._send_bytes(send, status=501, body=b"Reload callback not configured")
+                await self._send_bytes(
+                    send, status=501, body=b"Reload callback not configured"
+                )
                 return
             try:
                 result = self.reload_callback()
                 body = json.dumps({"ok": True, "result": result}).encode("utf-8")
-                await self._send_bytes(send, status=200, body=body, content_type="application/json")
+                await self._send_bytes(
+                    send, status=200, body=body, content_type="application/json"
+                )
                 return
             except Exception as exc:
                 body = json.dumps({"ok": False, "error": str(exc)}).encode("utf-8")
-                await self._send_bytes(send, status=500, body=body, content_type="application/json")
+                await self._send_bytes(
+                    send, status=500, body=body, content_type="application/json"
+                )
                 return
         await self.app(scope, receive, send)
 
@@ -589,7 +691,10 @@ class StreamableHttpAcceptCompatibilityMiddleware:
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
-        if str(scope.get("path") or "") != self.mcp_path or str(scope.get("method") or "").upper() != "POST":
+        if (
+            str(scope.get("path") or "") != self.mcp_path
+            or str(scope.get("method") or "").upper() != "POST"
+        ):
             await self.app(scope, receive, send)
             return
 
@@ -651,8 +756,11 @@ class RequestContextMiddleware:
         client = scope.get("client") or ()
         client_ip = client[0] if isinstance(client, tuple) and client else None
         headers = {
-            (key.decode("latin-1").lower() if isinstance(key, bytes) else str(key).lower()):
-            (value.decode("latin-1") if isinstance(value, bytes) else str(value))
+            (
+                key.decode("latin-1").lower()
+                if isinstance(key, bytes)
+                else str(key).lower()
+            ): (value.decode("latin-1") if isinstance(value, bytes) else str(value))
             for key, value in (scope.get("headers") or [])
         }
         if headers.get("x-forwarded-for"):
@@ -728,9 +836,15 @@ def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
         transport = "streamable-http"
 
     base_path = _normalize_path(http_config.base_path, default="/")
-    mcp_path = _join_paths(base_path, _normalize_path(http_config.mcp_path, default="/mcp"))
-    health_path = _join_paths(base_path, _normalize_path(http_config.health_path, default="/health"))
-    events_path = _join_paths(base_path, _normalize_path(http_config.events_path, default="/events"))
+    mcp_path = _join_paths(
+        base_path, _normalize_path(http_config.mcp_path, default="/mcp")
+    )
+    health_path = _join_paths(
+        base_path, _normalize_path(http_config.health_path, default="/health")
+    )
+    events_path = _join_paths(
+        base_path, _normalize_path(http_config.events_path, default="/events")
+    )
 
     return HttpRuntimeSettings(
         transport=transport,
@@ -743,7 +857,9 @@ def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
     )
 
 
-def _resolve_path(policy: ScopePolicy | PosixScopePolicy, path: str, *, operation: str) -> str:
+def _resolve_path(
+    policy: ScopePolicy | PosixScopePolicy, path: str, *, operation: str
+) -> str:
     if isinstance(policy, ScopePolicy):
         resolved = policy.normalize(path)
         policy.require(resolved, operation=operation)
@@ -753,13 +869,15 @@ def _resolve_path(policy: ScopePolicy | PosixScopePolicy, path: str, *, operatio
     return str(resolved_posix)
 
 
-def _validate_text(content_type: str, text: str, validation: ValidationConfig) -> Dict[str, Any]:
+def _validate_text(
+    content_type: str, text: str, validation: ValidationConfig
+) -> Dict[str, Any]:
     result = validate_with_mode(content_type, text, validation)
     return {"valid": result.valid, "errors": result.errors, "warnings": result.warnings}
 
 
 def _infer_content_type(path: str | Path) -> str:
-    suffix = (Path(path).suffix.lower() if isinstance(path, str) else path.suffix.lower())
+    suffix = Path(path).suffix.lower() if isinstance(path, str) else path.suffix.lower()
     mapping = {
         ".json": "json",
         ".yaml": "yaml",
@@ -815,7 +933,9 @@ def build_tool_registry(
     audit_log_path = _normalize_optional_path(profile.audit.log_path)
     audit_logger = AuditLogger(audit_log_path) if audit_log_path else None
     snapshot_dir = _normalize_optional_path(profile.snapshots.dir)
-    snapshots_enabled = bool(profile.snapshots.enabled and snapshot_dir and profile.snapshots.mode != "none")
+    snapshots_enabled = bool(
+        profile.snapshots.enabled and snapshot_dir and profile.snapshots.mode != "none"
+    )
     snapshot_retention_days = profile.snapshots.retention_days
 
     def _write_audit(
@@ -988,7 +1108,9 @@ def build_tool_registry(
         end_byte: int | None = None,
     ) -> str:
         resolved = _resolve_path(policy, path, operation="read")
-        if (start_line is not None or end_line is not None) and (start_byte is not None or end_byte is not None):
+        if (start_line is not None or end_line is not None) and (
+            start_byte is not None or end_byte is not None
+        ):
             raise ValueError("Cannot combine line and byte ranges")
 
         data = backend.read_bytes(resolved)
@@ -1031,7 +1153,10 @@ def build_tool_registry(
                     action="write",
                     status="ok",
                     paths={"path": str(resolved)},
-                    details={"dry_run": True, "snapshot_path": str(snapshot) if snapshot else None},
+                    details={
+                        "dry_run": True,
+                        "snapshot_path": str(snapshot) if snapshot else None,
+                    },
                 )
                 return {"ok": True, "path": str(resolved), "dry_run": True}
             backend.write_bytes(resolved, content.encode(encoding), overwrite=overwrite)
@@ -1040,14 +1165,24 @@ def build_tool_registry(
                 action="write",
                 status="ok",
                 paths={"path": str(resolved)},
-                details={"dry_run": False, "snapshot_path": str(snapshot) if snapshot else None},
+                details={
+                    "dry_run": False,
+                    "snapshot_path": str(snapshot) if snapshot else None,
+                },
             )
             return {"ok": True, "path": str(resolved), "dry_run": False}
         except Exception:
-            _write_audit(tool_name="write_file", action="write", status="error", paths={"path": str(resolved)})
+            _write_audit(
+                tool_name="write_file",
+                action="write",
+                status="error",
+                paths={"path": str(resolved)},
+            )
             raise
 
-    def delete_path(path: str, missing_ok: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+    def delete_path(
+        path: str, missing_ok: bool = False, dry_run: bool = False
+    ) -> Dict[str, Any]:
         resolved = _resolve_path_for_tool(
             tool_name="delete_file",
             action="delete",
@@ -1062,7 +1197,10 @@ def build_tool_registry(
                     action="delete",
                     status="ok",
                     paths={"path": str(resolved)},
-                    details={"dry_run": True, "snapshot_path": str(snapshot) if snapshot else None},
+                    details={
+                        "dry_run": True,
+                        "snapshot_path": str(snapshot) if snapshot else None,
+                    },
                 )
                 return {"ok": True, "path": str(resolved), "dry_run": True}
             backend.delete_path(resolved, missing_ok=missing_ok)
@@ -1071,14 +1209,24 @@ def build_tool_registry(
                 action="delete",
                 status="ok",
                 paths={"path": str(resolved)},
-                details={"dry_run": False, "snapshot_path": str(snapshot) if snapshot else None},
+                details={
+                    "dry_run": False,
+                    "snapshot_path": str(snapshot) if snapshot else None,
+                },
             )
             return {"ok": True, "path": str(resolved), "dry_run": False}
         except Exception:
-            _write_audit(tool_name="delete_file", action="delete", status="error", paths={"path": str(resolved)})
+            _write_audit(
+                tool_name="delete_file",
+                action="delete",
+                status="error",
+                paths={"path": str(resolved)},
+            )
             raise
 
-    def copy_path(src: str, dst: str, overwrite: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+    def copy_path(
+        src: str, dst: str, overwrite: bool = False, dry_run: bool = False
+    ) -> Dict[str, Any]:
         resolved_src = _resolve_path_for_tool(
             tool_name="copy_file",
             action="copy",
@@ -1102,7 +1250,12 @@ def build_tool_registry(
                     paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                     details={"dry_run": True},
                 )
-                return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
+                return {
+                    "ok": True,
+                    "src": str(resolved_src),
+                    "dst": str(resolved_dst),
+                    "dry_run": True,
+                }
             backend.copy_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
                 tool_name="copy_file",
@@ -1111,7 +1264,12 @@ def build_tool_registry(
                 paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                 details={"dry_run": False},
             )
-            return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": False}
+            return {
+                "ok": True,
+                "src": str(resolved_src),
+                "dst": str(resolved_dst),
+                "dry_run": False,
+            }
         except Exception:
             _write_audit(
                 tool_name="copy_file",
@@ -1153,7 +1311,12 @@ def build_tool_registry(
             )
             return {"ok": True, "path": str(resolved), "dry_run": False}
         except Exception:
-            _write_audit(tool_name="create_dir", action="mkdir", status="error", paths={"path": str(resolved)})
+            _write_audit(
+                tool_name="create_dir",
+                action="mkdir",
+                status="error",
+                paths={"path": str(resolved)},
+            )
             raise
 
     def _parse_octal_mode(mode: int | str) -> int:
@@ -1166,7 +1329,9 @@ def build_tool_registry(
             return int(normalized, 8)
         raise ValueError("mode must be an int or octal string")
 
-    def chmod_fs_path(path: str, mode: int | str, recursive: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+    def chmod_fs_path(
+        path: str, mode: int | str, recursive: bool = False, dry_run: bool = False
+    ) -> Dict[str, Any]:
         resolved = _resolve_path_for_tool(
             tool_name="chmod_path",
             action="chmod",
@@ -1181,20 +1346,43 @@ def build_tool_registry(
                     action="chmod",
                     status="ok",
                     paths={"path": str(resolved)},
-                    details={"dry_run": True, "mode": oct(parsed_mode), "recursive": recursive},
+                    details={
+                        "dry_run": True,
+                        "mode": oct(parsed_mode),
+                        "recursive": recursive,
+                    },
                 )
-                return {"ok": True, "path": str(resolved), "mode": oct(parsed_mode), "dry_run": True}
+                return {
+                    "ok": True,
+                    "path": str(resolved),
+                    "mode": oct(parsed_mode),
+                    "dry_run": True,
+                }
             backend.chmod_path(resolved, parsed_mode, recursive=recursive)
             _write_audit(
                 tool_name="chmod_path",
                 action="chmod",
                 status="ok",
                 paths={"path": str(resolved)},
-                details={"dry_run": False, "mode": oct(parsed_mode), "recursive": recursive},
+                details={
+                    "dry_run": False,
+                    "mode": oct(parsed_mode),
+                    "recursive": recursive,
+                },
             )
-            return {"ok": True, "path": str(resolved), "mode": oct(parsed_mode), "dry_run": False}
+            return {
+                "ok": True,
+                "path": str(resolved),
+                "mode": oct(parsed_mode),
+                "dry_run": False,
+            }
         except Exception:
-            _write_audit(tool_name="chmod_path", action="chmod", status="error", paths={"path": str(resolved)})
+            _write_audit(
+                tool_name="chmod_path",
+                action="chmod",
+                status="error",
+                paths={"path": str(resolved)},
+            )
             raise
 
     def move_path_handler(
@@ -1228,7 +1416,12 @@ def build_tool_registry(
                     paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                     details={"dry_run": True},
                 )
-                return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
+                return {
+                    "ok": True,
+                    "src": str(resolved_src),
+                    "dst": str(resolved_dst),
+                    "dry_run": True,
+                }
             backend.move_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
                 tool_name=tool_name,
@@ -1237,7 +1430,12 @@ def build_tool_registry(
                 paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                 details={"dry_run": False},
             )
-            return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": False}
+            return {
+                "ok": True,
+                "src": str(resolved_src),
+                "dst": str(resolved_dst),
+                "dry_run": False,
+            }
         except Exception:
             _write_audit(
                 tool_name=tool_name,
@@ -1247,7 +1445,9 @@ def build_tool_registry(
             )
             raise
 
-    def rename_path_handler(src: str, dst: str, overwrite: bool = False, dry_run: bool = False) -> Dict[str, Any]:
+    def rename_path_handler(
+        src: str, dst: str, overwrite: bool = False, dry_run: bool = False
+    ) -> Dict[str, Any]:
         resolved_src = _resolve_path_for_tool(
             tool_name="rename_path",
             action="rename",
@@ -1271,7 +1471,12 @@ def build_tool_registry(
                     paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                     details={"dry_run": True},
                 )
-                return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": True}
+                return {
+                    "ok": True,
+                    "src": str(resolved_src),
+                    "dst": str(resolved_dst),
+                    "dry_run": True,
+                }
             backend.rename_path(resolved_src, resolved_dst, overwrite=overwrite)
             _write_audit(
                 tool_name="rename_path",
@@ -1280,7 +1485,12 @@ def build_tool_registry(
                 paths={"src": str(resolved_src), "dst": str(resolved_dst)},
                 details={"dry_run": False},
             )
-            return {"ok": True, "src": str(resolved_src), "dst": str(resolved_dst), "dry_run": False}
+            return {
+                "ok": True,
+                "src": str(resolved_src),
+                "dst": str(resolved_dst),
+                "dry_run": False,
+            }
         except Exception:
             _write_audit(
                 tool_name="rename_path",
@@ -1292,7 +1502,9 @@ def build_tool_registry(
 
     def list_path(path: str, recursive: bool = False) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
-        entries = [entry.path for entry in backend.list_dir(resolved, recursive=recursive)]
+        entries = [
+            entry.path for entry in backend.list_dir(resolved, recursive=recursive)
+        ]
         return {"path": str(resolved), "entries": entries}
 
     def search_path_names(
@@ -1303,8 +1515,12 @@ def build_tool_registry(
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
-        effective_max_mb = max_file_mb if max_file_mb is not None else limits.search_max_file_mb
-        effective_timeout = timeout_s if timeout_s is not None else limits.search_timeout_s
+        effective_max_mb = (
+            max_file_mb if max_file_mb is not None else limits.search_max_file_mb
+        )
+        effective_timeout = (
+            timeout_s if timeout_s is not None else limits.search_timeout_s
+        )
 
         if backend.backend_name == "local":
             roots = [Path(root).resolve() for root in profile.scope.roots]
@@ -1331,7 +1547,9 @@ def build_tool_registry(
         from pathlib import PurePosixPath
 
         pattern = re.compile(query) if regex else None
-        roots = [str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots]  # type: ignore[arg-type]
+        remote_roots: list[str] = [
+            str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots
+        ]
 
         def _depth_ok(root: str, candidate: str) -> bool:
             if max_depth is None:
@@ -1342,22 +1560,26 @@ def build_tool_registry(
                 return False
             return len(rel.parts) <= max_depth
 
-        filtered: list[str] = []
+        remote_filtered: list[str] = []
         timed_out = False
         started = time.monotonic()
-        for candidate in backend.iter_paths(roots, max_depth=max_depth):
+        for candidate in backend.iter_paths(remote_roots, max_depth=max_depth):
             if effective_timeout is not None and effective_timeout > 0:
                 if (time.monotonic() - started) >= effective_timeout:
                     timed_out = True
                     break
             if glob and not PurePosixPath(candidate).match(glob):
                 continue
-            if not any(_depth_ok(root, candidate) for root in roots):
+            if not any(_depth_ok(root, candidate) for root in remote_roots):
                 continue
             try:
                 if effective_max_mb is not None:
                     stat = backend.stat(candidate)
-                    if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
+                    if (
+                        stat is not None
+                        and stat.size is not None
+                        and stat.size > effective_max_mb * 1024 * 1024
+                    ):
                         continue
             except Exception:
                 continue
@@ -1374,8 +1596,8 @@ def build_tool_registry(
                 policy.require(candidate, operation="read")
             except Exception:
                 continue
-            filtered.append(candidate)
-        return {"matches": filtered, "timed_out": timed_out}
+            remote_filtered.append(candidate)
+        return {"matches": remote_filtered, "timed_out": timed_out}
 
     def search_text_content(
         query: str,
@@ -1387,9 +1609,15 @@ def build_tool_registry(
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
-        effective_max_results = max_results if max_results is not None else limits.search_max_results
-        effective_max_mb = max_file_mb if max_file_mb is not None else limits.search_max_file_mb
-        effective_timeout = timeout_s if timeout_s is not None else limits.search_timeout_s
+        effective_max_results = (
+            max_results if max_results is not None else limits.search_max_results
+        )
+        effective_max_mb = (
+            max_file_mb if max_file_mb is not None else limits.search_max_file_mb
+        )
+        effective_timeout = (
+            timeout_s if timeout_s is not None else limits.search_timeout_s
+        )
 
         if backend.backend_name == "local":
             roots = [Path(root).resolve() for root in profile.scope.roots]
@@ -1410,13 +1638,20 @@ def build_tool_registry(
                     assert isinstance(policy, ScopePolicy)
                     policy.require(match.path.resolve(), operation="read")
                     filtered_matches.append(match)
-                    if effective_max_results is not None and len(filtered_matches) >= effective_max_results:
+                    if (
+                        effective_max_results is not None
+                        and len(filtered_matches) >= effective_max_results
+                    ):
                         break
                 except Exception:
                     continue
             return {
                 "matches": [
-                    {"path": str(match.path), "line_no": match.line_no, "line": match.line}
+                    {
+                        "path": str(match.path),
+                        "line_no": match.line_no,
+                        "line": match.line,
+                    }
                     for match in filtered_matches
                 ]
             }
@@ -1424,8 +1659,10 @@ def build_tool_registry(
         import re
         from pathlib import PurePosixPath
 
-        pattern = re.compile(query) if regex else None
-        roots = [str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots]  # type: ignore[arg-type]
+        regex_pattern = re.compile(query) if regex else None
+        remote_roots: list[str] = [
+            str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots
+        ]
         results: list[dict[str, Any]] = []
 
         def _depth_ok(root: str, candidate: str) -> bool:
@@ -1439,14 +1676,14 @@ def build_tool_registry(
 
         timed_out = False
         started = time.monotonic()
-        for candidate in backend.iter_paths(roots, max_depth=max_depth):
+        for candidate in backend.iter_paths(remote_roots, max_depth=max_depth):
             if effective_timeout is not None and effective_timeout > 0:
                 if (time.monotonic() - started) >= effective_timeout:
                     timed_out = True
                     break
             if glob and not PurePosixPath(candidate).match(glob):
                 continue
-            if not any(_depth_ok(root, candidate) for root in roots):
+            if not any(_depth_ok(root, candidate) for root in remote_roots):
                 continue
             try:
                 assert isinstance(policy, PosixScopePolicy)
@@ -1456,7 +1693,11 @@ def build_tool_registry(
             try:
                 if effective_max_mb is not None:
                     stat = backend.stat(candidate)
-                    if stat is not None and stat.size is not None and stat.size > effective_max_mb * 1024 * 1024:
+                    if (
+                        stat is not None
+                        and stat.size is not None
+                        and stat.size > effective_max_mb * 1024 * 1024
+                    ):
                         continue
             except Exception:
                 continue
@@ -1465,10 +1706,19 @@ def build_tool_registry(
             except Exception:
                 continue
             for line_no, line in enumerate(text.splitlines(), start=1):
-                ok = pattern.search(line) is not None if regex else (query in line)
+                ok = (
+                    regex_pattern.search(line) is not None
+                    if regex and regex_pattern is not None
+                    else (query in line)
+                )
                 if ok:
-                    results.append({"path": candidate, "line_no": line_no, "line": line})
-                    if effective_max_results is not None and len(results) >= effective_max_results:
+                    results.append(
+                        {"path": candidate, "line_no": line_no, "line": line}
+                    )
+                    if (
+                        effective_max_results is not None
+                        and len(results) >= effective_max_results
+                    ):
                         return {"matches": results, "timed_out": timed_out}
         return {"matches": results, "timed_out": timed_out}
 
@@ -1589,7 +1839,9 @@ def build_tool_registry(
             dry_run=dry_run,
         )
 
-    def json_get_file(path: str, json_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
+    def json_get_file(
+        path: str, json_path: str, encoding: str = "utf-8"
+    ) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
         text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         return {"ok": True, "path": str(resolved), "value": json_get(text, json_path)}
@@ -1645,7 +1897,9 @@ def build_tool_registry(
             dry_run=dry_run,
         )
 
-    def yaml_get_file(path: str, yaml_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
+    def yaml_get_file(
+        path: str, yaml_path: str, encoding: str = "utf-8"
+    ) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
         text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         return {"ok": True, "path": str(resolved), "value": yaml_get(text, yaml_path)}
@@ -1711,11 +1965,23 @@ def build_tool_registry(
         backend: str | None = None,
     ) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
-        resolved_output = _resolve_path(policy, output_path, operation="write") if output_path else None
-        effective_max_mb = max_input_mb if max_input_mb is not None else profile.conversion.max_input_mb
-        effective_timeout = timeout_s if timeout_s is not None else limits.conversion_timeout_s
+        resolved_output = (
+            _resolve_path(policy, output_path, operation="write")
+            if output_path
+            else None
+        )
+        effective_max_mb = (
+            max_input_mb
+            if max_input_mb is not None
+            else profile.conversion.max_input_mb
+        )
+        effective_timeout = (
+            timeout_s if timeout_s is not None else limits.conversion_timeout_s
+        )
 
-        def _fail(message: str, *, backend: str | None = None, code: str = "conversion_error") -> Dict[str, Any]:
+        def _fail(
+            message: str, *, backend: str | None = None, code: str = "conversion_error"
+        ) -> Dict[str, Any]:
             return {
                 "ok": False,
                 "backend": backend,
@@ -1726,12 +1992,32 @@ def build_tool_registry(
 
         try:
             if backend == "builtin-text-copy":
-                text_like_exts = {".txt", ".md", ".json", ".yaml", ".yml", ".html", ".xml"}
-                if Path(resolved).suffix.lower() not in text_like_exts or target_format not in {"txt", "md"}:
-                    return _fail("builtin-text-copy backend does not support input/target combination", code="unsupported_format")
-                content = storage_backend.read_bytes(resolved).decode("utf-8", errors="replace")
+                text_like_exts = {
+                    ".txt",
+                    ".md",
+                    ".json",
+                    ".yaml",
+                    ".yml",
+                    ".html",
+                    ".xml",
+                }
+                if Path(
+                    resolved
+                ).suffix.lower() not in text_like_exts or target_format not in {
+                    "txt",
+                    "md",
+                }:
+                    return _fail(
+                        "builtin-text-copy backend does not support input/target combination",
+                        code="unsupported_format",
+                    )
+                content = storage_backend.read_bytes(resolved).decode(
+                    "utf-8", errors="replace"
+                )
                 if resolved_output:
-                    storage_backend.write_bytes(resolved_output, content.encode("utf-8"), overwrite=True)
+                    storage_backend.write_bytes(
+                        resolved_output, content.encode("utf-8"), overwrite=True
+                    )
                     return {
                         "ok": True,
                         "backend": "builtin-text-copy",
@@ -1754,7 +2040,9 @@ def build_tool_registry(
                 # stage the input into a temporary file and optionally upload the output.
                 if storage_backend.backend_name == "local":
                     input_path = Path(resolved)
-                    output_path_local = Path(resolved_output) if resolved_output else None
+                    output_path_local = (
+                        Path(resolved_output) if resolved_output else None
+                    )
                     result = run_convert_file(
                         input_path,
                         target_format,
@@ -1781,7 +2069,9 @@ def build_tool_registry(
                         )
                         if resolved_output and result.output_path:
                             storage_backend.write_bytes(
-                                resolved_output, Path(result.output_path).read_bytes(), overwrite=True
+                                resolved_output,
+                                Path(result.output_path).read_bytes(),
+                                overwrite=True,
                             )
             payload: Dict[str, Any] = {
                 "ok": True,
@@ -1790,7 +2080,9 @@ def build_tool_registry(
                 "warnings": result.warnings,
             }
             if result.output_path:
-                payload["output_path"] = str(resolved_output) if resolved_output else str(result.output_path)
+                payload["output_path"] = (
+                    str(resolved_output) if resolved_output else str(result.output_path)
+                )
             if result.content is not None:
                 payload["content"] = result.content
             return payload
@@ -1803,12 +2095,19 @@ def build_tool_registry(
         except ConversionError as exc:
             # Deterministic built-in fallback for text-like sources when external backends are unavailable.
             text_like_exts = {".txt", ".md", ".json", ".yaml", ".yml", ".html", ".xml"}
-            if Path(resolved).suffix.lower() in text_like_exts and target_format in {"txt", "md"}:
+            if Path(resolved).suffix.lower() in text_like_exts and target_format in {
+                "txt",
+                "md",
+            }:
                 if backend and backend != "builtin-text-copy":
                     return _fail(str(exc), code="backend_unavailable")
-                content = storage_backend.read_bytes(resolved).decode("utf-8", errors="replace")
+                content = storage_backend.read_bytes(resolved).decode(
+                    "utf-8", errors="replace"
+                )
                 if resolved_output:
-                    storage_backend.write_bytes(resolved_output, content.encode("utf-8"), overwrite=True)
+                    storage_backend.write_bytes(
+                        resolved_output, content.encode("utf-8"), overwrite=True
+                    )
                     return {
                         "ok": True,
                         "backend": "builtin-text-copy",
@@ -1876,16 +2175,29 @@ def build_tool_registry(
                         "snapshot_path": str(snapshot) if snapshot else None,
                     },
                 )
-                return {"ok": True, "path": str(resolved), "dry_run": True, "bytes_written": len(decoded)}
+                return {
+                    "ok": True,
+                    "path": str(resolved),
+                    "dry_run": True,
+                    "bytes_written": len(decoded),
+                }
             backend.write_bytes(resolved, decoded, overwrite=overwrite)
             _write_audit(
                 tool_name="b64_decode_to_file",
                 action="write",
                 status="ok",
                 paths={"path": str(resolved)},
-                details={"snapshot_path": str(snapshot) if snapshot else None, "dry_run": False},
+                details={
+                    "snapshot_path": str(snapshot) if snapshot else None,
+                    "dry_run": False,
+                },
             )
-            return {"ok": True, "path": str(resolved), "bytes_written": len(decoded), "dry_run": False}
+            return {
+                "ok": True,
+                "path": str(resolved),
+                "bytes_written": len(decoded),
+                "dry_run": False,
+            }
         except Exception:
             _write_audit(
                 tool_name="b64_decode_to_file",
@@ -1895,7 +2207,9 @@ def build_tool_registry(
             )
             raise
 
-    def validate_file(path: str, content_type: str | None = None, encoding: str = "utf-8") -> Dict[str, Any]:
+    def validate_file(
+        path: str, content_type: str | None = None, encoding: str = "utf-8"
+    ) -> Dict[str, Any]:
         resolved = _resolve_path(policy, path, operation="read")
         resolved_type = content_type or _infer_content_type(resolved)
         text = backend.read_bytes(resolved).decode(encoding, errors="replace")
@@ -1909,14 +2223,22 @@ def build_tool_registry(
             "warnings": result.warnings,
         }
 
-    def diff_files_tool(path_a: str, path_b: str, encoding: str = "utf-8", context: int = 3) -> Dict[str, Any]:
+    def diff_files_tool(
+        path_a: str, path_b: str, encoding: str = "utf-8", context: int = 3
+    ) -> Dict[str, Any]:
         resolved_a = _resolve_path(policy, path_a, operation="read")
         resolved_b = _resolve_path(policy, path_b, operation="read")
         a_text = backend.read_bytes(resolved_a).decode(encoding, errors="replace")
         b_text = backend.read_bytes(resolved_b).decode(encoding, errors="replace")
         return {
             "ok": True,
-            "diff": diff_text(a_text, b_text, context=context, fromfile=str(resolved_a), tofile=str(resolved_b)),
+            "diff": diff_text(
+                a_text,
+                b_text,
+                context=context,
+                fromfile=str(resolved_a),
+                tofile=str(resolved_b),
+            ),
             "path_a": str(resolved_a),
             "path_b": str(resolved_b),
         }
@@ -1953,19 +2275,29 @@ def build_tool_registry(
                 single_count = int(op_args.get("count", 0))
                 if single_pattern is None or single_repl is None:
                     raise ValueError("pattern and repl are required for replace_regex")
-                return replace_regex(current, single_pattern, single_repl, count=single_count).text
+                return replace_regex(
+                    current, single_pattern, single_repl, count=single_count
+                ).text
             if single_op == "insert_before_line":
                 single_line_no = op_args.get("line_no")
                 single_content = op_args.get("content")
                 if single_line_no is None or single_content is None:
-                    raise ValueError("line_no and content are required for insert_before_line")
-                return insert_before_line(current, int(single_line_no), str(single_content)).text
+                    raise ValueError(
+                        "line_no and content are required for insert_before_line"
+                    )
+                return insert_before_line(
+                    current, int(single_line_no), str(single_content)
+                ).text
             if single_op == "insert_after_line":
                 single_line_no = op_args.get("line_no")
                 single_content = op_args.get("content")
                 if single_line_no is None or single_content is None:
-                    raise ValueError("line_no and content are required for insert_after_line")
-                return insert_after_line(current, int(single_line_no), str(single_content)).text
+                    raise ValueError(
+                        "line_no and content are required for insert_after_line"
+                    )
+                return insert_after_line(
+                    current, int(single_line_no), str(single_content)
+                ).text
             if single_op == "delete_matching_lines":
                 single_pattern = op_args.get("pattern")
                 if single_pattern is None:
@@ -1975,7 +2307,9 @@ def build_tool_registry(
                 single_start = op_args.get("start")
                 single_end = op_args.get("end")
                 if single_start is None or single_end is None:
-                    raise ValueError("start and end are required for replace_line_range")
+                    raise ValueError(
+                        "start and end are required for replace_line_range"
+                    )
                 return replace_line_range(
                     current,
                     int(single_start),
@@ -2050,7 +2384,12 @@ def build_tool_registry(
                         "op": operation_label,
                     },
                 )
-                return {"ok": True, "path": str(resolved), "warnings": warnings, "dry_run": True}
+                return {
+                    "ok": True,
+                    "path": str(resolved),
+                    "warnings": warnings,
+                    "dry_run": True,
+                }
             backend.write_bytes(resolved, updated.encode(encoding), overwrite=True)
             _write_audit(
                 tool_name="sed_edit_file",
@@ -2063,7 +2402,12 @@ def build_tool_registry(
                     "dry_run": False,
                 },
             )
-            return {"ok": True, "path": str(resolved), "warnings": warnings, "dry_run": False}
+            return {
+                "ok": True,
+                "path": str(resolved),
+                "warnings": warnings,
+                "dry_run": False,
+            }
         except Exception:
             _write_audit(
                 tool_name="sed_edit_file",
@@ -2075,7 +2419,12 @@ def build_tool_registry(
             raise
 
     tools = ToolRegistry()
-    tools.register(ToolDefinition(meta=ToolMeta(name="read_file", description="Read a text file"), handler=read_file))
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(name="read_file", description="Read a text file"),
+            handler=read_file,
+        )
+    )
     tools.register(
         ToolDefinition(
             meta=ToolMeta(
@@ -2171,10 +2520,16 @@ def build_tool_registry(
         )
     )
     tools.register(
-        ToolDefinition(meta=ToolMeta(name="list_dir", description="List directory entries"), handler=list_path)
+        ToolDefinition(
+            meta=ToolMeta(name="list_dir", description="List directory entries"),
+            handler=list_path,
+        )
     )
     tools.register(
-        ToolDefinition(meta=ToolMeta(name="search_paths", description="Search file paths"), handler=search_path_names)
+        ToolDefinition(
+            meta=ToolMeta(name="search_paths", description="Search file paths"),
+            handler=search_path_names,
+        )
     )
     tools.register(
         ToolDefinition(
@@ -2184,8 +2539,12 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="diff_text", description="Generate unified diff for text"),
-            handler=lambda before, after, context=3: diff_text(before, after, context=context),
+            meta=ToolMeta(
+                name="diff_text", description="Generate unified diff for text"
+            ),
+            handler=lambda before, after, context=3: diff_text(
+                before, after, context=context
+            ),
         )
     )
     tools.register(
@@ -2206,7 +2565,9 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="b64_encode_file", description="Encode file contents as base64"),
+            meta=ToolMeta(
+                name="b64_encode_file", description="Encode file contents as base64"
+            ),
             handler=b64_encode_file,
         )
     )
@@ -2228,7 +2589,9 @@ def build_tool_registry(
                 description="Validate text content by type",
                 requires_validation=True,
             ),
-            handler=lambda content_type, text: _validate_text(content_type, text, validation),
+            handler=lambda content_type, text: _validate_text(
+                content_type, text, validation
+            ),
         )
     )
     tools.register(
@@ -2249,31 +2612,47 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="json_set", description="Set JSON value by path", mutating=True),
+            meta=ToolMeta(
+                name="json_set", description="Set JSON value by path", mutating=True
+            ),
             handler=lambda text, path, value: json_set(text, path, value),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="json_delete", description="Delete JSON value by path", mutating=True),
+            meta=ToolMeta(
+                name="json_delete",
+                description="Delete JSON value by path",
+                mutating=True,
+            ),
             handler=lambda text, path: json_delete(text, path),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="json_copy", description="Copy JSON value by path", mutating=True),
-            handler=lambda text, from_path, to_path: json_copy(text, from_path, to_path),
+            meta=ToolMeta(
+                name="json_copy", description="Copy JSON value by path", mutating=True
+            ),
+            handler=lambda text, from_path, to_path: json_copy(
+                text, from_path, to_path
+            ),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="json_move", description="Move JSON value by path", mutating=True),
-            handler=lambda text, from_path, to_path: json_move(text, from_path, to_path),
+            meta=ToolMeta(
+                name="json_move", description="Move JSON value by path", mutating=True
+            ),
+            handler=lambda text, from_path, to_path: json_move(
+                text, from_path, to_path
+            ),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="json_merge", description="Merge JSON value by path", mutating=True),
+            meta=ToolMeta(
+                name="json_merge", description="Merge JSON value by path", mutating=True
+            ),
             handler=lambda text, path, value: json_merge(text, path, value),
         )
     )
@@ -2285,63 +2664,96 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="yaml_set", description="Set YAML value by path", mutating=True),
+            meta=ToolMeta(
+                name="yaml_set", description="Set YAML value by path", mutating=True
+            ),
             handler=lambda text, path, value: yaml_set(text, path, value),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="yaml_delete", description="Delete YAML value by path", mutating=True),
+            meta=ToolMeta(
+                name="yaml_delete",
+                description="Delete YAML value by path",
+                mutating=True,
+            ),
             handler=lambda text, path: yaml_delete(text, path),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="yaml_copy", description="Copy YAML value by path", mutating=True),
-            handler=lambda text, from_path, to_path: yaml_copy(text, from_path, to_path),
+            meta=ToolMeta(
+                name="yaml_copy", description="Copy YAML value by path", mutating=True
+            ),
+            handler=lambda text, from_path, to_path: yaml_copy(
+                text, from_path, to_path
+            ),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="yaml_move", description="Move YAML value by path", mutating=True),
-            handler=lambda text, from_path, to_path: yaml_move(text, from_path, to_path),
+            meta=ToolMeta(
+                name="yaml_move", description="Move YAML value by path", mutating=True
+            ),
+            handler=lambda text, from_path, to_path: yaml_move(
+                text, from_path, to_path
+            ),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="yaml_merge", description="Merge YAML value by path", mutating=True),
+            meta=ToolMeta(
+                name="yaml_merge", description="Merge YAML value by path", mutating=True
+            ),
             handler=lambda text, path, value: yaml_merge(text, path, value),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="markdown_get_section", description="Extract markdown section"),
+            meta=ToolMeta(
+                name="markdown_get_section", description="Extract markdown section"
+            ),
             handler=lambda text, heading: md_get_section(text, heading),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="markdown_set_section", description="Replace markdown section", mutating=True),
-            handler=lambda text, heading, new_content: md_set_section(text, heading, new_content),
+            meta=ToolMeta(
+                name="markdown_set_section",
+                description="Replace markdown section",
+                mutating=True,
+            ),
+            handler=lambda text, heading, new_content: md_set_section(
+                text, heading, new_content
+            ),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="replace_regex", description="Apply regex replacement", mutating=True),
-            handler=lambda text, pattern, repl, count=0: replace_regex(
-                text, pattern, repl, count=count
-            ).text,
+            meta=ToolMeta(
+                name="replace_regex",
+                description="Apply regex replacement",
+                mutating=True,
+            ),
+            handler=lambda text, pattern, repl, count=0: (
+                replace_regex(text, pattern, repl, count=count).text
+            ),
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="diff_files", description="Generate unified diff for files"),
+            meta=ToolMeta(
+                name="diff_files", description="Generate unified diff for files"
+            ),
             handler=diff_files_tool,
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="meld_files", description="Launch meld for file comparison (optional integration)"),
+            meta=ToolMeta(
+                name="meld_files",
+                description="Launch meld for file comparison (optional integration)",
+            ),
             handler=meld_files_tool,
         )
     )
@@ -2501,13 +2913,17 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="json_get_file", description="Get JSON value from file by path"),
+            meta=ToolMeta(
+                name="json_get_file", description="Get JSON value from file by path"
+            ),
             handler=json_get_file,
         )
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="yaml_get_file", description="Get YAML value from file by path"),
+            meta=ToolMeta(
+                name="yaml_get_file", description="Get YAML value from file by path"
+            ),
             handler=yaml_get_file,
         )
     )
@@ -2586,7 +3002,9 @@ def register_tools_with_fastmcp(
             started = time.perf_counter()
             params = _truncate_value(kwargs)
             paths = _extract_paths_from_params(kwargs)
-            profile_name = get_request_profile_name(default_profile_name) or default_profile_name
+            profile_name = (
+                get_request_profile_name(default_profile_name) or default_profile_name
+            )
             registry = registry_provider()
             current_def = registry.get(tool_name)
             handler = current_def.handler
@@ -2595,12 +3013,20 @@ def register_tools_with_fastmcp(
             storage_backend_name = getattr(registry, "storage_backend_name", None)
             profile_config = getattr(registry, "profile_config", None)
             restart_on_threshold = (
-                _to_bool(getattr(profile_config.endpoint_health, "restart_on_threshold", None), default=False)
+                _to_bool(
+                    getattr(
+                        profile_config.endpoint_health, "restart_on_threshold", None
+                    ),
+                    default=False,
+                )
                 if profile_config is not None
                 else False
             )
             restart_exit_code = (
-                _to_int(getattr(profile_config.endpoint_health, "restart_exit_code", None), default=75)
+                _to_int(
+                    getattr(profile_config.endpoint_health, "restart_exit_code", None),
+                    default=75,
+                )
                 if profile_config is not None
                 else 75
             )
@@ -2610,14 +3036,19 @@ def register_tools_with_fastmcp(
                 and profile_config is not None
                 and tool_name != "backend_status"
             ):
-                state = endpoint_health_manager.get_state(profile_name, storage_backend_name)
+                state = endpoint_health_manager.get_state(
+                    profile_name, storage_backend_name
+                )
                 if state is not None and state.status != "healthy":
-                    state = endpoint_health_manager.maybe_recover_backend(
-                        profile_name=profile_name,
-                        profile=profile_config,
-                        backend_name=storage_backend_name,
-                        logger=logger,
-                    ) or state
+                    state = (
+                        endpoint_health_manager.maybe_recover_backend(
+                            profile_name=profile_name,
+                            profile=profile_config,
+                            backend_name=storage_backend_name,
+                            logger=logger,
+                        )
+                        or state
+                    )
                     if state.status != "healthy":
                         message = (
                             f"Backend unavailable: backend={storage_backend_name} "
@@ -2709,7 +3140,7 @@ def register_tools_with_fastmcp(
                     )
                 raise
 
-        wrapped_handler.__signature__ = inspect.signature(handler)
+        setattr(wrapped_handler, "__signature__", inspect.signature(handler))
         wrapped_handler.__name__ = f"wrapped_{tool_name}"
         wrapped_handler.__doc__ = f"Dynamic wrapper for tool {tool_name}"
         wrapped_handler.__annotations__ = getattr(handler, "__annotations__", {})
@@ -2720,7 +3151,9 @@ def register_tools_with_fastmcp(
         handler = definition.handler
         tool_name = definition.meta.name
         wrapped_handler = build_wrapped_handler(tool_name)
-        server.tool(name=definition.meta.name, description=definition.meta.description)(wrapped_handler)
+        server.tool(name=definition.meta.name, description=definition.meta.description)(
+            wrapped_handler
+        )
 
 
 def build_fastmcp_server(
@@ -2738,7 +3171,11 @@ def build_fastmcp_server(
 
     auth = MultiProfileApiKeyTokenVerifier(
         {
-            name: (profile.auth.api_keys, profile.auth.header_name, profile.auth.header_scheme)
+            name: (
+                profile.auth.api_keys,
+                profile.auth.header_name,
+                profile.auth.header_scheme,
+            )
             for name, profile in config.profiles.items()
         },
         default_profile=default_profile_name,
@@ -2753,7 +3190,9 @@ def build_fastmcp_server(
     registry_by_profile: dict[str, ToolRegistry] = {}
 
     def _registry_provider() -> ToolRegistry:
-        profile_name = get_request_profile_name(default_profile_name) or default_profile_name
+        profile_name = (
+            get_request_profile_name(default_profile_name) or default_profile_name
+        )
         with registry_lock:
             registry = registry_by_profile.get(profile_name)
             if registry is None:
@@ -2761,24 +3200,34 @@ def build_fastmcp_server(
                 if profile is None:
                     profile = profiles_holder[default_profile_name]
                     profile_name = default_profile_name
-                registry = build_tool_registry(profile, profile_name=profile_name, logger=logger)
+                registry = build_tool_registry(
+                    profile, profile_name=profile_name, logger=logger
+                )
                 registry_by_profile[profile_name] = registry
             return registry
 
-    def _reload_registry(*, env_path: str | None, config_path: str | None, defaults_path: str | None) -> dict[str, Any]:
-        cfg = load_config(env_path=env_path, config_path=config_path, defaults_path=defaults_path)
+    def _reload_registry(
+        *, env_path: str | None, config_path: str | None, defaults_path: str | None
+    ) -> dict[str, Any]:
+        cfg = load_config(
+            env_path=env_path, config_path=config_path, defaults_path=defaults_path
+        )
         with registry_lock:
             profiles_holder.clear()
             profiles_holder.update(cfg.profiles)
             registry_by_profile.clear()
         for name, profile in cfg.profiles.items():
-            ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=name, profile=profile, logger=logger)
+            ENDPOINT_HEALTH_MANAGER.run_startup_checks(
+                profile_name=name, profile=profile, logger=logger
+            )
         states = ENDPOINT_HEALTH_MANAGER.get_profile_states(default_profile_name)
         return {
             "profile": default_profile_name,
             "reloaded": True,
             "profiles": sorted(cfg.profiles.keys()),
-            "endpoint_health": {name: state.__dict__.copy() for name, state in states.items()},
+            "endpoint_health": {
+                name: state.__dict__.copy() for name, state in states.items()
+            },
         }
 
     setattr(server, "_file_mcp_registry_provider", _registry_provider)
@@ -2802,7 +3251,9 @@ async def run_fastmcp_http_server(
 ) -> None:
     http = resolve_http_settings(http_config)
     for profile_name, profile in config.profiles.items():
-        ENDPOINT_HEALTH_MANAGER.run_startup_checks(profile_name=profile_name, profile=profile, logger=logger)
+        ENDPOINT_HEALTH_MANAGER.run_startup_checks(
+            profile_name=profile_name, profile=profile, logger=logger
+        )
         if _to_bool(profile.endpoint_health.restart_on_threshold, default=False):
             exit_code = _to_int(profile.endpoint_health.restart_exit_code, default=75)
             states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
@@ -2825,7 +3276,9 @@ async def run_fastmcp_http_server(
     def _reload_callback():
         if not callable(reload_fn):
             raise RuntimeError("reload function unavailable")
-        return reload_fn(env_path=env_path, config_path=config_path, defaults_path=defaults_path)
+        return reload_fn(
+            env_path=env_path, config_path=config_path, defaults_path=defaults_path
+        )
 
     endpoint_path = http.events_path if http.transport == "sse" else http.mcp_path
     middleware = [
@@ -2840,7 +3293,7 @@ async def run_fastmcp_http_server(
             profile_name=default_profile_name,
             transport=http.transport,
             reload_callback=_reload_callback,
-        )
+        ),
     ]
     if logger:
         logger.info(
@@ -2854,7 +3307,7 @@ async def run_fastmcp_http_server(
 
     await server.run_http_async(
         show_banner=False,
-        transport=http.transport,
+        transport=cast(Literal["http", "streamable-http", "sse"], http.transport),
         host=http.host,
         port=http.port,
         path=endpoint_path,

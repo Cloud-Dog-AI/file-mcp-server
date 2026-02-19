@@ -29,7 +29,9 @@ class PandocBackend(ConverterBackend):
         if not self.is_available():
             raise ConversionError("pandoc not available")
         output_path = output_path or input_path.with_suffix(f".{target_format}")
-        result = run(["pandoc", str(input_path), "-o", str(output_path)], capture_output=True)
+        result = run(
+            ["pandoc", str(input_path), "-o", str(output_path)], capture_output=True
+        )
         if result.returncode != 0:
             raise ConversionError(result.stderr.decode("utf-8", errors="replace"))
         return ConversionResult(output_path=output_path)

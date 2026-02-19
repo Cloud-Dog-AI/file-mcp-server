@@ -99,7 +99,11 @@ def render_setup_page(
     status_message: str = "",
     status_type: str = "info",
 ) -> str:
-    resolved_profile = selected_profile if selected_profile in profiles else (profiles[0] if profiles else "")
+    resolved_profile = (
+        selected_profile
+        if selected_profile in profiles
+        else (profiles[0] if profiles else "")
+    )
     options = "".join(
         f'<option value="{escape(name)}"{" selected" if name == resolved_profile else ""}>{escape(name)}</option>'
         for name in profiles
@@ -114,7 +118,13 @@ def render_setup_page(
         profile_input = f"<select name='profile'>{options}</select>"
     status_html = ""
     if status_message:
-        color = "#0b5" if status_type == "ok" else "#b50" if status_type == "warn" else "#444"
+        color = (
+            "#0b5"
+            if status_type == "ok"
+            else "#b50"
+            if status_type == "warn"
+            else "#444"
+        )
         status_html = f'<p style="padding:8px;border:1px solid {color};color:{color};">{escape(status_message)}</p>'
     default_redirect = escape(callback_url)
     default_token_uri = escape(DEFAULT_TOKEN_URI)
@@ -294,14 +304,23 @@ def _fetch_folder(access_token: str, folder_input: str) -> tuple[str, str, str]:
             data = response.json()
             if data.get("mimeType") != "application/vnd.google-apps.folder":
                 raise RuntimeError("Resolved id is not a Google Drive folder")
-            return data["id"], data.get("name", ""), folder_url or data.get("webViewLink", "")
+            return (
+                data["id"],
+                data.get("name", ""),
+                folder_url or data.get("webViewLink", ""),
+            )
 
     escaped = folder_input.replace("'", "\\'")
     q = f"name = '{escaped}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    params: dict[str, str | int] = {
+        "q": q,
+        "fields": "files(id,name,webViewLink,mimeType)",
+        "pageSize": 5,
+    }
     response = requests.get(
         "https://www.googleapis.com/drive/v3/files",
         headers=_auth_headers(access_token),
-        params={"q": q, "fields": "files(id,name,webViewLink,mimeType)", "pageSize": 5},
+        params=params,
         timeout=30,
     )
     response.raise_for_status()
@@ -326,7 +345,11 @@ def _update_profile_google_drive(
     redirect_uri: str,
     token_uri: str,
 ) -> None:
-    raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    raw = (
+        yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if config_path.exists()
+        else {}
+    )
     if raw is None:
         raw = {}
     if not isinstance(raw, dict):
@@ -358,10 +381,14 @@ def _update_profile_google_drive(
     config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
 
 
-def complete_oauth_callback(*, state: str, code: str, config_path: Path) -> GoogleDriveBindResult:
+def complete_oauth_callback(
+    *, state: str, code: str, config_path: Path
+) -> GoogleDriveBindResult:
     pending = _take_pending(state)
     access_token, refresh_token = _exchange_code(pending, code)
-    folder_id, folder_name, folder_url = _fetch_folder(access_token, pending.folder_input)
+    folder_id, folder_name, folder_url = _fetch_folder(
+        access_token, pending.folder_input
+    )
     _update_profile_google_drive(
         config_path=config_path,
         profile=pending.profile,

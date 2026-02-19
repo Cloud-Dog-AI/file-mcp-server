@@ -1,6 +1,6 @@
 # Context Summary
 
-Version: 1.15 • 2026-02-12
+Version: 1.16 • 2026-02-19
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
 ## 1) Current release-candidate scope
@@ -32,10 +32,10 @@ Implemented runtime behavior aligned to `RULES.md`:
 4. `defaults.yaml`
 
 Changes:
-- `src/file_tools/config/loader.py`
-  - merged env context from env-file values + `os.environ`
-  - deterministic env override application to placeholder-declared config paths
-  - env interpolation executed against effective merged environment
+- `src/file_tools/config/adapter.py`
+  - delegates precedence and compile pipeline to `cloud_dog_config`
+  - preserves legacy placeholder-path env overrides for compatibility with existing profiles
+  - binds compiled output into existing `ServerConfig` / `ProfileConfig` domain models
 - `docker-entrypoint.sh`
   - removed implicit fallback env file behavior
   - only passes `--env-path` when `FILE_MCP_ENV_PATH` is explicitly set
@@ -53,6 +53,11 @@ Changes:
 ### 2.3 Streamable HTTP compatibility for clients
 - Added/kept middleware to normalize `Accept` for JSON-only clients on `POST /mcp`
   so streamable-http negotiation does not fail with `406`.
+
+### 2.4 Config migration to cloud_dog_config (PS-80)
+- Replaced bespoke config loader internals with `src/file_tools/config/adapter.py` delegating to `cloud_dog_config`.
+- Kept `ServerConfig` and `ProfileConfig` as domain models and bound adapter output into them.
+- Preserved legacy placeholder-path env override semantics in adapter for compatibility with existing profile behaviour and tests.
 
 ## 3) Live deployment state validated
 
@@ -82,11 +87,19 @@ Command:
 - `source .venv/bin/activate && PYTHONPATH=src pytest -q -rs`
 
 Result:
-- `179 passed, 15 skipped` in ~4m06s
-- skipped tests are explicit env/flag gated suites (preprod AT, docker gated, remote matrix gated, optional live Google paths).
+- `178 passed, 18 skipped` in ~4m52s
+- additional skips are expected where live remote-backend credentials are unresolved Vault placeholders.
 
 ### 4.3 Focused validation runs for modified areas
 - `tests/test_server_runtime.py`, `tests/test_google_drive_admin.py`, `tests/test_config_loader.py` pass with current changes.
+
+### 4.4 Config migration regression gate set
+Command:
+- `source .venv/bin/activate && PYTHONPATH=src pytest tests/test_config_loader.py tests/test_integration_config_matrix_harness_http.py tests/test_integration_multi_profile_routing_http.py tests/test_system_limits.py tests/test_system_limits_timeout.py tests/test_application_preprod_profile_chain_http.py -v`
+
+Result:
+- `12 passed, 1 skipped`
+- validates adapter migration path, multi-profile routing, and limits behaviour.
 
 ## 5) What is still intentionally gated (not silently ignored)
 

@@ -9,6 +9,7 @@ Architecture: 3. Configuration and Precedence
 Tests: UT1.1
 Recent Change History:
 - 2026-02-05: Added test config helpers for env/config precedence.
+- 2026-02-19: Updated helpers to load config through cloud_dog_config adapter.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from typing import Mapping
 
 import os
 
-from file_tools.config.loader import get_profile, load_config
+from file_tools.config.adapter import get_profile, load_config
 from file_tools.config.models import ProfileConfig
 
 

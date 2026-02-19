@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from file_tools.config.models import ProfileConfig, StorageConfig
+from file_tools.config.models import ProfileConfig
 
 from .base import StorageBackend
 from .local import LocalStorage

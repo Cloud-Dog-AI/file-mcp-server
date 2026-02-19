@@ -76,7 +76,9 @@ class ConverterRegistry:
                 return backend
         return None
 
-    def select(self, input_path: Path, target_format: str) -> Optional[ConverterBackend]:
+    def select(
+        self, input_path: Path, target_format: str
+    ) -> Optional[ConverterBackend]:
         for backend in self.backends:
             if backend.is_available() and backend.can_handle(input_path, target_format):
                 return backend
@@ -106,9 +108,13 @@ def convert_file(
     if preferred_backend:
         backend = registry.get(preferred_backend)
         if backend is None:
-            raise BackendNotFoundError(f"Unknown conversion backend: {preferred_backend}")
+            raise BackendNotFoundError(
+                f"Unknown conversion backend: {preferred_backend}"
+            )
         if not backend.is_available():
-            raise BackendUnavailableError(f"Requested backend unavailable: {preferred_backend}")
+            raise BackendUnavailableError(
+                f"Requested backend unavailable: {preferred_backend}"
+            )
         if not backend.can_handle(input_path, target_format):
             raise BackendCannotHandleError(
                 f"Requested backend cannot handle input/target: {preferred_backend}"

@@ -53,7 +53,9 @@ class StorageBackend:
     def stat(self, path: str) -> Optional[StorageStat]:
         raise NotImplementedError
 
-    def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_dir(
+        self, path: str, *, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         raise NotSupportedError("create_dir", backend=self.backend_name)
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
@@ -68,7 +70,9 @@ class StorageBackend:
     def chmod_path(self, path: str, mode: int, *, recursive: bool = False) -> None:
         raise NotSupportedError("chmod_path", backend=self.backend_name)
 
-    def iter_paths(self, roots: Iterable[str], *, max_depth: int | None = None) -> Iterable[str]:
+    def iter_paths(
+        self, roots: Iterable[str], *, max_depth: int | None = None
+    ) -> Iterable[str]:
         """
         Enumerate file paths under the given roots (POSIX absolute paths).
 
@@ -79,4 +83,3 @@ class StorageBackend:
             for entry in self.list_dir(root, recursive=True):
                 if not entry.is_dir:
                     yield entry.path
-

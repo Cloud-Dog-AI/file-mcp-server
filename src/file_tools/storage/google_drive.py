@@ -7,14 +7,12 @@ Description: OAuth refresh-token based Google Drive backend for file operations.
 
 from __future__ import annotations
 
-import base64
 import json
 import mimetypes
 import posixpath
 import time
-from dataclasses import dataclass
 from typing import Any, Iterable
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -70,18 +68,26 @@ class GoogleDriveStorage(StorageBackend):
         cfg = storage.google_drive
         folder_id = _extract_folder_id(cfg.folder_id, cfg.folder_url)
         if not folder_id:
-            raise ValueError("Google Drive storage requires google_drive.folder_id or google_drive.folder_url")
+            raise ValueError(
+                "Google Drive storage requires google_drive.folder_id or google_drive.folder_url"
+            )
         if not cfg.client_id or not cfg.client_secret:
-            raise ValueError("Google Drive storage requires google_drive.client_id and google_drive.client_secret")
+            raise ValueError(
+                "Google Drive storage requires google_drive.client_id and google_drive.client_secret"
+            )
         if not (cfg.refresh_token or cfg.access_token):
-            raise ValueError("Google Drive storage requires google_drive.refresh_token or google_drive.access_token")
+            raise ValueError(
+                "Google Drive storage requires google_drive.refresh_token or google_drive.access_token"
+            )
 
         self._folder_id = folder_id
         self._client_id = cfg.client_id
         self._client_secret = cfg.client_secret
         self._refresh_token = cfg.refresh_token
         self._access_token = cfg.access_token
-        self._token_uri = (cfg.token_uri or "https://oauth2.googleapis.com/token").strip()
+        self._token_uri = (
+            cfg.token_uri or "https://oauth2.googleapis.com/token"
+        ).strip()
         self._timeout_s = int(timeout_s) if timeout_s is not None else 30
         self._token_expires_at: float | None = None
 
@@ -94,7 +100,11 @@ class GoogleDriveStorage(StorageBackend):
 
     def _token(self) -> str:
         now = time.time()
-        if self._access_token and self._token_expires_at and now < self._token_expires_at - 30:
+        if (
+            self._access_token
+            and self._token_expires_at
+            and now < self._token_expires_at - 30
+        ):
             return self._access_token
         if self._access_token and not self._refresh_token:
             return self._access_token
@@ -106,12 +116,16 @@ class GoogleDriveStorage(StorageBackend):
             "refresh_token": self._refresh_token,
             "grant_type": "refresh_token",
         }
-        resp = requests.post(self._token_uri, data=data, timeout=self._timeout_s, verify=self._verify)
+        resp = requests.post(
+            self._token_uri, data=data, timeout=self._timeout_s, verify=self._verify
+        )
         resp.raise_for_status()
         payload = resp.json()
         token = payload.get("access_token")
         if not token:
-            raise RuntimeError("Google Drive token refresh response missing access_token")
+            raise RuntimeError(
+                "Google Drive token refresh response missing access_token"
+            )
         self._access_token = token
         expires_in = payload.get("expires_in")
         if isinstance(expires_in, int):
@@ -151,7 +165,9 @@ class GoogleDriveStorage(StorageBackend):
         files = resp.json().get("files", [])
         return files[0] if files else None
 
-    def _resolve_path(self, path: str, *, create_dirs: bool = False) -> tuple[str, bool]:
+    def _resolve_path(
+        self, path: str, *, create_dirs: bool = False
+    ) -> tuple[str, bool]:
         logical = _clean_posix(path)
         if logical == "/":
             return self._folder_id, True
@@ -228,14 +244,18 @@ class GoogleDriveStorage(StorageBackend):
                 "file": (name, data, mime_type),
             }
             url = f"https://www.googleapis.com/upload/drive/v3/files/{existing['id']}"
-            resp = self._request("PATCH", url, params={"uploadType": "multipart"}, files=files)
+            resp = self._request(
+                "PATCH", url, params={"uploadType": "multipart"}, files=files
+            )
         else:
             files = {
                 "metadata": ("metadata", json.dumps(metadata), "application/json"),
                 "file": (name, data, mime_type),
             }
             url = "https://www.googleapis.com/upload/drive/v3/files"
-            resp = self._request("POST", url, params={"uploadType": "multipart"}, files=files)
+            resp = self._request(
+                "POST", url, params={"uploadType": "multipart"}, files=files
+            )
         resp.raise_for_status()
 
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
@@ -245,7 +265,9 @@ class GoogleDriveStorage(StorageBackend):
             if missing_ok:
                 return
             raise
-        resp = self._request("DELETE", f"https://www.googleapis.com/drive/v3/files/{file_id}")
+        resp = self._request(
+            "DELETE", f"https://www.googleapis.com/drive/v3/files/{file_id}"
+        )
         if resp.status_code == 404 and missing_ok:
             return
         resp.raise_for_status()
@@ -283,14 +305,18 @@ class GoogleDriveStorage(StorageBackend):
             resp.raise_for_status()
             files = resp.json().get("files", [])
             for item in files:
-                child_path = _clean_posix(posixpath.join(logical_parent, item.get("name", "")))
+                child_path = _clean_posix(
+                    posixpath.join(logical_parent, item.get("name", ""))
+                )
                 child_is_dir = item.get("mimeType") == FOLDER_MIME
                 entries.append(StorageEntry(path=child_path, is_dir=child_is_dir))
                 if recursive and child_is_dir:
                     queue.append((item["id"], child_path))
         return entries
 
-    def iter_paths(self, roots: Iterable[str], *, max_depth: int | None = None) -> Iterable[str]:
+    def iter_paths(
+        self, roots: Iterable[str], *, max_depth: int | None = None
+    ) -> Iterable[str]:
         for root in roots:
             base = _clean_posix(root)
             queue: list[tuple[str, int]] = [(base, 0)]
@@ -309,7 +335,9 @@ class GoogleDriveStorage(StorageBackend):
                     if max_depth is None or next_depth <= max_depth:
                         yield entry.path
 
-    def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_dir(
+        self, path: str, *, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         logical = _clean_posix(path)
         if logical == "/":
             return
@@ -335,9 +363,15 @@ class GoogleDriveStorage(StorageBackend):
         if existing and not overwrite:
             raise FileExistsError(dst)
         if existing and overwrite:
-            self._request("DELETE", f"https://www.googleapis.com/drive/v3/files/{existing['id']}").raise_for_status()
+            self._request(
+                "DELETE", f"https://www.googleapis.com/drive/v3/files/{existing['id']}"
+            ).raise_for_status()
         payload = {"name": name, "parents": [parent_id]}
-        resp = self._request("POST", f"https://www.googleapis.com/drive/v3/files/{src_id}/copy", json=payload)
+        resp = self._request(
+            "POST",
+            f"https://www.googleapis.com/drive/v3/files/{src_id}/copy",
+            json=payload,
+        )
         resp.raise_for_status()
 
     def move_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
@@ -350,7 +384,9 @@ class GoogleDriveStorage(StorageBackend):
         if existing and not overwrite:
             raise FileExistsError(dst)
         if existing and overwrite:
-            self._request("DELETE", f"https://www.googleapis.com/drive/v3/files/{existing['id']}").raise_for_status()
+            self._request(
+                "DELETE", f"https://www.googleapis.com/drive/v3/files/{existing['id']}"
+            ).raise_for_status()
         meta = self._get_metadata(src_id)
         prev_parents = ",".join(meta.get("parents") or [])
         resp = self._request(

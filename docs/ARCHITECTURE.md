@@ -22,7 +22,7 @@ Out of scope:
 - `src/file_mcp_server/*`: transport/auth/dispatch lifecycle layer
 
 ### 2.2 Core Runtime Flow
-1. Load config via precedence chain.
+1. Load config through `file_tools.config.adapter`, which delegates to `cloud_dog_config` (PS-80 precedence/compile).
 2. Load all configured profiles and set a server default profile.
 3. Resolve active profile per request (query/header with default fallback), then apply profile-aware auth and registry routing.
 4. Run endpoint health startup checks for configured backends.
@@ -34,7 +34,8 @@ Out of scope:
 - `src/file_mcp_server/main.py`: CLI commands (`serve`, `start`, `stop`, `status`).
 - `src/file_mcp_server/lifecycle.py`: pidfile and lifecycle primitives.
 - `src/file_mcp_server/endpoint_health.py`: endpoint probe/retry/recovery manager.
-- `src/file_tools/config/loader.py`: environment/config precedence and profile loading.
+- `src/file_tools/config/adapter.py`: `cloud_dog_config` bridge that binds output into `ServerConfig`.
+- `cloud_dog_config`: platform config package handling precedence, compile, Vault expressions, and immutable snapshots.
 - `src/file_tools/scope/policy.py`: path and allow/deny enforcement.
 - `src/file_tools/audit/*`: audit event model + snapshot retention.
 - `src/file_tools/storage/google_drive.py`: Google Drive backend implementation.

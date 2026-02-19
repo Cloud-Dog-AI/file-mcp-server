@@ -9,13 +9,14 @@ Architecture: 3. Configuration and Precedence
 Tests: UT1.1
 Recent Change History:
 - 2026-02-05: Added multi-env precedence tests.
+- 2026-02-19: Migrated tests to cloud_dog_config adapter and added baseline adapter coverage.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from file_tools.config.loader import get_profile, load_config
+from file_tools.config.adapter import get_profile, load_config
 
 
 def _write_yaml(path: Path, content: str) -> None:
@@ -84,7 +85,11 @@ def _env_paths(tmp_path: Path) -> tuple[list[Path], str, str]:
 def test_load_config_env_precedence(tmp_path: Path, monkeypatch) -> None:
     defaults_path, config_path = _build_config_files(tmp_path)
     env_paths, expected_log_path, expected_level = _env_paths(tmp_path)
-    for key in ("FILE_MCP_SERVER_LOG", "FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+    for key in (
+        "FILE_MCP_SERVER_LOG",
+        "FILE_MCP_SERVER_LEVEL_DEFAULT",
+        "FILE_MCP_SERVER_LEVEL_CONFIG",
+    ):
         monkeypatch.delenv(key, raising=False)
 
     config = load_config(
@@ -94,7 +99,11 @@ def test_load_config_env_precedence(tmp_path: Path, monkeypatch) -> None:
     )
     profile = get_profile(config)
 
-    for key in ("FILE_MCP_SERVER_LOG", "FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+    for key in (
+        "FILE_MCP_SERVER_LOG",
+        "FILE_MCP_SERVER_LEVEL_DEFAULT",
+        "FILE_MCP_SERVER_LEVEL_CONFIG",
+    ):
         monkeypatch.delenv(key, raising=False)
 
     assert profile.observability.log_path == expected_log_path
@@ -116,14 +125,20 @@ def test_load_config_os_environ_precedence(tmp_path: Path, monkeypatch) -> None:
     )
     profile = get_profile(config)
 
-    for key in ("FILE_MCP_SERVER_LOG", "FILE_MCP_SERVER_LEVEL_DEFAULT", "FILE_MCP_SERVER_LEVEL_CONFIG"):
+    for key in (
+        "FILE_MCP_SERVER_LOG",
+        "FILE_MCP_SERVER_LEVEL_DEFAULT",
+        "FILE_MCP_SERVER_LEVEL_CONFIG",
+    ):
         monkeypatch.delenv(key, raising=False)
 
     assert profile.observability.log_path == env_override
     assert profile.observability.level == expected_level
 
 
-def test_load_config_env_overrides_literal_config_values(tmp_path: Path, monkeypatch) -> None:
+def test_load_config_env_overrides_literal_config_values(
+    tmp_path: Path, monkeypatch
+) -> None:
     defaults_path = tmp_path / "defaults.yaml"
     config_path = tmp_path / "config.yaml"
     env_path = tmp_path / "env"
@@ -168,7 +183,9 @@ profiles:
     assert profile.observability.level == "WARN"
 
 
-def test_load_config_os_environ_overrides_env_file_and_config(tmp_path: Path, monkeypatch) -> None:
+def test_load_config_os_environ_overrides_env_file_and_config(
+    tmp_path: Path, monkeypatch
+) -> None:
     defaults_path = tmp_path / "defaults.yaml"
     config_path = tmp_path / "config.yaml"
     env_path = tmp_path / "env"
@@ -203,3 +220,67 @@ profiles:
     monkeypatch.delenv("FILE_MCP_SERVER_LOG", raising=False)
 
     assert profile.observability.log_path == str(tmp_path / "from-os-env.log")
+
+
+def test_load_config_defaults_only(tmp_path: Path, monkeypatch) -> None:
+    defaults_path = tmp_path / "defaults.yaml"
+    config_path = tmp_path / "config.yaml"
+    _write_yaml(
+        defaults_path,
+        """
+profiles:
+  default:
+    auth:
+      api_keys:
+        - "defaults-only-key"
+    observability:
+      level: "INFO"
+""".lstrip(),
+    )
+
+    monkeypatch.delenv("FILE_MCP_SERVER_LEVEL_DEFAULT", raising=False)
+    config = load_config(
+        env_path=[],
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+
+    assert profile.auth.api_keys == ["defaults-only-key"]
+    assert profile.observability.level == "INFO"
+
+
+def test_load_config_env_override_precedence(tmp_path: Path, monkeypatch) -> None:
+    defaults_path = tmp_path / "defaults.yaml"
+    config_path = tmp_path / "config.yaml"
+    env_path = tmp_path / "env"
+    _write_yaml(
+        defaults_path,
+        """
+profiles:
+  default:
+    observability:
+      level: "${FILE_MCP_SERVER_LEVEL_DEFAULT}"
+""".lstrip(),
+    )
+    _write_yaml(
+        config_path,
+        """
+profiles:
+  default:
+    observability:
+      level: "WARN"
+""".lstrip(),
+    )
+    _write_env(env_path, {"FILE_MCP_SERVER_LEVEL_DEFAULT": "INFO-FILE"})
+    monkeypatch.setenv("FILE_MCP_SERVER_LEVEL_DEFAULT", "INFO-OS")
+
+    config = load_config(
+        env_path=[env_path],
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+    monkeypatch.delenv("FILE_MCP_SERVER_LEVEL_DEFAULT", raising=False)
+
+    assert profile.observability.level == "INFO-OS"

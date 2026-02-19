@@ -28,7 +28,7 @@ class LibreOfficeBackend(ConverterBackend):
     ) -> ConversionResult:
         if not self.is_available():
             raise ConversionError("libreoffice not available")
-        output_dir = (output_path.parent if output_path else input_path.parent)
+        output_dir = output_path.parent if output_path else input_path.parent
         result = run(
             [
                 "soffice",

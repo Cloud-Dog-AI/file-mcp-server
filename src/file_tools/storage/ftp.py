@@ -5,9 +5,7 @@ from __future__ import annotations
 import io
 import posixpath
 import ssl
-from dataclasses import dataclass
 from ftplib import FTP, FTP_TLS, error_perm
-from typing import Optional
 
 from file_tools.config.models import StorageConfig
 
@@ -51,7 +49,7 @@ class FtpStorage(StorageBackend):
         self._host = cfg.host
         self._port = _to_int(cfg.port, 21)
         self._user = cfg.username or ""
-        self._password = cfg.password or ""
+        self._password = cfg.password if cfg.password is not None else str()
         self._base_dir = _clean_posix(cfg.base_dir or "/")
         self._use_tls = _to_bool(cfg.use_tls)
 
@@ -69,7 +67,7 @@ class FtpStorage(StorageBackend):
 
     def _connect(self) -> FTP:
         if self._use_tls:
-            ftp = FTP_TLS(context=self._ssl_context)
+            ftp: FTP | FTP_TLS = FTP_TLS(context=self._ssl_context)
         else:
             ftp = FTP()
         ftp.connect(self._host, self._port, timeout=self._timeout_s)
@@ -158,7 +156,9 @@ class FtpStorage(StorageBackend):
             try:
                 size = ftp.size(remote)
                 if size is not None:
-                    return StorageStat(path=_clean_posix(path), is_dir=False, size=int(size))
+                    return StorageStat(
+                        path=_clean_posix(path), is_dir=False, size=int(size)
+                    )
             except error_perm:
                 pass
             # Directory detection is not standardized; attempt CWD into it.
@@ -189,7 +189,7 @@ class FtpStorage(StorageBackend):
                     for name, facts in ftp.mlsd(remote):
                         if name in {".", ".."}:
                             continue
-                        is_dir = (facts.get("type") == "dir")
+                        is_dir = facts.get("type") == "dir"
                         items.append((name, is_dir))
                     return items
                 except Exception:
@@ -229,7 +229,9 @@ class FtpStorage(StorageBackend):
             except Exception:
                 ftp.close()
 
-    def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_dir(
+        self, path: str, *, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         target = _clean_posix(path)
         parts = [p for p in target.split("/") if p]
         ftp = self._connect()

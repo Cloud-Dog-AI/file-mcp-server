@@ -56,7 +56,9 @@ def status_pidfile(pidfile: Path) -> LifecycleStatus:
     return LifecycleStatus(False, pid, f"stale pidfile (pid {pid})")
 
 
-def start_pidfile(pidfile: Path, *, pid: Optional[int] = None, force: bool = False) -> LifecycleStatus:
+def start_pidfile(
+    pidfile: Path, *, pid: Optional[int] = None, force: bool = False
+) -> LifecycleStatus:
     status = status_pidfile(pidfile)
     if status.running and not force:
         return LifecycleStatus(True, status.pid, "already running")
@@ -65,7 +67,9 @@ def start_pidfile(pidfile: Path, *, pid: Optional[int] = None, force: bool = Fal
     return LifecycleStatus(True, pid, f"started (pid {pid})")
 
 
-def stop_pidfile(pidfile: Path, *, send_signal: bool = False, timeout_s: float = 5.0) -> LifecycleStatus:
+def stop_pidfile(
+    pidfile: Path, *, send_signal: bool = False, timeout_s: float = 5.0
+) -> LifecycleStatus:
     status = status_pidfile(pidfile)
     if status.pid is None:
         return LifecycleStatus(False, None, "not running")

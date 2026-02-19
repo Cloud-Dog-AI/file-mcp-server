@@ -102,8 +102,9 @@ System shall support simple server start/stop/status routines suitable for local
 
 ### FR1.3: Configuration Precedence & Zero Hardcoding
 - Configuration SHALL load via precedence: `os.environ` → env file → `config.yaml` → `defaults.yaml`.
+- Configuration loading SHALL be delegated to `cloud_dog_config` (PS-80) via the project adapter.
 - The system SHALL NOT hardcode API keys, scope roots, allowed extensions, or log paths.
-- The loader SHALL support environment-variable interpolation in YAML values (e.g., `${VAR}`).
+- The config compiler SHALL support environment and Vault interpolation in YAML values (e.g., `${VAR}`, `${vault.*}`).
 
 ### FR1.4: Configuration Profiles
 - The system SHALL support multiple named profiles, including `default` and additional profiles.

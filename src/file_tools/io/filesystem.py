@@ -47,7 +47,9 @@ def write_bytes(path: Path, data: bytes, *, overwrite: bool = True) -> None:
     atomic_write(path, data, overwrite=overwrite)
 
 
-def write_text(path: Path, content: str, *, encoding: str = "utf-8", overwrite: bool = True) -> None:
+def write_text(
+    path: Path, content: str, *, encoding: str = "utf-8", overwrite: bool = True
+) -> None:
     atomic_write(path, content.encode(encoding), overwrite=overwrite)
 
 

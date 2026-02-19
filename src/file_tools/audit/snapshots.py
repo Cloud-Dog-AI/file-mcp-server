@@ -47,7 +47,9 @@ def _snapshot_dirs(base_dir: Path) -> list[Path]:
         if not entry.is_dir():
             continue
         try:
-            stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(
+                tzinfo=timezone.utc
+            )
         except ValueError:
             continue
         entries.append((stamp, entry))
@@ -82,7 +84,9 @@ def prune_snapshots(
     if retention_days is not None and retention_days >= 0:
         for entry in list(entries):
             try:
-                stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+                stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(
+                    tzinfo=timezone.utc
+                )
             except ValueError:
                 continue
             if (now - stamp).days > retention_days:
@@ -90,7 +94,11 @@ def prune_snapshots(
                 entries.remove(entry)
                 removed += 1
 
-    if retention_count is not None and retention_count >= 0 and len(entries) > retention_count:
+    if (
+        retention_count is not None
+        and retention_count >= 0
+        and len(entries) > retention_count
+    ):
         for entry in entries[retention_count:]:
             shutil.rmtree(entry, ignore_errors=True)
             removed += 1

@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from hmac import compare_digest
-from typing import Iterable, List, Mapping
+from typing import Iterable, List, Mapping, Protocol, cast
 
 import contextvars
 import time
@@ -39,6 +39,16 @@ class AuthError(ValueError):
 class AuthResult:
     ok: bool
     key_fingerprint: str
+
+
+class MultiProfileTokenVerifierProtocol(Protocol):
+    def resolve_profile(self, conn: HTTPConnection) -> str: ...
+
+    def header_for_profile(self, profile_name: str) -> tuple[str, str | None]: ...
+
+    async def verify_token_for_profile(
+        self, token: str, profile_name: str
+    ) -> AccessToken | None: ...
 
 
 _request_profile_name: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -82,7 +92,13 @@ class ApiKeyAuth:
 class HeaderTokenAuthBackend(AuthenticationBackend):
     """Authentication backend for configurable token headers and schemes."""
 
-    def __init__(self, token_verifier: TokenVerifier, *, header_name: str, header_scheme: str | None) -> None:
+    def __init__(
+        self,
+        token_verifier: TokenVerifier,
+        *,
+        header_name: str,
+        header_scheme: str | None,
+    ) -> None:
         self.token_verifier = token_verifier
         self.header_name = header_name.lower()
         self.header_scheme = header_scheme
@@ -101,17 +117,28 @@ class HeaderTokenAuthBackend(AuthenticationBackend):
         return value
 
     async def authenticate(self, conn: HTTPConnection):
-        if hasattr(self.token_verifier, "resolve_profile"):
-            profile_name = self.token_verifier.resolve_profile(conn)  # type: ignore[attr-defined]
+        if (
+            hasattr(self.token_verifier, "resolve_profile")
+            and hasattr(self.token_verifier, "header_for_profile")
+            and hasattr(self.token_verifier, "verify_token_for_profile")
+        ):
+            profile_verifier = cast(
+                MultiProfileTokenVerifierProtocol, self.token_verifier
+            )
+            profile_name = profile_verifier.resolve_profile(conn)
             set_request_profile_name(profile_name)
-            header_name, header_scheme = self.token_verifier.header_for_profile(profile_name)  # type: ignore[attr-defined]
+            header_name, header_scheme = profile_verifier.header_for_profile(
+                profile_name
+            )
             raw_header = conn.headers.get(header_name)
             if not raw_header:
                 return None
             token = self._extract_token(raw_header, header_scheme)
             if not token:
                 return None
-            auth_info = await self.token_verifier.verify_token_for_profile(token, profile_name)  # type: ignore[attr-defined]
+            auth_info = await profile_verifier.verify_token_for_profile(
+                token, profile_name
+            )
             if not auth_info:
                 return None
             if auth_info.expires_at and auth_info.expires_at < int(time.time()):
@@ -152,10 +179,12 @@ class ApiKeyTokenVerifier(TokenVerifier):
         normalized_header_name = self._normalize_optional_text(header_name)
         normalized_header_scheme = self._normalize_optional_text(header_scheme)
         self.header_name = (normalized_header_name or "authorization").strip().lower()
+        final_header_scheme: str | None
         if normalized_header_scheme is None and self.header_name == "authorization":
-            self.header_scheme = "Bearer"
+            final_header_scheme = "Bearer"
         else:
-            self.header_scheme = normalized_header_scheme
+            final_header_scheme = normalized_header_scheme
+        self.header_scheme = final_header_scheme
 
     @staticmethod
     def _normalize_optional_text(value: str | None) -> str | None:
@@ -207,7 +236,9 @@ class MultiProfileApiKeyTokenVerifier(TokenVerifier):
     ) -> None:
         super().__init__(required_scopes=required_scopes)
         if default_profile not in profile_auth:
-            raise ValueError(f"default profile '{default_profile}' missing from profile_auth")
+            raise ValueError(
+                f"default profile '{default_profile}' missing from profile_auth"
+            )
 
         self.default_profile = default_profile
         self.profile_header_name = profile_header_name.strip().lower()
@@ -216,11 +247,21 @@ class MultiProfileApiKeyTokenVerifier(TokenVerifier):
         self._profile_header: dict[str, str] = {}
         self._profile_scheme: dict[str, str | None] = {}
 
-        for profile_name, (api_keys, header_name, header_scheme) in profile_auth.items():
+        for profile_name, (
+            api_keys,
+            header_name,
+            header_scheme,
+        ) in profile_auth.items():
             normalized_header_name = self._normalize_optional_text(header_name)
             normalized_header_scheme = self._normalize_optional_text(header_scheme)
-            final_header_name = (normalized_header_name or "authorization").strip().lower()
-            if normalized_header_scheme is None and final_header_name == "authorization":
+            final_header_name = (
+                (normalized_header_name or "authorization").strip().lower()
+            )
+            final_header_scheme: str | None
+            if (
+                normalized_header_scheme is None
+                and final_header_name == "authorization"
+            ):
                 final_header_scheme = "Bearer"
             else:
                 final_header_scheme = normalized_header_scheme
@@ -264,7 +305,9 @@ class MultiProfileApiKeyTokenVerifier(TokenVerifier):
     def header_for_profile(self, profile_name: str) -> tuple[str, str | None]:
         return self._profile_header[profile_name], self._profile_scheme[profile_name]
 
-    async def verify_token_for_profile(self, token: str, profile_name: str) -> AccessToken | None:
+    async def verify_token_for_profile(
+        self, token: str, profile_name: str
+    ) -> AccessToken | None:
         auth = self._profile_auth.get(profile_name)
         if auth is None:
             return None

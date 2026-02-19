@@ -11,7 +11,12 @@ Recent Change History:
 - 2026-02-05: Added observability and limits exports.
 """
 
-from .limits import LimitError, enforce_max_file_size, enforce_timeout, exceeds_max_file_size
+from .limits import (
+    LimitError,
+    enforce_max_file_size,
+    enforce_timeout,
+    exceeds_max_file_size,
+)
 from .observability import configure_operational_logger
 from .posix import (
     filter_posix_paths,

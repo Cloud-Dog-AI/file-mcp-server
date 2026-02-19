@@ -102,7 +102,9 @@ class EndpointHealthManager:
             backends.add("webdav")
         if _configured(profile.storage.ftp.host):
             backends.add("ftp")
-        if _configured(profile.storage.google_drive.folder_id) or _configured(profile.storage.google_drive.folder_url):
+        if _configured(profile.storage.google_drive.folder_id) or _configured(
+            profile.storage.google_drive.folder_url
+        ):
             backends.add("google_drive")
         return sorted(backends)
 
@@ -130,7 +132,13 @@ class EndpointHealthManager:
         now = time.time()
         return now, datetime.now(timezone.utc).isoformat()
 
-    def run_startup_checks(self, *, profile_name: str, profile: ProfileConfig, logger: logging.Logger | None) -> None:
+    def run_startup_checks(
+        self,
+        *,
+        profile_name: str,
+        profile: ProfileConfig,
+        logger: logging.Logger | None,
+    ) -> None:
         cfg = self._health_cfg(profile)
         if not self._bool_or(cfg.enabled, True):
             return
@@ -138,7 +146,11 @@ class EndpointHealthManager:
             return
 
         check_all = self._bool_or(cfg.check_all_configured_backends, True)
-        backends = self._configured_backends(profile) if check_all else [(profile.storage.backend or "local").strip().lower() or "local"]
+        backends = (
+            self._configured_backends(profile)
+            if check_all
+            else [(profile.storage.backend or "local").strip().lower() or "local"]
+        )
         max_retries = self._int_or(cfg.max_retries, 3)
         retry_interval_s = self._int_or(cfg.retry_interval_s, 2)
         retry_window_s = self._int_or(cfg.retry_window_s, 30)
@@ -183,7 +195,10 @@ class EndpointHealthManager:
                             category,
                             exc,
                         )
-                    can_retry = category in {"temporary_unavailable", "busy_temporary"} and attempts <= max_retries
+                    can_retry = (
+                        category in {"temporary_unavailable", "busy_temporary"}
+                        and attempts <= max_retries
+                    )
                     if can_retry:
                         retries_used += 1
                         time.sleep(retry_interval_s)
@@ -197,7 +212,11 @@ class EndpointHealthManager:
                 dq.popleft()
             failures_in_window = len(dq)
             prev = self.get_state(profile_name, backend_name)
-            consecutive_failures = 0 if status == "healthy" else ((prev.consecutive_failures + 1) if prev else 1)
+            consecutive_failures = (
+                0
+                if status == "healthy"
+                else ((prev.consecutive_failures + 1) if prev else 1)
+            )
             requires_restart = consecutive_failures >= max_failures_before_restart
             state = EndpointState(
                 backend=backend_name,
@@ -253,7 +272,11 @@ class EndpointHealthManager:
         profile_for_backend = profile.model_copy(deep=True)
         profile_for_backend.storage.backend = backend_name
         if logger:
-            logger.info("endpoint-recover-attempt backend=%s previous_status=%s", backend_name, state.status)
+            logger.info(
+                "endpoint-recover-attempt backend=%s previous_status=%s",
+                backend_name,
+                state.status,
+            )
         try:
             backend = build_storage_backend(profile_for_backend)
             self._probe_backend(backend, profile_for_backend)
@@ -289,7 +312,12 @@ class EndpointHealthManager:
             )
             self._set_state(profile_name, failed)
             if logger:
-                logger.warning("endpoint-recover-failed backend=%s status=%s error=%s", backend_name, category, exc)
+                logger.warning(
+                    "endpoint-recover-failed backend=%s status=%s error=%s",
+                    backend_name,
+                    category,
+                    exc,
+                )
             return failed
 
 

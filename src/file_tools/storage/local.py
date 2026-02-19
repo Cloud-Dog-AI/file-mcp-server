@@ -49,9 +49,15 @@ class LocalStorage(StorageBackend):
         p = Path(path)
         if not p.exists():
             return None
-        return StorageStat(path=str(p), is_dir=p.is_dir(), size=(p.stat().st_size if p.is_file() else None))
+        return StorageStat(
+            path=str(p),
+            is_dir=p.is_dir(),
+            size=(p.stat().st_size if p.is_file() else None),
+        )
 
-    def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_dir(
+        self, path: str, *, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         create_dir(Path(path), parents=parents, exist_ok=exist_ok)
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:

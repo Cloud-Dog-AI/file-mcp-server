@@ -10,18 +10,21 @@ from lxml import etree
 
 def xml_get(text: str, xpath: str) -> Optional[str]:
     tree = etree.fromstring(text.encode("utf-8"))
-    nodes = tree.xpath(xpath)
-    if not nodes:
-        return None
-    node = nodes[0]
-    if isinstance(node, etree._Element):
-        return etree.tostring(node, encoding="unicode")
-    return str(node)
+    result = tree.xpath(xpath)
+    if isinstance(result, list):
+        if not result:
+            return None
+        node = result[0]
+        if isinstance(node, etree._Element):
+            return etree.tostring(node, encoding="unicode")
+        return str(node)
+    return str(result)
 
 
 def xml_set(text: str, xpath: str, value: str) -> str:
     tree = etree.fromstring(text.encode("utf-8"))
-    nodes = tree.xpath(xpath)
+    result = tree.xpath(xpath)
+    nodes = result if isinstance(result, list) else []
     if not nodes:
         raise ValueError("XPath did not match any node")
     for node in nodes:
@@ -32,7 +35,8 @@ def xml_set(text: str, xpath: str, value: str) -> str:
 
 def xml_delete(text: str, xpath: str) -> str:
     tree = etree.fromstring(text.encode("utf-8"))
-    nodes = tree.xpath(xpath)
+    result = tree.xpath(xpath)
+    nodes = result if isinstance(result, list) else []
     for node in nodes:
         if isinstance(node, etree._Element):
             parent = node.getparent()

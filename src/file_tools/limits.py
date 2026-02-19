@@ -48,7 +48,9 @@ def enforce_timeout(timeout_s: Optional[int]) -> Iterator[None]:
         yield
         return
 
-    def _handle_timeout(signum: int, frame: object) -> None:  # pragma: no cover - signal handler
+    def _handle_timeout(
+        signum: int, frame: object
+    ) -> None:  # pragma: no cover - signal handler
         raise TimeoutError("Operation timed out")
 
     previous = signal.signal(signal.SIGALRM, _handle_timeout)

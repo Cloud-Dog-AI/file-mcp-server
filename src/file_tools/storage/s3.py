@@ -9,10 +9,8 @@ from __future__ import annotations
 import hashlib
 import hmac
 import posixpath
-from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
-from urllib.parse import quote, urlencode, urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import requests
 from xml.etree import ElementTree as ET
@@ -48,7 +46,9 @@ def _hmac(key: bytes, msg: str) -> bytes:
     return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
-def _aws_v4_signing_key(secret_key: str, date_yyyymmdd: str, region: str, service: str) -> bytes:
+def _aws_v4_signing_key(
+    secret_key: str, date_yyyymmdd: str, region: str, service: str
+) -> bytes:
     k_date = _hmac(("AWS4" + secret_key).encode("utf-8"), date_yyyymmdd)
     k_region = _hmac(k_date, region)
     k_service = _hmac(k_region, service)
@@ -58,12 +58,16 @@ def _aws_v4_signing_key(secret_key: str, date_yyyymmdd: str, region: str, servic
 
 def _canonical_query(params: dict[str, str]) -> str:
     # AWS expects sorted, URL-encoded parameters.
-    items = sorted((quote(k, safe="-_.~"), quote(v, safe="-_.~")) for k, v in params.items())
+    items = sorted(
+        (quote(k, safe="-_.~"), quote(v, safe="-_.~")) for k, v in params.items()
+    )
     return "&".join(f"{k}={v}" for k, v in items)
 
 
 def _canonical_headers(headers: dict[str, str]) -> tuple[str, str]:
-    normalized = {k.strip().lower(): " ".join(v.strip().split()) for k, v in headers.items()}
+    normalized = {
+        k.strip().lower(): " ".join(v.strip().split()) for k, v in headers.items()
+    }
     keys = sorted(normalized.keys())
     canon = "".join(f"{k}:{normalized[k]}\n" for k in keys)
     signed = ";".join(keys)
@@ -155,8 +159,12 @@ class S3Storage(StorageBackend):
             f"{credential_scope}\n"
             f"{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
         )
-        signing_key = _aws_v4_signing_key(self._secret_key, date_stamp, self._region, "s3")
-        signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+        signing_key = _aws_v4_signing_key(
+            self._secret_key, date_stamp, self._region, "s3"
+        )
+        signature = hmac.new(
+            signing_key, string_to_sign.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
         authorization = (
             f"{algorithm} "
             f"Credential={self._access_key}/{credential_scope}, "
@@ -177,7 +185,9 @@ class S3Storage(StorageBackend):
         headers: dict[str, str] | None = None,
         data: bytes = b"",
     ) -> requests.Response:
-        signed = self._sign_request(method=method, url=url, params=params, headers=headers, payload=data)
+        signed = self._sign_request(
+            method=method, url=url, params=params, headers=headers, payload=data
+        )
         return requests.request(
             method,
             url,
@@ -249,7 +259,6 @@ class S3Storage(StorageBackend):
         root = ET.fromstring(resp.content)
 
         entries: list[StorageEntry] = []
-        ns = {"s3": root.tag.split('}')[0].strip('{')} if "}" in root.tag else {}
         # CommonPrefixes for dirs.
         for cp in root.findall(".//{*}CommonPrefixes/{*}Prefix"):
             pfx = cp.text or ""
@@ -291,7 +300,9 @@ class S3Storage(StorageBackend):
         self.copy_path(src, dst, overwrite=overwrite)
         self.delete_path(src, missing_ok=False)
 
-    def create_dir(self, path: str, *, parents: bool = True, exist_ok: bool = True) -> None:
+    def create_dir(
+        self, path: str, *, parents: bool = True, exist_ok: bool = True
+    ) -> None:
         # Directory semantics don't apply to S3; treat as not supported.
         raise NotSupportedError("create_dir", backend=self.backend_name)
 
