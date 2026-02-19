@@ -23,15 +23,27 @@ def _clean_posix(path: str) -> str:
     return norm
 
 
-def _to_bool(value: str | None) -> bool:
+def _to_bool(value: object) -> bool:
     if value is None:
         return False
-    normalized = value.strip().lower()
-    return normalized in {"1", "true", "yes", "on"}
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized or "${" in normalized:
+            return False
+        return normalized in {"1", "true", "yes", "on"}
+    return False
 
 
-def _to_int(value: str | None, default: int) -> int:
-    if value is None or not str(value).strip():
+def _to_int(value: object, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if not str(value).strip() or "${" in str(value):
         return default
     try:
         return int(str(value).strip())
@@ -55,7 +67,7 @@ class FtpStorage(StorageBackend):
 
         insecure = _to_bool(storage.tls.insecure_skip_verify)
         self._ssl_context: ssl.SSLContext | None = None
-        self._timeout_s = _to_int(str(timeout_s) if timeout_s is not None else None, 30)
+        self._timeout_s = _to_int(timeout_s, 30)
         if self._use_tls:
             ctx = ssl.create_default_context()
             if insecure:

@@ -66,7 +66,7 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
     config_path = repo_root / "config.yaml"
     env_ctx = merged_remote_env(repo_root)
     env_path = tmp_path / "remote-storage.env"
-    write_env_file(env_path, file_mcp_env_values(env_ctx))
+    runtime_env = file_mcp_env_values(env_ctx)
 
     # Fail fast if core auth is not available (used by client transport).
     _require(env_ctx, "FILE_MCP_API_KEY_PRIMARY")
@@ -111,6 +111,8 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
 
     # Ensure local artefact dirs exist.
     Path("./working/remote-storage").mkdir(parents=True, exist_ok=True)
+    runtime_env.update(extra_env)
+    write_env_file(env_path, runtime_env)
 
     with running_server(
         repo_root,
@@ -118,8 +120,7 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
         config_path=config_path,
         env_path=env_path,
         pidfile=tmp_path / "remote-storage.pid",
-        extra_env=extra_env,
-    ) as process:
+    ):
         # Ensure the server is actually listening before client connect.
         # (The server is started as a subprocess and may take a moment to bind.)
         wait_for_health(f"http://127.0.0.1:{port}/health", timeout_s=15.0)

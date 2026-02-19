@@ -27,12 +27,12 @@ class AuthConfig(BaseModel):
 class HttpServerConfig(BaseModel):
     transport: Optional[str] = None
     host: Optional[str] = None
-    port: Optional[str] = None
+    port: Optional[int | str] = None
     base_path: Optional[str] = None
     mcp_path: Optional[str] = None
     health_path: Optional[str] = None
     events_path: Optional[str] = None
-    stateless_http: Optional[str] = None
+    stateless_http: Optional[bool | str] = None
 
 
 class ScopeConfig(BaseModel):
@@ -90,7 +90,7 @@ class TlsConfig(BaseModel):
     - ca_bundle_path: optional CA bundle file path to trust.
     """
 
-    insecure_skip_verify: Optional[str] = None
+    insecure_skip_verify: Optional[bool | str] = None
     ca_bundle_path: Optional[str] = None
 
 
@@ -115,11 +115,11 @@ class WebDavStorageConfig(BaseModel):
 
 class FtpStorageConfig(BaseModel):
     host: Optional[str] = None
-    port: Optional[str] = None
+    port: Optional[int | str] = None
     username: Optional[str] = None
     password: Optional[str] = None
     base_dir: Optional[str] = None
-    use_tls: Optional[str] = None
+    use_tls: Optional[bool | str] = None
 
 
 class GoogleDriveStorageConfig(BaseModel):

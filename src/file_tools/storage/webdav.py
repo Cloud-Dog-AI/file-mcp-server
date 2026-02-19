@@ -77,6 +77,19 @@ def _to_float(value: object, *, default: float) -> float:
     return default
 
 
+def _to_bool(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if not cleaned or "${" in cleaned:
+            return False
+        return cleaned in {"1", "true", "yes", "on"}
+    return False
+
+
 def _parse_retry_statuses(value: object) -> set[int]:
     if not isinstance(value, str):
         return set(_DEFAULT_MOVE_RETRY_STATUSES)
@@ -150,8 +163,8 @@ class WebDavStorage(StorageBackend):
             storage.webdav.username or "", storage.webdav.password or ""
         )
         self._verify: bool | str = True
-        insecure = (storage.tls.insecure_skip_verify or "").strip().lower()
-        if insecure in {"1", "true", "yes", "on"}:
+        insecure = _to_bool(storage.tls.insecure_skip_verify)
+        if insecure:
             self._verify = False
         elif storage.tls.ca_bundle_path:
             self._verify = storage.tls.ca_bundle_path

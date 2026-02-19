@@ -31,11 +31,17 @@ def _clean_posix(path: str) -> str:
     return norm
 
 
-def _to_bool(value: str | None) -> bool:
+def _to_bool(value: object) -> bool:
     if value is None:
         return False
-    normalized = value.strip().lower()
-    return normalized in {"1", "true", "yes", "on"}
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized or "${" in normalized:
+            return False
+        return normalized in {"1", "true", "yes", "on"}
+    return False
 
 
 def _sha256_hex(data: bytes) -> str:

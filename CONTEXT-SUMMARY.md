@@ -1,6 +1,6 @@
 # Context Summary
 
-Version: 1.16 • 2026-02-19
+Version: 1.17 • 2026-02-19
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
 ## 1) Current release-candidate scope
@@ -34,7 +34,7 @@ Implemented runtime behavior aligned to `RULES.md`:
 Changes:
 - `src/file_tools/config/adapter.py`
   - delegates precedence and compile pipeline to `cloud_dog_config`
-  - preserves legacy placeholder-path env overrides for compatibility with existing profiles
+  - uses `cloud_dog_config` public API only (no bespoke env overlay logic)
   - binds compiled output into existing `ServerConfig` / `ProfileConfig` domain models
 - `docker-entrypoint.sh`
   - removed implicit fallback env file behavior
@@ -57,7 +57,7 @@ Changes:
 ### 2.4 Config migration to cloud_dog_config (PS-80)
 - Replaced bespoke config loader internals with `src/file_tools/config/adapter.py` delegating to `cloud_dog_config`.
 - Kept `ServerConfig` and `ProfileConfig` as domain models and bound adapter output into them.
-- Preserved legacy placeholder-path env override semantics in adapter for compatibility with existing profile behaviour and tests.
+- Removed bespoke adapter env parsing/override logic; adapter is a thin bridge (platform load -> thaw -> model bind).
 
 ## 3) Live deployment state validated
 
@@ -84,11 +84,11 @@ Result:
 
 ### 4.2 Full suite run
 Command:
-- `source .venv/bin/activate && PYTHONPATH=src pytest -q -rs`
+- `source .venv/bin/activate && PYTHONPATH=src pytest tests/ -v --env private/env-accept-smoke`
 
 Result:
-- `178 passed, 18 skipped` in ~4m52s
-- additional skips are expected where live remote-backend credentials are unresolved Vault placeholders.
+- `181 passed, 15 skipped` in ~4m04s
+- skips remain expected for explicitly flag-gated live/docker/preprod paths.
 
 ### 4.3 Focused validation runs for modified areas
 - `tests/test_server_runtime.py`, `tests/test_google_drive_admin.py`, `tests/test_config_loader.py` pass with current changes.
