@@ -22,31 +22,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health
-
-
-def _parse_env_file(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        if key:
-            values[key] = value
-    return values
-
-
-def _merged_env() -> dict[str, str]:
-    merged: dict[str, str] = {}
-    for candidate in (Path("private/env-remote-storage"), Path("private/env-google-drive")):
-        if candidate.exists():
-            merged.update(_parse_env_file(candidate))
-    merged.update(dict(os.environ))
-    return merged
+from tests.remote_env_helpers import file_mcp_env_values, merged_remote_env, write_env_file
 
 
 def _require(env: Mapping[str, str], key: str) -> str:
@@ -82,21 +58,23 @@ def _backend_ready(backend: str, env: Mapping[str, str]) -> bool:
 def test_remote_backend_tool_matrix(backend: str, tmp_path: Path) -> None:
     if os.getenv("FILE_MCP_RUN_REMOTE_MATRIX_TESTS", "0") != "1":
         pytest.skip("Set FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 to run remote backend matrix tests")
-    env_ctx = _merged_env()
+    repo_root = Path.cwd()
+    env_ctx = merged_remote_env(repo_root, include_google=True)
     if not _backend_ready(backend, env_ctx):
         pytest.skip(f"Backend {backend} credentials not configured for matrix test")
 
     port = pick_free_port()
     run_id = uuid.uuid4().hex[:10]
-    repo_root = Path.cwd()
     defaults_path = repo_root / "defaults.yaml"
     config_path = repo_root / "config.yaml"
-    env_path = repo_root / "private" / "env-remote-storage"
-    if not env_path.exists():
-        raise RuntimeError(f"Missing required env file: {env_path}")
+    env_path = tmp_path / f"matrix-{backend}.env"
+    write_env_file(env_path, file_mcp_env_values(env_ctx))
 
     extra_env: dict[str, str] = {
         "FILE_MCP_HTTP_PORT": str(port),
+        "FILE_MCP_API_KEY_PRIMARY": _require(env_ctx, "FILE_MCP_API_KEY_PRIMARY"),
+        "FILE_MCP_AUTH_HEADER_NAME": _get(env_ctx, "FILE_MCP_AUTH_HEADER_NAME", "Authorization"),
+        "FILE_MCP_AUTH_HEADER_SCHEME": _get(env_ctx, "FILE_MCP_AUTH_HEADER_SCHEME", "Bearer"),
         "FILE_MCP_STORAGE_BACKEND": backend,
         "FILE_MCP_ROOT": "/",
         "FILE_MCP_AUDIT_LOG": f"./working/remote-storage/audit.matrix.{backend}.log.jsonl",

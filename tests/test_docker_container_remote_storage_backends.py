@@ -23,6 +23,8 @@ import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
+from tests.remote_env_helpers import merged_remote_env
+
 
 def _pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -70,24 +72,6 @@ def _docker_available() -> bool:
     return True
 
 
-def _parse_env_file(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        if key:
-            values[key] = value
-    return values
-
-
 def _require(env: Mapping[str, str], name: str) -> str:
     value = env.get(name, "").strip()
     if not value:
@@ -117,12 +101,7 @@ def docker_image() -> str:
 @pytest.mark.parametrize("backend", ["webdav", "ftp", "s3"])
 def test_container_remote_storage_backend_over_host_network(docker_image: str, tmp_path: Path, backend: str) -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    env_source = repo_root / "private" / "env-remote-storage"
-    if not env_source.exists():
-        raise RuntimeError(f"Missing required env file: {env_source}")
-
-    env_file_values = _parse_env_file(env_source)
-    env_ctx: dict[str, str] = {**env_file_values, **dict(os.environ)}
+    env_ctx = merged_remote_env(repo_root)
 
     # Validate required creds without hardcoding.
     _require(env_ctx, "FILE_MCP_API_KEY_PRIMARY")

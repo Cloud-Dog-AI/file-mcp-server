@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import uuid
 from pathlib import Path
 from typing import Mapping
@@ -10,31 +9,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health
-
-
-def _parse_env_file(path: Path) -> dict[str, str]:
-    """
-    Minimal KEY=VALUE env file parser.
-
-    We intentionally avoid external deps for this repo. Precedence rules are
-    enforced by merging this mapping under os.environ (os.environ wins).
-    """
-
-    values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        if key:
-            values[key] = value
-    return values
+from tests.remote_env_helpers import file_mcp_env_values, merged_remote_env, write_env_file
 
 
 def _require(env: Mapping[str, str], name: str) -> str:
@@ -89,14 +64,9 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
     repo_root = Path.cwd()
     defaults_path = repo_root / "defaults.yaml"
     config_path = repo_root / "config.yaml"
-    env_path = repo_root / "private" / "env-remote-storage"
-
-    if not env_path.exists():
-        raise RuntimeError(f"Missing required env file: {env_path}")
-
-    env_file_values = _parse_env_file(env_path)
-    # Config precedence: os.environ wins over env file.
-    env_ctx: dict[str, str] = {**env_file_values, **dict(os.environ)}
+    env_ctx = merged_remote_env(repo_root)
+    env_path = tmp_path / "remote-storage.env"
+    write_env_file(env_path, file_mcp_env_values(env_ctx))
 
     # Fail fast if core auth is not available (used by client transport).
     _require(env_ctx, "FILE_MCP_API_KEY_PRIMARY")
@@ -104,6 +74,9 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
     extra_env = _base_env(backend, env_ctx)
     # Ensure the subprocess server binds to the selected port.
     extra_env["FILE_MCP_HTTP_PORT"] = str(port)
+    extra_env["FILE_MCP_API_KEY_PRIMARY"] = _require(env_ctx, "FILE_MCP_API_KEY_PRIMARY")
+    extra_env["FILE_MCP_AUTH_HEADER_NAME"] = _get(env_ctx, "FILE_MCP_AUTH_HEADER_NAME", "Authorization")
+    extra_env["FILE_MCP_AUTH_HEADER_SCHEME"] = _get(env_ctx, "FILE_MCP_AUTH_HEADER_SCHEME", "Bearer")
 
     if backend == "webdav":
         extra_env.update(

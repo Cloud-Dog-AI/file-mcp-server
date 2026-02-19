@@ -13,19 +13,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health
-
-
-def parse_env_file(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
-    if not path.exists():
-        return out
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        out[key.strip()] = value.strip().strip('"').strip("'")
-    return out
+from tests.remote_env_helpers import file_mcp_env_values, merged_remote_env, write_env_file
 
 
 def get_google_env_from_container() -> dict[str, str]:
@@ -90,9 +78,13 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
     repo_root = Path.cwd()
     defaults_path = repo_root / "defaults.yaml"
     config_path = repo_root / "config.yaml"
-    env_path = repo_root / "private" / "env-remote-storage"
+    env_path = Path(tempfile.gettempdir()) / f"exhaustive-file-mcp-{backend}.env"
+    write_env_file(env_path, file_mcp_env_values(env_ctx))
     extra_env: dict[str, str] = {
         "FILE_MCP_HTTP_PORT": str(port),
+        "FILE_MCP_API_KEY_PRIMARY": env_ctx["FILE_MCP_API_KEY_PRIMARY"],
+        "FILE_MCP_AUTH_HEADER_NAME": env_ctx.get("FILE_MCP_AUTH_HEADER_NAME", "Authorization"),
+        "FILE_MCP_AUTH_HEADER_SCHEME": env_ctx.get("FILE_MCP_AUTH_HEADER_SCHEME", "Bearer"),
         "FILE_MCP_STORAGE_BACKEND": backend,
         "FILE_MCP_ROOT": scope_root,
         "FILE_MCP_AUDIT_LOG": f"./working/remote-storage/audit.exhaustive.{backend}.log.jsonl",
@@ -275,11 +267,9 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
 
 
 async def main() -> None:
-    env_ctx: dict[str, str] = {}
-    env_ctx.update(parse_env_file(Path("private/env-remote-storage")))
-    env_ctx.update(parse_env_file(Path("private/env-google-drive")))
+    repo_root = Path.cwd()
+    env_ctx = merged_remote_env(repo_root, include_google=True)
     env_ctx.update(get_google_env_from_container())
-    env_ctx.update(os.environ)
 
     selected = (os.getenv("FILE_MCP_EXHAUSTIVE_BACKENDS", "") or "").strip()
     if selected:

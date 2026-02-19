@@ -35,7 +35,7 @@ Migrated `file-mcp-server` config loading from bespoke loader internals to `clou
 | `storage.ftp.password` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
 | `storage.google_drive.client_id` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
 | `storage.google_drive.client_secret` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
-| `private/env-remote-storage` credential vars | Vault expressions | Replaced hardcoded values with `${vault.dev.*}` references |
+| Remote credential env inputs | Vault expressions + external secrets env | Runtime tests now load base settings from `run/env.remote-storage.base` and secret values from `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` |
 
 **Vault expressions used:** 17 (`defaults.yaml`: 8, `config.yaml`: 9)  
 **Fallback env-<project>-secrets entries:** 9 (all populated)

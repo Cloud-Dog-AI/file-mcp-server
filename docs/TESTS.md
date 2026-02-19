@@ -64,7 +64,7 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 | 2026-02-08 | ST (FR1.18) | `PYTHONPATH=src pytest tests/test_system_validate_file_tool.py` | PASS | `validate_file` type inference + unsupported type path |
 | 2026-02-08 | IT (Harness) | `PYTHONPATH=src pytest tests/test_integration_config_matrix_harness_http.py tests/test_integration_story_multitype_crud_http.py tests/test_integration_iterative_cycle_guard_http.py` | PASS | `7 passed` |
 | 2026-02-10 | IT (Docker) | `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q` | PASS | `5 passed, 1 skipped` (bridge mode optional) |
-| 2026-02-10 | IT (Remote Storage) | `.venv/bin/python -m pytest -q tests/test_integration_remote_storage_backends_http.py -k remote -rs` | PASS | `3 passed` (WebDAV/FTP/S3 via `private/env-remote-storage`) |
+| 2026-02-10 | IT (Remote Storage) | `.venv/bin/python -m pytest -q tests/test_integration_remote_storage_backends_http.py -k remote -rs` | PASS | `3 passed` (WebDAV/FTP/S3 via `run/env.remote-storage.base` + external secrets env) |
 | 2026-02-10 | IT (Docker + Remote Storage) | `FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_remote_storage_backends.py -q -rs` | PASS | container host-network + WebDAV/FTP/S3 endpoints |
 | 2026-02-10 | IT (Docker Runtime) | `FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q -rs` | PASS | `5 passed, 1 skipped` |
 | 2026-02-10 | Full Suite | `PYTHONPATH=src .venv/bin/python -m pytest -q` | PASS | `140 passed, 7 skipped` (Docker-gated tests skipped by default) |
@@ -81,8 +81,8 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 - `IT1.10` (`tests/test_integration_story_multitype_crud_http.py`): single-session multi-tool story across upload/search/update/retrieve/delete with JSON/YAML/XML/HTML/Markdown/base64 and audit verification, including deterministic PDF-to-Markdown flow.
 - `IT1.11` (`tests/test_integration_config_matrix_harness_http.py`): config-variant harness for rotated API keys, custom auth header/scheme, scoped deny rules, limit settings, and audit correctness.
 - `IT1.12` (`tests/test_docker_container_runtime.py`): Dockerized runtime verification including host-network execution, layered env precedence (`FILE_MCP_ENV_PATH`), multi-folder allow/deny scope policy checks, and strict audit schema assertions for extended fields.
-- `IT1.13` (`tests/test_integration_remote_storage_backends_http.py`): real remote storage backend validation (WebDAV/FTP/S3), deterministic not-supported backend errors, and audit evidence generation using `private/env-remote-storage`.
-- `IT1.14` (`tests/test_docker_container_remote_storage_backends.py`): containerized remote storage backend validation over host networking for WebDAV/FTP/S3 using `private/env-remote-storage`.
+- `IT1.13` (`tests/test_integration_remote_storage_backends_http.py`): real remote storage backend validation (WebDAV/FTP/S3), deterministic not-supported backend errors, and audit evidence generation using `run/env.remote-storage.base` plus external secrets env.
+- `IT1.14` (`tests/test_docker_container_remote_storage_backends.py`): containerized remote storage backend validation over host networking for WebDAV/FTP/S3 using merged base + external secrets env.
 - `UT1.28` (`tests/test_endpoint_health.py`): startup probe classification, retry/failure state, and delayed recovery behavior for endpoint health manager.
 - `UT1.29` (`tests/test_google_drive_storage.py`): Google Drive folder-id extraction and required OAuth/target configuration validation.
 - `UT1.30` (`tests/test_google_drive_oauth_helper.py`): OAuth helper auth URL generation plus optional live code exchange.
@@ -157,8 +157,10 @@ Folder names must match test IDs and map to entries in this document.
 
 ### Remote Storage Backend Test Env (IT1.13)
 
-The real-backend remote storage integration test requires credentials and endpoints in an env file that is ignored by git:
-- Env file: `private/env-remote-storage`
+Remote backend tests build a temporary runtime env file by loading in this order before `os.environ` overrides:
+- Base env file: `run/env.remote-storage.base` (override with `FILE_MCP_REMOTE_BASE_ENV_PATH`)
+- Secrets env file: `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` (override with `FILE_MCP_REMOTE_SECRETS_ENV_PATH`)
+- Optional Google overlay: `private/env-google-drive`
 - Test: `tests/test_integration_remote_storage_backends_http.py`
 
 Required variables (names only; values are secrets and must not be committed):
