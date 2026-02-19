@@ -26,7 +26,7 @@ Migrated `file-mcp-server` config loading from bespoke loader internals to `clou
 
 | Setting | Source | Notes |
 |---------|--------|-------|
-| `auth.api_keys[0]` | Env fallback (primary) + Vault expression (secondary) | `${vault.dev.keys.api_key || FILE_MCP_API_KEY_PRIMARY}`; `dev.keys.api_key` is not present in `cloud_dog_ai/config`, so fallback env value is used. |
+| `auth.api_keys[0]` | Env-managed test setting | Uses `${FILE_MCP_API_KEY_PRIMARY}` (no Vault dependency for this non-production key). |
 | `storage.s3.access_key` | Vault expression + env fallback | Uses `${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY}` in `defaults.yaml` and `config.yaml` |
 | `storage.s3.secret_key` | Vault expression + env fallback | Uses `${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY}` in `defaults.yaml` and `config.yaml` |
 | `storage.webdav.username` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
@@ -37,7 +37,7 @@ Migrated `file-mcp-server` config loading from bespoke loader internals to `clou
 | `storage.google_drive.client_secret` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
 | Remote credential env inputs | Vault expressions + external secrets env | Runtime tests now load base settings from `run/env.remote-storage.base` and secret values from `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` |
 
-**Vault expressions used:** 17 (`defaults.yaml`: 8, `config.yaml`: 9)  
+**Vault expressions used:** 16 (`defaults.yaml`: 8, `config.yaml`: 8)  
 **Fallback env-<project>-secrets entries:** 9 (all populated)
 
 Fallback file created:
@@ -56,7 +56,7 @@ Entries populated:
 
 Vault verification result (presence-only, no secret values logged):
 - Vault endpoint reachable (`status 200`), `dev.storage.webdav.*`, `dev.storage.ftp.*`, `dev.storage.google_drive.*`, and `dev.storage.s3.access_key_id` / `dev.storage.s3.secret_access_key` are present in `cloud_dog_ai/config`.
-- `dev.keys.api_key` is not present in `cloud_dog_ai/config`; fallback file populates `FILE_MCP_API_KEY_PRIMARY` from `private/env-accept-smoke`.
+- API key is intentionally env-managed for current test/runtime usage (`FILE_MCP_API_KEY_PRIMARY`).
 
 ## 4. Test Changes
 
