@@ -26,9 +26,9 @@ Migrated `file-mcp-server` config loading from bespoke loader internals to `clou
 
 | Setting | Source | Notes |
 |---------|--------|-------|
-| `auth.api_keys[0]` | Vault expression + env fallback | `${vault.dev.keys.api_key || FILE_MCP_API_KEY_PRIMARY}` |
-| `storage.s3.access_key` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
-| `storage.s3.secret_key` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
+| `auth.api_keys[0]` | Env fallback (primary) + Vault expression (secondary) | `${vault.dev.keys.api_key || FILE_MCP_API_KEY_PRIMARY}`; `dev.keys.api_key` is not present in `cloud_dog_ai/config`, so fallback env value is used. |
+| `storage.s3.access_key` | Vault expression + env fallback | Uses `${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY}` in `defaults.yaml` and `config.yaml` |
+| `storage.s3.secret_key` | Vault expression + env fallback | Uses `${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY}` in `defaults.yaml` and `config.yaml` |
 | `storage.webdav.username` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
 | `storage.webdav.password` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
 | `storage.ftp.username` | Vault expression + env fallback | In `defaults.yaml` and `config.yaml` |
@@ -38,12 +38,12 @@ Migrated `file-mcp-server` config loading from bespoke loader internals to `clou
 | `private/env-remote-storage` credential vars | Vault expressions | Replaced hardcoded values with `${vault.dev.*}` references |
 
 **Vault expressions used:** 17 (`defaults.yaml`: 8, `config.yaml`: 9)  
-**Fallback env-<project>-secrets entries:** 9
+**Fallback env-<project>-secrets entries:** 9 (all populated)
 
 Fallback file created:
 - `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets`
 
-Entries added (all with `# NOT IN VAULT:` comments):
+Entries populated:
 - `FILE_MCP_API_KEY_PRIMARY`
 - `FILE_MCP_S3_ACCESS_KEY`
 - `FILE_MCP_S3_SECRET_KEY`
@@ -55,7 +55,8 @@ Entries added (all with `# NOT IN VAULT:` comments):
 - `FILE_MCP_GDRIVE_CLIENT_SECRET`
 
 Vault verification result (presence-only, no secret values logged):
-- Vault endpoint reachable (`status 200`), required keys not present at current path (`False` for all required entries).
+- Vault endpoint reachable (`status 200`), `dev.storage.webdav.*`, `dev.storage.ftp.*`, `dev.storage.google_drive.*`, and `dev.storage.s3.access_key_id` / `dev.storage.s3.secret_access_key` are present in `cloud_dog_ai/config`.
+- `dev.keys.api_key` is not present in `cloud_dog_ai/config`; fallback file populates `FILE_MCP_API_KEY_PRIMARY` from `private/env-accept-smoke`.
 
 ## 4. Test Changes
 
@@ -92,7 +93,7 @@ Vault verification result (presence-only, no secret values logged):
 | QG-C3 | PASS | `grep -c "vault\." defaults.yaml config.yaml` -> `defaults.yaml:8`, `config.yaml:9` |
 | QG-C4 | PASS | Env-override precedence validated by UT (`test_load_config_env_override_precedence`) |
 | QG-C5 | PASS | `mypy src/file_tools/config/models.py` -> no issues |
-| QG-C6 | PASS | Fallback file exists and each entry includes `# NOT IN VAULT:` rationale comment |
+| QG-C6 | PASS | Fallback file exists, all required entries are populated, and comments document source/mapping where Vault key naming differs. |
 
 ## 6. Issues & Blockers
 
@@ -100,7 +101,7 @@ Vault verification result (presence-only, no secret values logged):
 |----|----------|-------------|------------|--------|
 | I-1 | Non-blocking | `cloud_dog_config` not installed in this repo `.venv`; editable install path blocked in offline mode (`hatchling` dependency). | Adapter includes fallback import path to sibling platform package source. | Resolved |
 | I-2 | Non-blocking | Socket-bound regression tests failed in sandboxed execution. | Re-ran required integration/system suites with elevated permissions; tests passed. | Resolved |
-| I-3 | Non-blocking | Required Vault keys absent from active Vault config path. | Created fallback file `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` with annotated missing entries. | Resolved |
+| I-3 | Non-blocking | Initial Vault key mapping used outdated S3 names (`access_key`/`secret_key`) and incorrectly reported several keys as absent. | Corrected mappings to `access_key_id`/`secret_access_key`, re-verified Vault paths, and populated `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` with resolved values. | Resolved |
 | I-4 | Non-blocking | `cloud_dog_config` default env selection did not match legacy placeholder-path override semantics. | Implemented adapter compatibility layer to preserve behaviour. | Resolved |
 | I-5 | Non-blocking | Live remote backend IT failed when env carried unresolved Vault placeholders. | Updated live IT helper to skip cleanly when placeholders remain unresolved. | Resolved |
 

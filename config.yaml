@@ -17,8 +17,8 @@ profiles:
         endpoint: "${FILE_MCP_S3_ENDPOINT}"
         bucket: "${FILE_MCP_S3_BUCKET}"
         region: "${FILE_MCP_S3_REGION}"
-        access_key: "${vault.dev.storage.s3.access_key || FILE_MCP_S3_ACCESS_KEY}"
-        secret_key: "${vault.dev.storage.s3.secret_key || FILE_MCP_S3_SECRET_KEY}"
+        access_key: "${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY}"
+        secret_key: "${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY}"
         prefix: "${FILE_MCP_S3_PREFIX}"
       webdav:
         base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
