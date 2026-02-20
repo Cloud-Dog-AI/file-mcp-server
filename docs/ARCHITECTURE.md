@@ -33,6 +33,8 @@ Out of scope:
 
 ### 2.3 Key Modules
 - `src/file_mcp_server/server.py`: FastMCP transport wiring, middleware, tool registration, file-level handlers.
+- `src/file_mcp_server/server.py`: compatibility export layer (thin module, migration-safe import surface).
+- `src/file_mcp_server/server_runtime.py`: FastMCP transport wiring, middleware, tool registration, file-level handlers.
 - `src/file_mcp_server/main.py`: CLI commands (`serve`, `start`, `stop`, `status`).
 - `src/file_mcp_server/lifecycle.py`: pidfile and lifecycle primitives.
 - `src/file_mcp_server/endpoint_health.py`: endpoint probe/retry/recovery manager.
@@ -75,6 +77,8 @@ Configured by `http.transport`:
 
 Health endpoint:
 - `GET http.health_path` (default `/health`)
+- `GET /ready`
+- `GET /live`
 - Admin endpoints (when enabled):
   - `GET /admin/google-drive`
   - `POST /admin/google-drive/start`

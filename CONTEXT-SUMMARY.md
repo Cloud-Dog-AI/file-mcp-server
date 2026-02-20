@@ -1,6 +1,6 @@
 # Context Summary
 
-Version: 1.19 • 2026-02-20
+Version: 1.20 • 2026-02-20
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
 ## 1) Current release-candidate scope
@@ -73,6 +73,19 @@ Changes:
 - Deleted `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` to prevent accidental reuse.
 - Updated `docs/TESTS.md` to match this runtime behaviour.
 
+### 2.7 API Kit migration to cloud_dog_api_kit (PS-20)
+- Added `cloud_dog_api_kit` dependency and runtime integration points in transport layer.
+- Decomposed monolithic `src/file_mcp_server/server.py` into:
+  - thin compatibility export layer (`src/file_mcp_server/server.py`, <200 lines)
+  - runtime implementation module (`src/file_mcp_server/server_runtime.py`)
+- Added PS-20 endpoint contract behaviour:
+  - `/health` now includes `status`, `checks`, `version`
+  - added `/ready` and `/live` endpoints
+  - admin 4xx responses use envelope shape `{ok:false, errors:[...], meta:{correlation_id}}`
+  - removed query-string admin token acceptance; header-only `x-admin-token` remains
+- Added migration verification script:
+  - `migration/verify/verify-file-mcp-server-API-KIT.sh`
+
 ## 3) Live deployment state validated
 
 Validated on preprod endpoint:
@@ -124,6 +137,14 @@ Results:
 - smoke: `5 passed`
 - regression: `9 passed`
 - runtime checks: audit JSONL parseable with required fields; request-scoped tool logs include correlation IDs (`tool_entries=2`, `missing_correlation=0`); sensitive values redacted (`redaction_leaks=0`).
+
+### 4.6 API Kit migration gate set
+Command:
+- `bash migration/verify/verify-file-mcp-server-API-KIT.sh`
+
+Result:
+- `17 passed, 0 failed` (`ALL PASS`)
+- includes prerequisite checks (`CONFIG`, `LOGGING`), smoke/regression suites, and runtime endpoint gates for `/health`, `/ready`, `/live`, 4xx envelope shape, and query-token removal.
 
 ## 5) What is still intentionally gated (not silently ignored)
 

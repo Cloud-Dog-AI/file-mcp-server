@@ -99,6 +99,7 @@ System shall support simple server start/stop/status routines suitable for local
 ### FR1.2: Transport Support
 - The server SHALL support STDIO transport for MCP harnesses.
 - The server SHOULD support HTTP transport where configured.
+- API transport plumbing SHALL integrate `cloud_dog_api_kit` (PS-20) contracts for health/readiness/liveness and error envelope standards.
 
 ### FR1.3: Configuration Precedence & Zero Hardcoding
 - Configuration SHALL load via precedence: `os.environ` → env file → `config.yaml` → `defaults.yaml`.
@@ -207,6 +208,7 @@ System shall support simple server start/stop/status routines suitable for local
 
 ### FR1.23: Health & Readiness
 - The server SHOULD expose a health/readiness check (transport-appropriate) that reports status without disclosing secrets.
+- Health endpoints SHALL include `/health`, `/ready`, and `/live` responses aligned to PS-20.
 
 ### FR1.24: Tool Reuse Outside Server
 - The `file_tools` library SHALL have no dependency on MCP server transport.
