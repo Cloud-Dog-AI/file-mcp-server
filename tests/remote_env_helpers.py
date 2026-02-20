@@ -6,8 +6,8 @@ from typing import Mapping
 
 # Base runtime env (non-secret defaults) tracked in repo.
 _DEFAULT_BASE_ENV = Path("run/env.remote-storage.base")
-# External secret file generated during migration; not tracked in repo.
-_DEFAULT_SECRETS_ENV = Path("/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets")
+# Remote credential env source is now repo-local and Vault-expression based.
+_DEFAULT_SECRETS_ENV = Path("private/env-remote-storage")
 _DEFAULT_GOOGLE_ENV = Path("private/env-google-drive")
 
 

@@ -159,7 +159,7 @@ Folder names must match test IDs and map to entries in this document.
 
 Remote backend tests build a temporary runtime env file by loading in this order before `os.environ` overrides:
 - Base env file: `run/env.remote-storage.base` (override with `FILE_MCP_REMOTE_BASE_ENV_PATH`)
-- Secrets env file: `/opt/iac/Development/cloud-dog-ai/env-file-mcp-server-secrets` (override with `FILE_MCP_REMOTE_SECRETS_ENV_PATH`)
+- Remote credential env file: `private/env-remote-storage` (override with `FILE_MCP_REMOTE_SECRETS_ENV_PATH`)
 - Optional Google overlay: `private/env-google-drive`
 - Test: `tests/test_integration_remote_storage_backends_http.py`
 
