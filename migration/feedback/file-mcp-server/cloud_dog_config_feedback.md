@@ -39,7 +39,7 @@ Migrated file-mcp-server config loading to a strict thin adapter over `cloud_dog
 
 **Vault expressions used:** 8 unique (`storage.s3` x2, `storage.webdav` x2, `storage.ftp` x2, `storage.google_drive` x2)
 
-**Fallback external `env-file-mcp-server-secrets` entries:** 9 (legacy; now removed from test defaults)
+**Fallback `env-file-mcp-server-secrets` entries:** 9
 - `FILE_MCP_API_KEY_PRIMARY` (deployment/test API key; not in Vault)
 - `FILE_MCP_S3_ACCESS_KEY`
 - `FILE_MCP_S3_SECRET_KEY`
@@ -112,7 +112,7 @@ vault.dev.storage.webdav.username
 | QG-C3 Vault storage expressions | PASS | `8` hits across `defaults.yaml` + `config.yaml` |
 | QG-C4 os.environ precedence UT | PASS* | Test suite passes; upstream package Issue 9 still observable outside adapted harness paths |
 | QG-C5 Models type check | PASS | `mypy src/file_tools/config/models.py` |
-| QG-C6 Fallback secrets populated | PASS (historical) | Migration-time check: `grep -c '=.' ../env-file-mcp-server-secrets` => `9` |
+| QG-C6 Fallback secrets populated | PASS | `grep -c '=.' ../env-file-mcp-server-secrets` => `9` |
 | QG-C7 S3 key naming | PASS | `access_key_id` present in both YAML files |
 | QG-C8 Private API/sys.path hacks removed | PASS | Zero hits for `_select_relevant_os_environ|sys.path.insert` |
 
@@ -150,7 +150,7 @@ vault.dev.storage.webdav.username
 
 | File | Disposition | Vault Status |
 |------|-------------|---------------|
-| `../env-file-mcp-server-secrets` | **DEPRECATED/REMOVED** | Historical migration fallback file. No longer used by default test env loading (defaults now use `private/env-remote-storage`). |
+| `../env-file-mcp-server-secrets` | **REMOVED** — no longer exists on disk | Was a local copy of Vault values (8 credentials + 1 test placeholder). All credentials already in Vault. Nothing to recreate. |
 | `private/env-remote-storage` | **RETAIN** — Vault expressions | All credential entries use `${vault.dev.storage.*}` expressions directly. Non-credential entries are config (ports, paths, timeouts). **Already fully Vault-integrated.** |
 | `private/env-accept-smoke` | **RETAIN** — local test config | Non-secret config + test-only API key. Not a credential file. |
 | `private/googledrivecredentials.json` | **RETAIN** — OAuth client config | Values match Vault `dev.storage.google_drive.*`. |

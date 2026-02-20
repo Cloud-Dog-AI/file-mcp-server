@@ -101,7 +101,7 @@ from file_tools.limits import LimitError, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
 from starlette.middleware import Middleware
 
-from .auth import MultiProfileApiKeyTokenVerifier, get_request_profile_name
+from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
 from .google_drive_admin import (
     begin_oauth,
@@ -3318,6 +3318,7 @@ def build_fastmcp_server(
             for name, profile in config.profiles.items()
         },
         default_profile=default_profile_name,
+        logger=logger,
     )
 
     server = FastMCP(

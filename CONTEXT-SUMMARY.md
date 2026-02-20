@@ -1,6 +1,6 @@
 # Context Summary
 
-Version: 1.20 • 2026-02-20
+Version: 1.21 • 2026-02-20
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
 ## 1) Current release-candidate scope
@@ -86,6 +86,20 @@ Changes:
 - Added migration verification script:
   - `migration/verify/verify-file-mcp-server-API-KIT.sh`
 
+### 2.8 IDAM migration to cloud_dog_idam (PS-70)
+- Added `cloud_dog_idam` dependency and introduced `src/file_mcp_server/idam_adapter.py` as the runtime auth bridge.
+- Replaced bespoke runtime auth wiring in `src/file_mcp_server/server_runtime.py`:
+  - runtime now imports `MultiProfileApiKeyTokenVerifier` from `idam_adapter`
+  - no runtime imports from `file_mcp_server.auth`
+- Replaced `src/file_mcp_server/auth.py` module body with compatibility re-exports only (no bespoke auth logic retained).
+- Implemented profile-aware IDAM API-key verification with FastMCP middleware bridging:
+  - per-profile key routing and header/scheme handling preserved
+  - request profile context propagation preserved (`get_request_profile_name`)
+  - profile scope mapped into IDAM RBAC permissions (`profile:<name>`)
+- Added auth decision audit emission with fingerprint-only token identity (no raw API key logging).
+- Added migration verification script:
+  - `migration/verify/verify-file-mcp-server-IDAM.sh`
+
 ## 3) Live deployment state validated
 
 Validated on preprod endpoint:
@@ -145,6 +159,18 @@ Command:
 Result:
 - `17 passed, 0 failed` (`ALL PASS`)
 - includes prerequisite checks (`CONFIG`, `LOGGING`), smoke/regression suites, and runtime endpoint gates for `/health`, `/ready`, `/live`, 4xx envelope shape, and query-token removal.
+
+### 4.7 IDAM migration gate set
+Command:
+- `bash migration/verify/verify-file-mcp-server-IDAM.sh`
+
+Result:
+- `15 passed, 0 failed` (`ALL PASS`)
+- includes prerequisite checks (`CONFIG`, `LOGGING`, `API-KIT`), lint/format/type gates, smoke/regression suites, no-runtime-import gate for legacy auth module, and IDAM-specific gates:
+  - unauthenticated protected request rejection
+  - low-privilege out-of-scope profile rejection
+  - query-string token path regression check
+  - fingerprint-only auth audit evidence (no raw API key values)
 
 ## 5) What is still intentionally gated (not silently ignored)
 

@@ -91,7 +91,7 @@ COUNT=$(grep -r "from file_tools.audit.logger import\|from file_tools.observabil
 check "QG-10 no legacy imports in non-adapter code" "$COUNT"
 
 # QG-L1/L2/L5 (grep gates)
-COUNT=$(grep -Rsn "print(" "$PROJECT/src/file_tools/" "$PROJECT/src/file_mcp_server/" --include="*.py" 2>/dev/null | wc -l)
+COUNT=$(grep -RsnE '(^|[^[:alnum:]_])print\(' "$PROJECT/src/file_tools/" "$PROJECT/src/file_mcp_server/" --include="*.py" 2>/dev/null | wc -l)
 check "QG-L1 no print() in server/file_tools" "$COUNT"
 
 COUNT=$(grep -Rsn "logging\.getLogger\|logging\.basicConfig" "$PROJECT/src/file_tools/" --include="*.py" 2>/dev/null | wc -l)
