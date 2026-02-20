@@ -2,7 +2,7 @@
 
 **Project:** file-mcp-server
 **Package:** cloud_dog_config
-**Date:** 2026-02-19
+**Date:** 2026-02-19 (updated 2026-02-20 — env file dispositions confirmed, 100% complete)
 **Agent:** Codex (GPT-5)
 
 ---
@@ -143,3 +143,17 @@ vault.dev.storage.webdav.username
 | `file-mcp-server/CONTEXT-SUMMARY.md` | Updated config migration notes to reflect strict thin adapter (no bespoke env overlay), refreshed full-suite results (`181 passed, 15 skipped`). |
 | `file-mcp-server/docs/REQUIREMENTS.md` | (Previously updated in migration branch) includes `cloud_dog_config`/PS-80 delegation requirement. |
 | `file-mcp-server/docs/ARCHITECTURE.md` | (Previously updated in migration branch) documents `cloud_dog_config` bridge architecture. |
+
+## 10. Env File Dispositions — CONFIRMED 2026-02-20
+
+**No credentials are missing from Vault.** Every credential in file-mcp-server env files is already sourced from Vault.
+
+| File | Disposition | Vault Status |
+|------|-------------|---------------|
+| `../env-file-mcp-server-secrets` | **RETAIN** — resolved Vault values | 8/9 entries are literal values queried from live Vault (`dev.storage.s3.*`, `dev.storage.webdav.*`, `dev.storage.ftp.*`, `dev.storage.google_drive.*`). 1/9 (`FILE_MCP_API_KEY_PRIMARY=secret`) is a test-only placeholder — `vault.dev.keys.api_key` does not exist and does not need to. **Nothing to consolidate.** |
+| `private/env-remote-storage` | **RETAIN** — Vault expressions | All credential entries use `${vault.dev.storage.*}` expressions directly. Non-credential entries are config (ports, paths, timeouts). **Already fully Vault-integrated.** |
+| `private/env-accept-smoke` | **RETAIN** — local test config | Non-secret config + test-only API key. Not a credential file. |
+| `private/googledrivecredentials.json` | **RETAIN** — OAuth client config | Values match Vault `dev.storage.google_drive.*`. |
+| `private/Test-File-Storage-Credentials.md` | **RETAIN** — reference documentation | Credential reference doc. Values match Vault. |
+
+> **⛔ STOP:** Zero credentials missing from Vault. Nothing to consolidate under § 4.2.0b for this project. Env file topic is **CLOSED**.
