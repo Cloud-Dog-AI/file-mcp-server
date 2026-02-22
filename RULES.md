@@ -86,6 +86,30 @@
    - Update `docs/TESTS.md` when tests are executed
    - **NEVER** claim success with failures
 
+### ABSOLUTE TEST INTEGRITY — ZERO TOLERANCE
+
+**ST, IT, and AT tests MUST execute against REAL systems. No exceptions.**
+
+**NEVER:**
+- **STUB** responses, backends, or service calls in ST/IT/AT tests
+- **MOCK** real systems (file systems, APIs, MCP endpoints, validators) in ST/IT/AT tests
+- **FAKE** success by returning hard-coded or synthetic data
+- **FUDGE** test assertions to match stub output instead of real behaviour
+- **HACK** around failures by replacing real calls with in-process fakes
+- **LIE** about test results — if it did not hit a real system, it did not pass
+- **SKIP** validation steps to claim completion
+
+**A test that uses stubs, mocks, or fake data in ST/IT/AT tiers is not a test — it is a lie.** It MUST be removed or rewritten to use real systems.
+
+- UT (unit) tests MAY use mocks/stubs and temp directories for isolated logic testing only
+- ST (system) tests MUST use real file operations and verify real output
+- IT (integration) tests MUST use real running servers and real API calls
+- AT (application) tests MUST exercise full end-to-end workflows against real systems
+
+**Verification standard:** A passing ST/IT/AT test MUST prove it touched a real system by asserting on real data content — not just `ok: True` or `status_code == 200`.
+
+**If a real system is unavailable, the test MUST fail explicitly — not pass with fake data.**
+
 ---
 
 ## MUST NOT DO (ABSOLUTE PROHIBITIONS)
