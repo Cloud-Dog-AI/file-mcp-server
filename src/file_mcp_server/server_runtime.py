@@ -32,6 +32,7 @@ import re
 import yaml
 from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_api_kit.correlation.context import (  # type: ignore[import-not-found,import-untyped]
     get_correlation_id as get_api_kit_correlation_id,
     set_correlation_id as set_api_kit_correlation_id,
@@ -3318,6 +3319,7 @@ def build_fastmcp_server(
             for name, profile in config.profiles.items()
         },
         default_profile=default_profile_name,
+        audit_emitter=AuditEmitter(),
         logger=logger,
     )
 

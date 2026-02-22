@@ -24,10 +24,10 @@ profiles:
         base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
         username: "${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME}"
         password: "${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD}"
-        move_retry_count: "${FILE_MCP_WEBDAV_MOVE_RETRY_COUNT}"
-        move_retry_backoff_s: "${FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S}"
-        move_probe_timeout_s: "${FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S}"
-        move_retry_statuses: "${FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES}"
+        move_retry_count: "3"
+        move_retry_backoff_s: "1.0"
+        move_probe_timeout_s: "5"
+        move_retry_statuses: "423,502,503,504"
       ftp:
         host: "${FILE_MCP_FTP_HOST}"
         port: "${FILE_MCP_FTP_PORT}"
@@ -36,15 +36,15 @@ profiles:
         base_dir: "${FILE_MCP_FTP_BASE_DIR}"
         use_tls: "${FILE_MCP_FTP_USE_TLS}"
       google_drive:
-        user_email: "${FILE_MCP_GDRIVE_USER_EMAIL}"
-        folder_id: "${FILE_MCP_GDRIVE_FOLDER_ID}"
-        folder_url: "${FILE_MCP_GDRIVE_FOLDER_URL}"
+        user_email: ""
+        folder_id: ""
+        folder_url: ""
         client_id: "${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID}"
         client_secret: "${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET}"
-        refresh_token: "${FILE_MCP_GDRIVE_REFRESH_TOKEN}"
-        access_token: "${FILE_MCP_GDRIVE_ACCESS_TOKEN}"
-        redirect_uri: "${FILE_MCP_GDRIVE_REDIRECT_URI}"
-        token_uri: "${FILE_MCP_GDRIVE_TOKEN_URI}"
+        refresh_token: ""
+        access_token: ""
+        redirect_uri: "urn:ietf:wg:oauth:2.0:oob"
+        token_uri: "https://oauth2.googleapis.com/token"
     scope:
       roots:
         - "${FILE_MCP_ROOT}"
@@ -81,18 +81,6 @@ profiles:
       search_timeout_s: ${FILE_MCP_SEARCH_TIMEOUT_S}
       storage_timeout_s: ${FILE_MCP_STORAGE_TIMEOUT_S}
       conversion_timeout_s: ${FILE_MCP_CONVERSION_TIMEOUT_S}
-    endpoint_health:
-      enabled: ${FILE_MCP_ENDPOINT_HEALTH_ENABLED}
-      check_on_startup: ${FILE_MCP_ENDPOINT_HEALTH_CHECK_ON_STARTUP}
-      check_all_configured_backends: ${FILE_MCP_ENDPOINT_HEALTH_CHECK_ALL}
-      max_retries: ${FILE_MCP_ENDPOINT_HEALTH_MAX_RETRIES}
-      retry_interval_s: ${FILE_MCP_ENDPOINT_HEALTH_RETRY_INTERVAL_S}
-      retry_window_s: ${FILE_MCP_ENDPOINT_HEALTH_RETRY_WINDOW_S}
-      max_failures_before_restart: ${FILE_MCP_ENDPOINT_HEALTH_MAX_FAILURES_BEFORE_RESTART}
-      recover_after_s: ${FILE_MCP_ENDPOINT_HEALTH_RECOVER_AFTER_S}
-      restart_on_threshold: ${FILE_MCP_ENDPOINT_HEALTH_RESTART_ON_THRESHOLD}
-      restart_exit_code: ${FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE}
-
 http:
   transport: "${FILE_MCP_HTTP_TRANSPORT}"
   host: "${FILE_MCP_HTTP_HOST}"

@@ -15,14 +15,37 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from textwrap import dedent
 
 
 def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:
     repo_root = Path.cwd()
     defaults_path = repo_root / "defaults.yaml"
-    config_path = repo_root / "config.yaml"
+    config_path = tmp_path / "config.restart-threshold.yaml"
     env_path = tmp_path / "env.restart-threshold"
     pidfile = tmp_path / "restart.pid"
+
+    config_path.write_text(
+        dedent(
+            """
+            profiles:
+              default:
+                endpoint_health:
+                  enabled: true
+                  check_on_startup: true
+                  check_all_configured_backends: false
+                  max_retries: 0
+                  retry_interval_s: 1
+                  retry_window_s: 60
+                  max_failures_before_restart: 1
+                  recover_after_s: 30
+                  restart_on_threshold: true
+                  restart_exit_code: 76
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
 
     env_path.write_text(
         "\n".join(
@@ -59,16 +82,6 @@ def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:
                 "FILE_MCP_FTP_PASSWORD=nobody",
                 "FILE_MCP_FTP_BASE_DIR=/",
                 "FILE_MCP_FTP_USE_TLS=false",
-                "FILE_MCP_ENDPOINT_HEALTH_ENABLED=true",
-                "FILE_MCP_ENDPOINT_HEALTH_CHECK_ON_STARTUP=true",
-                "FILE_MCP_ENDPOINT_HEALTH_CHECK_ALL=false",
-                "FILE_MCP_ENDPOINT_HEALTH_MAX_RETRIES=0",
-                "FILE_MCP_ENDPOINT_HEALTH_RETRY_INTERVAL_S=1",
-                "FILE_MCP_ENDPOINT_HEALTH_RETRY_WINDOW_S=60",
-                "FILE_MCP_ENDPOINT_HEALTH_MAX_FAILURES_BEFORE_RESTART=1",
-                "FILE_MCP_ENDPOINT_HEALTH_RECOVER_AFTER_S=30",
-                "FILE_MCP_ENDPOINT_HEALTH_RESTART_ON_THRESHOLD=true",
-                "FILE_MCP_ENDPOINT_HEALTH_RESTART_EXIT_CODE=76",
             ]
         )
         + "\n",

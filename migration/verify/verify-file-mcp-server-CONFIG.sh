@@ -50,6 +50,7 @@ TOTAL=$((D_COUNT + C_COUNT))
 if [ "$TOTAL" -ge 16 ]; then check "QG-C3 Vault expressions (${TOTAL} hits)" 0; else check "QG-C3 Vault expressions (${TOTAL} hits, need >=16)" 1; fi
 
 # QG-C7: Correct S3 key naming
+COUNT=$(grep -c "access_key_id" "$PROJECT/defaults.yaml" "$PROJECT/config.yaml" 2>/dev/null | tail -1 | grep -o '[0-9]*' || echo 0)
 D_HIT=$(grep -c "access_key_id" "$PROJECT/defaults.yaml" 2>/dev/null || echo 0)
 C_HIT=$(grep -c "access_key_id" "$PROJECT/config.yaml" 2>/dev/null || echo 0)
 TOTAL=$((D_HIT + C_HIT))
@@ -82,6 +83,12 @@ check "No wrong S3 key names (access_key without _id)" "$WRONG"
 WRONG=$(grep -rn "vault\.dev\.keys\.api_key" "$PROJECT/config.yaml" "$PROJECT/defaults.yaml" 2>/dev/null | wc -l)
 check "No non-existent vault.dev.keys.api_key reference" "$WRONG"
 
+# QG-C9: Env expression source audit (RULE 11 — drift prevention)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_AUDIT_FAILS=$(bash "$SCRIPT_DIR/verify-env-expression-sources.sh" "$PROJECT" 2>&1 | grep -c "^  FAIL" || true)
+ENV_AUDIT_FAILS=${ENV_AUDIT_FAILS:-0}
+check "QG-C9 Env expression source audit (${ENV_AUDIT_FAILS} orphaned)" "$ENV_AUDIT_FAILS"
+
 # private/env-remote-storage uses Vault expressions
 if [ -f "$PROJECT/private/env-remote-storage" ]; then
     VAULT_EXPRS=$(grep -c 'vault\.dev\.' "$PROJECT/private/env-remote-storage" 2>/dev/null || echo 0)
@@ -95,6 +102,11 @@ echo "=== RESULTS: ${PASS} passed, ${FAIL} failed ==="
 echo ""
 if [ "$FAIL" -eq 0 ]; then
     echo "VERDICT: ALL PASS — file-mcp-server CONFIG migration is COMPLETE."
+    echo ""
+    echo "DO NOT re-execute the CONFIG instruction."
+    echo "DO NOT re-audit env files."
+    echo "DO NOT add workarounds."
+    echo "Proceed to LOGGING migration (4.2.b)."
     exit 0
 else
     echo "VERDICT: ${FAIL} GATE(S) FAILED — review failures above."

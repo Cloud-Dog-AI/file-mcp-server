@@ -9,3 +9,11 @@ run/certs/
 run/env.handoff
 run/logs/
 working/
+src/sample-*.txt
+src/sample-*.txt.lock
+src/sample-*.txt.copy
+src/search-target-*.txt
+src/search-target-*.txt.lock
+.run/
+logs/
+*.pid

@@ -88,7 +88,11 @@ key_fingerprint = key_digest
 
 
 class ApiKeyAuth:
-    """Compatibility helper retained for tests and non-runtime usage."""
+    """Compatibility helper retained for tests and non-runtime usage.
+
+    TODO: Remove once tests stop importing `ApiKeyAuth` directly and switch to
+    IDAM provider assertions.
+    """
 
     def __init__(self, api_keys: Iterable[str]) -> None:
         self._keys: List[str] = [key for key in api_keys if key]

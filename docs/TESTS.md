@@ -28,6 +28,9 @@ Every requirement MUST map to at least one test. Tests MUST use real filesystem 
 
 | Date (UTC) | Scope | Command | Status | Notes |
 |------------|-------|---------|--------|-------|
+| 2026-02-20 | Full Suite (Compliance evidence with skip reasons) | `source .venv/bin/activate && PYTHONPATH=src:. pytest tests/ -q -rs --env private/env-accept-smoke` | PASS | `180 passed, 18 skipped, 0 failed` (all skips env-gated and explicitly reported) |
+| 2026-02-20 | Full Suite (Post completion corrective pass) | `source .venv/bin/activate && PYTHONPATH=src:. pytest tests/ -v --env private/env-accept-smoke` | PASS | `180 passed, 18 skipped, 0 failed` |
+| 2026-02-20 | Authoritative migration verify chain | `bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-CONFIG.sh && bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-LOGGING.sh && bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-API-KIT.sh && bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-IDAM.sh` | PASS | `CONFIG 14/14, LOGGING 12/12, API-KIT 17/17, IDAM 15/15` |
 | 2026-02-19 | Full Suite (Post cloud_dog_config migration hardening) | `source .venv/bin/activate && PYTHONPATH=src pytest tests/ -q -rs` | PASS | `178 passed, 18 skipped` |
 | 2026-02-19 | Config migration regression gate set | `source .venv/bin/activate && PYTHONPATH=src pytest tests/test_config_loader.py tests/test_integration_config_matrix_harness_http.py tests/test_integration_multi_profile_routing_http.py tests/test_system_limits.py tests/test_system_limits_timeout.py tests/test_application_preprod_profile_chain_http.py -v` | PASS | `12 passed, 1 skipped` |
 | 2026-02-12 | Full Suite (Release Candidate Validation) | `source .venv/bin/activate && PYTHONPATH=src pytest -q -rs` | PASS | `179 passed, 15 skipped` |
