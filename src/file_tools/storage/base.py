@@ -83,3 +83,11 @@ class StorageBackend:
             for entry in self.list_dir(root, recursive=True):
                 if not entry.is_dir:
                     yield entry.path
+
+
+def is_unresolved_placeholder(value: object) -> bool:
+    """Return True when a value still contains an unresolved ${...} placeholder."""
+    if not isinstance(value, str):
+        return False
+    cleaned = value.strip()
+    return cleaned.startswith("${") and cleaned.endswith("}")

@@ -86,9 +86,14 @@ class _CompatJsonlSink(AuditSink):
                 # Legacy compatibility fields retained during migration.
                 "tool": details.get("tool", ""),
                 "status": _to_legacy_status(str(payload.get("outcome", "error"))),
+                "outcome": details.get(
+                    "legacy_outcome",
+                    _to_legacy_status(str(payload.get("outcome", "error"))),
+                ),
                 "profile": details.get("profile"),
                 "session_id": details.get("session_id"),
                 "client_ip": details.get("client_ip"),
+                "duration_ms": payload.get("duration_ms"),
                 "params": details.get("params", {}),
                 "paths": details.get("paths", {}),
                 "details": legacy_details,

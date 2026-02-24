@@ -32,15 +32,15 @@ profiles:
         base_dir: "${FILE_MCP_FTP_BASE_DIR}"
         use_tls: "${FILE_MCP_FTP_USE_TLS}"
       google_drive:
-        user_email: ""
-        folder_id: ""
-        folder_url: ""
+        user_email: "${FILE_MCP_GDRIVE_USER_EMAIL}"
+        folder_id: "${FILE_MCP_GDRIVE_FOLDER_ID}"
+        folder_url: "${FILE_MCP_GDRIVE_FOLDER_URL}"
         client_id: "${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID}"
         client_secret: "${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET}"
-        refresh_token: ""
-        access_token: ""
-        redirect_uri: "urn:ietf:wg:oauth:2.0:oob"
-        token_uri: "https://oauth2.googleapis.com/token"
+        refresh_token: "${FILE_MCP_GDRIVE_REFRESH_TOKEN}"
+        access_token: "${FILE_MCP_GDRIVE_ACCESS_TOKEN}"
+        redirect_uri: "${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}"
+        token_uri: "${FILE_MCP_GDRIVE_TOKEN_URI:https://oauth2.googleapis.com/token}"
     scope:
       roots:
         - "${FILE_MCP_ROOT}"

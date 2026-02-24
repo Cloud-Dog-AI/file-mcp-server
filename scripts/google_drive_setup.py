@@ -9,15 +9,21 @@ Description: Prompts for Google account/folder, performs OAuth, validates access
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dataclasses import dataclass
+import json
+import os
 from pathlib import Path
 import secrets
 import sys
+import ssl
 import threading
 import time
-from typing import Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import parse_qs, urlparse
+import urllib.error
+import urllib.request
 
 import requests
 
@@ -36,8 +42,33 @@ from google_drive_oauth_helper import (
 )
 
 
+_DEFAULT_REMOTE_BASE_ENV = Path("run/env.remote-storage.base")
+_DEFAULT_REMOTE_ENV = Path("private/env-remote-storage")
+_DEFAULT_VAULT_CANDIDATES = (
+    Path("private/env-vault"),
+    Path("../env-vault"),
+    Path("../env-vault-admin"),
+    Path("../cloud-dog-ai-private/private/vault_read.env"),
+)
+
+
 def _clean(value: str | None) -> str:
     return (value or "").strip()
+
+
+def _coerce_scalar(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        if candidate.startswith("${") and candidate.endswith("}"):
+            return None
+        return candidate
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    return None
 
 
 def _ask(prompt: str, *, default: str = "", required: bool = False) -> str:
@@ -138,6 +169,193 @@ def _read_env(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         out[key.strip()] = value.strip()
     return out
+
+
+@contextmanager
+def _temporary_env(values: Mapping[str, str]) -> Any:
+    if not values:
+        yield
+        return
+    original = {key: os.environ.get(key) for key in values}
+    try:
+        for key, value in values.items():
+            os.environ[key] = value
+        yield
+    finally:
+        for key, value in original.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _discover_vault_env(repo_root: Path) -> dict[str, str]:
+    if _clean(os.getenv("VAULT_ADDR")) and _clean(os.getenv("VAULT_TOKEN")):
+        return {}
+
+    out: dict[str, str] = {}
+    for relative in _DEFAULT_VAULT_CANDIDATES:
+        candidate = (repo_root / relative).resolve()
+        if not candidate.exists():
+            continue
+        for key, value in _read_env(candidate).items():
+            if key.startswith("VAULT_") and _clean(value):
+                out[key] = _clean(value)
+        if _clean(out.get("VAULT_ADDR")) and _clean(out.get("VAULT_TOKEN")):
+            return out
+    return out
+
+
+def _load_google_defaults_from_credentials_file(repo_root: Path) -> dict[str, str]:
+    path = repo_root / "private/googledrivecredentials.json"
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+
+    section = payload.get("web")
+    if not isinstance(section, dict):
+        section = payload.get("installed")
+    if not isinstance(section, dict):
+        return {}
+
+    out: dict[str, str] = {}
+    mapping = {
+        "client_id": "FILE_MCP_GDRIVE_CLIENT_ID",
+        "client_secret": "FILE_MCP_GDRIVE_CLIENT_SECRET",
+        "token_uri": "FILE_MCP_GDRIVE_TOKEN_URI",
+    }
+    for source_key, env_key in mapping.items():
+        value = _coerce_scalar(section.get(source_key))
+        if value:
+            out[env_key] = value
+    redirect_uris = section.get("redirect_uris")
+    if isinstance(redirect_uris, list):
+        for item in redirect_uris:
+            value = _coerce_scalar(item)
+            if value:
+                out["FILE_MCP_GDRIVE_REDIRECT_URI"] = value
+                break
+    return out
+
+
+def _load_google_defaults_from_platform_config(repo_root: Path, env_path: Path) -> dict[str, str]:
+    try:
+        from cloud_dog_config import load_config as platform_load  # type: ignore[import-untyped]
+    except Exception:
+        return {}
+
+    env_files: list[str] = []
+    for candidate in (_DEFAULT_REMOTE_BASE_ENV, _DEFAULT_REMOTE_ENV):
+        path = repo_root / candidate
+        if path.exists():
+            env_files.append(str(path))
+    if env_path.exists():
+        env_files.append(str(env_path))
+
+    vault_env = _discover_vault_env(repo_root)
+    with _temporary_env(vault_env):
+        try:
+            config = platform_load(
+                env_files=env_files,
+                config_yaml=str(repo_root / "config.yaml"),
+                defaults_yaml=str(repo_root / "defaults.yaml"),
+                unresolved_policy="warn",
+                vault_enabled=True,
+            )
+        except Exception:
+            return {}
+
+    mapping = {
+        "profiles.default.storage.google_drive.client_id": "FILE_MCP_GDRIVE_CLIENT_ID",
+        "profiles.default.storage.google_drive.client_secret": "FILE_MCP_GDRIVE_CLIENT_SECRET",
+        "profiles.default.storage.google_drive.token_uri": "FILE_MCP_GDRIVE_TOKEN_URI",
+        "profiles.default.storage.google_drive.redirect_uri": "FILE_MCP_GDRIVE_REDIRECT_URI",
+    }
+    out: dict[str, str] = {}
+    for path, env_key in mapping.items():
+        value = _coerce_scalar(config.get(path))
+        if value:
+            out[env_key] = value
+    return out
+
+
+def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
+    vault_env = dict(_discover_vault_env(repo_root))
+    for key in ("VAULT_ADDR", "VAULT_TOKEN", "VAULT_MOUNT_POINT", "VAULT_CONFIG_PATH"):
+        if key not in vault_env and _clean(os.getenv(key)):
+            vault_env[key] = _clean(os.getenv(key))
+
+    addr = _clean(vault_env.get("VAULT_ADDR"))
+    token = _clean(vault_env.get("VAULT_TOKEN"))
+    mount_raw = _clean(vault_env.get("VAULT_MOUNT_POINT")).strip("/")
+    config_path = _clean(vault_env.get("VAULT_CONFIG_PATH")).strip("/")
+    if not (addr and token and mount_raw):
+        return {}
+
+    if config_path:
+        mount_name = mount_raw
+        secret_path = config_path
+    else:
+        parts = mount_raw.split("/", 1)
+        mount_name = parts[0]
+        secret_path = parts[1] if len(parts) == 2 else ""
+
+    url = f"{addr.rstrip('/')}/v1/{mount_name}/data/{secret_path}".rstrip("/")
+    req = urllib.request.Request(url, headers={"X-Vault-Token": token})
+    try:
+        with urllib.request.urlopen(req, context=ssl.create_default_context(), timeout=8) as response:
+            raw = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError):
+        return {}
+
+    data = raw.get("data", {}).get("data", {})
+    cfg = data.get("json", data)
+    if isinstance(cfg, str):
+        try:
+            cfg = json.loads(cfg)
+        except ValueError:
+            return {}
+    if not isinstance(cfg, dict):
+        return {}
+    if isinstance(cfg.get("dev"), dict):
+        cfg = cfg["dev"]
+
+    storage = cfg.get("storage", {})
+    if not isinstance(storage, dict):
+        return {}
+    gd = storage.get("google_drive", {})
+    if not isinstance(gd, dict):
+        return {}
+
+    out: dict[str, str] = {}
+    mapping = {
+        "client_id": "FILE_MCP_GDRIVE_CLIENT_ID",
+        "client_secret": "FILE_MCP_GDRIVE_CLIENT_SECRET",
+        "token_uri": "FILE_MCP_GDRIVE_TOKEN_URI",
+    }
+    for source_key, env_key in mapping.items():
+        value = _coerce_scalar(gd.get(source_key))
+        if value:
+            out[env_key] = value
+    redirect_uris = gd.get("redirect_uris")
+    if isinstance(redirect_uris, list):
+        for item in redirect_uris:
+            value = _coerce_scalar(item)
+            if value:
+                out["FILE_MCP_GDRIVE_REDIRECT_URI"] = value
+                break
+    return out
+
+
+def _pick_first(*values: str | None) -> str:
+    for value in values:
+        candidate = _coerce_scalar(value)
+        if candidate:
+            return candidate
+    return ""
 
 
 def write_env_values(path: Path, values: dict[str, str]) -> None:
@@ -251,28 +469,65 @@ def _choose_folder(candidates: Iterable[FolderInfo]) -> FolderInfo:
 
 
 def configure_google_drive(args: argparse.Namespace) -> int:
+    repo_root = Path.cwd()
     env_path = Path(_clean(args.env_path) or "private/env-google-drive")
     env_values = _read_env(env_path)
+    creds_defaults = _load_google_defaults_from_credentials_file(repo_root)
+    platform_defaults = _load_google_defaults_from_platform_config(repo_root, env_path)
+    vault_blob_defaults = _load_google_defaults_from_vault_blob(repo_root)
 
     print("Google Drive configuration setup")
     print("--------------------------------")
-    account_email = _ask("Google account email", default=_clean(args.email) or env_values.get("FILE_MCP_GDRIVE_USER_EMAIL", ""))
+    account_email = _ask("Google account email", default=_pick_first(_clean(args.email), env_values.get("FILE_MCP_GDRIVE_USER_EMAIL")))
     folder_input = _ask(
         "Folder input (folder id, folder share URL, or folder name)",
-        default=_clean(args.folder) or env_values.get("FILE_MCP_GDRIVE_FOLDER_ID", "") or env_values.get("FILE_MCP_GDRIVE_FOLDER_URL", ""),
+        default=_pick_first(
+            _clean(args.folder),
+            env_values.get("FILE_MCP_GDRIVE_FOLDER_ID"),
+            env_values.get("FILE_MCP_GDRIVE_FOLDER_URL"),
+        ),
         required=True,
     )
-    client_id = _ask("OAuth client id", default=_clean(args.client_id) or env_values.get("FILE_MCP_GDRIVE_CLIENT_ID", ""), required=True)
-    redirect_uri = _ask(
-        "Redirect URI",
-        default=_clean(args.redirect_uri) or env_values.get("FILE_MCP_GDRIVE_REDIRECT_URI", DEFAULT_REDIRECT_URI),
-        required=True,
+
+    client_id = _pick_first(
+        _clean(args.client_id),
+        env_values.get("FILE_MCP_GDRIVE_CLIENT_ID"),
+        platform_defaults.get("FILE_MCP_GDRIVE_CLIENT_ID"),
+        vault_blob_defaults.get("FILE_MCP_GDRIVE_CLIENT_ID"),
+        creds_defaults.get("FILE_MCP_GDRIVE_CLIENT_ID"),
     )
-    token_uri = _ask(
-        "Token URI",
-        default=_clean(args.token_uri) or env_values.get("FILE_MCP_GDRIVE_TOKEN_URI", DEFAULT_TOKEN_URI),
-        required=True,
+    if not client_id:
+        client_id = _ask("OAuth client id", default="", required=True)
+
+    redirect_uri = _pick_first(
+        _clean(args.redirect_uri),
+        env_values.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
+        vault_blob_defaults.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
+        creds_defaults.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
+        platform_defaults.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
+        DEFAULT_REDIRECT_URI,
     )
+    redirect_uri = _ask("Redirect URI", default=redirect_uri, required=True)
+
+    token_uri = _pick_first(
+        _clean(args.token_uri),
+        env_values.get("FILE_MCP_GDRIVE_TOKEN_URI"),
+        platform_defaults.get("FILE_MCP_GDRIVE_TOKEN_URI"),
+        vault_blob_defaults.get("FILE_MCP_GDRIVE_TOKEN_URI"),
+        creds_defaults.get("FILE_MCP_GDRIVE_TOKEN_URI"),
+        DEFAULT_TOKEN_URI,
+    )
+    token_uri = _ask("Token URI", default=token_uri, required=True)
+
+    client_secret = _pick_first(
+        _clean(args.client_secret),
+        env_values.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
+        platform_defaults.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
+        vault_blob_defaults.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
+        creds_defaults.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
+    )
+    if not client_secret:
+        client_secret = _ask("OAuth client secret", default="", required=True)
 
     scopes = [scope.strip() for scope in (_clean(args.scopes) or ",".join(DEFAULT_SCOPES)).split(",") if scope.strip()]
     state = secrets.token_urlsafe(12)
@@ -281,11 +536,6 @@ def configure_google_drive(args: argparse.Namespace) -> int:
     print(challenge_url)
     print("")
 
-    client_secret = _ask(
-        "OAuth client secret",
-        default=_clean(args.client_secret) or env_values.get("FILE_MCP_GDRIVE_CLIENT_SECRET", ""),
-        required=True,
-    )
     code = _clean(args.code)
     if not code and _is_local_redirect_uri(redirect_uri):
         if _clean(args.auto_capture_code).lower() in {"1", "true", "yes", "on"}:
@@ -371,8 +621,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env-path", default="private/env-google-drive")
     parser.add_argument("--client-id", default="")
     parser.add_argument("--client-secret", default="")
-    parser.add_argument("--redirect-uri", default=DEFAULT_REDIRECT_URI)
-    parser.add_argument("--token-uri", default=DEFAULT_TOKEN_URI)
+    parser.add_argument("--redirect-uri", default="")
+    parser.add_argument("--token-uri", default="")
     parser.add_argument("--scopes", default=",".join(DEFAULT_SCOPES))
     parser.add_argument("--code", default="")
     parser.add_argument("--timeout-s", default="30")

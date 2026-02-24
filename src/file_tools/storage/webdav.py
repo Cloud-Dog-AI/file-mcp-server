@@ -14,7 +14,13 @@ from xml.etree import ElementTree as ET
 
 from file_tools.config.models import StorageConfig
 
-from .base import NotSupportedError, StorageBackend, StorageEntry, StorageStat
+from .base import (
+    NotSupportedError,
+    StorageBackend,
+    StorageEntry,
+    StorageStat,
+    is_unresolved_placeholder,
+)
 
 _DEFAULT_MOVE_RETRY_STATUSES = {408, 409, 423, 425, 429, 500, 502, 503, 504}
 
@@ -158,6 +164,18 @@ class WebDavStorage(StorageBackend):
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
         if not storage.webdav.base_url:
             raise ValueError("WebDAV storage requires webdav.base_url")
+        if is_unresolved_placeholder(storage.webdav.base_url):
+            raise ValueError(
+                "WebDAV storage requires resolved webdav.base_url (placeholder found)"
+            )
+        if is_unresolved_placeholder(storage.webdav.username):
+            raise ValueError(
+                "WebDAV storage requires resolved webdav.username (placeholder found)"
+            )
+        if is_unresolved_placeholder(storage.webdav.password):
+            raise ValueError(
+                "WebDAV storage requires resolved webdav.password (placeholder found)"
+            )
         self._base_url = storage.webdav.base_url.rstrip("/")
         self._auth = HTTPBasicAuth(
             storage.webdav.username or "", storage.webdav.password or ""

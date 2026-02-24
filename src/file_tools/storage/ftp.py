@@ -9,7 +9,13 @@ from ftplib import FTP, FTP_TLS, error_perm
 
 from file_tools.config.models import StorageConfig
 
-from .base import NotSupportedError, StorageBackend, StorageEntry, StorageStat
+from .base import (
+    NotSupportedError,
+    StorageBackend,
+    StorageEntry,
+    StorageStat,
+    is_unresolved_placeholder,
+)
 
 
 def _clean_posix(path: str) -> str:
@@ -58,6 +64,18 @@ class FtpStorage(StorageBackend):
         cfg = storage.ftp
         if not cfg.host:
             raise ValueError("FTP storage requires ftp.host")
+        if is_unresolved_placeholder(cfg.host):
+            raise ValueError(
+                "FTP storage requires resolved ftp.host (placeholder found)"
+            )
+        if is_unresolved_placeholder(cfg.username):
+            raise ValueError(
+                "FTP storage requires resolved ftp.username (placeholder found)"
+            )
+        if is_unresolved_placeholder(cfg.password):
+            raise ValueError(
+                "FTP storage requires resolved ftp.password (placeholder found)"
+            )
         self._host = cfg.host
         self._port = _to_int(cfg.port, 21)
         self._user = cfg.username or ""

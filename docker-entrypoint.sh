@@ -47,9 +47,78 @@ CONFIG_PATH="${FILE_MCP_CONFIG_PATH:-/app/config.yaml}"
 DEFAULTS_PATH="${FILE_MCP_DEFAULTS_PATH:-/app/defaults.yaml}"
 PIDFILE="${FILE_MCP_PIDFILE:-/app/.run/file-mcp-server.pid}"
 
-if [[ -n "${ENV_PATH}" && ! -f "${ENV_PATH%%,*}" ]]; then
-  echo "WARNING: env file not found at ${ENV_PATH}. Continuing with OS environment only."
-fi
+build_effective_env_file() {
+  local source_paths="$1"
+  local output_path="/tmp/file-mcp-container.env"
+  local path=""
+  local line=""
+  local key=""
+  local value=""
+  local -a ordered_keys=()
+  local -a paths=()
+  declare -A values=()
+  declare -A seen=()
+
+  add_pair() {
+    local in_key="$1"
+    local in_value="$2"
+    if [[ -z "${in_key}" ]]; then
+      return
+    fi
+    if [[ -z "${seen["${in_key}"]+x}" ]]; then
+      ordered_keys+=("${in_key}")
+      seen["${in_key}"]=1
+    fi
+    values["${in_key}"]="${in_value}"
+  }
+
+  parse_env_file() {
+    local env_file="$1"
+    if [[ ! -f "${env_file}" ]]; then
+      echo "WARNING: env file not found at ${env_file}. Continuing."
+      return
+    fi
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      line="${line%$'\r'}"
+      [[ -z "${line}" ]] && continue
+      [[ "${line}" == \#* ]] && continue
+      if [[ "${line}" == export\ * ]]; then
+        line="${line#export }"
+      fi
+      if [[ ! "${line}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+        continue
+      fi
+      key="${line%%=*}"
+      value="${line#*=}"
+      add_pair "${key}" "${value}"
+    done < "${env_file}"
+  }
+
+  if [[ -n "${source_paths}" ]]; then
+    IFS=',' read -r -a paths <<< "${source_paths}"
+    for path in "${paths[@]}"; do
+      parse_env_file "${path}"
+    done
+  fi
+
+  while IFS='=' read -r key value; do
+    if [[ "${key}" == FILE_MCP_* ]]; then
+      add_pair "${key}" "${value}"
+    fi
+  done < <(env)
+
+  : > "${output_path}"
+  for key in "${ordered_keys[@]}"; do
+    printf "%s=%s\n" "${key}" "${values["${key}"]}" >> "${output_path}"
+  done
+
+  printf "%s\n" "${output_path}"
+}
+
+# Build a single effective env file where FILE_MCP_* process env values override
+# loaded env-file values, matching required precedence.
+ENV_PATH="$(build_effective_env_file "${ENV_PATH}")"
+export FILE_MCP_ACTIVE_ENV_PATH="${ENV_PATH}"
 
 case "${1:-serve}" in
   serve)

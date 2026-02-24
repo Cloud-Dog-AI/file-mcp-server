@@ -8,6 +8,39 @@ IMAGE_NAME="${1:-cloud-dog/file-mcp-server:latest}"
 CUSTOM_CA_CERT="${CUSTOM_CA_CERT:-}"
 GENERIC_CA_CERT="custom-ca.crt"
 CERT_ARG=""
+CLOUD_DOG_SITE_PACKAGES="${CLOUD_DOG_SITE_PACKAGES:-}"
+CLOUD_DOG_CONFIG_SRC="${CLOUD_DOG_CONFIG_SRC:-}"
+CLOUD_DOG_LOGGING_SRC="${CLOUD_DOG_LOGGING_SRC:-}"
+
+if [[ -z "${CLOUD_DOG_SITE_PACKAGES}" ]]; then
+  CLOUD_DOG_SITE_PACKAGES="$(find .venv/lib -maxdepth 2 -type d -name site-packages 2>/dev/null | head -n 1 || true)"
+fi
+
+if [[ -z "${CLOUD_DOG_SITE_PACKAGES}" || ! -d "${CLOUD_DOG_SITE_PACKAGES}" ]]; then
+  echo "Unable to locate local site-packages for cloud_dog_* package injection."
+  echo "Set CLOUD_DOG_SITE_PACKAGES=<path> and re-run."
+  exit 1
+fi
+
+if [[ -z "${CLOUD_DOG_CONFIG_SRC}" && -f "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_config.pth" ]]; then
+  CLOUD_DOG_CONFIG_SRC="$(head -n 1 "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_config.pth" | tr -d '\r')"
+fi
+
+if [[ -z "${CLOUD_DOG_LOGGING_SRC}" && -f "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_logging.pth" ]]; then
+  CLOUD_DOG_LOGGING_SRC="$(head -n 1 "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_logging.pth" | tr -d '\r')"
+fi
+
+if [[ ! -d "${CLOUD_DOG_CONFIG_SRC}/cloud_dog_config" ]]; then
+  echo "Unable to locate cloud_dog_config source: ${CLOUD_DOG_CONFIG_SRC:-<unset>}"
+  echo "Set CLOUD_DOG_CONFIG_SRC=<path> and re-run."
+  exit 1
+fi
+
+if [[ ! -d "${CLOUD_DOG_LOGGING_SRC}/cloud_dog_logging" ]]; then
+  echo "Unable to locate cloud_dog_logging source: ${CLOUD_DOG_LOGGING_SRC:-<unset>}"
+  echo "Set CLOUD_DOG_LOGGING_SRC=<path> and re-run."
+  exit 1
+fi
 
 echo "=========================================="
 echo "Docker Build"
@@ -15,6 +48,9 @@ echo "=========================================="
 echo "Image: ${IMAGE_NAME}"
 echo "Proxy: ${HTTP_PROXY:-<none>}"
 echo "CA Cert: ${CUSTOM_CA_CERT:-<none>}"
+echo "Cloud packages: ${CLOUD_DOG_SITE_PACKAGES}"
+echo "cloud_dog_config src: ${CLOUD_DOG_CONFIG_SRC}"
+echo "cloud_dog_logging src: ${CLOUD_DOG_LOGGING_SRC}"
 echo "=========================================="
 
 if [[ -n "${CUSTOM_CA_CERT}" && -f "${CUSTOM_CA_CERT}" ]]; then
@@ -28,6 +64,9 @@ docker buildx build \
   --progress=plain \
   --network=host \
   --load \
+  --build-context cloud_dog_site_packages="${CLOUD_DOG_SITE_PACKAGES}" \
+  --build-context cloud_dog_config_src="${CLOUD_DOG_CONFIG_SRC}" \
+  --build-context cloud_dog_logging_src="${CLOUD_DOG_LOGGING_SRC}" \
   -f Dockerfile \
   ${CERT_ARG} \
   --build-arg HTTP_PROXY="${HTTP_PROXY:-}" \

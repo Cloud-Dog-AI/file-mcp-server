@@ -8,7 +8,7 @@ set -uo pipefail
 
 PROJECT="/opt/iac/Development/cloud-dog-ai/file-mcp-server"
 VENV="$PROJECT/.venv/bin"
-ENV_FILE="$PROJECT/private/env-accept-smoke"
+ENV_FILE="$PROJECT/tests/env-IT"
 PYTHONPATH_VALUE="$PROJECT/src:."
 FAIL=0
 PASS=0
@@ -33,6 +33,17 @@ run_cmd() {
     else
         check "$gate" 1
     fi
+}
+
+test_path() {
+    local test_name="$1"
+    local found
+    found=$(find "$PROJECT/tests" -type f -name "$test_name" | head -n 1)
+    if [ -z "$found" ]; then
+        echo "Missing test file: $test_name" >&2
+        return 1
+    fi
+    echo "$found"
 }
 
 echo "=== file-mcp-server IDAM Migration Verification ==="
@@ -66,8 +77,8 @@ run_cmd "QG-2 ruff format --check src/" "$VENV/ruff" format --check "$PROJECT/sr
 run_cmd "QG-3 mypy src/" env PYTHONPATH="$PYTHONPATH_VALUE" "$VENV/mypy" "$PROJECT/src/"
 
 if env PYTHONPATH="$PYTHONPATH_VALUE" "$VENV/pytest" \
-    "$PROJECT/tests/test_auth.py" \
-    "$PROJECT/tests/test_scope_policy.py" \
+    "$(test_path test_auth.py)" \
+    "$(test_path test_scope_policy.py)" \
     -v --env "$ENV_FILE" >/tmp/verify-idam-smoke.log 2>&1; then
     check "QG-7 Smoke tests" 0
 else
@@ -76,14 +87,14 @@ else
 fi
 
 if env PYTHONPATH="$PYTHONPATH_VALUE" "$VENV/pytest" \
-    "$PROJECT/tests/test_auth.py" \
-    "$PROJECT/tests/test_scope_policy.py" \
-    "$PROJECT/tests/test_system_auth_health.py" \
-    "$PROJECT/tests/test_integration_multi_profile_routing_http.py" \
-    "$PROJECT/tests/test_integration_config_matrix_harness_http.py" \
-    "$PROJECT/tests/test_integration_scoped_ops.py" \
-    "$PROJECT/tests/test_application_security_boundary.py" \
-    "$PROJECT/tests/test_application_preprod_profile_chain_http.py" \
+    "$(test_path test_auth.py)" \
+    "$(test_path test_scope_policy.py)" \
+    "$(test_path test_system_auth_health.py)" \
+    "$(test_path test_integration_multi_profile_routing_http.py)" \
+    "$(test_path test_integration_config_matrix_harness_http.py)" \
+    "$(test_path test_integration_scoped_ops.py)" \
+    "$(test_path test_application_security_boundary.py)" \
+    "$(test_path test_application_preprod_profile_chain_http.py)" \
     -v --env "$ENV_FILE" >/tmp/verify-idam-regression.log 2>&1; then
     check "QG-8 Regression tests" 0
 else
@@ -105,7 +116,7 @@ FILE_TOOLS_AUTH=$(grep -Rsn "def.*authenticate\|def.*check_auth\|verify_token" "
 check "QG-I1 no bespoke auth in file_tools library code" "$FILE_TOOLS_AUTH"
 
 if env PYTHONPATH="$PYTHONPATH_VALUE" "$VENV/pytest" \
-    "$PROJECT/tests/test_system_auth_health.py::test_auth_enforcement_and_health" \
+    "$(test_path test_system_auth_health.py)::test_auth_enforcement_and_health" \
     -v --env "$ENV_FILE" >/tmp/verify-idam-i2.log 2>&1; then
     check "QG-I2 unauthenticated protected request rejected" 0
 else
@@ -114,7 +125,7 @@ else
 fi
 
 if env PYTHONPATH="$PYTHONPATH_VALUE" "$VENV/pytest" \
-    "$PROJECT/tests/test_integration_multi_profile_routing_http.py::test_multi_profile_selection_auth_and_scope_controls" \
+    "$(test_path test_integration_multi_profile_routing_http.py)::test_multi_profile_selection_auth_and_scope_controls" \
     -v --env "$ENV_FILE" >/tmp/verify-idam-i3.log 2>&1; then
     check "QG-I3 low-privilege out-of-scope profile access rejected" 0
 else

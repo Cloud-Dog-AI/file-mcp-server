@@ -33,6 +33,17 @@ run_cmd() {
     fi
 }
 
+test_path() {
+    local test_name="$1"
+    local found
+    found=$(find "$PROJECT/tests" -type f -name "$test_name" | head -n 1)
+    if [ -z "$found" ]; then
+        echo "Missing test file: $test_name" >&2
+        return 1
+    fi
+    echo "$found"
+}
+
 echo "=== file-mcp-server LOGGING Migration Verification ==="
 echo ""
 
@@ -55,9 +66,9 @@ check "QG-4 No env reads in logging modules" "$COUNT"
 
 # QG-7 smoke
 if PYTHONPATH="$PROJECT/src:." "$VENV/pytest" \
-    "$PROJECT/tests/test_audit.py" \
-    "$PROJECT/tests/test_observability.py" \
-    -v --env "$PROJECT/private/env-accept-smoke" >/tmp/verify-logging-smoke.log 2>&1; then
+    "$(test_path test_audit.py)" \
+    "$(test_path test_observability.py)" \
+    -v --env "$PROJECT/tests/env-IT" >/tmp/verify-logging-smoke.log 2>&1; then
     check "QG-7 Smoke tests" 0
 else
     check "QG-7 Smoke tests" 1
@@ -66,13 +77,13 @@ fi
 
 # QG-8 regression
 if PYTHONPATH="$PROJECT/src:." "$VENV/pytest" \
-    "$PROJECT/tests/test_audit.py" \
-    "$PROJECT/tests/test_observability.py" \
-    "$PROJECT/tests/test_system_audit_integrity.py" \
-    "$PROJECT/tests/test_system_snapshot_retention.py" \
-    "$PROJECT/tests/test_integration_structured_audit_snapshot.py" \
-    "$PROJECT/tests/test_application_search_edit_audit_workflow.py" \
-    -v --env "$PROJECT/private/env-accept-smoke" >/tmp/verify-logging-regression.log 2>&1; then
+    "$(test_path test_audit.py)" \
+    "$(test_path test_observability.py)" \
+    "$(test_path test_system_audit_integrity.py)" \
+    "$(test_path test_system_snapshot_retention.py)" \
+    "$(test_path test_integration_structured_audit_snapshot.py)" \
+    "$(test_path test_application_search_edit_audit_workflow.py)" \
+    -v --env "$PROJECT/tests/env-IT" >/tmp/verify-logging-regression.log 2>&1; then
     check "QG-8 Regression tests" 0
 else
     check "QG-8 Regression tests" 1

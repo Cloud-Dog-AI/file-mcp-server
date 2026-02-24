@@ -235,7 +235,11 @@ def running_server(
         str(pidfile),
         "--force-pidfile",
     ]
-    env = dict(os.environ)
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not (key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"))
+    }
     env["PYTHONPATH"] = "src"
     if extra_env:
         env.update(extra_env)

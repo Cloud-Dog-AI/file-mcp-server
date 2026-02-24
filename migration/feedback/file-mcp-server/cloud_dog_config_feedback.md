@@ -157,3 +157,44 @@ vault.dev.storage.webdav.username
 | `private/Test-File-Storage-Credentials.md` | **RETAIN** — reference documentation | Credential reference doc. Values match Vault. |
 
 > **⛔ STOP:** Zero credentials missing from Vault. Nothing to consolidate under § 4.2.0b for this project. Env file topic is **CLOSED**.
+
+## 11. Post-Closure Patch — CONFIG Drift (2026-02-22)
+
+### Scope
+- Instruction: `AGENT-INSTRUCTION-FIX-file-mcp-server-CONFIG-DRIFT.md`
+- Allowed scope: YAML-only (`config.yaml`, `defaults.yaml`)
+
+### Before / After Expression Audit
+- Before (instruction baseline): `21 orphaned`, `36 warnings`
+- After (current run): `44 sourced, 0 orphaned, 0 warnings`
+
+### YAML State Verified
+- `config.yaml`
+  - `endpoint_health` placeholder block is not present.
+- `defaults.yaml`
+  - `storage.webdav.move_retry_count: "3"`
+  - `storage.webdav.move_retry_backoff_s: "1.0"`
+  - `storage.webdav.move_probe_timeout_s: "5"`
+  - `storage.webdav.move_retry_statuses: "423,502,503,504"`
+  - `storage.google_drive.user_email: ""`
+  - `storage.google_drive.folder_id: ""`
+  - `storage.google_drive.folder_url: ""`
+  - `storage.google_drive.refresh_token: ""`
+  - `storage.google_drive.access_token: ""`
+  - `storage.google_drive.redirect_uri: "urn:ietf:wg:oauth:2.0:oob"`
+  - `storage.google_drive.token_uri: "https://oauth2.googleapis.com/token"`
+  - Vault expressions for `client_id` and `client_secret` remain unchanged.
+
+No additional YAML edits were required in this run because required drift fixes were already present.
+
+### Verification Results (Executed)
+1. `bash ../cloud-dog-ai-platform-standards/migration/verify/verify-env-expression-sources.sh /opt/iac/Development/cloud-dog-ai/file-mcp-server`
+   - Result: `ALL PASS — 44 sourced, 0 orphaned, 0 warnings`
+2. `bash migration/verify/verify-file-mcp-server-CONFIG.sh`
+   - Result: `14 passed, 0 failed` (`VERDICT: ALL PASS`)
+3. `PYTHONPATH=src:. .venv/bin/pytest tests/ -v --env private/env-accept-smoke`
+   - Unsandboxed real run result: `180 passed, 18 skipped in 221.49s (0:03:41)`
+
+### Notes
+- A sandboxed pytest attempt showed false failures (`PermissionError: [Errno 1] Operation not permitted` during `socket.socket` in `pick_free_port`); this was environmental sandbox restriction, not project regression.
+- Authoritative result for this patch is the unsandboxed real run above.

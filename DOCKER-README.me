@@ -330,11 +330,11 @@ docker -H tcp://remote-docker-host:2375 run --rm --name file-mcp-server \
 
 ```bash
 source .venv/bin/activate
-FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q -rs
+FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src pytest tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py -q -rs
 ```
 
 ```bash
 source .venv/bin/activate
 FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 \
-PYTHONPATH=src pytest tests/test_docker_container_remote_storage_backends.py -q -rs
+PYTHONPATH=src pytest tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py -q -rs
 ```

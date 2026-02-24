@@ -14,6 +14,7 @@ Recent Change History:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Protocol, TextIO, cast
 from threading import Lock
@@ -105,11 +106,29 @@ from starlette.middleware import Middleware
 from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
 from .google_drive_admin import (
+    DEFAULT_TOKEN_URI,
+    MASKED_CLIENT_SECRET,
     begin_oauth,
     complete_oauth_callback,
     parse_form_urlencoded,
     render_setup_page,
 )
+
+OOB_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
+_REQUEST_SESSION_ID: ContextVar[str | None] = ContextVar(
+    "file_mcp_request_session_id", default=None
+)
+_REQUEST_CLIENT_IP: ContextVar[str | None] = ContextVar(
+    "file_mcp_request_client_ip", default=None
+)
+
+
+def get_request_session_id() -> str | None:
+    return _REQUEST_SESSION_ID.get()
+
+
+def get_request_client_ip() -> str | None:
+    return _REQUEST_CLIENT_IP.get()
 
 
 @dataclass(frozen=True)
@@ -409,6 +428,75 @@ class HealthCheckMiddleware:
             return text
         return str(os.getenv(match.group(1), "")).strip()
 
+    def _configured_value(self, value: Any) -> str:
+        text = self._resolve_config_value(value)
+        if not text or "${" in text:
+            return ""
+        return text
+
+    def _compute_callback_url(
+        self, scope: dict[str, Any], headers: dict[str, str]
+    ) -> str:
+        forwarded_proto = (
+            (headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+        )
+        if forwarded_proto in {"http", "https"}:
+            scheme = forwarded_proto
+        else:
+            scheme = scope.get("scheme") or "http"
+        host = headers.get("host", "localhost")
+        return f"{scheme}://{host}/admin/google-drive/callback"
+
+    def _load_google_profile_values(
+        self, *, profile_name: str, callback_url: str
+    ) -> dict[str, str]:
+        defaults_path = str(os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
+        try:
+            cfg = load_config(
+                env_path=self.env_file,
+                config_path=self.active_config,
+                defaults_path=defaults_path or None,
+            )
+            profile = cfg.profiles.get(profile_name) or cfg.profiles.get(
+                self.profile_name
+            )
+            if profile is None:
+                return {
+                    "user_email": "",
+                    "folder_input": "",
+                    "client_id": "",
+                    "client_secret": "",
+                    "redirect_uri": callback_url,
+                    "token_uri": DEFAULT_TOKEN_URI,
+                }
+            drive = profile.storage.google_drive
+            folder_url = self._configured_value(drive.folder_url)
+            folder_id = self._configured_value(drive.folder_id)
+            configured_redirect = self._configured_value(drive.redirect_uri)
+            redirect_uri = (
+                callback_url
+                if configured_redirect.strip().lower() == OOB_REDIRECT_URI
+                else (configured_redirect or callback_url)
+            )
+            return {
+                "user_email": self._configured_value(drive.user_email),
+                "folder_input": folder_url or folder_id,
+                "client_id": self._configured_value(drive.client_id),
+                "client_secret": self._configured_value(drive.client_secret),
+                "redirect_uri": redirect_uri,
+                "token_uri": self._configured_value(drive.token_uri)
+                or DEFAULT_TOKEN_URI,
+            }
+        except Exception:
+            return {
+                "user_email": "",
+                "folder_input": "",
+                "client_id": "",
+                "client_secret": "",
+                "redirect_uri": callback_url,
+                "token_uri": DEFAULT_TOKEN_URI,
+            }
+
     def _read_profile_metadata(self) -> dict[str, dict[str, Any]]:
         config_path = Path(self.active_config)
         if not config_path.exists():
@@ -677,26 +765,37 @@ class HealthCheckMiddleware:
             and scope.get("method") == "GET"
             and scope.get("path") == "/admin/google-drive"
         ):
-            forwarded_proto = (
-                (headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
-            )
-            if forwarded_proto in {"http", "https"}:
-                scheme = forwarded_proto
-            else:
-                scheme = scope.get("scheme") or "http"
-            host = headers.get("host", "localhost")
-            callback_url = f"{scheme}://{host}/admin/google-drive/callback"
+            callback_url = self._compute_callback_url(scope, headers)
             query = parse_qs(
                 scope.get("query_string", b"").decode("utf-8"), keep_blank_values=True
             )
             selected_profile = (query.get("profile") or [""])[0].strip()
             lock_profile = bool(selected_profile)
+            available_profiles = self.profile_names or [self.profile_name]
+            prefill_profile = (
+                selected_profile
+                if selected_profile in available_profiles
+                else (
+                    available_profiles[0] if available_profiles else self.profile_name
+                )
+            )
+            prefill_values = self._load_google_profile_values(
+                profile_name=prefill_profile, callback_url=callback_url
+            )
             html = render_setup_page(
                 callback_url=callback_url,
-                profiles=self.profile_names or [self.profile_name],
+                profiles=available_profiles,
                 selected_profile=selected_profile,
                 lock_profile=lock_profile,
                 status_message="",
+                prefills={
+                    "user_email": prefill_values.get("user_email", ""),
+                    "folder_input": prefill_values.get("folder_input", ""),
+                    "client_id": prefill_values.get("client_id", ""),
+                    "redirect_uri": prefill_values.get("redirect_uri", ""),
+                    "token_uri": prefill_values.get("token_uri", ""),
+                },
+                has_client_secret=bool(prefill_values.get("client_secret", "")),
             )
             await self._send_html(send, status=200, html=html)
             return
@@ -709,10 +808,34 @@ class HealthCheckMiddleware:
             try:
                 data = parse_form_urlencoded(body)
                 callback_uri = (data.get("redirect_uri") or "").strip()
+                if not callback_uri:
+                    callback_uri = self._compute_callback_url(scope, headers)
+                profile_name = (data.get("profile") or "").strip() or self.profile_name
+                stored_values = self._load_google_profile_values(
+                    profile_name=profile_name,
+                    callback_url=callback_uri,
+                )
+
+                client_secret = (data.get("client_secret") or "").strip()
+                if not client_secret or client_secret == MASKED_CLIENT_SECRET:
+                    data["client_secret"] = stored_values.get("client_secret", "")
+                if not (data.get("client_id") or "").strip():
+                    data["client_id"] = stored_values.get("client_id", "")
+                if not (data.get("folder_input") or "").strip():
+                    data["folder_input"] = stored_values.get("folder_input", "")
+                if not (data.get("user_email") or "").strip():
+                    data["user_email"] = stored_values.get("user_email", "")
+                if not (data.get("redirect_uri") or "").strip():
+                    data["redirect_uri"] = stored_values.get("redirect_uri", "")
+                if (data.get("redirect_uri") or "").strip().lower() == OOB_REDIRECT_URI:
+                    data["redirect_uri"] = callback_uri
+                if not (data.get("token_uri") or "").strip():
+                    data["token_uri"] = stored_values.get("token_uri", "")
+
                 self.logger.info(
                     "admin_google_drive_start",
                     extra={
-                        "profile": (data.get("profile") or "").strip(),
+                        "profile": profile_name,
                         "callback_uri": callback_uri,
                         "has_client_id": bool((data.get("client_id") or "").strip()),
                         "has_client_secret": bool(
@@ -921,12 +1044,21 @@ class RequestContextMiddleware:
             or uuid.uuid4().hex
         )
         request_id = headers.get("x-request-id") or uuid.uuid4().hex
+        session_id = headers.get("x-session-id") or correlation_id
+        client = scope.get("client")
+        client_ip = (
+            str(client[0]) if isinstance(client, tuple) and len(client) > 0 else None
+        )
+        session_token = _REQUEST_SESSION_ID.set(session_id)
+        client_ip_token = _REQUEST_CLIENT_IP.set(client_ip)
         set_api_kit_request_id(request_id)
         set_api_kit_correlation_id(correlation_id)
         set_correlation_id(correlation_id)
         try:
             await self.app(scope, receive, send)
         finally:
+            _REQUEST_SESSION_ID.reset(session_token)
+            _REQUEST_CLIENT_IP.reset(client_ip_token)
             clear_correlation_id()
 
 
@@ -1108,6 +1240,8 @@ def build_tool_registry(
                 status=status,
                 outcome=outcome or status,
                 profile=profile_name,
+                session_id=get_request_session_id(),
+                client_ip=get_request_client_ip(),
                 duration_ms=duration_ms,
                 params=params or {},
                 paths=paths or {},
@@ -3229,6 +3363,8 @@ def register_tools_with_fastmcp(
                     tool=tool_name,
                     params=params,
                     correlation_id=get_correlation_id(),
+                    session_id=get_request_session_id(),
+                    client_ip=get_request_client_ip(),
                 )
             try:
                 result = handler(*args, **kwargs)
@@ -3242,6 +3378,8 @@ def register_tools_with_fastmcp(
                         outcome="ok",
                         duration_ms=elapsed_ms,
                         correlation_id=get_correlation_id(),
+                        session_id=get_request_session_id(),
+                        client_ip=get_request_client_ip(),
                     )
                 if audit_writer:
                     audit_writer(
@@ -3266,6 +3404,8 @@ def register_tools_with_fastmcp(
                         error=str(exc),
                         duration_ms=elapsed_ms,
                         correlation_id=get_correlation_id(),
+                        session_id=get_request_session_id(),
+                        client_ip=get_request_client_ip(),
                     )
                 if audit_writer:
                     audit_writer(

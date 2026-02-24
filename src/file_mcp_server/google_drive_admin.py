@@ -22,6 +22,7 @@ import yaml
 
 DEFAULT_SCOPE = "https://www.googleapis.com/auth/drive"
 DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
+MASKED_CLIENT_SECRET = "********"
 
 
 @dataclass
@@ -98,7 +99,14 @@ def render_setup_page(
     lock_profile: bool = False,
     status_message: str = "",
     status_type: str = "info",
+    prefills: dict[str, str] | None = None,
+    has_client_secret: bool = False,
 ) -> str:
+    prefills = prefills or {}
+
+    def _prefill(name: str) -> str:
+        return escape(_clean(prefills.get(name)))
+
     resolved_profile = (
         selected_profile
         if selected_profile in profiles
@@ -126,8 +134,19 @@ def render_setup_page(
             else "#444"
         )
         status_html = f'<p style="padding:8px;border:1px solid {color};color:{color};">{escape(status_message)}</p>'
-    default_redirect = escape(callback_url)
-    default_token_uri = escape(DEFAULT_TOKEN_URI)
+    default_redirect = _prefill("redirect_uri") or escape(callback_url)
+    default_token_uri = _prefill("token_uri") or escape(DEFAULT_TOKEN_URI)
+    user_email_value = _prefill("user_email")
+    folder_input_value = _prefill("folder_input")
+    client_id_value = _prefill("client_id")
+    client_secret_value = (
+        MASKED_CLIENT_SECRET if has_client_secret else _prefill("client_secret")
+    )
+    client_secret_hint = (
+        "Stored secret is masked. Leave as-is to reuse it, or replace with a new secret."
+        if has_client_secret
+        else "Paste OAuth client secret."
+    )
     return f"""<!doctype html>
 <html>
 <head>
@@ -150,14 +169,15 @@ def render_setup_page(
     <label>Profile</label>
     {profile_input}
     <label>Google account email</label>
-    <input name="user_email" placeholder="name@example.com" />
+    <input name="user_email" placeholder="name@example.com" value="{user_email_value}" />
     <label>Folder input</label>
-    <input name="folder_input" placeholder="Folder ID, share URL, or folder name" />
+    <input name="folder_input" placeholder="Folder ID, share URL, or folder name" value="{folder_input_value}" />
     <div class="hint">Example URL: <code>https://drive.google.com/drive/folders/...</code></div>
     <label>OAuth client id</label>
-    <input name="client_id" />
+    <input name="client_id" value="{client_id_value}" />
     <label>OAuth client secret</label>
-    <input name="client_secret" type="password" />
+    <input name="client_secret" type="password" value="{escape(client_secret_value)}" />
+    <div class="hint">{escape(client_secret_hint)}</div>
     <label>Redirect URI</label>
     <input name="redirect_uri" value="{default_redirect}" />
     <label>Token URI</label>
@@ -198,7 +218,7 @@ def render_setup_page(
       fields.forEach(function (name) {{
         var el = form.elements.namedItem(name);
         if (!el) return;
-        if (typeof stored[name] === "string" && stored[name].length > 0) {{
+        if ((!el.value || el.value.trim() === "") && typeof stored[name] === "string" && stored[name].length > 0) {{
           el.value = stored[name];
         }}
         if ((name === "redirect_uri" || name === "token_uri") && (!el.value || el.value.trim() === "")) {{

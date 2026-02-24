@@ -18,7 +18,13 @@ import requests
 
 from file_tools.config.models import StorageConfig
 
-from .base import NotSupportedError, StorageBackend, StorageEntry, StorageStat
+from .base import (
+    NotSupportedError,
+    StorageBackend,
+    StorageEntry,
+    StorageStat,
+    is_unresolved_placeholder,
+)
 
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -74,7 +80,7 @@ class GoogleDriveStorage(StorageBackend):
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
         cfg = storage.google_drive
         folder_id = _extract_folder_id(cfg.folder_id, cfg.folder_url)
-        if not folder_id:
+        if not folder_id or is_unresolved_placeholder(folder_id):
             raise ValueError(
                 "Google Drive storage requires google_drive.folder_id or google_drive.folder_url"
             )
@@ -82,9 +88,25 @@ class GoogleDriveStorage(StorageBackend):
             raise ValueError(
                 "Google Drive storage requires google_drive.client_id and google_drive.client_secret"
             )
+        if is_unresolved_placeholder(cfg.client_id):
+            raise ValueError(
+                "Google Drive storage requires resolved google_drive.client_id (placeholder found)"
+            )
+        if is_unresolved_placeholder(cfg.client_secret):
+            raise ValueError(
+                "Google Drive storage requires resolved google_drive.client_secret (placeholder found)"
+            )
         if not (cfg.refresh_token or cfg.access_token):
             raise ValueError(
                 "Google Drive storage requires google_drive.refresh_token or google_drive.access_token"
+            )
+        if is_unresolved_placeholder(cfg.refresh_token):
+            raise ValueError(
+                "Google Drive storage requires resolved google_drive.refresh_token (placeholder found)"
+            )
+        if is_unresolved_placeholder(cfg.access_token):
+            raise ValueError(
+                "Google Drive storage requires resolved google_drive.access_token (placeholder found)"
             )
 
         self._folder_id = folder_id

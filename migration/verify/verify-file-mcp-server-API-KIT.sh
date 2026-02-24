@@ -33,6 +33,17 @@ run_cmd() {
     fi
 }
 
+test_path() {
+    local test_name="$1"
+    local found
+    found=$(find "$PROJECT/tests" -type f -name "$test_name" | head -n 1)
+    if [ -z "$found" ]; then
+        echo "Missing test file: $test_name" >&2
+        return 1
+    fi
+    echo "$found"
+}
+
 echo "=== file-mcp-server API-KIT Migration Verification ==="
 echo ""
 
@@ -57,11 +68,11 @@ run_cmd "QG-2 ruff format --check src/" "$VENV/ruff" format --check "$PROJECT/sr
 run_cmd "QG-3 mypy src/" "$VENV/mypy" "$PROJECT/src/"
 
 if PYTHONPATH="$PROJECT/src:." "$VENV/pytest" \
-    "$PROJECT/tests/test_server_dispatch.py" \
-    "$PROJECT/tests/test_server_runtime.py" \
-    "$PROJECT/tests/test_endpoint_health.py" \
-    "$PROJECT/tests/test_api_kit_contract.py" \
-    -v --env "$PROJECT/private/env-accept-smoke" >/tmp/verify-api-smoke.log 2>&1; then
+    "$(test_path test_server_dispatch.py)" \
+    "$(test_path test_server_runtime.py)" \
+    "$(test_path test_endpoint_health.py)" \
+    "$(test_path test_api_kit_contract.py)" \
+    -v --env "$PROJECT/tests/env-IT" >/tmp/verify-api-smoke.log 2>&1; then
     check "QG-7 Smoke tests" 0
 else
     check "QG-7 Smoke tests" 1
@@ -69,18 +80,18 @@ else
 fi
 
 if PYTHONPATH="$PROJECT/src:." "$VENV/pytest" \
-    "$PROJECT/tests/test_server_dispatch.py" \
-    "$PROJECT/tests/test_server_runtime.py" \
-    "$PROJECT/tests/test_endpoint_health.py" \
-    "$PROJECT/tests/test_lifecycle.py" \
-    "$PROJECT/tests/test_system_auth_health.py" \
-    "$PROJECT/tests/test_system_endpoint_restart_threshold.py" \
-    "$PROJECT/tests/test_system_error_contract.py" \
-    "$PROJECT/tests/test_server_http_integration.py" \
-    "$PROJECT/tests/test_integration_multi_profile_routing_http.py" \
-    "$PROJECT/tests/test_application_lifecycle_workflow.py" \
-    "$PROJECT/tests/test_application_preprod_profile_chain_http.py" \
-    -v --env "$PROJECT/private/env-accept-smoke" >/tmp/verify-api-regression.log 2>&1; then
+    "$(test_path test_server_dispatch.py)" \
+    "$(test_path test_server_runtime.py)" \
+    "$(test_path test_endpoint_health.py)" \
+    "$(test_path test_lifecycle.py)" \
+    "$(test_path test_system_auth_health.py)" \
+    "$(test_path test_system_endpoint_restart_threshold.py)" \
+    "$(test_path test_system_error_contract.py)" \
+    "$(test_path test_server_http_integration.py)" \
+    "$(test_path test_integration_multi_profile_routing_http.py)" \
+    "$(test_path test_application_lifecycle_workflow.py)" \
+    "$(test_path test_application_preprod_profile_chain_http.py)" \
+    -v --env "$PROJECT/tests/env-IT" >/tmp/verify-api-regression.log 2>&1; then
     check "QG-8 Regression tests" 0
 else
     check "QG-8 Regression tests" 1
@@ -126,7 +137,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cp "$PROJECT/private/env-accept-smoke" "$TMP_ENV"
+cp "$PROJECT/tests/env-IT" "$TMP_ENV"
 echo "FILE_MCP_ADMIN_UI_ENABLED=false" >> "$TMP_ENV"
 echo "FILE_MCP_ADMIN_UI_TOKEN=" >> "$TMP_ENV"
 

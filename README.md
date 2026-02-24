@@ -157,13 +157,13 @@ Docker-focused tests:
 
 ```bash
 source .venv/bin/activate
-PYTHONPATH=src pytest tests/test_docker_container_runtime.py -k command -q
+PYTHONPATH=src pytest tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py -k command -q
 ```
 
 ```bash
 source .venv/bin/activate
 FILE_MCP_RUN_DOCKER_TESTS=1 PYTHONPATH=src \
-pytest tests/test_docker_container_runtime.py -q
+pytest tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py -q
 ```
 
 Expanded remote matrix + Docker suite:
@@ -180,7 +180,7 @@ Optional remote Docker host:
 
 ```bash
 FILE_MCP_RUN_DOCKER_TESTS=1 FILE_MCP_DOCKER_HOST=tcp://remote-docker-host:2375 \
-PYTHONPATH=src pytest tests/test_docker_container_runtime.py -q
+PYTHONPATH=src pytest tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py -q
 ```
 
 ## Additional docs
