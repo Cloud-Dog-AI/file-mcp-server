@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 from urllib.request import urlopen
 
 
@@ -17,17 +18,61 @@ def pick_free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def wait_for_health(url: str, timeout_s: float = 10.0) -> dict:
+def _normalize_path(path: str | None, *, default: str) -> str:
+    if not path:
+        return default
+    cleaned = path.strip()
+    if not cleaned:
+        return default
+    if not cleaned.startswith("/"):
+        cleaned = "/" + cleaned
+    if len(cleaned) > 1 and cleaned.endswith("/"):
+        cleaned = cleaned.rstrip("/")
+    return cleaned or "/"
+
+
+def _join_paths(base_path: str, path: str) -> str:
+    base = _normalize_path(base_path, default="/")
+    sub = _normalize_path(path, default="/")
+    if base == "/":
+        return sub
+    if sub == "/":
+        return base
+    if sub == base or sub.startswith(f"{base}/"):
+        return sub
+    return f"{base}{sub}"
+
+
+def _canonical_health_url(url: str) -> str:
+    parsed = urlsplit(url)
+    api_base = _normalize_path(os.getenv("TEST_API_BASE_PATH"), default="/app/v1")
+    canonical_path = _join_paths(api_base, parsed.path or "/health")
+    canonical_parts = SplitResult(
+        scheme=parsed.scheme,
+        netloc=parsed.netloc,
+        path=canonical_path,
+        query=parsed.query,
+        fragment=parsed.fragment,
+    )
+    return urlunsplit(canonical_parts)
+
+
+def wait_for_health(url: str, timeout_s: float = 20.0) -> dict:
     deadline = time.monotonic() + timeout_s
+    candidates = [url]
+    canonical_url = _canonical_health_url(url)
+    if canonical_url != url:
+        candidates.insert(0, canonical_url)
     while time.monotonic() < deadline:
-        try:
-            with urlopen(url, timeout=0.5) as response:
-                if response.status == 200:
-                    return json.loads(response.read().decode("utf-8"))
-        except Exception:
-            time.sleep(0.1)
-            continue
-    raise RuntimeError(f"Health check timed out: {url}")
+        for probe_url in candidates:
+            try:
+                with urlopen(probe_url, timeout=0.5) as response:
+                    if response.status == 200:
+                        return json.loads(response.read().decode("utf-8"))
+            except Exception:
+                continue
+        time.sleep(0.1)
+    raise RuntimeError(f"Health check timed out: {candidates}")
 
 
 def write_server_config(
@@ -167,8 +212,8 @@ http:
         "FILE_MCP_HTTP_TRANSPORT=streamable-http",
         "FILE_MCP_HTTP_HOST=127.0.0.1",
         f"FILE_MCP_HTTP_PORT={port}",
-        "FILE_MCP_HTTP_BASE_PATH=/",
-        "FILE_MCP_HTTP_MCP_PATH=/mcp",
+        f"FILE_MCP_HTTP_BASE_PATH={_normalize_path(os.getenv('TEST_API_BASE_PATH'), default='/app/v1')}",
+        f"FILE_MCP_HTTP_MCP_PATH={_normalize_path(os.getenv('TEST_MCP_BASE_PATH'), default='/mcp')}",
         "FILE_MCP_HTTP_HEALTH_PATH=/health",
         "FILE_MCP_HTTP_EVENTS_PATH=/events",
         "FILE_MCP_HTTP_STATELESS=true",

@@ -102,6 +102,7 @@ from file_tools.convert import (
 from file_tools.limits import LimitError, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
 from starlette.middleware import Middleware
+from starlette.requests import HTTPConnection
 
 from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
@@ -298,12 +299,22 @@ class HealthCheckMiddleware:
         profile_name: str,
         transport: str,
         reload_callback=None,
+        registry_provider=None,
+        mcp_path: str = "/mcp",
+        a2a_auth_verifier=None,
     ) -> None:
         self.app = app
         self.health_path = health_path
         self.profile_name = profile_name
         self.transport = transport
         self.reload_callback = reload_callback
+        self.registry_provider = registry_provider
+        self.mcp_path = _normalize_path(mcp_path, default="/mcp")
+        self.a2a_auth_verifier = a2a_auth_verifier
+        self.a2a_base_path = _normalize_path(
+            os.getenv("TEST_A2A_BASE_PATH"), default="/a2a"
+        )
+        self.a2a_health_path = _join_paths(self.a2a_base_path, "/health")
         self.logger = logging.getLogger("file_mcp_server.admin")
         self.app_name = "file-mcp-server"
         self.version = str(os.getenv("FILE_MCP_VERSION") or "0.0.0").strip() or "0.0.0"
@@ -325,6 +336,9 @@ class HealthCheckMiddleware:
         self.admin_apply_on_callback = _to_bool(
             os.getenv("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
         )
+        self.enable_legacy_api_alias = _to_bool(
+            os.getenv("FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS"), default=True
+        )
 
     def _ready_path(self) -> str:
         base = self.health_path.rsplit("/", 1)[0] if "/" in self.health_path else ""
@@ -337,6 +351,22 @@ class HealthCheckMiddleware:
         if not base:
             return "/live"
         return f"{base}/live"
+
+    @staticmethod
+    def _legacy_api_alias(path: str) -> str | None:
+        if path == "/app/v1":
+            return "/api/v1"
+        if path.startswith("/app/v1/"):
+            return "/api/v1/" + path[len("/app/v1/") :]
+        return None
+
+    @staticmethod
+    def _legacy_root_alias(path: str) -> str | None:
+        if path == "/app/v1":
+            return "/"
+        if path.startswith("/app/v1/"):
+            return "/" + path[len("/app/v1/") :]
+        return None
 
     def _dependency_checks(self) -> tuple[str, dict[str, Any]]:
         states = ENDPOINT_HEALTH_MANAGER.get_profile_states(self.profile_name)
@@ -351,6 +381,22 @@ class HealthCheckMiddleware:
             if state.status != "healthy":
                 all_ok = False
         return ("ok" if all_ok else "degraded"), checks
+
+    def _list_tools_payload(self) -> dict[str, Any]:
+        if not callable(self.registry_provider):
+            return {"tools": []}
+        registry = self.registry_provider()
+        tools = [
+            {
+                "name": tool.meta.name,
+                "description": tool.meta.description,
+                "mutating": tool.meta.mutating,
+                "requires_validation": tool.meta.requires_validation,
+                "supports_dry_run": tool.meta.supports_dry_run,
+            }
+            for tool in registry.list_tools()
+        ]
+        return {"tools": tools}
 
     async def _read_http_body(self, receive) -> bytes:
         body = b""
@@ -417,6 +463,70 @@ class HealthCheckMiddleware:
         )
         await send({"type": "http.response.body", "body": b""})
 
+    @staticmethod
+    def _extract_auth_token(raw_header: str, scheme: str | None) -> str | None:
+        value = raw_header.strip()
+        if not value:
+            return None
+        if scheme:
+            prefix = f"{scheme} "
+            if not value.lower().startswith(prefix.lower()):
+                return None
+            token = value[len(prefix) :].strip()
+            return token or None
+        return value
+
+    async def _is_a2a_authorized(
+        self, *, scope: dict[str, Any], headers: dict[str, str]
+    ) -> bool:
+        verifier = self.a2a_auth_verifier
+        if verifier is None:
+            return False
+
+        conn = HTTPConnection(scope)
+        profile_name = self.profile_name
+        if hasattr(verifier, "resolve_profile") and callable(
+            getattr(verifier, "resolve_profile")
+        ):
+            try:
+                profile_name = str(verifier.resolve_profile(conn))
+            except Exception:
+                profile_name = self.profile_name
+
+        header_name = "authorization"
+        header_scheme: str | None = "Bearer"
+        if hasattr(verifier, "header_for_profile") and callable(
+            getattr(verifier, "header_for_profile")
+        ):
+            try:
+                resolved_header_name, resolved_header_scheme = (
+                    verifier.header_for_profile(profile_name)
+                )
+                header_name = (
+                    str(resolved_header_name).strip().lower() or "authorization"
+                )
+                header_scheme = resolved_header_scheme
+            except Exception:
+                header_name = "authorization"
+                header_scheme = "Bearer"
+
+        raw_header = headers.get(header_name, "")
+        token = self._extract_auth_token(raw_header, header_scheme)
+        if not token:
+            return False
+
+        if hasattr(verifier, "verify_token_for_profile") and callable(
+            getattr(verifier, "verify_token_for_profile")
+        ):
+            auth_info = await verifier.verify_token_for_profile(token, profile_name)
+        elif hasattr(verifier, "verify_token") and callable(
+            getattr(verifier, "verify_token")
+        ):
+            auth_info = await verifier.verify_token(token)
+        else:
+            return False
+        return auth_info is not None
+
     def _resolve_config_value(self, value: Any) -> str:
         if value is None:
             return ""
@@ -450,6 +560,14 @@ class HealthCheckMiddleware:
     def _load_google_profile_values(
         self, *, profile_name: str, callback_url: str
     ) -> dict[str, str]:
+        empty_values = {
+            "user_email": "",
+            "folder_input": "",
+            "client_id": "",
+            "client_secret": "",
+            "redirect_uri": callback_url,
+            "token_uri": DEFAULT_TOKEN_URI,
+        }
         defaults_path = str(os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
         try:
             cfg = load_config(
@@ -461,14 +579,7 @@ class HealthCheckMiddleware:
                 self.profile_name
             )
             if profile is None:
-                return {
-                    "user_email": "",
-                    "folder_input": "",
-                    "client_id": "",
-                    "client_secret": "",
-                    "redirect_uri": callback_url,
-                    "token_uri": DEFAULT_TOKEN_URI,
-                }
+                return empty_values
             drive = profile.storage.google_drive
             folder_url = self._configured_value(drive.folder_url)
             folder_id = self._configured_value(drive.folder_id)
@@ -488,14 +599,49 @@ class HealthCheckMiddleware:
                 or DEFAULT_TOKEN_URI,
             }
         except Exception:
-            return {
-                "user_email": "",
-                "folder_input": "",
-                "client_id": "",
-                "client_secret": "",
-                "redirect_uri": callback_url,
-                "token_uri": DEFAULT_TOKEN_URI,
-            }
+            config_path = Path(self.active_config)
+            if not config_path.exists():
+                return empty_values
+            try:
+                parsed = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+                profiles = parsed.get("profiles")
+                if not isinstance(profiles, dict):
+                    return empty_values
+                raw_profile = profiles.get(profile_name) or profiles.get(
+                    self.profile_name
+                )
+                if not isinstance(raw_profile, dict):
+                    return empty_values
+                storage = raw_profile.get("storage")
+                if not isinstance(storage, dict):
+                    return empty_values
+                raw_drive = storage.get("google_drive")
+                if not isinstance(raw_drive, dict):
+                    return empty_values
+
+                folder_url = self._configured_value(raw_drive.get("folder_url"))
+                folder_id = self._configured_value(raw_drive.get("folder_id"))
+                configured_redirect = self._configured_value(
+                    raw_drive.get("redirect_uri")
+                )
+                redirect_uri = (
+                    callback_url
+                    if configured_redirect.strip().lower() == OOB_REDIRECT_URI
+                    else (configured_redirect or callback_url)
+                )
+                return {
+                    "user_email": self._configured_value(raw_drive.get("user_email")),
+                    "folder_input": folder_url or folder_id,
+                    "client_id": self._configured_value(raw_drive.get("client_id")),
+                    "client_secret": self._configured_value(
+                        raw_drive.get("client_secret")
+                    ),
+                    "redirect_uri": redirect_uri,
+                    "token_uri": self._configured_value(raw_drive.get("token_uri"))
+                    or DEFAULT_TOKEN_URI,
+                }
+            except Exception:
+                return empty_values
 
     def _read_profile_metadata(self) -> dict[str, dict[str, Any]]:
         config_path = Path(self.active_config)
@@ -668,6 +814,29 @@ class HealthCheckMiddleware:
         }
         path = str(scope.get("path") or "")
         accept = headers.get("accept", "")
+        health_paths = {self.health_path}
+        ready_paths = {self._ready_path()}
+        live_paths = {self._live_path()}
+        if self.enable_legacy_api_alias:
+            legacy_health = self._legacy_api_alias(self.health_path)
+            legacy_ready = self._legacy_api_alias(self._ready_path())
+            legacy_live = self._legacy_api_alias(self._live_path())
+            legacy_root_health = self._legacy_root_alias(self.health_path)
+            legacy_root_ready = self._legacy_root_alias(self._ready_path())
+            legacy_root_live = self._legacy_root_alias(self._live_path())
+            if legacy_health:
+                health_paths.add(legacy_health)
+            if legacy_ready:
+                ready_paths.add(legacy_ready)
+            if legacy_live:
+                live_paths.add(legacy_live)
+            if legacy_root_health:
+                health_paths.add(legacy_root_health)
+            if legacy_root_ready:
+                ready_paths.add(legacy_root_ready)
+            if legacy_root_live:
+                live_paths.add(legacy_root_live)
+
         is_admin_route = path.startswith("/admin/")
         if (
             scope.get("type") == "http"
@@ -688,7 +857,7 @@ class HealthCheckMiddleware:
         if (
             scope.get("type") == "http"
             and scope.get("method") == "GET"
-            and scope.get("path") == self.health_path
+            and path in health_paths
         ):
             readiness, checks = self._dependency_checks()
             body = json.dumps(
@@ -719,7 +888,43 @@ class HealthCheckMiddleware:
         if (
             scope.get("type") == "http"
             and scope.get("method") == "GET"
-            and scope.get("path") == self._ready_path()
+            and scope.get("path") == f"{self.mcp_path.rstrip('/')}/tools"
+        ):
+            payload = self._list_tools_payload()
+            body = json.dumps(payload).encode("utf-8")
+            await self._send_bytes(
+                send, status=200, body=body, content_type="application/json"
+            )
+            return
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and path == self.a2a_health_path
+        ):
+            if not await self._is_a2a_authorized(scope=scope, headers=headers):
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorized",
+                )
+                return
+            body = json.dumps(
+                {
+                    "status": "ok",
+                    "service": "file-mcp-server",
+                    "profile": self.profile_name,
+                    "a2a": {"base_path": self.a2a_base_path},
+                }
+            ).encode("utf-8")
+            await self._send_bytes(
+                send, status=200, body=body, content_type="application/json"
+            )
+            return
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and path in ready_paths
         ):
             readiness, checks = self._dependency_checks()
             body = json.dumps({"status": readiness, "checks": checks}).encode("utf-8")
@@ -730,7 +935,7 @@ class HealthCheckMiddleware:
         if (
             scope.get("type") == "http"
             and scope.get("method") == "GET"
-            and scope.get("path") == self._live_path()
+            and path in live_paths
         ):
             body = json.dumps(
                 {
@@ -1118,9 +1323,9 @@ def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
         transport = "streamable-http"
 
     base_path = _normalize_path(http_config.base_path, default="/")
-    mcp_path = _join_paths(
-        base_path, _normalize_path(http_config.mcp_path, default="/mcp")
-    )
+    # Canonical contract keeps MCP at an independent path (`/mcp`) while API
+    # readiness/health/events may be nested under the API base path.
+    mcp_path = _normalize_path(http_config.mcp_path, default="/mcp")
     health_path = _join_paths(
         base_path, _normalize_path(http_config.health_path, default="/health")
     )
@@ -1796,10 +2001,14 @@ def build_tool_registry(
         query: str,
         glob: str | None = None,
         regex: bool = False,
+        max_results: int | None = None,
         max_file_mb: int | None = None,
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
+        effective_max_results = (
+            max_results if max_results is not None else limits.search_max_results
+        )
         effective_max_mb = (
             max_file_mb if max_file_mb is not None else limits.search_max_file_mb
         )
@@ -1824,6 +2033,11 @@ def build_tool_registry(
                     assert isinstance(policy, ScopePolicy)
                     policy.require(path_obj.resolve(), operation="read")
                     filtered.append(str(path_obj))
+                    if (
+                        effective_max_results is not None
+                        and len(filtered) >= effective_max_results
+                    ):
+                        break
                 except Exception:
                     continue
             return {"matches": filtered}
@@ -1882,6 +2096,11 @@ def build_tool_registry(
             except Exception:
                 continue
             remote_filtered.append(candidate)
+            if (
+                effective_max_results is not None
+                and len(remote_filtered) >= effective_max_results
+            ):
+                break
         return {"matches": remote_filtered, "timed_out": timed_out}
 
     def search_text_content(
@@ -3514,6 +3733,7 @@ def build_fastmcp_server(
 
     setattr(server, "_file_mcp_registry_provider", _registry_provider)
     setattr(server, "_file_mcp_reload_registry", _reload_registry)
+    setattr(server, "_file_mcp_auth_verifier", auth)
 
     register_tools_with_fastmcp(
         server,
@@ -3561,6 +3781,8 @@ async def run_fastmcp_http_server(
                     raise SystemExit(exit_code)
     server = build_fastmcp_server(default_profile_name, config, http, logger=logger)
     reload_fn = getattr(server, "_file_mcp_reload_registry", None)
+    registry_provider = getattr(server, "_file_mcp_registry_provider", None)
+    auth_verifier = getattr(server, "_file_mcp_auth_verifier", None)
     env_path = os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or None
     config_path = os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or None
     defaults_path = os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or None
@@ -3585,6 +3807,9 @@ async def run_fastmcp_http_server(
             profile_name=default_profile_name,
             transport=http.transport,
             reload_callback=_reload_callback,
+            registry_provider=registry_provider,
+            mcp_path=http.mcp_path,
+            a2a_auth_verifier=auth_verifier,
         ),
     ]
     if logger:

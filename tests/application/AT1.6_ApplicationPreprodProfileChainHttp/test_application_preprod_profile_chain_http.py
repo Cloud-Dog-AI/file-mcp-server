@@ -71,7 +71,7 @@ async def _call_tool(
 
 def test_application_preprod_profile_chain_flow_live() -> None:
     if os.getenv("FILE_MCP_RUN_PREPROD_AT", "0") != "1":
-        pytest.skip("Set FILE_MCP_RUN_PREPROD_AT=1 to run preprod profile-chain AT test")
+        pytest.fail("Set FILE_MCP_RUN_PREPROD_AT=1 to run preprod profile-chain AT test")
 
     env = _merged_env()
     base_url = _require(env, "FILE_MCP_PREPROD_URL")

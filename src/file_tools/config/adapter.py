@@ -7,8 +7,6 @@ Requirements: NF1.7
 Tasks: T18
 Architecture: 3.3 Example schema
 Tests: UT1.1
-Recent Change History:
-- 2026-02-19: Rewritten to use cloud_dog_config public API only (PS-80).
 """
 
 from __future__ import annotations
@@ -46,6 +44,23 @@ def _thaw(value: Any) -> Any:
     return value
 
 
+def _coerce_auth_api_keys(raw: dict[str, Any]) -> dict[str, Any]:
+    """Ensure auth api_keys remain strings after platform interpolation."""
+    profiles = raw.get("profiles")
+    if not isinstance(profiles, dict):
+        return raw
+    for profile in profiles.values():
+        if not isinstance(profile, dict):
+            continue
+        auth = profile.get("auth")
+        if not isinstance(auth, dict):
+            continue
+        api_keys = auth.get("api_keys")
+        if isinstance(api_keys, list):
+            auth["api_keys"] = [str(value) for value in api_keys]
+    return raw
+
+
 def load_config(
     *,
     root_dir: Optional[str] = None,
@@ -63,10 +78,12 @@ def load_config(
         env_files=env_files,
         config_yaml=str(config_file),
         defaults_yaml=str(defaults_file),
-        unresolved_policy="warn",
+        unresolved_policy="strict",
         vault_enabled=True,
     )
-    return ServerConfig.model_validate(_thaw(global_config.data))
+    hydrated = _thaw(global_config.data)
+    normalised = _coerce_auth_api_keys(hydrated)
+    return ServerConfig.model_validate(normalised)
 
 
 def get_profile(

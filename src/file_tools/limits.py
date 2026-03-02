@@ -19,6 +19,7 @@ from typing import Iterator, Optional
 
 import os
 import signal
+import threading
 
 
 class LimitError(RuntimeError):
@@ -45,6 +46,10 @@ def enforce_timeout(timeout_s: Optional[int]) -> Iterator[None]:
         yield
         return
     if os.name != "posix":
+        yield
+        return
+    if threading.current_thread() is not threading.main_thread():
+        # signal-based timers are only valid on the main thread.
         yield
         return
 

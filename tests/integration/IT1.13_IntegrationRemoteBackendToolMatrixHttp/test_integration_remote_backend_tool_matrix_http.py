@@ -105,11 +105,11 @@ def test_remote_backend_tool_matrix(backend: str, tmp_path: Path) -> None:
     env_ctx = merged_remote_env(repo_root, include_google=(backend == "google_drive"))
     strict = _strict_remote_mode(env_ctx)
     if not strict and os.getenv("FILE_MCP_RUN_REMOTE_MATRIX_TESTS", "0") != "1":
-        pytest.skip("Set FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 to run remote backend matrix tests")
+        pytest.fail("Set FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1 to run remote backend matrix tests")
     if not _backend_ready(backend, env_ctx):
         if strict:
             raise AssertionError(f"Backend {backend} credentials unresolved/missing for matrix test")
-        pytest.skip(f"Backend {backend} credentials not configured for matrix test")
+        pytest.fail(f"Backend {backend} credentials not configured for matrix test")
 
     port = pick_free_port()
     run_id = uuid.uuid4().hex[:10]

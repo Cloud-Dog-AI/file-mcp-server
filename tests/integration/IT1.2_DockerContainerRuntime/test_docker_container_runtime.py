@@ -239,11 +239,11 @@ def _detect_docker_host_endpoint() -> str | None:
 @pytest.fixture(scope="session")
 def docker_image() -> str:
     if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
-        pytest.skip(
+        pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_TESTS=1 to enable Docker integration tests"
         )
     if not _docker_available():
-        pytest.skip("Docker daemon unavailable")
+        pytest.fail("Docker daemon unavailable")
 
     repo_root = project_root(Path(__file__))
     requested = os.getenv("FILE_MCP_DOCKER_TEST_IMAGE", "").strip()
@@ -286,14 +286,14 @@ def test_docker_command_builder_defaults_to_local_daemon() -> None:
 
 def test_docker_remote_host_exec_path_if_enabled() -> None:
     if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
-        pytest.skip(
+        pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_TESTS=1 to enable Docker integration tests"
         )
     if not _docker_available():
-        pytest.skip("Docker daemon unavailable")
+        pytest.fail("Docker daemon unavailable")
     docker_host = _detect_docker_host_endpoint()
     if not docker_host:
-        pytest.skip("Unable to detect a Docker host endpoint from docker context")
+        pytest.fail("Unable to detect a Docker host endpoint from docker context")
 
     prev = os.environ.get("FILE_MCP_DOCKER_HOST")
     os.environ["FILE_MCP_DOCKER_HOST"] = docker_host
@@ -369,7 +369,7 @@ def test_container_smoke_with_bridge_network_port_publish(
     docker_image: str, tmp_path: Path
 ) -> None:
     if os.getenv("FILE_MCP_RUN_DOCKER_BRIDGE_TESTS", "0") != "1":
-        pytest.skip(
+        pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_BRIDGE_TESTS=1 to enable bridge publish validation"
         )
 

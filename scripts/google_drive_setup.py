@@ -17,13 +17,10 @@ import os
 from pathlib import Path
 import secrets
 import sys
-import ssl
 import threading
 import time
 from typing import Any, Iterable, Mapping
 from urllib.parse import parse_qs, urlparse
-import urllib.error
-import urllib.request
 
 import requests
 
@@ -262,7 +259,7 @@ def _load_google_defaults_from_platform_config(repo_root: Path, env_path: Path) 
                 env_files=env_files,
                 config_yaml=str(repo_root / "config.yaml"),
                 defaults_yaml=str(repo_root / "defaults.yaml"),
-                unresolved_policy="warn",
+                unresolved_policy="strict",
                 vault_enabled=True,
             )
         except Exception:
@@ -283,6 +280,14 @@ def _load_google_defaults_from_platform_config(repo_root: Path, env_path: Path) 
 
 
 def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
+    try:
+        from cloud_dog_config.vault.client import (  # type: ignore[import-untyped]
+            VaultClient,
+            VaultConnectionConfig,
+        )
+    except Exception:
+        return {}
+
     vault_env = dict(_discover_vault_env(repo_root))
     for key in ("VAULT_ADDR", "VAULT_TOKEN", "VAULT_MOUNT_POINT", "VAULT_CONFIG_PATH"):
         if key not in vault_env and _clean(os.getenv(key)):
@@ -295,24 +300,29 @@ def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
     if not (addr and token and mount_raw):
         return {}
 
-    if config_path:
-        mount_name = mount_raw
-        secret_path = config_path
-    else:
-        parts = mount_raw.split("/", 1)
-        mount_name = parts[0]
-        secret_path = parts[1] if len(parts) == 2 else ""
-
-    url = f"{addr.rstrip('/')}/v1/{mount_name}/data/{secret_path}".rstrip("/")
-    req = urllib.request.Request(url, headers={"X-Vault-Token": token})
+    secret_path = config_path or "config"
     try:
-        with urllib.request.urlopen(req, context=ssl.create_default_context(), timeout=8) as response:
-            raw = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError):
+        client = VaultClient(
+            VaultConnectionConfig(
+                server=addr,
+                token=token,
+                timeout_seconds=8.0,
+                mount_point=mount_raw,
+            )
+        )
+        raw = client.read(secret_path)
+    except Exception:
         return {}
 
-    data = raw.get("data", {}).get("data", {})
-    cfg = data.get("json", data)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+
+    cfg = raw.get("json", raw)
     if isinstance(cfg, str):
         try:
             cfg = json.loads(cfg)

@@ -85,9 +85,18 @@ check "No non-existent vault.dev.keys.api_key reference" "$WRONG"
 
 # QG-C9: Env expression source audit (RULE 11 — drift prevention)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_AUDIT_FAILS=$(bash "$SCRIPT_DIR/verify-env-expression-sources.sh" "$PROJECT" 2>&1 | grep -c "^  FAIL" || true)
-ENV_AUDIT_FAILS=${ENV_AUDIT_FAILS:-0}
-check "QG-C9 Env expression source audit (${ENV_AUDIT_FAILS} orphaned)" "$ENV_AUDIT_FAILS"
+ENV_AUDIT_SCRIPT="$SCRIPT_DIR/verify-env-expression-sources.sh"
+if [ ! -x "$ENV_AUDIT_SCRIPT" ]; then
+    ENV_AUDIT_SCRIPT="/opt/iac/Development/cloud-dog-ai/cloud-dog-ai-platform-standards/migration/verify/verify-env-expression-sources.sh"
+fi
+
+if [ ! -x "$ENV_AUDIT_SCRIPT" ]; then
+    check "QG-C9 Env expression source audit (audit script missing)" 1
+else
+    ENV_AUDIT_FAILS=$(bash "$ENV_AUDIT_SCRIPT" "$PROJECT" 2>&1 | grep -c "^  FAIL" || true)
+    ENV_AUDIT_FAILS=${ENV_AUDIT_FAILS:-0}
+    check "QG-C9 Env expression source audit (${ENV_AUDIT_FAILS} orphaned)" "$ENV_AUDIT_FAILS"
+fi
 
 # private/env-remote-storage uses Vault expressions
 if [ -f "$PROJECT/private/env-remote-storage" ]; then

@@ -141,7 +141,8 @@ def start(
         start_new_session=True,
     )
 
-    for _ in range(50):
+    # Strict config + vault resolution can take several seconds on busy hosts.
+    for _ in range(300):
         if process.poll() is not None:
             typer.echo("failed to start: serve process exited early")
             raise typer.Exit(1)

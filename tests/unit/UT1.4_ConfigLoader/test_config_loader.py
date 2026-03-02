@@ -254,6 +254,56 @@ profiles:
     assert profile.observability.level == "INFO"
 
 
+def test_load_config_coerces_numeric_api_keys_to_strings(
+    tmp_path: Path, monkeypatch
+) -> None:
+    defaults_path = tmp_path / "defaults.yaml"
+    config_path = tmp_path / "config.yaml"
+    env_path = tmp_path / "env"
+
+    _write_yaml(
+        defaults_path,
+        """
+profiles:
+  default:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_PRIMARY}"
+        - "${FILE_MCP_API_KEY_SECONDARY}"
+""".lstrip(),
+    )
+    _write_yaml(
+        config_path,
+        """
+profiles:
+  default:
+    auth:
+      api_keys:
+        - "${FILE_MCP_API_KEY_PRIMARY}"
+        - "${FILE_MCP_API_KEY_SECONDARY}"
+""".lstrip(),
+    )
+    _write_env(
+        env_path,
+        {
+            "FILE_MCP_API_KEY_PRIMARY": "secret",
+            "FILE_MCP_API_KEY_SECONDARY": "12345678",
+        },
+    )
+
+    monkeypatch.delenv("FILE_MCP_API_KEY_PRIMARY", raising=False)
+    monkeypatch.delenv("FILE_MCP_API_KEY_SECONDARY", raising=False)
+    config = load_config(
+        env_path=[env_path],
+        config_path=str(config_path),
+        defaults_path=str(defaults_path),
+    )
+    profile = get_profile(config)
+
+    assert profile.auth.api_keys == ["secret", "12345678"]
+    assert all(isinstance(item, str) for item in profile.auth.api_keys)
+
+
 def test_load_config_env_override_precedence(tmp_path: Path, monkeypatch) -> None:
     defaults_path = tmp_path / "defaults.yaml"
     config_path = tmp_path / "config.yaml"

@@ -4,14 +4,15 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
-import ssl
 from typing import Mapping
-import urllib.error
-import urllib.request
 
 import yaml
 
 from cloud_dog_config import load_config as platform_load  # type: ignore[import-untyped]
+from cloud_dog_config.vault.client import (  # type: ignore[import-untyped]
+    VaultClient,
+    VaultConnectionConfig,
+)
 
 # Base runtime env (non-secret defaults) tracked in repo.
 _DEFAULT_BASE_ENV = Path("run/env.remote-storage.base")
@@ -156,7 +157,7 @@ def _resolve_vault_backed_remote_values(
                 env_files=env_files,
                 config_yaml=str(repo_root / "config.yaml"),
                 defaults_yaml=str(repo_root / "defaults.yaml"),
-                unresolved_policy="warn",
+                unresolved_policy="strict",
                 vault_enabled=True,
             )
         out: dict[str, str] = {}
@@ -208,26 +209,27 @@ def _read_storage_from_vault_blob(vault_env: Mapping[str, str]) -> dict[str, obj
     if not (addr and token and mount_raw):
         return {}
 
-    if config_path:
-        mount_name = mount_raw
-        secret_path = config_path
-    else:
-        parts = mount_raw.split("/", 1)
-        mount_name = parts[0]
-        secret_path = parts[1] if len(parts) > 1 else ""
-
-    url = f"{addr}/v1/{mount_name}/data/{secret_path}".rstrip("/")
-    req = urllib.request.Request(url, headers={"X-Vault-Token": token})
     try:
-        with urllib.request.urlopen(
-            req, context=ssl.create_default_context(), timeout=5
-        ) as response:
-            raw = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError):
+        client = VaultClient(
+            VaultConnectionConfig(
+                server=addr,
+                token=token,
+                timeout_seconds=5.0,
+                mount_point=mount_raw,
+            )
+        )
+        raw = client.read(config_path or "config")
+    except Exception:
+        return {}
+    try:
+        if isinstance(raw, str):
+            raw = json.loads(raw)
+    except ValueError:
         return {}
 
-    data = raw.get("data", {}).get("data", {})
-    cfg = data.get("json", data)
+    if not isinstance(raw, dict):
+        return {}
+    cfg = raw.get("json", raw)
     if isinstance(cfg, str):
         try:
             cfg = json.loads(cfg)

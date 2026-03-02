@@ -3,6 +3,141 @@
 Version: 1.21 • 2026-02-20
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
+## W14B-04 A2A Auth Contract Snapshot (2026-03-01)
+
+Instruction:
+- `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W14B-04-FILE-MCP-A2A-ENABLE-AUTH-CONTRACT-STRICT.md`
+
+Implementation:
+- Added `/a2a/health` handling in `HealthCheckMiddleware` with explicit auth gate.
+- Wired A2A auth check to the same runtime verifier used by MCP/API (`MultiProfileApiKeyTokenVerifier`) via server runtime middleware injection.
+- Updated local env contracts to include:
+  - `TEST_A2A_API_KEY=12345678` (test contract traceability)
+  - `FILE_MCP_API_KEY_SECONDARY=12345678` (runtime auth authority key)
+- Added config adapter normalization for API keys (`src/file_tools/config/adapter.py`) so numeric-looking keys are coerced to strings before model bind.
+
+Key test additions:
+- Unit parity: `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py`
+- Integration auth matrix: `tests/integration/IT1.25_IntegrationA2AAuthContract/test_integration_a2a_auth_contract.py`
+- Application flow: `tests/application/AT1.10_ApplicationA2AAuthWorkflow/test_application_a2a_auth_workflow.py`
+
+Strict verification results:
+- Hard-stop precheck: `/a2a/health` -> `401` (no auth), `200` (`Bearer 12345678`)
+- UT: `137 passed, 1 skipped`
+- ST: `21 passed`
+- IT: `40 passed, 5 skipped`
+- AT: `9 passed, 1 skipped`
+- UI lint/typecheck/e2e/a11y: pass (`16 passed` e2e, `6 passed` a11y)
+
+Evidence:
+- `working/W14B-04-FILE-MCP-A2A-ENABLE-AUTH-CONTRACT-REPORT-2026-03-01.md`
+- `/tmp/w14b04_file_ensure.log`
+- `/tmp/w14b04_file_a2a_noauth.code`
+- `/tmp/w14b04_file_a2a_auth.code`
+- `/tmp/w14b04_file_ut.log`
+- `/tmp/w14b04_file_st.log`
+- `/tmp/w14b04_file_it.log`
+- `/tmp/w14b04_file_at.log`
+- `/tmp/w14b04_file_ui_lint.log`
+- `/tmp/w14b04_file_ui_typecheck.log`
+- `/tmp/w14b04_file_ui_e2e.log`
+- `/tmp/w14b04_file_ui_a11y.log`
+
+## W12E-04 UAT Readiness Snapshot (2026-03-01)
+
+Instruction:
+- `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W12E-04-FILE-MCP-UAT-READY-SINGLE-DOCKER.md`
+
+Runtime identity and endpoints:
+- Control env: `tests/env-local-docker-server`
+- Runtime envs: `tests/env-UT-local-docker`, `tests/env-ST-local-docker`, `tests/env-IT-local-docker`, `tests/env-AT-local-docker`
+- Runtime ensure: `bash local-docker-server.sh --env tests/env-local-docker-server ensure` -> `ALREADY RUNNING with matching env`
+- Container identity: `file-mcp-local` with image id `sha256:f1f25680c614fcfab73134ba5475cf2a5f03a4549aeb717308ba0caaa3858cca`
+- Health endpoint: `http://127.0.0.1:18090/health` -> `status=ok`
+- MCP tools endpoint: `http://127.0.0.1:18090/mcp/tools` -> tool list returned (54 tools)
+
+Strict backend tier results:
+- UT: `132 passed, 1 skipped`
+- ST: `21 passed`
+- IT: `39 passed, 5 skipped`
+- AT: `8 passed, 1 skipped`
+
+UI gap closure and strict UI validation:
+- Added `apps/file-mcp/tests/e2e/settings.spec.ts` (`UI-GAP-01`)
+- Added `apps/file-mcp/tests/e2e/routes.spec.ts` (`UI-GAP-02`)
+- Expanded `apps/file-mcp/tests/a11y.spec.ts` to six routes (`UI-GAP-03`)
+- `npm run lint -- --filter=@cloud-dog/app-file-mcp` -> pass
+- `npm run typecheck -- --filter=@cloud-dog/app-file-mcp` -> pass
+- `npm run e2e -- --filter=@cloud-dog/app-file-mcp` -> `16 passed`
+- `npm run a11y -- --filter=@cloud-dog/app-file-mcp` -> `6 passed`
+
+Evidence paths:
+- `working/w12e04/runtime-ensure.log`
+- `working/w12e04/health.json`
+- `working/w12e04/mcp-tools.json`
+- `working/w12e04/pytest-ut.log`
+- `working/w12e04/pytest-st.log`
+- `working/w12e04/pytest-it.log`
+- `working/w12e04/pytest-at.log`
+- `working/w12e04/ui-lint.log`
+- `working/w12e04/ui-typecheck.log`
+- `working/w12e04/ui-e2e.log`
+- `working/w12e04/ui-a11y.log`
+- `working/w12e04/ui-last-run.json`
+
+## W14A-03 Route Prefix + Tracker Reconcile Snapshot (2026-03-01)
+
+Instruction:
+- `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W14A-03-FILE-MCP-ROUTE-PFX-AND-TRACKER-RECONCILE-STRICT.md`
+
+Canonical route contract status:
+- API canonical prefix: `/app/v1`
+- MCP canonical prefix: `/mcp`
+- Web canonical prefix: `/`
+- A2A canonical prefix: `/a2a`
+
+Compatibility policy (explicit):
+- Legacy aliases retained as compatibility-only:
+  - `/health`, `/ready`, `/live`
+  - `/api/v1/health`, `/api/v1/ready`, `/api/v1/live`
+- Canonical probes remain primary for verification and tracker status.
+
+Runtime strict verification summary:
+- UT: `133 passed, 1 skipped`
+- ST: `21 passed`
+- IT: `39 passed, 5 skipped`
+- AT: `8 passed, 1 skipped`
+- Canonical route probes:
+  - `GET /app/v1/health` -> `status=ok`
+  - `GET /mcp/tools` -> tools payload returned
+- Compatibility probe:
+  - `GET /api/v1/health` -> `status=ok`
+
+UI strict revalidation summary (uncached):
+- `npm run lint -- --filter=@cloud-dog/app-file-mcp` -> pass
+- `npm run typecheck -- --filter=@cloud-dog/app-file-mcp` -> pass
+- `npm run e2e -- --filter=@cloud-dog/app-file-mcp` -> `16 passed`
+- `npm run a11y -- --filter=@cloud-dog/app-file-mcp` -> `6 passed`
+- `apps/file-mcp/test-results/.last-run.json` -> `{ "status": "passed", "failedTests": [] }`
+
+Evidence paths:
+- `working/W14A-03-FILE-MCP-ROUTE-PFX-AND-TRACKER-RECONCILE-REPORT-2026-03-01.md`
+- `working/w14a03/precheck-runtime-ensure.log`
+- `working/w14a03/precheck-health.json`
+- `working/w14a03/precheck-tools.json`
+- `working/w14a03/pytest-ut.log`
+- `working/w14a03/pytest-st.log`
+- `working/w14a03/pytest-it.log`
+- `working/w14a03/pytest-at.log`
+- `working/w14a03/health-canonical.json`
+- `working/w14a03/tools-canonical.json`
+- `working/w14a03/health-legacy-alias.json`
+- `working/w14a03/ui-lint.log`
+- `working/w14a03/ui-typecheck.log`
+- `working/w14a03/ui-e2e.log`
+- `working/w14a03/ui-a11y.log`
+- `working/w14a03/ui-last-run.json`
+
 ## 1) Current release-candidate scope
 
 Implemented and validated:
@@ -287,3 +422,30 @@ I failed to follow mandatory execution discipline in this cycle.
 - I will explicitly report blockers as blockers, not completion.
 
 I acknowledge this failure and the time it cost. I will not repeat this behaviour.
+
+## 2026-03-02 — W15B-02 file-mcp compliance lockdown
+
+- Enforced strict unresolved-placeholder handling in active config load path:
+  - `src/file_tools/config/adapter.py` -> `unresolved_policy="strict"`.
+- Aligned platform config helper call-sites to strict unresolved mode:
+  - `tests/remote_env_helpers.py`
+  - `scripts/google_drive_setup.py`
+- Preserved Google Drive admin prefill UX under strict runtime by adding a YAML fallback read path in:
+  - `src/file_mcp_server/server_runtime.py`
+  - This fallback is limited to admin prefill value extraction; runtime backend execution remains strict.
+- Hardened runtime startup determinism for verifier and local-docker:
+  - `src/file_mcp_server/main.py` start wait loop extended to 30s.
+  - `server_control.sh` now clears inherited `VAULT_*` if the selected env file does not explicitly define `VAULT_*`.
+- Updated strict env/test coverage for loader requirements:
+  - Added required placeholder keys to `tests/env-*` so strict compile does not fail on unresolved backend placeholders.
+  - Added local-docker explicit remote-test controls:
+    - `FILE_MCP_STRICT_REMOTE_TESTS=0`
+    - `FILE_MCP_RUN_REMOTE_MATRIX_TESTS=0`
+  - Gated `IT1.14` live remote storage flow by `FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS` when strict remote mode is off.
+- W15B-02 command outcomes:
+  - CONFIG verifier: pass.
+  - LOGGING verifier: pass.
+  - API-KIT verifier: pass.
+  - ST (`env-ST-local-docker`): pass (`21 passed`).
+  - IT (`env-IT-local-docker`): pass (`34 passed, 11 skipped`).
+  - AT (`env-AT-local-docker`): pass (`9 passed, 1 skipped`).

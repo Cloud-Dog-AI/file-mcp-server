@@ -39,7 +39,7 @@ def _require(env: Mapping[str, str], key: str) -> str:
 
 def test_google_drive_backend_end_to_end_live(tmp_path: Path) -> None:
     if os.getenv("FILE_MCP_RUN_GOOGLE_LIVE_TESTS", "0") != "1":
-        pytest.skip("Set FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1 to run live Google Drive integration tests")
+        pytest.fail("Set FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1 to run live Google Drive integration tests")
 
     repo_root = Path.cwd()
     env_ctx = merged_remote_env(repo_root, include_google=True)
@@ -50,11 +50,11 @@ def test_google_drive_backend_end_to_end_live(tmp_path: Path) -> None:
     ]
     missing = [key for key in required if not _get(env_ctx, key)]
     if missing:
-        pytest.skip(f"Missing required Google live env vars: {', '.join(missing)}")
+        pytest.fail(f"Missing required Google live env vars: {', '.join(missing)}")
     if not (_get(env_ctx, "FILE_MCP_GDRIVE_FOLDER_ID") or _get(env_ctx, "FILE_MCP_GDRIVE_FOLDER_URL")):
-        pytest.skip("Missing FILE_MCP_GDRIVE_FOLDER_ID or FILE_MCP_GDRIVE_FOLDER_URL")
+        pytest.fail("Missing FILE_MCP_GDRIVE_FOLDER_ID or FILE_MCP_GDRIVE_FOLDER_URL")
     if not (_get(env_ctx, "FILE_MCP_GDRIVE_REFRESH_TOKEN") or _get(env_ctx, "FILE_MCP_GDRIVE_ACCESS_TOKEN")):
-        pytest.skip("Missing FILE_MCP_GDRIVE_REFRESH_TOKEN or FILE_MCP_GDRIVE_ACCESS_TOKEN")
+        pytest.fail("Missing FILE_MCP_GDRIVE_REFRESH_TOKEN or FILE_MCP_GDRIVE_ACCESS_TOKEN")
 
     port = pick_free_port()
     run_id = uuid.uuid4().hex[:12]

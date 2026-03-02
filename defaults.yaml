@@ -1,7 +1,8 @@
 profiles:
   default:
     auth:
-      api_keys: []
+      api_keys:
+        - "${FILE_MCP_API_KEY_PRIMARY}"
       header_name: "${FILE_MCP_AUTH_HEADER_NAME}"
       header_scheme: "${FILE_MCP_AUTH_HEADER_SCHEME}"
     storage:

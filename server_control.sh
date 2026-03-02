@@ -99,6 +99,22 @@ COMMON_ARGS=(
 export PYTHONPATH="src${PYTHONPATH:+:$PYTHONPATH}"
 
 run_cmd() {
+  local clear_vault=1
+  if grep -Eq '^[[:space:]]*VAULT_[A-Z0-9_]*=' "$ENV_PATH"; then
+    clear_vault=0
+  fi
+
+  if [[ "$clear_vault" -eq 1 ]]; then
+    env \
+      VAULT_ADDR= \
+      VAULT_TOKEN= \
+      VAULT_NAMESPACE= \
+      VAULT_MOUNT_POINT= \
+      VAULT_CONFIG_PATH= \
+      "$PYTHON_BIN" -m file_mcp_server "$@"
+    return
+  fi
+
   "$PYTHON_BIN" -m file_mcp_server "$@"
 }
 

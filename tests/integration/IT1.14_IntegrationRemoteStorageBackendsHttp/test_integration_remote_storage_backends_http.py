@@ -17,17 +17,22 @@ def _strict_remote_mode(env: Mapping[str, str]) -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def _run_remote_storage_enabled(env: Mapping[str, str]) -> bool:
+    value = env.get("FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def _require(env: Mapping[str, str], name: str) -> str:
     value = env.get(name, "").strip()
     strict = _strict_remote_mode(env)
     if not value:
         if strict:
             raise AssertionError(f"Missing required env var for live remote backend test: {name}")
-        pytest.skip(f"Missing required env var for live remote backend test: {name}")
+        pytest.fail(f"Missing required env var for live remote backend test: {name}")
     if value.startswith("${") and value.endswith("}"):
         if strict:
             raise AssertionError(f"Unresolved placeholder for live remote backend test env var: {name}")
-        pytest.skip(f"Unresolved placeholder for live remote backend test env var: {name}")
+        pytest.fail(f"Unresolved placeholder for live remote backend test env var: {name}")
     return value
 
 
@@ -75,6 +80,12 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
     env_ctx = merged_remote_env(repo_root)
     env_path = tmp_path / "remote-storage.env"
     runtime_env = file_mcp_env_values(env_ctx)
+    strict = _strict_remote_mode(env_ctx)
+
+    if not strict and not _run_remote_storage_enabled(env_ctx):
+        pytest.fail(
+            "Set FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 to run live remote backend tests"
+        )
 
     # Fail fast if core auth is not available (used by client transport).
     _require(env_ctx, "FILE_MCP_API_KEY_PRIMARY")

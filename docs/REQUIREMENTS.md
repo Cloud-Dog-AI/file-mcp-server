@@ -210,6 +210,12 @@ System shall support simple server start/stop/status routines suitable for local
 - The server SHOULD expose a health/readiness check (transport-appropriate) that reports status without disclosing secrets.
 - Health endpoints SHALL include `/health`, `/ready`, and `/live` responses aligned to PS-20.
 
+### FR1.46: A2A Health Auth Contract
+- The server SHALL expose `GET /a2a/health` in local-server and local-docker runtime modes.
+- `GET /a2a/health` without valid auth SHALL return `401`.
+- `GET /a2a/health` with `Authorization: Bearer 12345678` SHALL return `200` in strict local test mode.
+- A2A auth verification SHALL use the same API-key authority as MCP/API auth verification (no separate A2A key store).
+
 ### FR1.24: Tool Reuse Outside Server
 - The `file_tools` library SHALL have no dependency on MCP server transport.
 - All tool handlers SHALL be callable directly from Python without running the server.
@@ -269,6 +275,70 @@ System shall support simple server start/stop/status routines suitable for local
 - One server process SHALL host multiple profiles concurrently and route each tool call to the selected profile context.
 - Profile selection SHALL support request query/header selectors with deterministic fallback to server default profile.
 - Profile routing SHALL enforce profile-local controls (API keys, scope roots, allow/deny patterns, allowed extensions, read-only extensions, limits).
+
+### FR1.37: Web UI Route Contract (`UI-P5-FILE-REQ`)
+- The monorepo frontend app `@cloud-dog/app-file-mcp` SHALL expose the following routes:
+  - `/login`
+  - `/dashboard`
+  - `/file-browser`
+  - `/search`
+  - `/storage-profiles`
+  - `/audit-log`
+  - `/settings`
+- The default route (`/`) SHALL redirect to `/dashboard` for authenticated users.
+- Unknown routes SHALL redirect to `/dashboard`.
+
+### FR1.38: Web UI Runtime Config Contract (`UI-P5-FILE-REQ`)
+- The frontend runtime config object (`window.__RUNTIME_CONFIG__`) SHALL provide:
+  - `ENV`
+  - `API_BASE_URL`
+  - `AUTH_MODE`
+  - `AUDIT_LOG_PATH`
+  - `DEFAULT_BROWSE_PATH`
+  - `PROFILE_STORE_PATH`
+- Runtime config SHALL be loaded from `apps/file-mcp/public/runtime-config.js` (or equivalent deployment artefact), not hardcoded in React components.
+
+### FR1.39: Web UI Authentication Expectations (`UI-P5-FILE-REQ`)
+- UI auth mode SHALL support API-key login for file-mcp.
+- Login SHALL validate the key against a real backend call before marking the session authenticated.
+- Any 401/403 from backend API calls SHALL force session logout and return to sign-in state.
+- The UI SHALL not display fake success state when auth fails.
+
+### FR1.40: Web UI API Contract Expectations (`UI-P5-FILE-REQ`)
+- The UI SHALL call live backend endpoints via `API_BASE_URL` and SHALL not use mocked API responses in E2E/a11y validation.
+- UI flows SHALL depend on real `file-mcp-server` tool contracts for:
+  - health/status (`/health`)
+  - tools list and backend status
+  - filesystem CRUD and directory listing
+  - search paths/content
+  - audit log read/export
+  - storage profile load/save
+- Backend failures SHALL be surfaced as user-visible error messages (`role="alert"` or equivalent status copy).
+
+### FR1.41: Dashboard Flow (`UI-P5-FILE-REQ`)
+- Dashboard SHALL display service status, active backend, backend count, and available tool count.
+- Dashboard quick actions SHALL route to file browser, search, storage profiles, and audit log.
+- Dashboard SHALL show recent audit activity when audit data is available.
+
+### FR1.42: File Browser and Search Flow (`UI-P5-FILE-REQ`)
+- File browser SHALL support browse/open/read/write/delete/copy/move and create directory/file actions.
+- Search SHALL support filename search, content search, and regex/grep mode.
+- Search results SHALL allow opening the selected result in file browser context.
+
+### FR1.43: Profiles, Audit, and Settings Flow (`UI-P5-FILE-REQ`)
+- Storage profiles page SHALL support create/edit/delete/test-connection workflows.
+- Audit log page SHALL support refresh, filtering (action/outcome/path/date), pagination, and CSV export.
+- Settings page SHALL expose runtime paths and an explicit health-check action.
+
+### FR1.44: Web UI Accessibility (`UI-P5-FILE-REQ`)
+- Core pages SHALL meet WCAG 2.1 AA baseline checks in automated a11y test runs.
+- Key status/error surfaces SHALL use semantic roles (`status`, `alert`) for assistive technology compatibility.
+- Interactive controls SHALL have accessible names suitable for role-based test selectors.
+
+### FR1.45: Web UI Failure and Timeout Behaviour (`UI-P5-FILE-REQ`)
+- On backend timeout/unavailable/error conditions, UI SHALL show explicit failure state and SHALL NOT silently report success.
+- Loading states SHALL be visible while requests are in flight.
+- E2E/a11y validation for closeout SHALL run against a real backend runtime (no degraded fallback mode).
 
 ---
 
