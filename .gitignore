@@ -17,3 +17,5 @@ src/search-target-*.txt.lock
 .run/
 logs/
 *.pid
+run/workspace/logs/
+*.log

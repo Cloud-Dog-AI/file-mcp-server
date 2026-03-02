@@ -1,8 +1,0 @@
-2026-02-10 08:40:08,341 INFO file_mcp_server Server process started with pid=1
-2026-02-10 08:40:08,417 INFO file_mcp_server Starting FastMCP transport=streamable-http host=0.0.0.0 port=8000 endpoint=/mcp health=/health
-2026-02-10 08:55:16,343 INFO file_mcp_server Server process started with pid=1
-2026-02-10 08:55:16,348 INFO file_mcp_server Server process shutdown complete pid=1
-2026-02-10 08:57:57,638 INFO file_mcp_server Server process started with pid=1
-2026-02-10 08:57:57,644 INFO file_mcp_server Server process shutdown complete pid=1
-2026-02-10 08:58:35,185 INFO file_mcp_server Server process started with pid=1
-2026-02-10 08:58:35,270 INFO file_mcp_server Starting FastMCP transport=streamable-http host=0.0.0.0 port=8000 endpoint=/mcp health=/health
