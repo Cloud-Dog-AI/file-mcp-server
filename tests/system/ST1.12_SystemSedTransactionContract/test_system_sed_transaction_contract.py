@@ -74,11 +74,19 @@ def test_sed_transaction_contract_validation_and_noop(tmp_path: Path) -> None:
                     {
                         "path": str(txt_target),
                         "operations": [
-                            {"op": "replace_regex", "pattern": "not-present", "repl": "X"},
+                            {
+                                "op": "replace_regex",
+                                "pattern": "not-present",
+                                "repl": "X",
+                            },
                         ],
                     },
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         with pytest.raises(Exception):
             asyncio.run(_invalid_json_transaction())
@@ -88,8 +96,16 @@ def test_sed_transaction_contract_validation_and_noop(tmp_path: Path) -> None:
     assert json_target.read_text(encoding="utf-8") == json_before
     assert txt_target.read_text(encoding="utf-8") == txt_before
 
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    events = [json.loads(line) for line in lines if json.loads(line).get("tool") == "sed_edit_file"]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    events = [
+        json.loads(line)
+        for line in lines
+        if json.loads(line).get("tool") == "sed_edit_file"
+    ]
     assert events
     assert any(evt["status"] == "error" for evt in events)
     assert any(evt["status"] == "ok" for evt in events)
@@ -133,12 +149,24 @@ def test_sed_transaction_ordering_and_policy_variants(tmp_path: Path) -> None:
                     {
                         "path": str(json_target),
                         "operations": [
-                            {"op": "replace_regex", "pattern": '"a":1', "repl": '"a":2'},
-                            {"op": "replace_regex", "pattern": '"a":2', "repl": '"a":3'},
+                            {
+                                "op": "replace_regex",
+                                "pattern": '"a":1',
+                                "repl": '"a":2',
+                            },
+                            {
+                                "op": "replace_regex",
+                                "pattern": '"a":2',
+                                "repl": '"a":3',
+                            },
                         ],
                     },
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         async def _markdown_warn() -> dict:
             async with Client(
@@ -152,11 +180,19 @@ def test_sed_transaction_ordering_and_policy_variants(tmp_path: Path) -> None:
                     {
                         "path": str(md_target),
                         "operations": [
-                            {"op": "replace_regex", "pattern": "## Section", "repl": "#### Section"},
+                            {
+                                "op": "replace_regex",
+                                "pattern": "## Section",
+                                "repl": "#### Section",
+                            },
                         ],
                     },
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         json_payload = asyncio.run(_json_ordered())
         md_payload = asyncio.run(_markdown_warn())

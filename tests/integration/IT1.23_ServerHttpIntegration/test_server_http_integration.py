@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from tests.env_runtime import runtime_env
+
 import asyncio
 import json
-import os
 import socket
 import subprocess
 import sys
@@ -127,7 +128,7 @@ http:
     ]
     env = {
         key: value
-        for key, value in os.environ.items()
+        for key, value in runtime_env.items()
         if not (key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"))
     }
     env["PYTHONPATH"] = "src"
@@ -155,7 +156,9 @@ http:
                 tools = await client.list_tools()
                 assert any(tool.name == "read_file" for tool in tools)
                 result = await client.call_tool("read_file", {"path": str(target)})
-                text_blocks = [item.text for item in result.content if hasattr(item, "text")]
+                text_blocks = [
+                    item.text for item in result.content if hasattr(item, "text")
+                ]
                 return "\n".join(text_blocks)
 
         response_text = asyncio.run(_call_read_file())

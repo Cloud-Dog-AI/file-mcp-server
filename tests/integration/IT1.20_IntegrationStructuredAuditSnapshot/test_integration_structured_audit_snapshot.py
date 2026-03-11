@@ -52,7 +52,9 @@ def test_structured_edit_with_audit_and_snapshot(tmp_path: Path) -> None:
                 structured = getattr(result, "structuredContent", None) or {}
                 if structured:
                     return structured
-                text_blocks = [item.text for item in result.content if hasattr(item, "text")]
+                text_blocks = [
+                    item.text for item in result.content if hasattr(item, "text")
+                ]
                 if text_blocks:
                     try:
                         parsed = json.loads("\n".join(text_blocks))
@@ -72,10 +74,17 @@ def test_structured_edit_with_audit_and_snapshot(tmp_path: Path) -> None:
         snapshots_root = tmp_path / "snapshots"
         snapshot_files = list(snapshots_root.rglob("data.json"))
         assert snapshot_files, "expected snapshot file for pre-change content"
-        assert json.loads(snapshot_files[0].read_text(encoding="utf-8"))["nested"]["x"] == 1
+        assert (
+            json.loads(snapshot_files[0].read_text(encoding="utf-8"))["nested"]["x"]
+            == 1
+        )
 
         assert audit_log.exists()
-        lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+        lines = [
+            line
+            for line in audit_log.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
         assert lines, "expected audit entries"
         event = json.loads(lines[-1])
         assert event["tool"] == "json_set_file"

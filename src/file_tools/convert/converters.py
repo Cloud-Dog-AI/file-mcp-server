@@ -13,6 +13,7 @@ Recent Change History:
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional
@@ -44,15 +45,19 @@ class ConversionResult:
     backend: Optional[str] = None
 
 
-class ConverterBackend:
+class ConverterBackend(ABC):
     name = "backend"
 
+    @abstractmethod
     def can_handle(self, input_path: Path, target_format: str) -> bool:
-        raise NotImplementedError
+        """Return whether handle is supported."""
+        return False
 
     def is_available(self) -> bool:
+        """Return whether available."""
         return True
 
+    @abstractmethod
     def convert(
         self,
         input_path: Path,
@@ -60,17 +65,21 @@ class ConverterBackend:
         *,
         output_path: Optional[Path] = None,
     ) -> ConversionResult:
-        raise NotImplementedError
+        """Execute convert."""
+        raise ConversionError("convert not implemented for backend")
 
 
 class ConverterRegistry:
     def __init__(self, backends: Optional[Iterable[ConverterBackend]] = None) -> None:
+        """Initialise the instance state."""
         self.backends: List[ConverterBackend] = list(backends or [])
 
     def register(self, backend: ConverterBackend) -> None:
+        """Execute register."""
         self.backends.append(backend)
 
     def get(self, name: str) -> Optional[ConverterBackend]:
+        """Execute get."""
         for backend in self.backends:
             if backend.name == name:
                 return backend
@@ -79,6 +88,7 @@ class ConverterRegistry:
     def select(
         self, input_path: Path, target_format: str
     ) -> Optional[ConverterBackend]:
+        """Execute select."""
         for backend in self.backends:
             if backend.is_available() and backend.can_handle(input_path, target_format):
                 return backend
@@ -86,6 +96,7 @@ class ConverterRegistry:
 
 
 def default_registry() -> ConverterRegistry:
+    """Execute default registry."""
     from .backends.libreoffice import LibreOfficeBackend
     from .backends.pandoc import PandocBackend
     from .backends.pdf import PdfBackend
@@ -103,6 +114,7 @@ def convert_file(
     timeout_s: Optional[int] = None,
     preferred_backend: Optional[str] = None,
 ) -> ConversionResult:
+    """Convert file."""
     registry = registry or default_registry()
     enforce_max_file_size(input_path, max_input_mb)
     if preferred_backend:

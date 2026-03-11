@@ -57,10 +57,18 @@ def test_error_contract_for_expected_operational_failures(tmp_path: Path) -> Non
                     {"path": str(unsupported), "target_format": "txt"},
                 )
                 large_payload = json.loads(
-                    "\n".join(item.text for item in large_result.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in large_result.content
+                        if hasattr(item, "text")
+                    )
                 )
                 unsupported_payload = json.loads(
-                    "\n".join(item.text for item in unsupported_result.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in unsupported_result.content
+                        if hasattr(item, "text")
+                    )
                 )
                 return large_payload, unsupported_payload
 

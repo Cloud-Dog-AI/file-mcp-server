@@ -9,7 +9,11 @@ import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health
+from tests.http_integration_helpers import (
+    pick_free_port,
+    running_server,
+    wait_for_health,
+)
 
 
 def _decode_result(result):
@@ -23,7 +27,9 @@ def _decode_result(result):
         return text
 
 
-def _write_multi_profile_config(base_dir: Path, *, port: int) -> tuple[Path, Path, Path, Path]:
+def _write_multi_profile_config(
+    base_dir: Path, *, port: int
+) -> tuple[Path, Path, Path, Path]:
     defaults_path = base_dir / "defaults.yaml"
     config_path = base_dir / "config.yaml"
     env_path = base_dir / "env"
@@ -178,7 +184,9 @@ http:
 
 def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None:
     port = pick_free_port()
-    defaults_path, config_path, env_path, pidfile = _write_multi_profile_config(tmp_path, port=port)
+    defaults_path, config_path, env_path, pidfile = _write_multi_profile_config(
+        tmp_path, port=port
+    )
     repo_root = project_root(Path(__file__))
 
     with running_server(
@@ -205,7 +213,10 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                 )
             ) as client:
                 out = _decode_result(
-                    await client.call_tool("write_file", {"path": str(default_root / "ok.txt"), "content": "ok"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(default_root / "ok.txt"), "content": "ok"},
+                    )
                 )
                 assert out["ok"] is True
 
@@ -217,9 +228,15 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                 )
             ) as client:
                 with pytest.raises(Exception):
-                    await client.call_tool("write_file", {"path": str(s3_root / "deny.md"), "content": "blocked"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(s3_root / "deny.md"), "content": "blocked"},
+                    )
                 out = _decode_result(
-                    await client.call_tool("write_file", {"path": str(s3_root / "allow.txt"), "content": "ok"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(s3_root / "allow.txt"), "content": "ok"},
+                    )
                 )
                 assert out["ok"] is True
 
@@ -234,9 +251,15 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                 )
             ) as client:
                 with pytest.raises(Exception):
-                    await client.call_tool("read_file", {"path": str(webdav_root / "private" / "hidden.txt")})
+                    await client.call_tool(
+                        "read_file",
+                        {"path": str(webdav_root / "private" / "hidden.txt")},
+                    )
                 out = _decode_result(
-                    await client.call_tool("write_file", {"path": str(webdav_root / "ok.txt"), "content": "ok"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(webdav_root / "ok.txt"), "content": "ok"},
+                    )
                 )
                 assert out["ok"] is True
 
@@ -248,9 +271,15 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                 )
             ) as client:
                 with pytest.raises(Exception):
-                    await client.call_tool("write_file", {"path": str(ftp_root / "bad.txt"), "content": "nope"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(ftp_root / "bad.txt"), "content": "nope"},
+                    )
                 out = _decode_result(
-                    await client.call_tool("write_file", {"path": str(ftp_root / "ok.json"), "content": "{\"ok\":true}"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(ftp_root / "ok.json"), "content": '{"ok":true}'},
+                    )
                 )
                 assert out["ok"] is True
 
@@ -262,11 +291,16 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                 )
             ) as client:
                 out = _decode_result(
-                    await client.call_tool("write_file", {"path": str(gdrive_root / "ok.txt"), "content": "ok"})
+                    await client.call_tool(
+                        "write_file",
+                        {"path": str(gdrive_root / "ok.txt"), "content": "ok"},
+                    )
                 )
                 assert out["ok"] is True
                 with pytest.raises(Exception):
-                    await client.call_tool("read_file", {"path": str(default_root / "outside.txt")})
+                    await client.call_tool(
+                        "read_file", {"path": str(default_root / "outside.txt")}
+                    )
 
             # 6) Wrong key for selected profile must fail auth.
             with pytest.raises(Exception):
@@ -276,6 +310,8 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                         headers={"Authorization": "Bearer key-default"},
                     )
                 ) as client:
-                    await client.call_tool("list_dir", {"path": str(ftp_root), "recursive": False})
+                    await client.call_tool(
+                        "list_dir", {"path": str(ftp_root), "recursive": False}
+                    )
 
         asyncio.run(_flow())

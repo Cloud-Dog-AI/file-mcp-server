@@ -38,7 +38,9 @@ def _write_pdf(path: Path, text: str) -> None:
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-        f"<< /Length {len(content_stream.encode('latin-1'))} >>\nstream\n{content_stream}endstream".encode("latin-1"),
+        f"<< /Length {len(content_stream.encode('latin-1'))} >>\nstream\n{content_stream}endstream".encode(
+            "latin-1"
+        ),
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     ]
 
@@ -56,12 +58,16 @@ def _write_pdf(path: Path, text: str) -> None:
     for offset in offsets[1:]:
         parts.append(f"{offset:010d} 00000 n \n".encode("ascii"))
     parts.append(
-        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode("ascii")
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode(
+            "ascii"
+        )
     )
     path.write_bytes(b"".join(parts))
 
 
-def test_story_multitype_upload_search_update_retrieve_delete_with_audit(tmp_path: Path) -> None:
+def test_story_multitype_upload_search_update_retrieve_delete_with_audit(
+    tmp_path: Path,
+) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
     root_dir.mkdir(parents=True, exist_ok=True)
@@ -137,52 +143,99 @@ def test_story_multitype_upload_search_update_retrieve_delete_with_audit(tmp_pat
                 assert search_payload["matches"]
 
                 # Update all structured types.
-                assert _decode_result(
-                    await client.call_tool(
-                        "json_set_file",
-                        {"path": str(paths["json"]), "json_path": "/title", "value": "released"},
-                    )
-                )["ok"] is True
-                assert _decode_result(
-                    await client.call_tool(
-                        "yaml_set_file",
-                        {"path": str(paths["yaml"]), "yaml_path": "/title", "value": "released"},
-                    )
-                )["ok"] is True
-                assert _decode_result(
-                    await client.call_tool(
-                        "xml_set_file",
-                        {"path": str(paths["xml"]), "xpath": "/root/item", "value": "released"},
-                    )
-                )["ok"] is True
-                assert _decode_result(
-                    await client.call_tool(
-                        "html_set_file",
-                        {"path": str(paths["html"]), "selector": "p", "value": "released"},
-                    )
-                )["ok"] is True
-                assert _decode_result(
-                    await client.call_tool(
-                        "markdown_set_section_file",
-                        {
-                            "path": str(paths["md"]),
-                            "heading": ["Top", "Child"],
-                            "new_content": "## Child\\nreleased",
-                        },
-                    )
-                )["ok"] is True
-                assert _decode_result(
-                    await client.call_tool(
-                        "markdown_set_frontmatter_file",
-                        {"path": str(paths["md"]), "updates": {"status": "released"}},
-                    )
-                )["ok"] is True
+                assert (
+                    _decode_result(
+                        await client.call_tool(
+                            "json_set_file",
+                            {
+                                "path": str(paths["json"]),
+                                "json_path": "/title",
+                                "value": "released",
+                            },
+                        )
+                    )["ok"]
+                    is True
+                )
+                assert (
+                    _decode_result(
+                        await client.call_tool(
+                            "yaml_set_file",
+                            {
+                                "path": str(paths["yaml"]),
+                                "yaml_path": "/title",
+                                "value": "released",
+                            },
+                        )
+                    )["ok"]
+                    is True
+                )
+                assert (
+                    _decode_result(
+                        await client.call_tool(
+                            "xml_set_file",
+                            {
+                                "path": str(paths["xml"]),
+                                "xpath": "/root/item",
+                                "value": "released",
+                            },
+                        )
+                    )["ok"]
+                    is True
+                )
+                assert (
+                    _decode_result(
+                        await client.call_tool(
+                            "html_set_file",
+                            {
+                                "path": str(paths["html"]),
+                                "selector": "p",
+                                "value": "released",
+                            },
+                        )
+                    )["ok"]
+                    is True
+                )
+                assert (
+                    _decode_result(
+                        await client.call_tool(
+                            "markdown_set_section_file",
+                            {
+                                "path": str(paths["md"]),
+                                "heading": ["Top", "Child"],
+                                "new_content": "## Child\\nreleased",
+                            },
+                        )
+                    )["ok"]
+                    is True
+                )
+                assert (
+                    _decode_result(
+                        await client.call_tool(
+                            "markdown_set_frontmatter_file",
+                            {
+                                "path": str(paths["md"]),
+                                "updates": {"status": "released"},
+                            },
+                        )
+                    )["ok"]
+                    is True
+                )
 
-                retrieved_md = _decode_result(await client.call_tool("read_file", {"path": str(paths["md"])}))
-                retrieved_txt = _decode_result(await client.call_tool("read_file", {"path": str(paths["txt"])}))
-                b64_download = _decode_result(await client.call_tool("b64_encode_file", {"path": str(paths["bin"])}))
+                retrieved_md = _decode_result(
+                    await client.call_tool("read_file", {"path": str(paths["md"])})
+                )
+                retrieved_txt = _decode_result(
+                    await client.call_tool("read_file", {"path": str(paths["txt"])})
+                )
+                b64_download = _decode_result(
+                    await client.call_tool(
+                        "b64_encode_file", {"path": str(paths["bin"])}
+                    )
+                )
 
-                delete_payload = _decode_result(await client.call_tool("delete_file", {"path": str(paths["txt"])}))
+                delete_payload = _decode_result(
+                    await client.call_tool("delete_file", {"path": str(paths["txt"])})
+                )
                 assert delete_payload["ok"] is True
 
                 return search_payload, retrieved_md, retrieved_txt, b64_download
@@ -196,7 +249,11 @@ def test_story_multitype_upload_search_update_retrieve_delete_with_audit(tmp_pat
     assert base64.b64decode(b64_download["data"]) == b"binary\\x00payload"
     assert not paths["txt"].exists()
 
-    events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert events
     tool_names = {event.get("tool") for event in events}
     for expected_tool in {
@@ -275,8 +332,12 @@ def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) 
                 find_payload = _decode_result(
                     await client.call_tool("search_content", {"query": "Omega updated"})
                 )
-                read_payload = _decode_result(await client.call_tool("read_file", {"path": str(converted_md)}))
-                delete_payload = _decode_result(await client.call_tool("delete_file", {"path": str(converted_md)}))
+                read_payload = _decode_result(
+                    await client.call_tool("read_file", {"path": str(converted_md)})
+                )
+                delete_payload = _decode_result(
+                    await client.call_tool("delete_file", {"path": str(converted_md)})
+                )
                 assert delete_payload["ok"] is True
                 return {"find": find_payload, "read": read_payload}
 
@@ -286,7 +347,11 @@ def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) 
     assert "Omega updated" in payload["read"]
     assert not converted_md.exists()
 
-    events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(event.get("tool") == "markdown_set_section_file" for event in events)
 
 
@@ -327,7 +392,9 @@ def test_upload_download_cycle_with_invalid_key_rejected(tmp_path: Path) -> None
                     )
                 )
                 assert upload_payload["ok"] is True
-                download_payload = _decode_result(await client.call_tool("b64_encode_file", {"path": str(target)}))
+                download_payload = _decode_result(
+                    await client.call_tool("b64_encode_file", {"path": str(target)})
+                )
                 assert download_payload["ok"] is True
                 return base64.b64decode(download_payload["data"]).decode("utf-8")
 

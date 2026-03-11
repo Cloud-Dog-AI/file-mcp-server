@@ -38,7 +38,7 @@ def test_render_setup_page_locks_profile_when_requested() -> None:
         selected_profile="google_drive",
         lock_profile=True,
     )
-    assert "Profile is fixed for this authorization flow." in html
+    assert "Profile is fixed for this authorisation flow." in html
     assert "name='profile'" in html
     assert "disabled" in html
 
@@ -106,6 +106,9 @@ def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
             folder_input="test",
             client_id="cid",
             client_secret="secret",
+            oauth_scope="scope",
+            oauth_authorize_uri="https://accounts.google.test/auth",
+            api_base_uri="https://drive.googleapis.test/v3",
             redirect_uri="http://localhost",
             token_uri="https://oauth2.googleapis.com/token",
         )
@@ -113,7 +116,7 @@ def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
     monkeypatch.setattr(
         admin,
         "_fetch_folder",
-        lambda access_token, folder_input: (
+        lambda access_token, folder_input, api_base_uri: (
             "folder1",
             "test",
             "https://drive.google.com/drive/folders/folder1",
@@ -159,8 +162,10 @@ def test_fetch_folder_falls_back_to_name_lookup_on_404(monkeypatch) -> None:
             },
         )
 
-    monkeypatch.setattr(admin.requests, "get", _fake_get)
-    folder_id, folder_name, folder_url = admin._fetch_folder("atok", "Test")
+    monkeypatch.setattr(admin, "http_get", _fake_get)
+    folder_id, folder_name, folder_url = admin._fetch_folder(
+        "atok", "Test", api_base_uri="https://www.googleapis.com/drive/v3"
+    )
     assert folder_id == "folder123"
     assert folder_name == "Test"
     assert "folder123" in folder_url

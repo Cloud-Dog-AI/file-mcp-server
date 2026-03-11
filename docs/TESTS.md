@@ -1,5 +1,19 @@
 # File MCP Server Test Catalogue
 
+## Latest W25A-B Status (2026-03-09)
+
+- Instruction file used:
+  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W25A-B-FIX-CONFIG-BURNDOWN.md`
+- Config/runtime work completed in this run:
+  - added missing `tests/env-QT` to support explicit QT tier execution with `--env tests/env-QT`.
+- Strict command summaries:
+  - `python3 -m pytest tests/quality --env tests/env-QT -q -rs` -> `30 passed`
+  - `python3 -m pytest tests/unit --env tests/env-UT -q -rs` -> `139 passed, 1 skipped`
+- Evidence paths:
+  - `working/w25ab-config-file-qt-after.log`
+  - `working/w25ab-config-file-ut-after.log`
+  - `working/W25A-B-FIX-CONFIG-BURNDOWN-REPORT.md`
+
 ## Latest W14B-04 Status (2026-03-01)
 
 - Instruction file used:
@@ -95,7 +109,7 @@
   - `curl -fsS http://127.0.0.1:18090/mcp/tools`
   - `./.venv/bin/python -m pytest tests/integration/ --env tests/env-IT-local-docker -q`
   - `./.venv/bin/python -m pytest tests/application/ --env tests/env-AT-local-docker -q`
-  - W11D-04B strict sequence: `IT1.23`, `IT1.6`, `IT1.3`, `IT1.5`, `IT1.15`, `AT1.9`, restart, `IT1.6`
+  - W11D-04B strict sequence: `IT1.23`, `IT1.6`, `IT1.3`, `IT1.5`, `IT1.15`, `AT1.9`, restart, `IT1.6` (Req: `FR1.23`, `FR1.6`, `FR1.10`, `FR1.11`, `CS1.2`)
 - Exact summary lines:
   - `39 passed, 5 skipped`
   - `8 passed, 1 skipped`
@@ -142,8 +156,8 @@
 | Runtime preconditions | `health=ok`, `FILE_MCP_ROOT=.`, `FILE_MCP_HTTP_PORT=18090`, `GET /mcp/tools -> TOOLS_OK 54` |
 | Contract decode artifact | `/tmp/w11d04b_chat_path_contract.txt` (`PATH_CONTRACT_LINES 9`) |
 | File-MCP strict suites | `IT1.23`, `IT1.6`, `IT1.3`, `IT1.5`, `IT1.15`, `AT1.9`, restart, `IT1.6` -> all passed |
-| Consumer strict suites | `IT2.12`, `IT2.13`, `IT2.14`, `IT2.16`, `AT1.10`, `AT1.11` -> passed |
-| Consumer blocker | Historical only (2026-02-28 initial run): `AT1.12` failed in chat-client with `500 INTERNAL_ERROR: ... missing MARKER line`; resolved by consumer rerun evidence (`chat-client/working/W11D-P6B-FILE-MCP-CONSUMER-ALIGNMENT-RERUN-2026-02-28.md`). |
+| Consumer strict suites | `IT2.12`, `IT2.13`, `IT2.14`, `IT2.16`, `AT1.10`, `AT1.11` -> passed (Req: `FR1.24`, `FR1.2`) |
+| Consumer blocker | Historical only (2026-02-28 initial run): `AT1.12` failed in chat-client with `500 INTERNAL_ERROR: ... missing MARKER line`; resolved by consumer rerun evidence (`chat-client/working/W11D-P6B-FILE-MCP-CONSUMER-ALIGNMENT-RERUN-2026-02-28.md`). (Req: `FR1.24`) |
 | Error mapping proof | `/sessions/{id}/mcp/files/upload` returns `502` + code `UPSTREAM_ERROR` when upstream tool returns `isError=true` |
 | Report | `working/W11D-P4B-FILE-MCP-ROOT-SCOPE-CONTRACT-REPORT-2026-02-28.md` |
 
@@ -181,9 +195,9 @@
 
 | ID Folder | Module | What Is Tested |
 |---|---|---|
-| `UT1.10_Filesystem` | `test_filesystem.py` | Filesystem utility tests |
+| `UT1.10_Filesystem` | `test_filesystem.py` | Filesystem utility tests (`FR1.7`, `FR1.8`, `NF1.1`) |
 | `UT1.11_GoogleDriveAdmin` | `test_google_drive_admin.py` | Tests for server-hosted Google Drive admin flow helpers |
-| `UT1.12_GoogleDriveOauthHelper` | `test_google_drive_oauth_helper.py` | Tests for Google Drive OAuth helper script |
+| `UT1.12_GoogleDriveOauthHelper` | `test_google_drive_oauth_helper.py` | Unit tests for OAuth URL generation and local CLI guidance (`FR1.32`) |
 | `UT1.13_GoogleDriveSetupScript` | `test_google_drive_setup_script.py` | Unit tests for interactive Google Drive setup script helpers |
 | `UT1.14_GoogleDriveStorage` | `test_google_drive_storage.py` | Google Drive storage unit tests |
 | `UT1.15_Lifecycle` | `test_lifecycle.py` | Lifecycle |
@@ -199,6 +213,9 @@
 | `UT1.24_ToolsRegistry` | `test_tools_registry.py` | Tool registry tests |
 | `UT1.25_Validate` | `test_validate.py` | Validation policy tests |
 | `UT1.26_WebdavStorage` | `test_webdav_storage.py` | WebDAV backend unit tests |
+| `UT1.27_RemoteStoragePlaceholderValidation` | `test_remote_storage_placeholder_validation.py` | Placeholder rejection across remote storage credential fields |
+| `UT1.28_RemoteEnvHelpers` | `test_remote_env_helpers.py` | Remote env/profile merge helpers including Google OAuth config hydration |
+| `UT1.29_DatabaseAbstraction` | `test_database_abstraction.py` | Database abstraction contract and session lifecycle behavior |
 | `UT1.2_Audit` | `test_audit.py` | Audit |
 | `UT1.3_Auth` | `test_auth.py` | Auth |
 | `UT1.4_ConfigLoader` | `test_config_loader.py` | Config loader tests |
@@ -212,13 +229,14 @@
 
 | ID Folder | Module | What Is Tested |
 |---|---|---|
-| `ST1.10_SystemLimitsTimeout` | `test_system_limits_timeout.py` | System limits timeout |
+| `ST1.10_SystemLimitsTimeout` | `test_system_limits_timeout.py` | System limits timeout (`CS1.5`, `NF1.2`) |
 | `ST1.11_SystemReadPartialRanges` | `test_system_read_partial_ranges.py` | System read partial ranges |
 | `ST1.12_SystemSedTransactionContract` | `test_system_sed_transaction_contract.py` | System sed transaction contract |
 | `ST1.13_SystemSnapshotRetention` | `test_system_snapshot_retention.py` | System snapshot retention |
 | `ST1.14_SystemStructuredPathEdgeCases` | `test_system_structured_path_edge_cases.py` | System structured path edge cases |
 | `ST1.15_SystemStructuredRollbackContract` | `test_system_structured_rollback_contract.py` | System structured rollback contract |
 | `ST1.16_SystemValidateFileTool` | `test_system_validate_file_tool.py` | System validate file tool |
+| `ST1.17_SystemDatabaseMigration` | `test_database_migration.py`, `test_database_migration_multibackend.py` | Database migration lifecycle, schema versioning, and CRUD across migration boundaries |
 | `ST1.1_SystemAuditIntegrity` | `test_system_audit_integrity.py` | System audit integrity |
 | `ST1.2_SystemAuthHealth` | `test_system_auth_health.py` | System auth health |
 | `ST1.3_SystemConversionMatrix` | `test_system_conversion_matrix.py` | System conversion matrix |
@@ -237,7 +255,7 @@
 | `IT1.11_IntegrationMeldOptionalityHttp` | `test_integration_meld_optionality_http.py` | Integration meld optionality http |
 | `IT1.12_IntegrationMultiProfileRoutingHttp` | `test_integration_multi_profile_routing_http.py` | Integration multi profile routing http |
 | `IT1.13_IntegrationRemoteBackendToolMatrixHttp` | `test_integration_remote_backend_tool_matrix_http.py` | Remote backend MCP tool matrix integration tests |
-| `IT1.14_IntegrationRemoteStorageBackendsHttp` | `test_integration_remote_storage_backends_http.py` | Integration remote storage backends http |
+| `IT1.14_IntegrationRemoteStorageBackendsHttp` | `test_integration_remote_storage_backends_http.py` | Integration remote storage backends http (`FR1.26`, `FR1.29`) |
 | `IT1.15_IntegrationScopedOps` | `test_integration_scoped_ops.py` | Integration scoped ops |
 | `IT1.16_IntegrationSearchHttp` | `test_integration_search_http.py` | Integration search http |
 | `IT1.17_IntegrationSedlikeFileHttp` | `test_integration_sedlike_file_http.py` | Integration sedlike file http |
@@ -265,6 +283,8 @@
 |---|---|---|
 | `AT1.1_ApplicationCompoundReleaseWorkflow` | `test_application_compound_release_workflow.py` | Application compound release workflow |
 | `AT1.10_ApplicationA2AAuthWorkflow` | `test_application_a2a_auth_workflow.py` | Application A2A auth flow using `TEST_A2A_API_KEY` |
+| `AT1.11_DynamicProfileCRUDLifecycle` | `test_dynamic_profile_crud_lifecycle.py` | Dynamic runtime profile/key lifecycle with markdown/PDF CRUD, search, and teardown |
+| `AT1.12_GoogleDriveOauthLive` | `test_google_drive_oauth_live.py` | Live Google OAuth code exchange flow for Google Drive helper (`FR1.32`) |
 | `AT1.2_ApplicationConversionEditWorkflow` | `test_application_conversion_edit_workflow.py` | Application conversion edit workflow |
 | `AT1.3_ApplicationConversionStructuredWorkflow` | `test_application_conversion_structured_workflow.py` | Application conversion structured workflow |
 | `AT1.4_ApplicationLifecycleWorkflow` | `test_application_lifecycle_workflow.py` | Application lifecycle workflow |
@@ -273,6 +293,23 @@
 | `AT1.7_ApplicationSafeEditWorkflow` | `test_application_safe_edit_workflow.py` | Application safe edit workflow |
 | `AT1.8_ApplicationSearchEditAuditWorkflow` | `test_application_search_edit_audit_workflow.py` | Application search edit audit workflow |
 | `AT1.9_ApplicationSecurityBoundary` | `test_application_security_boundary.py` | Application security boundary |
+
+## QT Compliance Catalogue
+
+| ID Folder | Module | What Is Tested | Requirement Link |
+|---|---|---|---|
+| `QT1.1_RulesCompliance` | `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py` | Static RULES.md checks (hardcoding, mocks/skips, headers, docstring density) | `FR1.3`, `FR1.19`, `NF1.7` |
+| `QT1.2_PackageAdoption` | `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py` | Platform package adoption and bespoke implementation drift checks | `FR1.2`, `FR1.3`, `FR1.5`, `FR1.19` |
+| `QT1.3_VaultConfigContract` | `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py` | Vault/config/secrets contract checks for defaults/config/env tiers | `FR1.3`, `FR1.5`, `CS1.1` |
+| `QT1.4_MigrationCompleteness` | `tests/quality/QT_COMPLIANCE/test_qt_migration_completeness.py` | Migration guard checks for raw framework/config/auth/env access | `FR1.2`, `FR1.3`, `FR1.5`, `FR1.19` |
+| `QT1.5_Traceability` | `tests/quality/QT_COMPLIANCE/test_qt_traceability.py` | Requirements↔tests↔code traceability and delivery matrix assertions | `BO1.5`, `FR1.3` |
+| `QT1.6_TraceabilityManifest` | `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py` | Full requirement manifest verification (all REQUIREMENTS IDs mapped to code + tests) | `SV1.1`-`SV1.4`, `BO1.1`-`BO1.5`, `BR1.1`-`BR1.6`, `FR1.1`-`FR1.46`, `UC1.1`-`UC1.14`, `CS1.1`-`CS1.5`, `NF1.1`-`NF1.8` |
+
+### Traceability Manifest Artefacts
+
+- Source manifest: `src/file_mcp_server/requirement_traceability.py`
+- Verification test: `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py`
+- Purpose: eliminate missing requirement-to-code and requirement-to-test links without waivers by keeping an explicit, validated mapping.
 
 ## Web UI Traceability (`UI-P5-FILE-TST`)
 
@@ -354,3 +391,14 @@ Strict closeout pass criteria:
 - Local-docker remote-backend policy:
   - Local-docker envs explicitly set `FILE_MCP_STRICT_REMOTE_TESTS=0` and `FILE_MCP_RUN_REMOTE_MATRIX_TESTS=0`.
   - Live remote backend IT test (`IT1.14`) is explicitly gated by `FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS` unless strict remote mode is enabled.
+
+### Database Abstraction Tests (cloud_dog_db)
+
+| Test ID | Tier | Description | Traces To |
+|---------|------|-------------|-----------|
+| UT-DB-01 | UT | cloud_dog_db engine factory creates valid SQLite engine from config | R-DB-01, R-DB-02 |
+| UT-DB-02 | UT | Session manager provides working sessions | R-DB-01, R-DB-03 |
+| ST-DB-01 | ST | Schema migration init→current on fresh SQLite | R-DB-04 |
+| ST-DB-02 | ST | CRUD operations via repository abstraction | R-DB-01 |
+| IT-DB-01 | IT | Full app startup with cloud_dog_db engine | R-DB-02 |
+| AT-DB-01 | AT | End-to-end flow uses cloud_dog_db path | R-DB-01 |

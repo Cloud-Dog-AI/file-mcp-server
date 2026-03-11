@@ -132,9 +132,8 @@ def test_load_config_os_environ_precedence(tmp_path: Path, monkeypatch) -> None:
     ):
         monkeypatch.delenv(key, raising=False)
 
-    # cloud_dog_config does not apply FILE_MCP_* os env keys unless mapped through
-    # its env selection policy; env-file value remains effective here.
-    assert profile.observability.log_path == expected_log_path
+    # OS environment values should take precedence over env-file values.
+    assert profile.observability.log_path == env_override
     assert profile.observability.level == expected_level
 
 

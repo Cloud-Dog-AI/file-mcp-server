@@ -1,4 +1,10 @@
-"""Validators scaffolding."""
+"""
+file-mcp-server — file_tools/validate/validators.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for validate validators.py.
+"""
 
 from __future__ import annotations
 
@@ -8,8 +14,9 @@ from typing import List
 import json
 
 from bs4 import BeautifulSoup
+from file_tools.adapters import YAMLError
+from file_tools.adapters import safe_load as yaml_safe_load
 from lxml import etree
-import yaml
 
 
 @dataclass(frozen=True)
@@ -20,6 +27,7 @@ class ValidationResult:
 
 
 def validate_json(text: str) -> ValidationResult:
+    """Validate json."""
     try:
         json.loads(text)
     except json.JSONDecodeError as exc:
@@ -28,14 +36,16 @@ def validate_json(text: str) -> ValidationResult:
 
 
 def validate_yaml(text: str) -> ValidationResult:
+    """Validate yaml."""
     try:
-        yaml.safe_load(text)
-    except yaml.YAMLError as exc:
+        yaml_safe_load(text)
+    except YAMLError as exc:
         return ValidationResult(valid=False, errors=[str(exc)])
     return ValidationResult(valid=True)
 
 
 def validate_xml(text: str) -> ValidationResult:
+    """Validate xml."""
     try:
         etree.fromstring(text.encode("utf-8"))
     except etree.XMLSyntaxError as exc:
@@ -44,6 +54,7 @@ def validate_xml(text: str) -> ValidationResult:
 
 
 def validate_html(text: str) -> ValidationResult:
+    """Validate html."""
     try:
         BeautifulSoup(text, "html.parser")
     except Exception as exc:  # pragma: no cover - defensive
@@ -52,6 +63,7 @@ def validate_html(text: str) -> ValidationResult:
 
 
 def validate_markdown(text: str) -> ValidationResult:
+    """Validate markdown."""
     if not text.strip():
         return ValidationResult(valid=True, warnings=["Markdown content is empty"])
     lines = text.splitlines()

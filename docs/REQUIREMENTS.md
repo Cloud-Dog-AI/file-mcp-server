@@ -453,3 +453,13 @@ Every requirement SHALL map to at least one test in `docs/TESTS.md`. Tests valid
 - Internet search/crawling (local filesystem only)
 - UI front-end beyond optional meld invocation
 - Distributed filesystem consistency guarantees beyond POSIX semantics
+
+### Database Abstraction (cloud_dog_db adoption)
+
+- R-DB-01: All database access MUST use `cloud_dog_db` engine/session/CRUD abstractions
+- R-DB-02: Engine creation MUST use `cloud_dog_db` engine factories
+- R-DB-03: Session management MUST use `cloud_dog_db.session.SyncSessionManager`/`AsyncSessionManager`
+- R-DB-04: Schema migrations MUST use `cloud_dog_db` migration runner
+- R-DB-05: Direct sqlite3/create_engine()/sessionmaker()/raw Session() FORBIDDEN in app code
+- R-DB-06: DB health MUST use `cloud_dog_db.health.probe_database()`
+- R-DB-07: DB connection config MUST come from cloud_dog_config/Vault-backed env hierarchy

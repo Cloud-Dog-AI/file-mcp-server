@@ -9,7 +9,12 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from fastmcp.exceptions import ToolError
 
-from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health, write_server_config
+from tests.http_integration_helpers import (
+    pick_free_port,
+    running_server,
+    wait_for_health,
+    write_server_config,
+)
 
 
 def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
@@ -19,16 +24,25 @@ def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
     target = root_dir / "sample.txt"
     target.write_text("line1\nline2\nline3\n", encoding="utf-8")
 
-    defaults_path, config_path, env_path, pidfile, _ = write_server_config(tmp_path, port=port, root_dir=root_dir)
+    defaults_path, config_path, env_path, pidfile, _ = write_server_config(
+        tmp_path, port=port, root_dir=root_dir
+    )
     repo_root = project_root(Path(__file__))
     with running_server(
-        repo_root, defaults_path=defaults_path, config_path=config_path, env_path=env_path, pidfile=pidfile
+        repo_root,
+        defaults_path=defaults_path,
+        config_path=config_path,
+        env_path=env_path,
+        pidfile=pidfile,
     ):
         wait_for_health(f"http://127.0.0.1:{port}/health")
 
         async def _calls() -> tuple[str, str]:
             async with Client(
-                StreamableHttpTransport(f"http://127.0.0.1:{port}/mcp", headers={"Authorization": "Bearer secret"})
+                StreamableHttpTransport(
+                    f"http://127.0.0.1:{port}/mcp",
+                    headers={"Authorization": "Bearer secret"},
+                )
             ) as client:
                 by_line = await client.call_tool(
                     "read_file",
@@ -38,8 +52,12 @@ def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
                     "read_file",
                     {"path": str(target), "start_byte": 0, "end_byte": 5},
                 )
-                line_payload = "\n".join(item.text for item in by_line.content if hasattr(item, "text"))
-                byte_payload = "\n".join(item.text for item in by_byte.content if hasattr(item, "text"))
+                line_payload = "\n".join(
+                    item.text for item in by_line.content if hasattr(item, "text")
+                )
+                byte_payload = "\n".join(
+                    item.text for item in by_byte.content if hasattr(item, "text")
+                )
                 return line_payload, byte_payload
 
         line_payload, byte_payload = asyncio.run(_calls())
@@ -54,16 +72,25 @@ def test_read_file_rejects_mixed_line_and_byte_ranges(tmp_path: Path) -> None:
     target = root_dir / "sample.txt"
     target.write_text("line1\n", encoding="utf-8")
 
-    defaults_path, config_path, env_path, pidfile, _ = write_server_config(tmp_path, port=port, root_dir=root_dir)
+    defaults_path, config_path, env_path, pidfile, _ = write_server_config(
+        tmp_path, port=port, root_dir=root_dir
+    )
     repo_root = project_root(Path(__file__))
     with running_server(
-        repo_root, defaults_path=defaults_path, config_path=config_path, env_path=env_path, pidfile=pidfile
+        repo_root,
+        defaults_path=defaults_path,
+        config_path=config_path,
+        env_path=env_path,
+        pidfile=pidfile,
     ):
         wait_for_health(f"http://127.0.0.1:{port}/health")
 
         async def _invalid_call() -> None:
             async with Client(
-                StreamableHttpTransport(f"http://127.0.0.1:{port}/mcp", headers={"Authorization": "Bearer secret"})
+                StreamableHttpTransport(
+                    f"http://127.0.0.1:{port}/mcp",
+                    headers={"Authorization": "Bearer secret"},
+                )
             ) as client:
                 await client.call_tool(
                     "read_file",

@@ -57,11 +57,25 @@ def test_limits_search_and_conversion_size(tmp_path: Path) -> None:
                     "convert_file",
                     {"path": str(large), "target_format": "txt"},
                 )
-                search_payload = json.loads("\n".join(item.text for item in search_result.content if hasattr(item, "text")))
-                convert_payload = json.loads("\n".join(item.text for item in convert_result.content if hasattr(item, "text")))
+                search_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in search_result.content
+                        if hasattr(item, "text")
+                    )
+                )
+                convert_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in convert_result.content
+                        if hasattr(item, "text")
+                    )
+                )
                 return search_payload, convert_payload
 
         search_payload, convert_payload = asyncio.run(_run())
         assert len(search_payload["matches"]) == 1
         assert convert_payload["ok"] is False
-        assert any("size limit" in warning.lower() for warning in convert_payload["warnings"])
+        assert any(
+            "size limit" in warning.lower() for warning in convert_payload["warnings"]
+        )

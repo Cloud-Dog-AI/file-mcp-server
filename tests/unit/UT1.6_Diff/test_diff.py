@@ -65,7 +65,9 @@ def test_meld_available_returns_bool() -> None:
     assert isinstance(result, bool)
 
 
-def test_meld_unavailable_returns_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_meld_unavailable_returns_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     root = _scoped_root(tmp_path)
     path_a = root / "a.txt"
     path_b = root / "b.txt"

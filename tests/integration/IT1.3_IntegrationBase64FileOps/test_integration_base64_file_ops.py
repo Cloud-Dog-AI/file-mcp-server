@@ -47,12 +47,22 @@ def test_base64_file_roundtrip_over_http(tmp_path: Path) -> None:
                 )
             ) as client:
                 enc = await client.call_tool("b64_encode_file", {"path": str(src)})
-                enc_payload = json.loads("\n".join(item.text for item in enc.content if hasattr(item, "text")))
+                enc_payload = json.loads(
+                    "\n".join(
+                        item.text for item in enc.content if hasattr(item, "text")
+                    )
+                )
                 assert enc_payload["ok"] is True
                 data = enc_payload["data"]
 
-                dec = await client.call_tool("b64_decode_to_file", {"path": str(dst), "data": data})
-                dec_payload = json.loads("\n".join(item.text for item in dec.content if hasattr(item, "text")))
+                dec = await client.call_tool(
+                    "b64_decode_to_file", {"path": str(dst), "data": data}
+                )
+                dec_payload = json.loads(
+                    "\n".join(
+                        item.text for item in dec.content if hasattr(item, "text")
+                    )
+                )
                 assert dec_payload["ok"] is True
 
         asyncio.run(_flow())

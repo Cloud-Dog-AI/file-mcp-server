@@ -29,7 +29,9 @@ def _require(value: str | None, name: str) -> str:
     return cleaned
 
 
-def build_auth_url(client_id: str, redirect_uri: str, scopes: list[str], state: str | None = None) -> str:
+def build_auth_url(
+    client_id: str, redirect_uri: str, scopes: list[str], state: str | None = None
+) -> str:
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -71,10 +73,19 @@ def main() -> None:
             "APIs & Services -> Credentials -> Create Credentials -> OAuth client ID (Desktop app)."
         ),
     )
-    parser.add_argument("--client-id", default=os.getenv("FILE_MCP_GDRIVE_CLIENT_ID", ""))
-    parser.add_argument("--client-secret", default=os.getenv("FILE_MCP_GDRIVE_CLIENT_SECRET", ""))
-    parser.add_argument("--redirect-uri", default=os.getenv("FILE_MCP_GDRIVE_REDIRECT_URI", DEFAULT_REDIRECT_URI))
-    parser.add_argument("--token-uri", default=os.getenv("FILE_MCP_GDRIVE_TOKEN_URI", DEFAULT_TOKEN_URI))
+    parser.add_argument(
+        "--client-id", default=os.getenv("FILE_MCP_GDRIVE_CLIENT_ID", "")
+    )
+    parser.add_argument(
+        "--client-secret", default=os.getenv("FILE_MCP_GDRIVE_CLIENT_SECRET", "")
+    )
+    parser.add_argument(
+        "--redirect-uri",
+        default=os.getenv("FILE_MCP_GDRIVE_REDIRECT_URI", DEFAULT_REDIRECT_URI),
+    )
+    parser.add_argument(
+        "--token-uri", default=os.getenv("FILE_MCP_GDRIVE_TOKEN_URI", DEFAULT_TOKEN_URI)
+    )
     parser.add_argument("--scopes", default=",".join(DEFAULT_SCOPES))
     parser.add_argument("--state", default="")
     parser.add_argument("--code", default="")
@@ -83,13 +94,20 @@ def main() -> None:
     client_id = _require(args.client_id, "FILE_MCP_GDRIVE_CLIENT_ID")
     redirect_uri = args.redirect_uri or DEFAULT_REDIRECT_URI
     scopes = [scope.strip() for scope in args.scopes.split(",") if scope.strip()]
-    auth_url = build_auth_url(client_id=client_id, redirect_uri=redirect_uri, scopes=scopes, state=args.state or None)
+    auth_url = build_auth_url(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scopes=scopes,
+        state=args.state or None,
+    )
 
     print("Authorization URL:")
     print(auth_url)
     print("")
     if not args.code:
-        print("Paste the returned authorization code and rerun with --code <value> to exchange tokens.")
+        print(
+            "Paste the returned authorization code and rerun with --code <value> to exchange tokens."
+        )
         return
 
     client_secret = _require(args.client_secret, "FILE_MCP_GDRIVE_CLIENT_SECRET")

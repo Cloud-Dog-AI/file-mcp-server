@@ -1,7 +1,14 @@
-"""Storage backend interfaces and common types."""
+"""
+file-mcp-server — file_tools/storage/base.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for storage base.py.
+"""
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
@@ -10,6 +17,7 @@ class NotSupportedError(RuntimeError):
     """Raised when a capability is not supported by a storage backend."""
 
     def __init__(self, operation: str, *, backend: str) -> None:
+        """Initialise the instance state."""
         super().__init__(f"Not supported for backend: {operation} (backend={backend})")
         self.operation = operation
         self.backend = backend
@@ -28,7 +36,7 @@ class StorageEntry:
     is_dir: bool
 
 
-class StorageBackend:
+class StorageBackend(ABC):
     """
     A minimal file-like API over a backing store.
 
@@ -38,36 +46,51 @@ class StorageBackend:
 
     backend_name: str = "unknown"
 
+    @abstractmethod
     def read_bytes(self, path: str) -> bytes:
-        raise NotImplementedError
+        """Read bytes."""
+        raise NotSupportedError("read_bytes", backend=self.backend_name)
 
+    @abstractmethod
     def write_bytes(self, path: str, data: bytes, *, overwrite: bool = True) -> None:
-        raise NotImplementedError
+        """Write bytes."""
+        raise NotSupportedError("write_bytes", backend=self.backend_name)
 
+    @abstractmethod
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
-        raise NotImplementedError
+        """Delete path."""
+        raise NotSupportedError("delete_path", backend=self.backend_name)
 
+    @abstractmethod
     def list_dir(self, path: str, *, recursive: bool = False) -> list[StorageEntry]:
-        raise NotImplementedError
+        """List dir."""
+        raise NotSupportedError("list_dir", backend=self.backend_name)
 
+    @abstractmethod
     def stat(self, path: str) -> Optional[StorageStat]:
-        raise NotImplementedError
+        """Execute stat."""
+        raise NotSupportedError("stat", backend=self.backend_name)
 
     def create_dir(
         self, path: str, *, parents: bool = True, exist_ok: bool = True
     ) -> None:
+        """Create dir."""
         raise NotSupportedError("create_dir", backend=self.backend_name)
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Copy path."""
         raise NotSupportedError("copy_path", backend=self.backend_name)
 
     def move_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Move path."""
         raise NotSupportedError("move_path", backend=self.backend_name)
 
     def rename_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Rename path."""
         self.move_path(src, dst, overwrite=overwrite)
 
     def chmod_path(self, path: str, mode: int, *, recursive: bool = False) -> None:
+        """Execute chmod path."""
         raise NotSupportedError("chmod_path", backend=self.backend_name)
 
     def iter_paths(

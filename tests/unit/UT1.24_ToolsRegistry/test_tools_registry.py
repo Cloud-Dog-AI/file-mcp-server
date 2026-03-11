@@ -16,7 +16,13 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry, ToolSchema, build_registry
+from file_tools.tools import (
+    ToolDefinition,
+    ToolMeta,
+    ToolRegistry,
+    ToolSchema,
+    build_registry,
+)
 
 
 class EchoInput(BaseModel):

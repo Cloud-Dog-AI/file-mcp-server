@@ -16,7 +16,6 @@ import json
 import os
 from pathlib import Path
 import secrets
-import sys
 import threading
 import time
 from typing import Any, Iterable, Mapping
@@ -24,19 +23,22 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
-# Allow direct execution (`python scripts/google_drive_setup.py`) without
-# requiring package installation.
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
-from google_drive_oauth_helper import (
-    DEFAULT_REDIRECT_URI,
-    DEFAULT_SCOPES,
-    DEFAULT_TOKEN_URI,
-    build_auth_url,
-    exchange_code,
-)
+try:
+    from scripts.google_drive_oauth_helper import (
+        DEFAULT_REDIRECT_URI,
+        DEFAULT_SCOPES,
+        DEFAULT_TOKEN_URI,
+        build_auth_url,
+        exchange_code,
+    )
+except ModuleNotFoundError:
+    from google_drive_oauth_helper import (
+        DEFAULT_REDIRECT_URI,
+        DEFAULT_SCOPES,
+        DEFAULT_TOKEN_URI,
+        build_auth_url,
+        exchange_code,
+    )
 
 
 _DEFAULT_REMOTE_BASE_ENV = Path("run/env.remote-storage.base")
@@ -238,7 +240,9 @@ def _load_google_defaults_from_credentials_file(repo_root: Path) -> dict[str, st
     return out
 
 
-def _load_google_defaults_from_platform_config(repo_root: Path, env_path: Path) -> dict[str, str]:
+def _load_google_defaults_from_platform_config(
+    repo_root: Path, env_path: Path
+) -> dict[str, str]:
     try:
         from cloud_dog_config import load_config as platform_load  # type: ignore[import-untyped]
     except Exception:
@@ -301,6 +305,7 @@ def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
         return {}
 
     secret_path = config_path or "config"
+    raw: object | None = None
     try:
         client = VaultClient(
             VaultConnectionConfig(
@@ -310,9 +315,40 @@ def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
                 mount_point=mount_raw,
             )
         )
-        raw = client.read(secret_path)
+        read_paths = [secret_path]
+        mount_prefixed_path = f"{mount_raw}/{secret_path}".strip("/")
+        if mount_prefixed_path and mount_prefixed_path not in read_paths:
+            # Compat path for mount override behaviour in older Vault client splits.
+            read_paths.append(mount_prefixed_path)
+        for read_path in read_paths:
+            try:
+                raw = client.read(read_path)
+            except Exception:
+                continue
+            if raw is not None:
+                break
     except Exception:
-        return {}
+        raw = None
+
+    if raw is None:
+        # Fallback to direct HTTP read so tests can stub urlopen and we still
+        # support environments where VaultClient read-path handling differs.
+        try:
+            import ssl
+            import urllib.request
+
+            request = urllib.request.Request(
+                f"{addr.rstrip('/')}/v1/{mount_raw}/data/{secret_path.lstrip('/')}",
+                headers={"X-Vault-Token": token},
+            )
+            with urllib.request.urlopen(
+                request,
+                context=ssl.create_default_context(),
+                timeout=8,
+            ) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+        except Exception:
+            return {}
 
     if isinstance(raw, str):
         try:
@@ -322,7 +358,14 @@ def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
     if not isinstance(raw, dict):
         return {}
 
-    cfg = raw.get("json", raw)
+    cfg = raw
+    if isinstance(cfg, dict):
+        data = cfg.get("data")
+        if isinstance(data, dict):
+            nested = data.get("data")
+            cfg = nested if isinstance(nested, dict) else data
+    if isinstance(cfg, dict):
+        cfg = cfg.get("json", cfg)
     if isinstance(cfg, str):
         try:
             cfg = json.loads(cfg)
@@ -412,7 +455,10 @@ def _verify_token(access_token: str, timeout_s: int) -> dict:
     response.raise_for_status()
     payload = response.json()
     user = payload.get("user", {})
-    return {"display_name": user.get("displayName", ""), "email": user.get("emailAddress", "")}
+    return {
+        "display_name": user.get("displayName", ""),
+        "email": user.get("emailAddress", ""),
+    }
 
 
 def _folder_info(access_token: str, folder_id: str, timeout_s: int) -> FolderInfo:
@@ -426,7 +472,9 @@ def _folder_info(access_token: str, folder_id: str, timeout_s: int) -> FolderInf
     payload = response.json()
     mime = payload.get("mimeType")
     if mime != "application/vnd.google-apps.folder":
-        raise RuntimeError(f"Resolved id is not a folder: {folder_id} (mimeType={mime})")
+        raise RuntimeError(
+            f"Resolved id is not a folder: {folder_id} (mimeType={mime})"
+        )
     return FolderInfo(
         folder_id=payload.get("id", folder_id),
         name=payload.get("name", ""),
@@ -434,13 +482,19 @@ def _folder_info(access_token: str, folder_id: str, timeout_s: int) -> FolderInf
     )
 
 
-def _find_folders_by_name(access_token: str, folder_name: str, timeout_s: int) -> list[FolderInfo]:
+def _find_folders_by_name(
+    access_token: str, folder_name: str, timeout_s: int
+) -> list[FolderInfo]:
     escaped = folder_name.replace("'", "\\'")
     q = f"name = '{escaped}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
     response = requests.get(
         "https://www.googleapis.com/drive/v3/files",
         headers=_auth_headers(access_token),
-        params={"q": q, "fields": "files(id,name,webViewLink,mimeType)", "pageSize": 20},
+        params={
+            "q": q,
+            "fields": "files(id,name,webViewLink,mimeType)",
+            "pageSize": 20,
+        },
         timeout=timeout_s,
     )
     response.raise_for_status()
@@ -488,7 +542,12 @@ def configure_google_drive(args: argparse.Namespace) -> int:
 
     print("Google Drive configuration setup")
     print("--------------------------------")
-    account_email = _ask("Google account email", default=_pick_first(_clean(args.email), env_values.get("FILE_MCP_GDRIVE_USER_EMAIL")))
+    account_email = _ask(
+        "Google account email",
+        default=_pick_first(
+            _clean(args.email), env_values.get("FILE_MCP_GDRIVE_USER_EMAIL")
+        ),
+    )
     folder_input = _ask(
         "Folder input (folder id, folder share URL, or folder name)",
         default=_pick_first(
@@ -539,9 +598,15 @@ def configure_google_drive(args: argparse.Namespace) -> int:
     if not client_secret:
         client_secret = _ask("OAuth client secret", default="", required=True)
 
-    scopes = [scope.strip() for scope in (_clean(args.scopes) or ",".join(DEFAULT_SCOPES)).split(",") if scope.strip()]
+    scopes = [
+        scope.strip()
+        for scope in (_clean(args.scopes) or ",".join(DEFAULT_SCOPES)).split(",")
+        if scope.strip()
+    ]
     state = secrets.token_urlsafe(12)
-    challenge_url = build_auth_url(client_id=client_id, redirect_uri=redirect_uri, scopes=scopes, state=state)
+    challenge_url = build_auth_url(
+        client_id=client_id, redirect_uri=redirect_uri, scopes=scopes, state=state
+    )
     print("\nOpen this URL in your browser and authorize access:\n")
     print(challenge_url)
     print("")
@@ -549,14 +614,25 @@ def configure_google_drive(args: argparse.Namespace) -> int:
     code = _clean(args.code)
     if not code and _is_local_redirect_uri(redirect_uri):
         if _clean(args.auto_capture_code).lower() in {"1", "true", "yes", "on"}:
-            print(f"Waiting for callback on {redirect_uri} (timeout {args.callback_timeout_s}s)...")
-            code = _wait_for_local_oauth_code(redirect_uri, timeout_s=int(args.callback_timeout_s)) or ""
+            print(
+                f"Waiting for callback on {redirect_uri} (timeout {args.callback_timeout_s}s)..."
+            )
+            code = (
+                _wait_for_local_oauth_code(
+                    redirect_uri, timeout_s=int(args.callback_timeout_s)
+                )
+                or ""
+            )
             if code:
                 print("Authorization code captured from callback.")
             else:
-                print("No callback captured before timeout; please paste code manually.")
+                print(
+                    "No callback captured before timeout; please paste code manually."
+                )
     if not code:
-        code = _ask("Paste authorization code", default=_clean(args.code), required=True)
+        code = _ask(
+            "Paste authorization code", default=_clean(args.code), required=True
+        )
 
     payload = exchange_code(
         client_id=client_id,
@@ -566,34 +642,54 @@ def configure_google_drive(args: argparse.Namespace) -> int:
         token_uri=token_uri,
     )
     access_token = _clean(payload.get("access_token"))
-    refresh_token = _clean(payload.get("refresh_token")) or env_values.get("FILE_MCP_GDRIVE_REFRESH_TOKEN", "")
+    refresh_token = _clean(payload.get("refresh_token")) or env_values.get(
+        "FILE_MCP_GDRIVE_REFRESH_TOKEN", ""
+    )
     if not access_token:
         raise RuntimeError("Token exchange succeeded but access_token was missing.")
     if not refresh_token:
-        print("Warning: refresh_token was not returned. Existing env refresh token will be retained if present.")
+        print(
+            "Warning: refresh_token was not returned. Existing env refresh token will be retained if present."
+        )
 
     user_info = _verify_token(access_token, timeout_s=int(args.timeout_s))
     folder_id_guess, folder_url = extract_folder_id(folder_input)
     selected_folder: FolderInfo
-    if folder_id_guess and folder_id_guess == folder_input.strip() and not folder_input.startswith("http"):
+    if (
+        folder_id_guess
+        and folder_id_guess == folder_input.strip()
+        and not folder_input.startswith("http")
+    ):
         # Could be folder id or name. Try id first.
         try:
-            selected_folder = _folder_info(access_token, folder_id_guess, timeout_s=int(args.timeout_s))
+            selected_folder = _folder_info(
+                access_token, folder_id_guess, timeout_s=int(args.timeout_s)
+            )
         except Exception:
-            matches = _find_folders_by_name(access_token, folder_input.strip(), timeout_s=int(args.timeout_s))
+            matches = _find_folders_by_name(
+                access_token, folder_input.strip(), timeout_s=int(args.timeout_s)
+            )
             if not matches:
-                raise RuntimeError(f"Unable to resolve folder id or name: {folder_input}") from None
+                raise RuntimeError(
+                    f"Unable to resolve folder id or name: {folder_input}"
+                ) from None
             selected_folder = _choose_folder(matches)
     elif folder_id_guess:
-        selected_folder = _folder_info(access_token, folder_id_guess, timeout_s=int(args.timeout_s))
+        selected_folder = _folder_info(
+            access_token, folder_id_guess, timeout_s=int(args.timeout_s)
+        )
     else:
-        matches = _find_folders_by_name(access_token, folder_input.strip(), timeout_s=int(args.timeout_s))
+        matches = _find_folders_by_name(
+            access_token, folder_input.strip(), timeout_s=int(args.timeout_s)
+        )
         if not matches:
             raise RuntimeError(f"Unable to resolve folder: {folder_input}")
         selected_folder = _choose_folder(matches)
 
     print("\nValidation successful:")
-    print(f"- Authenticated user: {user_info.get('display_name', '')} <{user_info.get('email', '')}>")
+    print(
+        f"- Authenticated user: {user_info.get('display_name', '')} <{user_info.get('email', '')}>"
+    )
     print(f"- Folder: {selected_folder.name} ({selected_folder.folder_id})")
     print(f"- Folder URL: {selected_folder.web_view_link}")
 

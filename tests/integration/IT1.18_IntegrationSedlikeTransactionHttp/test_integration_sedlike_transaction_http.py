@@ -53,7 +53,11 @@ def test_sedlike_transaction_atomicity_over_http(tmp_path: Path) -> None:
                         "path": str(target),
                         "operations": [
                             {"op": "replace_regex", "pattern": "beta", "repl": "BETA"},
-                            {"op": "insert_before_line", "line_no": 99, "content": "bad"},
+                            {
+                                "op": "insert_before_line",
+                                "line_no": 99,
+                                "content": "bad",
+                            },
                         ],
                     },
                 )
@@ -80,7 +84,11 @@ def test_sedlike_transaction_atomicity_over_http(tmp_path: Path) -> None:
                         ],
                     },
                 )
-                payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                payload = json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
                 assert payload["ok"] is True
 
         asyncio.run(_valid_transaction())
@@ -88,7 +96,11 @@ def test_sedlike_transaction_atomicity_over_http(tmp_path: Path) -> None:
     text = target.read_text(encoding="utf-8")
     assert "BETA" in text
     assert "gamma" not in text
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(json.loads(line).get("tool") == "sed_edit_file" for line in lines)
 
 
@@ -129,8 +141,16 @@ def test_sedlike_transaction_validation_failure_rolls_back(tmp_path: Path) -> No
                     {
                         "path": str(target),
                         "operations": [
-                            {"op": "replace_regex", "pattern": "## Section", "repl": "#### Section"},
-                            {"op": "insert_after_line", "line_no": 3, "content": "tail"},
+                            {
+                                "op": "replace_regex",
+                                "pattern": "## Section",
+                                "repl": "#### Section",
+                            },
+                            {
+                                "op": "insert_after_line",
+                                "line_no": 3,
+                                "content": "tail",
+                            },
                         ],
                     },
                 )
@@ -139,7 +159,11 @@ def test_sedlike_transaction_validation_failure_rolls_back(tmp_path: Path) -> No
             asyncio.run(_invalid_markdown_transaction())
 
     assert target.read_text(encoding="utf-8") == original
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert lines
     last_event = json.loads(lines[-1])
     assert last_event["tool"] == "sed_edit_file"

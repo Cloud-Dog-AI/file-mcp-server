@@ -25,6 +25,7 @@ from .config.models import ObservabilityConfig, ProfileConfig
 
 
 def _clean_path(value: str | None) -> str | None:
+    """Handle clean path."""
     if value is None:
         return None
     cleaned = value.strip()
@@ -36,6 +37,7 @@ def _clean_path(value: str | None) -> str | None:
 def _coerce_profile(
     config: ObservabilityConfig | ProfileConfig,
 ) -> tuple[ObservabilityConfig, str | None]:
+    """Handle coerce profile."""
     if isinstance(config, ProfileConfig):
         return config.observability, _clean_path(config.audit.log_path)
     return config, None

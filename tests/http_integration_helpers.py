@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from tests.env_runtime import env_get, runtime_env
+
 from contextlib import contextmanager
 import json
-import os
 import socket
 import subprocess
 import sys
@@ -45,7 +46,7 @@ def _join_paths(base_path: str, path: str) -> str:
 
 def _canonical_health_url(url: str) -> str:
     parsed = urlsplit(url)
-    api_base = _normalize_path(os.getenv("TEST_API_BASE_PATH"), default="/app/v1")
+    api_base = _normalize_path(env_get("TEST_API_BASE_PATH"), default="/app/v1")
     canonical_path = _join_paths(api_base, parsed.path or "/health")
     canonical_parts = SplitResult(
         scheme=parsed.scheme,
@@ -112,12 +113,19 @@ def write_server_config(
     validation_per_type = validation_per_type or {}
 
     allow_globs_yaml = "\n".join(f'        - "{item}"' for item in allow_globs)
-    deny_globs_yaml = "\n".join(f'        - "{item}"' for item in deny_globs) if deny_globs else "        []"
+    deny_globs_yaml = (
+        "\n".join(f'        - "{item}"' for item in deny_globs)
+        if deny_globs
+        else "        []"
+    )
     api_keys_yaml = "\n".join(
-        f'        - "${{FILE_MCP_API_KEY_{index}}}"' for index, _ in enumerate(api_keys, start=1)
+        f'        - "${{FILE_MCP_API_KEY_{index}}}"'
+        for index, _ in enumerate(api_keys, start=1)
     )
     validation_per_type_yaml = (
-        "\n".join(f'        {key}: "{value}"' for key, value in validation_per_type.items())
+        "\n".join(
+            f'        {key}: "{value}"' for key, value in validation_per_type.items()
+        )
         if validation_per_type
         else "        {}"
     )
@@ -212,8 +220,8 @@ http:
         "FILE_MCP_HTTP_TRANSPORT=streamable-http",
         "FILE_MCP_HTTP_HOST=127.0.0.1",
         f"FILE_MCP_HTTP_PORT={port}",
-        f"FILE_MCP_HTTP_BASE_PATH={_normalize_path(os.getenv('TEST_API_BASE_PATH'), default='/app/v1')}",
-        f"FILE_MCP_HTTP_MCP_PATH={_normalize_path(os.getenv('TEST_MCP_BASE_PATH'), default='/mcp')}",
+        f"FILE_MCP_HTTP_BASE_PATH={_normalize_path(env_get('TEST_API_BASE_PATH'), default='/app/v1')}",
+        f"FILE_MCP_HTTP_MCP_PATH={_normalize_path(env_get('TEST_MCP_BASE_PATH'), default='/mcp')}",
         "FILE_MCP_HTTP_HEALTH_PATH=/health",
         "FILE_MCP_HTTP_EVENTS_PATH=/events",
         "FILE_MCP_HTTP_STATELESS=true",
@@ -282,7 +290,7 @@ def running_server(
     ]
     env = {
         key: value
-        for key, value in os.environ.items()
+        for key, value in runtime_env.items()
         if not (key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"))
     }
     env["PYTHONPATH"] = "src"

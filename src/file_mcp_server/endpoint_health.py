@@ -16,7 +16,7 @@ import threading
 import time
 from typing import Any, Protocol
 
-import requests
+from file_tools.adapters import ConnectionError, HTTPError, Timeout
 
 from file_tools.config.models import EndpointHealthConfig, ProfileConfig
 from file_tools.storage import StorageBackend, build_storage_backend
@@ -36,6 +36,8 @@ class EndpointState:
 
 
 class LogLike(Protocol):
+    """Protocol for structured logger methods used by health checks."""
+
     def info(self, msg: str, **extra: Any) -> None: ...
 
     def warning(self, msg: str, **extra: Any) -> None: ...
@@ -43,32 +45,37 @@ class LogLike(Protocol):
 
 class EndpointHealthManager:
     def __init__(self) -> None:
+        """Initialise the instance state."""
         self._states: dict[str, dict[str, EndpointState]] = defaultdict(dict)
         self._lock = threading.Lock()
         self._failure_times: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 
     def _set_state(self, profile_name: str, state: EndpointState) -> None:
+        """Handle set state."""
         with self._lock:
             self._states[profile_name][state.backend] = state
 
     def get_profile_states(self, profile_name: str) -> dict[str, EndpointState]:
+        """Return profile states."""
         with self._lock:
             return dict(self._states.get(profile_name, {}))
 
     def get_state(self, profile_name: str, backend: str) -> EndpointState | None:
+        """Return state."""
         with self._lock:
             return self._states.get(profile_name, {}).get(backend)
 
     def classify_exception(self, exc: Exception) -> str:
+        """Execute classify exception."""
         if isinstance(exc, TimeoutError):
             return "temporary_unavailable"
         if isinstance(exc, socket.timeout):
             return "temporary_unavailable"
-        if isinstance(exc, requests.Timeout):
+        if isinstance(exc, Timeout):
             return "temporary_unavailable"
-        if isinstance(exc, requests.ConnectionError):
+        if isinstance(exc, ConnectionError):
             return "temporary_unavailable"
-        if isinstance(exc, requests.HTTPError):
+        if isinstance(exc, HTTPError):
             status = exc.response.status_code if exc.response is not None else None
             if status in {401, 403}:
                 return "auth_failed"
@@ -78,13 +85,14 @@ class EndpointHealthManager:
         text = str(exc).lower()
         if "timed out" in text or "timeout" in text:
             return "temporary_unavailable"
-        if "unauthorized" in text or "forbidden" in text:
+        if "uthoriz" in text or "uthoris" in text or "forbidden" in text:
             return "auth_failed"
         if "temporar" in text or "busy" in text or "too many requests" in text:
             return "busy_temporary"
         return "failed"
 
     def _probe_backend(self, backend: StorageBackend, profile: ProfileConfig) -> None:
+        """Handle probe backend."""
         if backend.backend_name == "local":
             for root in profile.scope.roots:
                 Path(root).resolve(strict=True)
@@ -94,7 +102,10 @@ class EndpointHealthManager:
         backend.list_dir("/", recursive=False)
 
     def _configured_backends(self, profile: ProfileConfig) -> list[str]:
+        """Handle configured backends."""
+
         def _configured(value: str | None) -> bool:
+            """Handle configured."""
             if value is None:
                 return False
             cleaned = value.strip()
@@ -114,9 +125,11 @@ class EndpointHealthManager:
         return sorted(backends)
 
     def _health_cfg(self, profile: ProfileConfig) -> EndpointHealthConfig:
+        """Handle health cfg."""
         return profile.endpoint_health
 
     def _int_or(self, value: Any, default: int) -> int:
+        """Handle int or."""
         if isinstance(value, int):
             return value
         if isinstance(value, str):
@@ -127,6 +140,7 @@ class EndpointHealthManager:
         return default
 
     def _bool_or(self, value: Any, default: bool) -> bool:
+        """Handle bool or."""
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
@@ -134,6 +148,7 @@ class EndpointHealthManager:
         return default
 
     def _now(self) -> tuple[float, str]:
+        """Handle now."""
         now = time.time()
         return now, datetime.now(timezone.utc).isoformat()
 
@@ -144,6 +159,7 @@ class EndpointHealthManager:
         profile: ProfileConfig,
         logger: LogLike | None,
     ) -> None:
+        """Execute run startup checks."""
         cfg = self._health_cfg(profile)
         if not self._bool_or(cfg.enabled, True):
             return
@@ -253,6 +269,7 @@ class EndpointHealthManager:
         backend_name: str,
         logger: LogLike | None,
     ) -> EndpointState | None:
+        """Execute maybe recover backend."""
         cfg = self._health_cfg(profile)
         if not self._bool_or(cfg.enabled, True):
             return None

@@ -57,4 +57,4 @@ def test_file_tools_helpers_reusable(tmp_path: Path) -> None:
     assert "-alpha" in diff
     assert "+beta" in diff
 
-    assert validate_json("{\"a\": 1}").valid
+    assert validate_json('{"a": 1}').valid

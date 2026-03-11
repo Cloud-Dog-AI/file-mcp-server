@@ -1,4 +1,10 @@
-"""Meld integration scaffolding."""
+"""
+file-mcp-server — file_tools/diff/meld.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for diff meld.py.
+"""
 
 from __future__ import annotations
 
@@ -9,10 +15,12 @@ from typing import Tuple
 
 
 def meld_available() -> bool:
+    """Execute meld available."""
     return which("meld") is not None
 
 
 def launch_meld(path_a: Path, path_b: Path) -> Tuple[bool, str]:
+    """Execute launch meld."""
     if not meld_available():
         return False, "meld not available"
     try:

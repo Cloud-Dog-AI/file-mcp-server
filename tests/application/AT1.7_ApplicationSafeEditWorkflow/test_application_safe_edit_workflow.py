@@ -46,20 +46,28 @@ def test_end_to_end_safe_edit_workflow(tmp_path: Path) -> None:
                 )
             ) as client:
                 read_before = await client.call_tool("read_file", {"path": str(target)})
-                before_text = "\n".join(item.text for item in read_before.content if hasattr(item, "text"))
+                before_text = "\n".join(
+                    item.text for item in read_before.content if hasattr(item, "text")
+                )
 
                 edited_preview = json.dumps({"title": "New", "body": "x"}, indent=2)
                 diff_result = await client.call_tool(
                     "diff_text",
                     {"before": before_text, "after": edited_preview, "context": 3},
                 )
-                diff_text = "\n".join(item.text for item in diff_result.content if hasattr(item, "text"))
+                diff_text = "\n".join(
+                    item.text for item in diff_result.content if hasattr(item, "text")
+                )
 
                 mutate = await client.call_tool(
                     "json_set_file",
                     {"path": str(target), "json_path": "/title", "value": "New"},
                 )
-                mutate_payload = json.loads("\n".join(item.text for item in mutate.content if hasattr(item, "text")))
+                mutate_payload = json.loads(
+                    "\n".join(
+                        item.text for item in mutate.content if hasattr(item, "text")
+                    )
+                )
                 return {"diff": diff_text, "mutate": mutate_payload}
 
         payload = asyncio.run(_flow())
@@ -69,5 +77,9 @@ def test_end_to_end_safe_edit_workflow(tmp_path: Path) -> None:
     data = json.loads(target.read_text(encoding="utf-8"))
     assert data["title"] == "New"
 
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(json.loads(line).get("tool") == "json_set_file" for line in lines)

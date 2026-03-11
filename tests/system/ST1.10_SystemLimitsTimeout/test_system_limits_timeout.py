@@ -48,9 +48,18 @@ def test_limits_timeout_path_for_conversion(tmp_path: Path) -> None:
             ) as client:
                 result = await client.call_tool(
                     "convert_file",
-                    {"path": str(src), "target_format": "md", "timeout_s": 1, "simulate_delay_s": 2.0},
+                    {
+                        "path": str(src),
+                        "target_format": "md",
+                        "timeout_s": 1,
+                        "simulate_delay_s": 2.0,
+                    },
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         payload = asyncio.run(_call())
         assert payload["ok"] is False

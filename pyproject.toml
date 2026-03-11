@@ -19,6 +19,7 @@ dependencies = [
   "chardet>=5.2,<6.0",
   "cloud_dog_api_kit>=0.2.0",
   "cloud_dog_config>=0.2.0",
+  "cloud_dog_db>=0.1.0",
   "cloud_dog_idam>=0.2.0",
   "cloud_dog_logging>=0.2.0",
   "cryptography>=42.0",
@@ -66,3 +67,14 @@ packages = [
 [tool.pytest.ini_options]
 addopts = "-p no:cloud_dog_config"
 testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+module = ["cloud_dog_db", "cloud_dog_db.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["file_mcp_server.db.models", "file_mcp_server.db.runtime"]
+disable_error_code = ["import-untyped"]

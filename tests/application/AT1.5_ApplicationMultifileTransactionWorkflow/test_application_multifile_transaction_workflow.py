@@ -51,8 +51,17 @@ def test_application_multifile_transaction_workflow(tmp_path: Path) -> None:
                 )
             ) as client:
                 for src, dst in ((file_a, baseline_a), (file_b, baseline_b)):
-                    result = await client.call_tool("copy_file", {"src": str(src), "dst": str(dst), "overwrite": True})
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    result = await client.call_tool(
+                        "copy_file",
+                        {"src": str(src), "dst": str(dst), "overwrite": True},
+                    )
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
 
                 for target in (file_a, file_b):
@@ -61,18 +70,44 @@ def test_application_multifile_transaction_workflow(tmp_path: Path) -> None:
                         {
                             "path": str(target),
                             "operations": [
-                                {"op": "replace_regex", "pattern": "status=TODO", "repl": "status=DONE"},
-                                {"op": "insert_after_line", "line_no": 2, "content": "approved=true"},
+                                {
+                                    "op": "replace_regex",
+                                    "pattern": "status=TODO",
+                                    "repl": "status=DONE",
+                                },
+                                {
+                                    "op": "insert_after_line",
+                                    "line_no": 2,
+                                    "content": "approved=true",
+                                },
                             ],
                         },
                     )
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
 
-                diff_a = await client.call_tool("diff_files", {"path_a": str(baseline_a), "path_b": str(file_a)})
-                diff_b = await client.call_tool("diff_files", {"path_a": str(baseline_b), "path_b": str(file_b)})
-                payload_a = json.loads("\n".join(item.text for item in diff_a.content if hasattr(item, "text")))
-                payload_b = json.loads("\n".join(item.text for item in diff_b.content if hasattr(item, "text")))
+                diff_a = await client.call_tool(
+                    "diff_files", {"path_a": str(baseline_a), "path_b": str(file_a)}
+                )
+                diff_b = await client.call_tool(
+                    "diff_files", {"path_a": str(baseline_b), "path_b": str(file_b)}
+                )
+                payload_a = json.loads(
+                    "\n".join(
+                        item.text for item in diff_a.content if hasattr(item, "text")
+                    )
+                )
+                payload_b = json.loads(
+                    "\n".join(
+                        item.text for item in diff_b.content if hasattr(item, "text")
+                    )
+                )
                 return payload_a, payload_b
 
         diff_a_payload, diff_b_payload = asyncio.run(_flow())
@@ -87,7 +122,14 @@ def test_application_multifile_transaction_workflow(tmp_path: Path) -> None:
 
     assert "status=DONE" in file_a.read_text(encoding="utf-8")
     assert "status=DONE" in file_b.read_text(encoding="utf-8")
-    events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    sed_events = [evt for evt in events if evt.get("tool") == "sed_edit_file" and evt.get("status") == "ok"]
+    events = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    sed_events = [
+        evt
+        for evt in events
+        if evt.get("tool") == "sed_edit_file" and evt.get("status") == "ok"
+    ]
     assert len(sed_events) >= 2
-

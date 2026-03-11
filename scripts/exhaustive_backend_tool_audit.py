@@ -12,8 +12,16 @@ import yaml
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health
-from tests.remote_env_helpers import file_mcp_env_values, merged_remote_env, write_env_file
+from tests.http_integration_helpers import (
+    pick_free_port,
+    running_server,
+    wait_for_health,
+)
+from tests.remote_env_helpers import (
+    file_mcp_env_values,
+    merged_remote_env,
+    write_env_file,
+)
 
 
 def get_google_env_from_container() -> dict[str, str]:
@@ -32,7 +40,9 @@ def get_google_env_from_container() -> dict[str, str]:
         "FILE_MCP_GDRIVE_REFRESH_TOKEN": gd.get("refresh_token", ""),
         "FILE_MCP_GDRIVE_ACCESS_TOKEN": gd.get("access_token", ""),
         "FILE_MCP_GDRIVE_REDIRECT_URI": gd.get("redirect_uri", ""),
-        "FILE_MCP_GDRIVE_TOKEN_URI": gd.get("token_uri", "https://oauth2.googleapis.com/token"),
+        "FILE_MCP_GDRIVE_TOKEN_URI": gd.get(
+            "token_uri", "https://oauth2.googleapis.com/token"
+        ),
     }
 
 
@@ -59,7 +69,9 @@ def is_optional_failure(tool: str, msg: str) -> bool:
     return False
 
 
-async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[str, str]]:
+async def run_backend(
+    backend: str, env_ctx: dict[str, str]
+) -> dict[str, dict[str, str]]:
     port = pick_free_port()
     run_id = uuid.uuid4().hex[:8]
     scope_root = f"/exhaustive-{backend}"
@@ -83,8 +95,12 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
     extra_env: dict[str, str] = {
         "FILE_MCP_HTTP_PORT": str(port),
         "FILE_MCP_API_KEY_PRIMARY": env_ctx["FILE_MCP_API_KEY_PRIMARY"],
-        "FILE_MCP_AUTH_HEADER_NAME": env_ctx.get("FILE_MCP_AUTH_HEADER_NAME", "Authorization"),
-        "FILE_MCP_AUTH_HEADER_SCHEME": env_ctx.get("FILE_MCP_AUTH_HEADER_SCHEME", "Bearer"),
+        "FILE_MCP_AUTH_HEADER_NAME": env_ctx.get(
+            "FILE_MCP_AUTH_HEADER_NAME", "Authorization"
+        ),
+        "FILE_MCP_AUTH_HEADER_SCHEME": env_ctx.get(
+            "FILE_MCP_AUTH_HEADER_SCHEME", "Bearer"
+        ),
         "FILE_MCP_STORAGE_BACKEND": backend,
         "FILE_MCP_ROOT": scope_root,
         "FILE_MCP_AUDIT_LOG": f"./working/remote-storage/audit.exhaustive.{backend}.log.jsonl",
@@ -92,7 +108,9 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
         "FILE_MCP_SNAPSHOT_DIR": f"./working/remote-storage/snapshots.exhaustive.{backend}",
         "FILE_MCP_STORAGE_TIMEOUT_S": env_ctx.get("FILE_MCP_STORAGE_TIMEOUT_S", "30"),
         "FILE_MCP_SEARCH_TIMEOUT_S": env_ctx.get("FILE_MCP_SEARCH_TIMEOUT_S", "30"),
-        "FILE_MCP_SEARCH_MAX_RESULTS": env_ctx.get("FILE_MCP_SEARCH_MAX_RESULTS", "250"),
+        "FILE_MCP_SEARCH_MAX_RESULTS": env_ctx.get(
+            "FILE_MCP_SEARCH_MAX_RESULTS", "250"
+        ),
         "FILE_MCP_SEARCH_MAX_FILE_MB": env_ctx.get("FILE_MCP_SEARCH_MAX_FILE_MB", "5"),
     }
     if backend == "webdav":
@@ -128,15 +146,31 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
     elif backend == "google_drive":
         extra_env.update(
             {
-                "FILE_MCP_GDRIVE_USER_EMAIL": env_ctx.get("FILE_MCP_GDRIVE_USER_EMAIL", ""),
-                "FILE_MCP_GDRIVE_FOLDER_ID": env_ctx.get("FILE_MCP_GDRIVE_FOLDER_ID", ""),
-                "FILE_MCP_GDRIVE_FOLDER_URL": env_ctx.get("FILE_MCP_GDRIVE_FOLDER_URL", ""),
+                "FILE_MCP_GDRIVE_USER_EMAIL": env_ctx.get(
+                    "FILE_MCP_GDRIVE_USER_EMAIL", ""
+                ),
+                "FILE_MCP_GDRIVE_FOLDER_ID": env_ctx.get(
+                    "FILE_MCP_GDRIVE_FOLDER_ID", ""
+                ),
+                "FILE_MCP_GDRIVE_FOLDER_URL": env_ctx.get(
+                    "FILE_MCP_GDRIVE_FOLDER_URL", ""
+                ),
                 "FILE_MCP_GDRIVE_CLIENT_ID": env_ctx["FILE_MCP_GDRIVE_CLIENT_ID"],
-                "FILE_MCP_GDRIVE_CLIENT_SECRET": env_ctx["FILE_MCP_GDRIVE_CLIENT_SECRET"],
-                "FILE_MCP_GDRIVE_REFRESH_TOKEN": env_ctx.get("FILE_MCP_GDRIVE_REFRESH_TOKEN", ""),
-                "FILE_MCP_GDRIVE_ACCESS_TOKEN": env_ctx.get("FILE_MCP_GDRIVE_ACCESS_TOKEN", ""),
-                "FILE_MCP_GDRIVE_REDIRECT_URI": env_ctx.get("FILE_MCP_GDRIVE_REDIRECT_URI", "urn:ietf:wg:oauth:2.0:oob"),
-                "FILE_MCP_GDRIVE_TOKEN_URI": env_ctx.get("FILE_MCP_GDRIVE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
+                "FILE_MCP_GDRIVE_CLIENT_SECRET": env_ctx[
+                    "FILE_MCP_GDRIVE_CLIENT_SECRET"
+                ],
+                "FILE_MCP_GDRIVE_REFRESH_TOKEN": env_ctx.get(
+                    "FILE_MCP_GDRIVE_REFRESH_TOKEN", ""
+                ),
+                "FILE_MCP_GDRIVE_ACCESS_TOKEN": env_ctx.get(
+                    "FILE_MCP_GDRIVE_ACCESS_TOKEN", ""
+                ),
+                "FILE_MCP_GDRIVE_REDIRECT_URI": env_ctx.get(
+                    "FILE_MCP_GDRIVE_REDIRECT_URI", "urn:ietf:wg:oauth:2.0:oob"
+                ),
+                "FILE_MCP_GDRIVE_TOKEN_URI": env_ctx.get(
+                    "FILE_MCP_GDRIVE_TOKEN_URI", "https://oauth2.googleapis.com/token"
+                ),
             }
         )
 
@@ -156,7 +190,9 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
         async with Client(
             StreamableHttpTransport(
                 f"http://127.0.0.1:{port}/mcp",
-                headers={"Authorization": f"Bearer {env_ctx['FILE_MCP_API_KEY_PRIMARY']}"},
+                headers={
+                    "Authorization": f"Bearer {env_ctx['FILE_MCP_API_KEY_PRIMARY']}"
+                },
             )
         ) as client:
             tool_names = [t.name for t in await client.list_tools()]
@@ -165,7 +201,9 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
 
             async def call(tool: str, args: dict) -> tuple[str, str]:
                 try:
-                    await asyncio.wait_for(client.call_tool(tool, args), timeout=call_timeout)
+                    await asyncio.wait_for(
+                        client.call_tool(tool, args), timeout=call_timeout
+                    )
                     return "pass", ""
                 except asyncio.TimeoutError:
                     return "fail", f"tool call timed out after {int(call_timeout)}s"
@@ -177,16 +215,30 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
                         return "optional_fail", msg
                     return "fail", msg
 
-            status, message = await call("create_dir", {"path": base, "parents": True, "exist_ok": True})
+            status, message = await call(
+                "create_dir", {"path": base, "parents": True, "exist_ok": True}
+            )
             results["create_dir"] = {"status": status, "msg": message}
-            status, message = await call("write_file", {"path": file_txt, "content": f"hello {backend} {run_id}\n"})
+            status, message = await call(
+                "write_file",
+                {"path": file_txt, "content": f"hello {backend} {run_id}\n"},
+            )
             results["write_file"] = {"status": status, "msg": message}
 
-            await call("write_file", {"path": file_json, "content": "{\"x\":1}\n"})
+            await call("write_file", {"path": file_json, "content": '{"x":1}\n'})
             await call("write_file", {"path": file_yaml, "content": "root:\n  a: 1\n"})
             await call("write_file", {"path": file_md, "content": "# Title\n\nBody\n"})
-            await call("write_file", {"path": file_xml, "content": "<root><item>1</item></root>\n"})
-            await call("write_file", {"path": file_html, "content": "<html><body><p id='m'>x</p></body></html>\n"})
+            await call(
+                "write_file",
+                {"path": file_xml, "content": "<root><item>1</item></root>\n"},
+            )
+            await call(
+                "write_file",
+                {
+                    "path": file_html,
+                    "content": "<html><body><p id='m'>x</p></body></html>\n",
+                },
+            )
 
             calls: dict[str, dict] = {
                 "read_file": {"path": file_txt},
@@ -195,63 +247,148 @@ async def run_backend(backend: str, env_ctx: dict[str, str]) -> dict[str, dict[s
                 "chmod_path": {"path": file_txt, "mode": "0644"},
                 "move_file": {"src": file_copy, "dst": file_move, "overwrite": True},
                 "move_path": {"src": file_move, "dst": file_renamed, "overwrite": True},
-                "rename_path": {"src": file_renamed, "dst": file_copy, "overwrite": True},
+                "rename_path": {
+                    "src": file_renamed,
+                    "dst": file_copy,
+                    "overwrite": True,
+                },
                 "list_dir": {"path": base, "recursive": True},
                 "search_paths": {"query": "data", "max_depth": 3, "timeout_s": 10},
-                "search_content": {"query": run_id, "max_depth": 4, "timeout_s": 10, "max_results": 10},
+                "search_content": {
+                    "query": run_id,
+                    "max_depth": 4,
+                    "timeout_s": 10,
+                    "max_results": 10,
+                },
                 "diff_text": {"before": "a\n", "after": "b\n", "context": 1},
                 "b64_encode": {"text": "hello"},
                 "b64_decode": {"data": "aGVsbG8="},
                 "b64_encode_file": {"path": file_txt},
-                "validate_text": {"content_type": "json", "text": "{\"a\":1}"},
+                "validate_text": {"content_type": "json", "text": '{"a":1}'},
                 "validate_file": {"path": file_json},
-                "json_get": {"text": "{\"x\":1}", "path": "/x"},
-                "json_set": {"text": "{\"x\":1}", "path": "/y", "value": 2},
-                "json_delete": {"text": "{\"x\":1}", "path": "/x"},
-                "json_copy": {"text": "{\"x\":1}", "from_path": "/x", "to_path": "/y"},
-                "json_move": {"text": "{\"x\":1}", "from_path": "/x", "to_path": "/y"},
-                "json_merge": {"text": "{\"x\":1}", "path": "/", "value": {"y": 2}},
+                "json_get": {"text": '{"x":1}', "path": "/x"},
+                "json_set": {"text": '{"x":1}', "path": "/y", "value": 2},
+                "json_delete": {"text": '{"x":1}', "path": "/x"},
+                "json_copy": {"text": '{"x":1}', "from_path": "/x", "to_path": "/y"},
+                "json_move": {"text": '{"x":1}', "from_path": "/x", "to_path": "/y"},
+                "json_merge": {"text": '{"x":1}', "path": "/", "value": {"y": 2}},
                 "yaml_get": {"text": "root:\n  a: 1\n", "path": "/root/a"},
                 "yaml_set": {"text": "root:\n  a: 1\n", "path": "/root/b", "value": 2},
                 "yaml_delete": {"text": "root:\n  a: 1\n", "path": "/root/a"},
-                "yaml_copy": {"text": "root:\n  a: 1\n", "from_path": "/root/a", "to_path": "/root/b"},
-                "yaml_move": {"text": "root:\n  a: 1\n", "from_path": "/root/a", "to_path": "/root/b"},
-                "yaml_merge": {"text": "root:\n  a: 1\n", "path": "/root", "value": {"b": 2}},
-                "markdown_get_section": {"text": "# Title\n\nBody\n", "heading": "Title"},
-                "markdown_set_section": {"text": "# Title\n\nBody\n", "heading": "Title", "new_content": "Updated"},
-                "replace_regex": {"text": "abc", "pattern": "a", "repl": "z", "count": 1},
+                "yaml_copy": {
+                    "text": "root:\n  a: 1\n",
+                    "from_path": "/root/a",
+                    "to_path": "/root/b",
+                },
+                "yaml_move": {
+                    "text": "root:\n  a: 1\n",
+                    "from_path": "/root/a",
+                    "to_path": "/root/b",
+                },
+                "yaml_merge": {
+                    "text": "root:\n  a: 1\n",
+                    "path": "/root",
+                    "value": {"b": 2},
+                },
+                "markdown_get_section": {
+                    "text": "# Title\n\nBody\n",
+                    "heading": "Title",
+                },
+                "markdown_set_section": {
+                    "text": "# Title\n\nBody\n",
+                    "heading": "Title",
+                    "new_content": "Updated",
+                },
+                "replace_regex": {
+                    "text": "abc",
+                    "pattern": "a",
+                    "repl": "z",
+                    "count": 1,
+                },
                 "diff_files": {"path_a": file_txt, "path_b": file_copy},
                 "meld_files": {"path_a": file_txt, "path_b": file_copy},
                 "json_set_file": {"path": file_json, "json_path": "/y", "value": 2},
-                "json_copy_file": {"path": file_json, "from_path": "/y", "to_path": "/z"},
-                "json_move_file": {"path": file_json, "from_path": "/z", "to_path": "/moved"},
-                "json_merge_file": {"path": file_json, "json_path": "/", "value": {"k": "v"}},
+                "json_copy_file": {
+                    "path": file_json,
+                    "from_path": "/y",
+                    "to_path": "/z",
+                },
+                "json_move_file": {
+                    "path": file_json,
+                    "from_path": "/z",
+                    "to_path": "/moved",
+                },
+                "json_merge_file": {
+                    "path": file_json,
+                    "json_path": "/",
+                    "value": {"k": "v"},
+                },
                 "xml_set_file": {"path": file_xml, "xpath": "/root/item", "value": "2"},
-                "yaml_set_file": {"path": file_yaml, "yaml_path": "/root/b", "value": 2},
+                "yaml_set_file": {
+                    "path": file_yaml,
+                    "yaml_path": "/root/b",
+                    "value": 2,
+                },
                 "yaml_delete_file": {"path": file_yaml, "yaml_path": "/root/a"},
-                "yaml_copy_file": {"path": file_yaml, "from_path": "/root/b", "to_path": "/root/c"},
-                "yaml_move_file": {"path": file_yaml, "from_path": "/root/c", "to_path": "/root/d"},
+                "yaml_copy_file": {
+                    "path": file_yaml,
+                    "from_path": "/root/b",
+                    "to_path": "/root/c",
+                },
+                "yaml_move_file": {
+                    "path": file_yaml,
+                    "from_path": "/root/c",
+                    "to_path": "/root/d",
+                },
                 "html_set_file": {"path": file_html, "selector": "#m", "value": "y"},
-                "markdown_set_section_file": {"path": file_md, "heading": "Title", "new_content": "Updated body"},
-                "markdown_set_frontmatter_file": {"path": file_md, "updates": {"owner": "matrix"}},
-                "convert_file": {"path": file_md, "target_format": "text", "timeout_s": 15},
+                "markdown_set_section_file": {
+                    "path": file_md,
+                    "heading": "Title",
+                    "new_content": "Updated body",
+                },
+                "markdown_set_frontmatter_file": {
+                    "path": file_md,
+                    "updates": {"owner": "matrix"},
+                },
+                "convert_file": {
+                    "path": file_md,
+                    "target_format": "text",
+                    "timeout_s": 15,
+                },
                 "json_get_file": {"path": file_json, "json_path": "/moved"},
                 "yaml_get_file": {"path": file_yaml, "yaml_path": "/root/d"},
-                "yaml_merge_file": {"path": file_yaml, "yaml_path": "/root", "value": {"e": 5}},
-                "sed_edit_file": {"path": file_txt, "operations": [{"op": "replace_regex", "pattern": "hello", "repl": "hi"}]},
+                "yaml_merge_file": {
+                    "path": file_yaml,
+                    "yaml_path": "/root",
+                    "value": {"e": 5},
+                },
+                "sed_edit_file": {
+                    "path": file_txt,
+                    "operations": [
+                        {"op": "replace_regex", "pattern": "hello", "repl": "hi"}
+                    ],
+                },
                 "backend_status": {},
             }
 
             try:
                 enc = await client.call_tool("b64_encode_file", {"path": file_txt})
                 data = enc.data.get("data") if hasattr(enc, "data") else None
-                calls["b64_decode_to_file"] = {"path": file_b64, "data": data or "aGVsbG8=", "overwrite": True}
+                calls["b64_decode_to_file"] = {
+                    "path": file_b64,
+                    "data": data or "aGVsbG8=",
+                    "overwrite": True,
+                }
             except Exception:
-                calls["b64_decode_to_file"] = {"path": file_b64, "data": "aGVsbG8=", "overwrite": True}
+                calls["b64_decode_to_file"] = {
+                    "path": file_b64,
+                    "data": "aGVsbG8=",
+                    "overwrite": True,
+                }
 
-            ordered_tools = [t for t in tool_names if t not in {"search_paths", "search_content"}] + [
-                t for t in tool_names if t in {"search_paths", "search_content"}
-            ]
+            ordered_tools = [
+                t for t in tool_names if t not in {"search_paths", "search_content"}
+            ] + [t for t in tool_names if t in {"search_paths", "search_content"}]
             for tool in ordered_tools:
                 if tool in results:
                     continue
@@ -292,7 +429,9 @@ async def main() -> None:
         print(
             f"{backend}: pass={counts['pass']} not_supported={counts['not_supported']} optional_fail={counts['optional_fail']} fail={counts['fail']}"
         )
-        failed_tools = [name for name, result in data.items() if result["status"] == "fail"]
+        failed_tools = [
+            name for name, result in data.items() if result["status"] == "fail"
+        ]
         if failed_tools:
             print("  FAIL_TOOLS:", ", ".join(failed_tools))
 

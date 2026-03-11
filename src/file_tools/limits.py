@@ -27,6 +27,7 @@ class LimitError(RuntimeError):
 
 
 def exceeds_max_file_size(path: Path, max_mb: Optional[int]) -> bool:
+    """Execute exceeds max file size."""
     if max_mb is None:
         return False
     if max_mb <= 0:
@@ -36,12 +37,14 @@ def exceeds_max_file_size(path: Path, max_mb: Optional[int]) -> bool:
 
 
 def enforce_max_file_size(path: Path, max_mb: Optional[int]) -> None:
+    """Execute enforce max file size."""
     if exceeds_max_file_size(path, max_mb):
         raise LimitError(f"File exceeds size limit ({max_mb} MB): {path}")
 
 
 @contextmanager
 def enforce_timeout(timeout_s: Optional[int]) -> Iterator[None]:
+    """Execute enforce timeout."""
     if timeout_s is None or timeout_s <= 0:
         yield
         return
@@ -56,6 +59,7 @@ def enforce_timeout(timeout_s: Optional[int]) -> Iterator[None]:
     def _handle_timeout(
         signum: int, frame: object
     ) -> None:  # pragma: no cover - signal handler
+        """Handle handle timeout."""
         raise TimeoutError("Operation timed out")
 
     previous = signal.signal(signal.SIGALRM, _handle_timeout)

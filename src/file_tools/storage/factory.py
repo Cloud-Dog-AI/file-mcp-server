@@ -1,4 +1,10 @@
-"""Storage backend factory."""
+"""
+file-mcp-server — file_tools/storage/factory.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for storage factory.py.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +15,7 @@ from .local import LocalStorage
 
 
 def build_storage_backend(profile: ProfileConfig) -> StorageBackend:
+    """Build storage backend."""
     backend = (profile.storage.backend or "local").strip().lower()
     timeout_s = profile.limits.storage_timeout_s
     if backend in {"", "local", "filesystem", "fs"}:

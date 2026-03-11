@@ -50,15 +50,25 @@ def test_scoped_file_operations_over_http(tmp_path: Path) -> None:
                 move_dst = root_dir / "c.txt"
                 outside = outside_dir / "bad.txt"
 
-                await client.call_tool("write_file", {"path": str(src), "content": "abc"})
+                await client.call_tool(
+                    "write_file", {"path": str(src), "content": "abc"}
+                )
                 read_result = await client.call_tool("read_file", {"path": str(src)})
-                assert any(getattr(item, "text", "") == "abc" for item in read_result.content)
+                assert any(
+                    getattr(item, "text", "") == "abc" for item in read_result.content
+                )
 
-                await client.call_tool("copy_file", {"src": str(src), "dst": str(copy_dst)})
-                await client.call_tool("move_file", {"src": str(copy_dst), "dst": str(move_dst)})
+                await client.call_tool(
+                    "copy_file", {"src": str(src), "dst": str(copy_dst)}
+                )
+                await client.call_tool(
+                    "move_file", {"src": str(copy_dst), "dst": str(move_dst)}
+                )
                 await client.call_tool("delete_file", {"path": str(move_dst)})
 
                 with pytest.raises(Exception):
-                    await client.call_tool("write_file", {"path": str(outside), "content": "x"})
+                    await client.call_tool(
+                        "write_file", {"path": str(outside), "content": "x"}
+                    )
 
         asyncio.run(_flow())

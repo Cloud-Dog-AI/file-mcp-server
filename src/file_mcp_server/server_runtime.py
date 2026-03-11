@@ -30,10 +30,10 @@ import uuid
 from urllib.parse import parse_qs
 import re
 
-import yaml
 from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
 from cloud_dog_api_kit.correlation.context import (  # type: ignore[import-not-found,import-untyped]
     get_correlation_id as get_api_kit_correlation_id,
     set_correlation_id as set_api_kit_correlation_id,
@@ -106,8 +106,13 @@ from starlette.requests import HTTPConnection
 
 from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
+from .db import (
+    PlatformDatabaseRuntime,
+    database_health,
+    initialise_database,
+    shutdown_database,
+)
 from .google_drive_admin import (
-    DEFAULT_TOKEN_URI,
     MASKED_CLIENT_SECRET,
     begin_oauth,
     complete_oauth_callback,
@@ -125,10 +130,12 @@ _REQUEST_CLIENT_IP: ContextVar[str | None] = ContextVar(
 
 
 def get_request_session_id() -> str | None:
+    """Return request session id."""
     return _REQUEST_SESSION_ID.get()
 
 
 def get_request_client_ip() -> str | None:
+    """Return request client ip."""
     return _REQUEST_CLIENT_IP.get()
 
 
@@ -139,6 +146,8 @@ class JsonRpcError:
 
 
 class LogLike(Protocol):
+    """Protocol for logger methods consumed by runtime handlers."""
+
     def info(self, msg: str, **extra: Any) -> None: ...
 
     def warning(self, msg: str, **extra: Any) -> None: ...
@@ -162,6 +171,7 @@ class HttpRuntimeSettings:
 def _build_response(
     request_id: Any, result: Any = None, error: JsonRpcError | None = None
 ) -> Dict[str, Any]:
+    """Handle build response."""
     payload: Dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
     if error:
         payload["error"] = {"code": error.code, "message": error.message}
@@ -227,9 +237,11 @@ class StdioServer:
     """Legacy stdio transport for compatibility with existing tests."""
 
     def __init__(self, registry: ToolRegistry) -> None:
+        """Initialise the instance state."""
         self.registry = registry
 
     def handle_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute handle request."""
         request_id = payload.get("id")
         method = payload.get("method")
         params = payload.get("params") or {}
@@ -272,6 +284,7 @@ class StdioServer:
         input_stream: Optional[TextIO] = None,
         output_stream: Optional[TextIO] = None,
     ) -> None:
+        """Execute serve."""
         in_stream = input_stream or sys.stdin
         out_stream = output_stream or sys.stdout
         for line in in_stream:
@@ -302,7 +315,10 @@ class HealthCheckMiddleware:
         registry_provider=None,
         mcp_path: str = "/mcp",
         a2a_auth_verifier=None,
+        db_runtime: PlatformDatabaseRuntime | None = None,
+        callback_host_fallback: str = "",
     ) -> None:
+        """Initialise the instance state."""
         self.app = app
         self.health_path = health_path
         self.profile_name = profile_name
@@ -311,6 +327,7 @@ class HealthCheckMiddleware:
         self.registry_provider = registry_provider
         self.mcp_path = _normalize_path(mcp_path, default="/mcp")
         self.a2a_auth_verifier = a2a_auth_verifier
+        self.db_runtime = db_runtime
         self.a2a_base_path = _normalize_path(
             os.getenv("TEST_A2A_BASE_PATH"), default="/a2a"
         )
@@ -339,14 +356,17 @@ class HealthCheckMiddleware:
         self.enable_legacy_api_alias = _to_bool(
             os.getenv("FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS"), default=True
         )
+        self.callback_host_fallback = callback_host_fallback.strip()
 
     def _ready_path(self) -> str:
+        """Handle ready path."""
         base = self.health_path.rsplit("/", 1)[0] if "/" in self.health_path else ""
         if not base:
             return "/ready"
         return f"{base}/ready"
 
     def _live_path(self) -> str:
+        """Handle live path."""
         base = self.health_path.rsplit("/", 1)[0] if "/" in self.health_path else ""
         if not base:
             return "/live"
@@ -354,6 +374,7 @@ class HealthCheckMiddleware:
 
     @staticmethod
     def _legacy_api_alias(path: str) -> str | None:
+        """Handle legacy api alias."""
         if path == "/app/v1":
             return "/api/v1"
         if path.startswith("/app/v1/"):
@@ -362,6 +383,7 @@ class HealthCheckMiddleware:
 
     @staticmethod
     def _legacy_root_alias(path: str) -> str | None:
+        """Handle legacy root alias."""
         if path == "/app/v1":
             return "/"
         if path.startswith("/app/v1/"):
@@ -369,6 +391,7 @@ class HealthCheckMiddleware:
         return None
 
     def _dependency_checks(self) -> tuple[str, dict[str, Any]]:
+        """Handle dependency checks."""
         states = ENDPOINT_HEALTH_MANAGER.get_profile_states(self.profile_name)
         checks: dict[str, Any] = {}
         all_ok = True
@@ -380,9 +403,17 @@ class HealthCheckMiddleware:
             }
             if state.status != "healthy":
                 all_ok = False
+        db_status = database_health(self.db_runtime)
+        checks["database"] = {
+            "status": "healthy" if db_status.get("ok") else "error",
+            "details": db_status,
+        }
+        if not db_status.get("ok"):
+            all_ok = False
         return ("ok" if all_ok else "degraded"), checks
 
     def _list_tools_payload(self) -> dict[str, Any]:
+        """Handle list tools payload."""
         if not callable(self.registry_provider):
             return {"tools": []}
         registry = self.registry_provider()
@@ -399,6 +430,7 @@ class HealthCheckMiddleware:
         return {"tools": tools}
 
     async def _read_http_body(self, receive) -> bytes:
+        """Handle read http body."""
         body = b""
         while True:
             event = await receive()
@@ -417,6 +449,7 @@ class HealthCheckMiddleware:
         body: bytes,
         content_type: str = "text/plain; charset=utf-8",
     ) -> None:
+        """Handle send bytes."""
         await send(
             {
                 "type": "http.response.start",
@@ -430,6 +463,7 @@ class HealthCheckMiddleware:
         await send({"type": "http.response.body", "body": body})
 
     async def _send_html(self, send, *, status: int, html: str) -> None:
+        """Handle send html."""
         await self._send_bytes(
             send,
             status=status,
@@ -446,6 +480,7 @@ class HealthCheckMiddleware:
         message: str,
         details: dict[str, Any] | None = None,
     ) -> None:
+        """Handle send api error."""
         body = json.dumps(
             _api_error_list_envelope(code=code, message=message, details=details)
         ).encode("utf-8")
@@ -454,6 +489,7 @@ class HealthCheckMiddleware:
         )
 
     async def _send_redirect(self, send, *, location: str) -> None:
+        """Handle send redirect."""
         await send(
             {
                 "type": "http.response.start",
@@ -465,6 +501,7 @@ class HealthCheckMiddleware:
 
     @staticmethod
     def _extract_auth_token(raw_header: str, scheme: str | None) -> str | None:
+        """Handle extract auth token."""
         value = raw_header.strip()
         if not value:
             return None
@@ -479,6 +516,7 @@ class HealthCheckMiddleware:
     async def _is_a2a_authorized(
         self, *, scope: dict[str, Any], headers: dict[str, str]
     ) -> bool:
+        """Handle is a2a authorized."""
         verifier = self.a2a_auth_verifier
         if verifier is None:
             return False
@@ -528,6 +566,7 @@ class HealthCheckMiddleware:
         return auth_info is not None
 
     def _resolve_config_value(self, value: Any) -> str:
+        """Handle resolve config value."""
         if value is None:
             return ""
         text = str(value).strip()
@@ -539,6 +578,7 @@ class HealthCheckMiddleware:
         return str(os.getenv(match.group(1), "")).strip()
 
     def _configured_value(self, value: Any) -> str:
+        """Handle configured value."""
         text = self._resolve_config_value(value)
         if not text or "${" in text:
             return ""
@@ -547,6 +587,7 @@ class HealthCheckMiddleware:
     def _compute_callback_url(
         self, scope: dict[str, Any], headers: dict[str, str]
     ) -> str:
+        """Handle compute callback url."""
         forwarded_proto = (
             (headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
         )
@@ -554,19 +595,24 @@ class HealthCheckMiddleware:
             scheme = forwarded_proto
         else:
             scheme = scope.get("scheme") or "http"
-        host = headers.get("host", "localhost")
+        host = headers.get("host") or self.callback_host_fallback
         return f"{scheme}://{host}/admin/google-drive/callback"
 
     def _load_google_profile_values(
         self, *, profile_name: str, callback_url: str
     ) -> dict[str, str]:
+        """Handle load google profile values."""
         empty_values = {
             "user_email": "",
             "folder_input": "",
             "client_id": "",
             "client_secret": "",
+            "folder_url_example": "",
+            "oauth_scope": "",
+            "oauth_authorize_uri": "",
+            "api_base_uri": "",
             "redirect_uri": callback_url,
-            "token_uri": DEFAULT_TOKEN_URI,
+            "token_uri": "",
         }
         defaults_path = str(os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
         try:
@@ -594,16 +640,21 @@ class HealthCheckMiddleware:
                 "folder_input": folder_url or folder_id,
                 "client_id": self._configured_value(drive.client_id),
                 "client_secret": self._configured_value(drive.client_secret),
+                "folder_url_example": self._configured_value(drive.folder_url_example),
+                "oauth_scope": self._configured_value(drive.oauth_scope),
+                "oauth_authorize_uri": self._configured_value(
+                    drive.oauth_authorize_uri
+                ),
+                "api_base_uri": self._configured_value(drive.api_base_uri),
                 "redirect_uri": redirect_uri,
-                "token_uri": self._configured_value(drive.token_uri)
-                or DEFAULT_TOKEN_URI,
+                "token_uri": self._configured_value(drive.token_uri),
             }
         except Exception:
             config_path = Path(self.active_config)
             if not config_path.exists():
                 return empty_values
             try:
-                parsed = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+                parsed = load_yaml(str(config_path), missing_ok=True)
                 profiles = parsed.get("profiles")
                 if not isinstance(profiles, dict):
                     return empty_values
@@ -636,19 +687,29 @@ class HealthCheckMiddleware:
                     "client_secret": self._configured_value(
                         raw_drive.get("client_secret")
                     ),
+                    "folder_url_example": self._configured_value(
+                        raw_drive.get("folder_url_example")
+                    ),
+                    "oauth_scope": self._configured_value(raw_drive.get("oauth_scope")),
+                    "oauth_authorize_uri": self._configured_value(
+                        raw_drive.get("oauth_authorize_uri")
+                    ),
+                    "api_base_uri": self._configured_value(
+                        raw_drive.get("api_base_uri")
+                    ),
                     "redirect_uri": redirect_uri,
-                    "token_uri": self._configured_value(raw_drive.get("token_uri"))
-                    or DEFAULT_TOKEN_URI,
+                    "token_uri": self._configured_value(raw_drive.get("token_uri")),
                 }
             except Exception:
                 return empty_values
 
     def _read_profile_metadata(self) -> dict[str, dict[str, Any]]:
+        """Handle read profile metadata."""
         config_path = Path(self.active_config)
         if not config_path.exists():
             return {}
         try:
-            parsed = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            parsed = load_yaml(str(config_path), missing_ok=True)
         except Exception:
             return {}
         profiles = parsed.get("profiles")
@@ -693,6 +754,7 @@ class HealthCheckMiddleware:
         return summary
 
     def _build_root_summary(self) -> dict[str, Any]:
+        """Handle build root summary."""
         profile_metadata = self._read_profile_metadata()
         profile_backends = {
             name: str(meta.get("backend", "unknown"))
@@ -735,17 +797,19 @@ class HealthCheckMiddleware:
         }
 
     def _render_root_summary_html(self, summary: dict[str, Any]) -> str:
+        """Handle render root summary html."""
         profile_health = summary.get("profile_health") or {}
         profile_metadata = summary.get("profile_metadata") or {}
 
         def _action_cell(name: str) -> str:
+            """Handle action cell."""
             metadata = profile_metadata.get(name) or {}
             requires_auth = bool(metadata.get("google_auth_required", False))
             if not requires_auth:
                 return ""
             if not self.admin_ui_enabled:
-                return "Enable admin UI to authorize"
-            return f"<a class='btn' href='/admin/google-drive?profile={escape(name)}'>Authorize Google Drive</a>"
+                return "Enable admin UI to authorise"
+            return f"<a class='btn' href='/admin/google-drive?profile={escape(name)}'>Authorise Google Drive</a>"
 
         profile_rows = "".join(
             "<tr>"
@@ -806,6 +870,7 @@ class HealthCheckMiddleware:
         )
 
     async def __call__(self, scope, receive, send) -> None:
+        """Handle callable invocation for this instance."""
         headers = {
             (k.decode("latin-1").lower() if isinstance(k, bytes) else str(k).lower()): (
                 v.decode("latin-1") if isinstance(v, bytes) else str(v)
@@ -906,7 +971,7 @@ class HealthCheckMiddleware:
                     send,
                     status=401,
                     code="UNAUTHENTICATED",
-                    message="Unauthorized",
+                    message="Unauthorised",
                 )
                 return
             body = json.dumps(
@@ -961,7 +1026,7 @@ class HealthCheckMiddleware:
                         send,
                         status=401,
                         code="UNAUTHENTICATED",
-                        message="Unauthorized",
+                        message="Unauthorised",
                     )
                     return
 
@@ -999,8 +1064,15 @@ class HealthCheckMiddleware:
                     "client_id": prefill_values.get("client_id", ""),
                     "redirect_uri": prefill_values.get("redirect_uri", ""),
                     "token_uri": prefill_values.get("token_uri", ""),
+                    "oauth_scope": prefill_values.get("oauth_scope", ""),
+                    "oauth_authorize_uri": prefill_values.get(
+                        "oauth_authorize_uri", ""
+                    ),
+                    "api_base_uri": prefill_values.get("api_base_uri", ""),
+                    "folder_url_example": prefill_values.get("folder_url_example", ""),
                 },
                 has_client_secret=bool(prefill_values.get("client_secret", "")),
+                folder_url_example=prefill_values.get("folder_url_example", ""),
             )
             await self._send_html(send, status=200, html=html)
             return
@@ -1036,6 +1108,14 @@ class HealthCheckMiddleware:
                     data["redirect_uri"] = callback_uri
                 if not (data.get("token_uri") or "").strip():
                     data["token_uri"] = stored_values.get("token_uri", "")
+                if not (data.get("oauth_scope") or "").strip():
+                    data["oauth_scope"] = stored_values.get("oauth_scope", "")
+                if not (data.get("oauth_authorize_uri") or "").strip():
+                    data["oauth_authorize_uri"] = stored_values.get(
+                        "oauth_authorize_uri", ""
+                    )
+                if not (data.get("api_base_uri") or "").strip():
+                    data["api_base_uri"] = stored_values.get("api_base_uri", "")
 
                 self.logger.info(
                     "admin_google_drive_start",
@@ -1168,16 +1248,19 @@ class StreamableHttpAcceptCompatibilityMiddleware:
     """Normalize Accept header for clients that only advertise JSON."""
 
     def __init__(self, app, *, mcp_path: str) -> None:
+        """Initialise the instance state."""
         self.app = app
         self.mcp_path = mcp_path
 
     @staticmethod
     def _text(value: bytes | str) -> str:
+        """Handle text."""
         if isinstance(value, bytes):
             return value.decode("latin-1")
         return str(value)
 
     async def __call__(self, scope, receive, send) -> None:
+        """Handle callable invocation for this instance."""
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
@@ -1228,9 +1311,11 @@ class RequestContextMiddleware:
     """Capture request context for per-tool operational logging."""
 
     def __init__(self, app) -> None:
+        """Initialise the instance state."""
         self.app = app
 
     async def __call__(self, scope, receive, send) -> None:
+        """Handle callable invocation for this instance."""
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
@@ -1268,6 +1353,7 @@ class RequestContextMiddleware:
 
 
 def _to_bool(value: Any, default: bool) -> bool:
+    """Handle to bool."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -1282,6 +1368,7 @@ def _to_bool(value: Any, default: bool) -> bool:
 
 
 def _to_int(value: Any, default: int) -> int:
+    """Handle to int."""
     if value is None:
         return default
     if isinstance(value, int):
@@ -1295,6 +1382,7 @@ def _to_int(value: Any, default: int) -> int:
 
 
 def _normalize_path(path: str | None, *, default: str) -> str:
+    """Handle normalize path."""
     if not path:
         return default
     cleaned = path.strip()
@@ -1308,6 +1396,7 @@ def _normalize_path(path: str | None, *, default: str) -> str:
 
 
 def _join_paths(base_path: str, path: str) -> str:
+    """Handle join paths."""
     base = _normalize_path(base_path, default="/")
     sub = _normalize_path(path, default="/")
     if base == "/":
@@ -1318,6 +1407,7 @@ def _join_paths(base_path: str, path: str) -> str:
 
 
 def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
+    """Execute resolve http settings."""
     transport = (http_config.transport or "streamable-http").strip().lower()
     if transport not in {"streamable-http", "sse", "http"}:
         transport = "streamable-http"
@@ -1333,9 +1423,13 @@ def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
         base_path, _normalize_path(http_config.events_path, default="/events")
     )
 
+    resolved_host = (http_config.host or http_config.fallback_host or "").strip()
+    if not resolved_host:
+        resolved_host = "0.0.0.0"
+
     return HttpRuntimeSettings(
         transport=transport,
-        host=(http_config.host or "127.0.0.1").strip(),
+        host=resolved_host,
         port=_to_int(http_config.port, default=8000),
         mcp_path=mcp_path,
         health_path=health_path,
@@ -1347,6 +1441,7 @@ def resolve_http_settings(http_config: HttpServerConfig) -> HttpRuntimeSettings:
 def _resolve_path(
     policy: ScopePolicy | PosixScopePolicy, path: str, *, operation: str
 ) -> str:
+    """Handle resolve path."""
     if isinstance(policy, ScopePolicy):
         resolved = policy.normalize(path)
         policy.require(resolved, operation=operation)
@@ -1359,11 +1454,13 @@ def _resolve_path(
 def _validate_text(
     content_type: str, text: str, validation: ValidationConfig
 ) -> Dict[str, Any]:
+    """Handle validate text."""
     result = validate_with_mode(content_type, text, validation)
     return {"valid": result.valid, "errors": result.errors, "warnings": result.warnings}
 
 
 def _infer_content_type(path: str | Path) -> str:
+    """Handle infer content type."""
     suffix = Path(path).suffix.lower() if isinstance(path, str) else path.suffix.lower()
     mapping = {
         ".json": "json",
@@ -1381,6 +1478,7 @@ def _infer_content_type(path: str | Path) -> str:
 
 
 def _normalize_optional_path(value: str | None) -> Path | None:
+    """Handle normalize optional path."""
     if value is None:
         return None
     cleaned = value.strip()
@@ -1395,6 +1493,7 @@ def build_tool_registry(
     profile_name: str = "default",
     logger: LogLike | None = None,
 ) -> ToolRegistry:
+    """Build tool registry."""
     backend = build_storage_backend(profile)
     # Alias to avoid accidental shadowing by tool parameters (e.g. convert_file has a `backend` arg).
     storage_backend = backend
@@ -1436,6 +1535,7 @@ def build_tool_registry(
         paths: Dict[str, str] | None = None,
         details: Dict[str, Any] | None = None,
     ) -> None:
+        """Handle write audit."""
         if not audit_logger:
             return
         audit_logger.write(
@@ -1458,6 +1558,7 @@ def build_tool_registry(
         )
 
     def _snapshot_if_enabled(resolved_path: str) -> Path | None:
+        """Handle snapshot if enabled."""
         if not snapshots_enabled or not snapshot_dir:
             return None
         if backend.backend_name == "local":
@@ -1480,6 +1581,7 @@ def build_tool_registry(
         return snapshot
 
     def _backend_health_snapshot() -> Dict[str, Any]:
+        """Handle backend health snapshot."""
         states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
         return {
             "profile": profile_name,
@@ -1495,6 +1597,7 @@ def build_tool_registry(
         operation: str,
         path_key: str = "path",
     ) -> str:
+        """Handle resolve path for tool."""
         try:
             return _resolve_path(policy, path, operation=operation)
         except Exception:
@@ -1517,6 +1620,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Handle mutating edit file."""
         resolved = _resolve_path_for_tool(
             tool_name=tool_name,
             action=f"edit_{content_type}",
@@ -1587,6 +1691,7 @@ def build_tool_registry(
         }
 
     def backend_status() -> Dict[str, Any]:
+        """Execute backend status."""
         return _backend_health_snapshot()
 
     def read_file(
@@ -1597,6 +1702,7 @@ def build_tool_registry(
         start_byte: int | None = None,
         end_byte: int | None = None,
     ) -> str:
+        """Read file."""
         resolved = _resolve_path(policy, path, operation="read")
         if (start_line is not None or end_line is not None) and (
             start_byte is not None or end_byte is not None
@@ -1629,6 +1735,7 @@ def build_tool_registry(
         overwrite: bool = True,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Write file."""
         resolved = _resolve_path_for_tool(
             tool_name="write_file",
             action="write",
@@ -1673,6 +1780,7 @@ def build_tool_registry(
     def delete_path(
         path: str, missing_ok: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
+        """Delete path."""
         resolved = _resolve_path_for_tool(
             tool_name="delete_file",
             action="delete",
@@ -1717,6 +1825,7 @@ def build_tool_registry(
     def copy_path(
         src: str, dst: str, overwrite: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
+        """Copy path."""
         resolved_src = _resolve_path_for_tool(
             tool_name="copy_file",
             action="copy",
@@ -1775,6 +1884,7 @@ def build_tool_registry(
         exist_ok: bool = True,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Create dir path."""
         resolved = _resolve_path_for_tool(
             tool_name="create_dir",
             action="mkdir",
@@ -1810,6 +1920,7 @@ def build_tool_registry(
             raise
 
     def _parse_octal_mode(mode: int | str) -> int:
+        """Handle parse octal mode."""
         if isinstance(mode, int):
             return mode
         if isinstance(mode, str):
@@ -1822,6 +1933,7 @@ def build_tool_registry(
     def chmod_fs_path(
         path: str, mode: int | str, recursive: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
+        """Execute chmod fs path."""
         resolved = _resolve_path_for_tool(
             tool_name="chmod_path",
             action="chmod",
@@ -1883,6 +1995,7 @@ def build_tool_registry(
         *,
         tool_name: str = "move_file",
     ) -> Dict[str, Any]:
+        """Move path handler."""
         resolved_src = _resolve_path_for_tool(
             tool_name=tool_name,
             action="move",
@@ -1938,6 +2051,7 @@ def build_tool_registry(
     def rename_path_handler(
         src: str, dst: str, overwrite: bool = False, dry_run: bool = False
     ) -> Dict[str, Any]:
+        """Rename path handler."""
         resolved_src = _resolve_path_for_tool(
             tool_name="rename_path",
             action="rename",
@@ -1991,6 +2105,7 @@ def build_tool_registry(
             raise
 
     def list_path(path: str, recursive: bool = False) -> Dict[str, Any]:
+        """List path."""
         resolved = _resolve_path(policy, path, operation="read")
         entries = [
             entry.path for entry in backend.list_dir(resolved, recursive=recursive)
@@ -2006,6 +2121,7 @@ def build_tool_registry(
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
+        """Search path names."""
         effective_max_results = (
             max_results if max_results is not None else limits.search_max_results
         )
@@ -2051,6 +2167,7 @@ def build_tool_registry(
         ]
 
         def _depth_ok(root: str, candidate: str) -> bool:
+            """Handle depth ok."""
             if max_depth is None:
                 return True
             try:
@@ -2113,6 +2230,7 @@ def build_tool_registry(
         max_depth: int | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
+        """Search text content."""
         effective_max_results = (
             max_results if max_results is not None else limits.search_max_results
         )
@@ -2170,6 +2288,7 @@ def build_tool_registry(
         results: list[dict[str, Any]] = []
 
         def _depth_ok(root: str, candidate: str) -> bool:
+            """Handle depth ok."""
             if max_depth is None:
                 return True
             try:
@@ -2233,6 +2352,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute json set file."""
         return _mutating_edit_file(
             tool_name="json_set_file",
             path=path,
@@ -2250,6 +2370,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute xml set file."""
         return _mutating_edit_file(
             tool_name="xml_set_file",
             path=path,
@@ -2267,6 +2388,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute html set file."""
         return _mutating_edit_file(
             tool_name="html_set_file",
             path=path,
@@ -2284,6 +2406,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute markdown set section file."""
         return _mutating_edit_file(
             tool_name="markdown_set_section_file",
             path=path,
@@ -2300,6 +2423,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute markdown set frontmatter file."""
         return _mutating_edit_file(
             tool_name="markdown_set_frontmatter_file",
             path=path,
@@ -2317,6 +2441,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute yaml set file."""
         return _mutating_edit_file(
             tool_name="yaml_set_file",
             path=path,
@@ -2333,6 +2458,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute yaml delete file."""
         return _mutating_edit_file(
             tool_name="yaml_delete_file",
             path=path,
@@ -2346,6 +2472,7 @@ def build_tool_registry(
     def json_get_file(
         path: str, json_path: str, encoding: str = "utf-8"
     ) -> Dict[str, Any]:
+        """Execute json get file."""
         resolved = _resolve_path(policy, path, operation="read")
         text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         return {"ok": True, "path": str(resolved), "value": json_get(text, json_path)}
@@ -2357,6 +2484,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute json copy file."""
         return _mutating_edit_file(
             tool_name="json_copy_file",
             path=path,
@@ -2374,6 +2502,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute json move file."""
         return _mutating_edit_file(
             tool_name="json_move_file",
             path=path,
@@ -2391,6 +2520,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute json merge file."""
         return _mutating_edit_file(
             tool_name="json_merge_file",
             path=path,
@@ -2404,6 +2534,7 @@ def build_tool_registry(
     def yaml_get_file(
         path: str, yaml_path: str, encoding: str = "utf-8"
     ) -> Dict[str, Any]:
+        """Execute yaml get file."""
         resolved = _resolve_path(policy, path, operation="read")
         text = backend.read_bytes(resolved).decode(encoding, errors="replace")
         return {"ok": True, "path": str(resolved), "value": yaml_get(text, yaml_path)}
@@ -2415,6 +2546,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute yaml copy file."""
         return _mutating_edit_file(
             tool_name="yaml_copy_file",
             path=path,
@@ -2432,6 +2564,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute yaml move file."""
         return _mutating_edit_file(
             tool_name="yaml_move_file",
             path=path,
@@ -2449,6 +2582,7 @@ def build_tool_registry(
         encoding: str = "utf-8",
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute yaml merge file."""
         return _mutating_edit_file(
             tool_name="yaml_merge_file",
             path=path,
@@ -2468,6 +2602,7 @@ def build_tool_registry(
         simulate_delay_s: float | None = None,
         backend: str | None = None,
     ) -> Dict[str, Any]:
+        """Convert file tool."""
         resolved = _resolve_path(policy, path, operation="read")
         resolved_output = (
             _resolve_path(policy, output_path, operation="write")
@@ -2486,6 +2621,7 @@ def build_tool_registry(
         def _fail(
             message: str, *, backend: str | None = None, code: str = "conversion_error"
         ) -> Dict[str, Any]:
+            """Handle fail."""
             return {
                 "ok": False,
                 "backend": backend,
@@ -2633,6 +2769,7 @@ def build_tool_registry(
             return _fail(str(exc), code="limit_exceeded")
 
     def meld_files_tool(path_a: str, path_b: str) -> Dict[str, Any]:
+        """Execute meld files tool."""
         resolved_a = _resolve_path(policy, path_a, operation="read")
         resolved_b = _resolve_path(policy, path_b, operation="read")
         if backend.backend_name != "local":
@@ -2647,6 +2784,7 @@ def build_tool_registry(
         }
 
     def b64_encode_file(path: str, urlsafe: bool = False) -> Dict[str, Any]:
+        """Execute b64 encode file."""
         resolved = _resolve_path(policy, path, operation="read")
         data = backend.read_bytes(resolved)
         return {"ok": True, "data": b64_encode(data, urlsafe=urlsafe)}
@@ -2658,6 +2796,7 @@ def build_tool_registry(
         overwrite: bool = True,
         dry_run: bool = False,
     ) -> Dict[str, Any]:
+        """Execute b64 decode to file."""
         resolved = _resolve_path_for_tool(
             tool_name="b64_decode_to_file",
             action="write",
@@ -2714,6 +2853,7 @@ def build_tool_registry(
     def validate_file(
         path: str, content_type: str | None = None, encoding: str = "utf-8"
     ) -> Dict[str, Any]:
+        """Validate file."""
         resolved = _resolve_path(policy, path, operation="read")
         resolved_type = content_type or _infer_content_type(resolved)
         text = backend.read_bytes(resolved).decode(encoding, errors="replace")
@@ -2730,6 +2870,7 @@ def build_tool_registry(
     def diff_files_tool(
         path_a: str, path_b: str, encoding: str = "utf-8", context: int = 3
     ) -> Dict[str, Any]:
+        """Execute diff files tool."""
         resolved_a = _resolve_path(policy, path_a, operation="read")
         resolved_b = _resolve_path(policy, path_b, operation="read")
         a_text = backend.read_bytes(resolved_a).decode(encoding, errors="replace")
@@ -2762,6 +2903,7 @@ def build_tool_registry(
         dry_run: bool = False,
         encoding: str = "utf-8",
     ) -> Dict[str, Any]:
+        """Execute sed edit file."""
         resolved = _resolve_path_for_tool(
             tool_name="sed_edit_file",
             action="edit_text",
@@ -2772,6 +2914,7 @@ def build_tool_registry(
         before = backend.read_bytes(resolved).decode(encoding, errors="replace")
 
         def _apply_single(current: str, op_args: Dict[str, Any]) -> str:
+            """Handle apply single."""
             single_op = op_args.get("op")
             if single_op == "replace_regex":
                 single_pattern = op_args.get("pattern")
@@ -3474,6 +3617,7 @@ def build_tool_registry(
 
 
 def _truncate_value(value: Any) -> Any:
+    """Handle truncate value."""
     if isinstance(value, str):
         return value if len(value) <= 500 else f"{value[:500]}...[truncated]"
     if isinstance(value, dict):
@@ -3490,9 +3634,11 @@ def register_tools_with_fastmcp(
     default_profile_name: str,
     logger: LogLike | None = None,
 ) -> None:
+    """Execute register tools with fastmcp."""
     current_registry = registry_provider()
 
     def _extract_paths_from_params(params: Dict[str, Any]) -> Dict[str, str]:
+        """Handle extract paths from params."""
         path_keys = ("path", "src", "dst", "path_a", "path_b")
         extracted: Dict[str, str] = {}
         for key in path_keys:
@@ -3502,7 +3648,10 @@ def register_tools_with_fastmcp(
         return extracted
 
     def build_wrapped_handler(tool_name: str):
+        """Build wrapped handler."""
+
         def wrapped_handler(*args, **kwargs):
+            """Execute wrapped handler."""
             started = time.perf_counter()
             params = _truncate_value(kwargs)
             paths = _extract_paths_from_params(kwargs)
@@ -3662,6 +3811,7 @@ def build_fastmcp_server(
     *,
     logger: LogLike | None = None,
 ) -> FastMCP:
+    """Build fastmcp server."""
     if default_profile_name not in config.profiles:
         raise ValueError(f"Unknown default profile: {default_profile_name}")
     for name, profile in config.profiles.items():
@@ -3691,6 +3841,7 @@ def build_fastmcp_server(
     registry_by_profile: dict[str, ToolRegistry] = {}
 
     def _registry_provider() -> ToolRegistry:
+        """Handle registry provider."""
         profile_name = (
             get_request_profile_name(default_profile_name) or default_profile_name
         )
@@ -3710,6 +3861,7 @@ def build_fastmcp_server(
     def _reload_registry(
         *, env_path: str | None, config_path: str | None, defaults_path: str | None
     ) -> dict[str, Any]:
+        """Handle reload registry."""
         cfg = load_config(
             env_path=env_path, config_path=config_path, defaults_path=defaults_path
         )
@@ -3752,6 +3904,7 @@ async def run_fastmcp_http_server(
     logger: LogLike | None = None,
 ) -> None:
     # Instantiate API-kit app config for PS-20 contract alignment and dependency verification.
+    """Execute run fastmcp http server."""
     create_api_kit_app(
         title="file-mcp-server",
         version="0.0.0",
@@ -3761,6 +3914,7 @@ async def run_fastmcp_http_server(
         register_signal_handlers_on_startup=False,
     )
 
+    db_runtime = initialise_database()
     http = resolve_http_settings(http_config)
     for profile_name, profile in config.profiles.items():
         ENDPOINT_HEALTH_MANAGER.run_startup_checks(
@@ -3788,6 +3942,7 @@ async def run_fastmcp_http_server(
     defaults_path = os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or None
 
     def _reload_callback():
+        """Handle reload callback."""
         if not callable(reload_fn):
             raise RuntimeError("reload function unavailable")
         return reload_fn(
@@ -3810,6 +3965,8 @@ async def run_fastmcp_http_server(
             registry_provider=registry_provider,
             mcp_path=http.mcp_path,
             a2a_auth_verifier=auth_verifier,
+            db_runtime=db_runtime,
+            callback_host_fallback=http.host,
         ),
     ]
     if logger:
@@ -3822,12 +3979,15 @@ async def run_fastmcp_http_server(
             health=http.health_path,
         )
 
-    await server.run_http_async(
-        show_banner=False,
-        transport=cast(Literal["http", "streamable-http", "sse"], http.transport),
-        host=http.host,
-        port=http.port,
-        path=endpoint_path,
-        middleware=middleware,
-        stateless_http=http.stateless_http,
-    )
+    try:
+        await server.run_http_async(
+            show_banner=False,
+            transport=cast(Literal["http", "streamable-http", "sse"], http.transport),
+            host=http.host,
+            port=http.port,
+            path=endpoint_path,
+            middleware=middleware,
+            stateless_http=http.stateless_http,
+        )
+    finally:
+        shutdown_database()

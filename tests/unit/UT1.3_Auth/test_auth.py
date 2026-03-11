@@ -81,8 +81,12 @@ def test_token_verifier_accepts_valid_bearer_token(tmp_path) -> None:
 
 def test_header_backend_accepts_custom_header_and_scheme(tmp_path) -> None:
     auth = _build_profile(tmp_path, primary="secret", secondary="")
-    verifier = ApiKeyTokenVerifier(auth._keys, header_name="x-api-key", header_scheme="Token")
-    backend = HeaderTokenAuthBackend(verifier, header_name="x-api-key", header_scheme="Token")
+    verifier = ApiKeyTokenVerifier(
+        auth._keys, header_name="x-api-key", header_scheme="Token"
+    )
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="x-api-key", header_scheme="Token"
+    )
     conn = HTTPConnection(
         {
             "type": "http",
@@ -97,8 +101,12 @@ def test_header_backend_accepts_custom_header_and_scheme(tmp_path) -> None:
 
 def test_header_backend_rejects_wrong_scheme(tmp_path) -> None:
     auth = _build_profile(tmp_path, primary="secret", secondary="")
-    verifier = ApiKeyTokenVerifier(auth._keys, header_name="x-api-key", header_scheme="Token")
-    backend = HeaderTokenAuthBackend(verifier, header_name="x-api-key", header_scheme="Token")
+    verifier = ApiKeyTokenVerifier(
+        auth._keys, header_name="x-api-key", header_scheme="Token"
+    )
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="x-api-key", header_scheme="Token"
+    )
     conn = HTTPConnection(
         {
             "type": "http",
@@ -130,7 +138,9 @@ def test_multi_profile_verifier_query_profile_and_key_routing() -> None:
         },
         default_profile="default",
     )
-    backend = HeaderTokenAuthBackend(verifier, header_name="authorization", header_scheme="Bearer")
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="authorization", header_scheme="Bearer"
+    )
 
     conn = HTTPConnection(
         {
@@ -154,7 +164,9 @@ def test_multi_profile_verifier_rejects_wrong_profile_key() -> None:
         },
         default_profile="default",
     )
-    backend = HeaderTokenAuthBackend(verifier, header_name="authorization", header_scheme="Bearer")
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="authorization", header_scheme="Bearer"
+    )
 
     conn = HTTPConnection(
         {

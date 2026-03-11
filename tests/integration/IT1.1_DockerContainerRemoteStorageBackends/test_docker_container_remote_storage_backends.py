@@ -7,9 +7,10 @@ Description: Validate that the containerized server works against real WebDAV/FT
 
 from __future__ import annotations
 
+from tests.env_runtime import env_get
+
 import asyncio
 import json
-import os
 import shutil
 import socket
 import subprocess
@@ -47,7 +48,7 @@ def _wait_for_health(url: str, timeout_s: float = 30.0) -> dict:
 
 
 def _docker_cmd(*args: str) -> list[str]:
-    docker_host = os.getenv("FILE_MCP_DOCKER_HOST", "").strip()
+    docker_host = env_get("FILE_MCP_DOCKER_HOST", "").strip()
     cmd = ["docker"]
     if docker_host:
         cmd.extend(["-H", docker_host])
@@ -95,11 +96,11 @@ def _container_name(suffix: str) -> str:
 
 @pytest.fixture(scope="session")
 def docker_image() -> str:
-    if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
+    if env_get("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
         pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_TESTS=1 to enable Docker integration tests"
         )
-    if os.getenv("FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS", "0") != "1":
+    if env_get("FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS", "0") != "1":
         pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 to enable remote storage Docker tests"
         )
@@ -107,7 +108,7 @@ def docker_image() -> str:
         pytest.fail("Docker daemon unavailable")
 
     repo_root = project_root(Path(__file__))
-    requested = os.getenv("FILE_MCP_DOCKER_TEST_IMAGE", "").strip()
+    requested = env_get("FILE_MCP_DOCKER_TEST_IMAGE", "").strip()
     if requested:
         if not _docker_image_exists(repo_root, requested):
             raise RuntimeError(f"Requested docker test image not found: {requested}")

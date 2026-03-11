@@ -102,5 +102,25 @@ def test_webdav_retry_config_is_read_from_storage_model() -> None:
 
 
 def test_parse_retry_statuses_falls_back_for_invalid_input() -> None:
-    assert _parse_retry_statuses("${FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES}") == {408, 409, 423, 425, 429, 500, 502, 503, 504}
-    assert _parse_retry_statuses("abc,700") == {408, 409, 423, 425, 429, 500, 502, 503, 504}
+    assert _parse_retry_statuses("${FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES}") == {
+        408,
+        409,
+        423,
+        425,
+        429,
+        500,
+        502,
+        503,
+        504,
+    }
+    assert _parse_retry_statuses("abc,700") == {
+        408,
+        409,
+        423,
+        425,
+        429,
+        500,
+        502,
+        503,
+        504,
+    }

@@ -57,7 +57,11 @@ def test_application_conversion_structured_diff_workflow(tmp_path: Path) -> None
                     },
                 )
                 convert_payload = json.loads(
-                    "\n".join(item.text for item in convert_result.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in convert_result.content
+                        if hasattr(item, "text")
+                    )
                 )
                 assert convert_payload["ok"] is True
 
@@ -65,21 +69,43 @@ def test_application_conversion_structured_diff_workflow(tmp_path: Path) -> None
                     "copy_file",
                     {"src": str(converted), "dst": str(baseline), "overwrite": True},
                 )
-                copy_payload = json.loads("\n".join(item.text for item in copy_result.content if hasattr(item, "text")))
+                copy_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in copy_result.content
+                        if hasattr(item, "text")
+                    )
+                )
                 assert copy_payload["ok"] is True
 
                 edit_result = await client.call_tool(
                     "markdown_set_section_file",
-                    {"path": str(converted), "heading": "Section", "new_content": "new"},
+                    {
+                        "path": str(converted),
+                        "heading": "Section",
+                        "new_content": "new",
+                    },
                 )
-                edit_payload = json.loads("\n".join(item.text for item in edit_result.content if hasattr(item, "text")))
+                edit_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in edit_result.content
+                        if hasattr(item, "text")
+                    )
+                )
                 assert edit_payload["ok"] is True
 
                 diff_result = await client.call_tool(
                     "diff_files",
                     {"path_a": str(baseline), "path_b": str(converted)},
                 )
-                return json.loads("\n".join(item.text for item in diff_result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text
+                        for item in diff_result.content
+                        if hasattr(item, "text")
+                    )
+                )
 
         diff_payload = asyncio.run(_flow())
         assert diff_payload["ok"] is True
@@ -88,7 +114,10 @@ def test_application_conversion_structured_diff_workflow(tmp_path: Path) -> None
 
     assert converted.exists()
     assert "new" in converted.read_text(encoding="utf-8")
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     tools = [json.loads(line).get("tool") for line in lines]
     assert "markdown_set_section_file" in tools
-

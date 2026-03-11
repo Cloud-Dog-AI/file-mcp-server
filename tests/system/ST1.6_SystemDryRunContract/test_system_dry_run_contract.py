@@ -8,7 +8,12 @@ from tests.path_helpers import project_root
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-from tests.http_integration_helpers import pick_free_port, running_server, wait_for_health, write_server_config
+from tests.http_integration_helpers import (
+    pick_free_port,
+    running_server,
+    wait_for_health,
+    write_server_config,
+)
 
 
 def test_dry_run_mutations_do_not_change_files_and_are_audited(tmp_path: Path) -> None:
@@ -26,27 +31,53 @@ def test_dry_run_mutations_do_not_change_files_and_are_audited(tmp_path: Path) -
     )
     repo_root = project_root(Path(__file__))
     with running_server(
-        repo_root, defaults_path=defaults_path, config_path=config_path, env_path=env_path, pidfile=pidfile
+        repo_root,
+        defaults_path=defaults_path,
+        config_path=config_path,
+        env_path=env_path,
+        pidfile=pidfile,
     ):
         wait_for_health(f"http://127.0.0.1:{port}/health")
 
         async def _calls() -> None:
             async with Client(
-                StreamableHttpTransport(f"http://127.0.0.1:{port}/mcp", headers={"Authorization": "Bearer secret"})
+                StreamableHttpTransport(
+                    f"http://127.0.0.1:{port}/mcp",
+                    headers={"Authorization": "Bearer secret"},
+                )
             ) as client:
                 calls = [
-                    ("write_file", {"path": str(target), "content": "after\n", "dry_run": True}),
+                    (
+                        "write_file",
+                        {"path": str(target), "content": "after\n", "dry_run": True},
+                    ),
                     ("copy_file", {"src": str(src), "dst": str(dst), "dry_run": True}),
                     ("move_file", {"src": str(src), "dst": str(dst), "dry_run": True}),
                     ("delete_file", {"path": str(target), "dry_run": True}),
                     (
                         "sed_edit_file",
-                        {"path": str(target), "operations": [{"op": "replace_regex", "pattern": "before", "repl": "after"}], "dry_run": True},
+                        {
+                            "path": str(target),
+                            "operations": [
+                                {
+                                    "op": "replace_regex",
+                                    "pattern": "before",
+                                    "repl": "after",
+                                }
+                            ],
+                            "dry_run": True,
+                        },
                     ),
                 ]
                 for name, args in calls:
                     result = await client.call_tool(name, args)
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
                     assert payload["dry_run"] is True
 
@@ -55,8 +86,19 @@ def test_dry_run_mutations_do_not_change_files_and_are_audited(tmp_path: Path) -
     assert target.read_text(encoding="utf-8") == "before\n"
     assert src.exists()
     assert not dst.exists()
-    events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    dry_tools = {evt["tool"] for evt in events if evt.get("details", {}).get("dry_run") is True}
-    for expected in {"write_file", "copy_file", "move_file", "delete_file", "sed_edit_file"}:
+    events = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    dry_tools = {
+        evt["tool"] for evt in events if evt.get("details", {}).get("dry_run") is True
+    }
+    for expected in {
+        "write_file",
+        "copy_file",
+        "move_file",
+        "delete_file",
+        "sed_edit_file",
+    }:
         assert expected in dry_tools
-

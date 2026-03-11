@@ -27,7 +27,9 @@ def _decode_result(result):
         return text
 
 
-def test_iterative_search_update_retrieve_cycle_is_bounded_and_audited(tmp_path: Path) -> None:
+def test_iterative_search_update_retrieve_cycle_is_bounded_and_audited(
+    tmp_path: Path,
+) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
     (root_dir / "level1" / "level2").mkdir(parents=True, exist_ok=True)
@@ -87,7 +89,9 @@ def test_iterative_search_update_retrieve_cycle_is_bounded_and_audited(tmp_path:
                             },
                         )
                     )
-                    assert find["matches"], "expected search matches during iterative flow"
+                    assert find["matches"], (
+                        "expected search matches during iterative flow"
+                    )
 
                     read = _decode_result(
                         await client.call_tool(
@@ -125,12 +129,22 @@ def test_iterative_search_update_retrieve_cycle_is_bounded_and_audited(tmp_path:
                 )
                 assert depth_allowed["matches"]
 
-                final_text = _decode_result(await client.call_tool("read_file", {"path": str(target)}))
+                final_text = _decode_result(
+                    await client.call_tool("read_file", {"path": str(target)})
+                )
                 return final_text
 
         final_text = asyncio.run(asyncio.wait_for(_cycle(), timeout=30))
 
     assert "line-19" in final_text
-    events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    sed_ok_events = [event for event in events if event.get("tool") == "sed_edit_file" and event.get("status") == "ok"]
+    events = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    sed_ok_events = [
+        event
+        for event in events
+        if event.get("tool") == "sed_edit_file" and event.get("status") == "ok"
+    ]
     assert len(sed_ok_events) >= 20

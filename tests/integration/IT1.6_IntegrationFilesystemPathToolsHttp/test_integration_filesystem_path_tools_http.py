@@ -60,7 +60,9 @@ def test_filesystem_path_tools_cover_files_dirs_and_utf8(tmp_path: Path) -> None
                     headers={"Authorization": "Bearer secret"},
                 )
             ) as client:
-                payload = _decode_result(await client.call_tool("create_dir", {"path": str(source_dir)}))
+                payload = _decode_result(
+                    await client.call_tool("create_dir", {"path": str(source_dir)})
+                )
                 assert payload["ok"] is True
 
                 payload = _decode_result(
@@ -102,7 +104,17 @@ def test_filesystem_path_tools_cover_files_dirs_and_utf8(tmp_path: Path) -> None
     assert final_file.read_text(encoding="utf-8") == "utf8 payload"
     assert stat.S_IMODE(final_file.stat().st_mode) == 0o640
 
-    events = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    events = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     tool_names = {event.get("tool") for event in events}
-    for expected in {"create_dir", "chmod_path", "rename_path", "move_path", "write_file"}:
+    for expected in {
+        "create_dir",
+        "chmod_path",
+        "rename_path",
+        "move_path",
+        "write_file",
+    }:
         assert expected in tool_names

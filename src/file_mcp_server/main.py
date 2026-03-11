@@ -31,6 +31,7 @@ app = typer.Typer(help="file-mcp-server CLI.")
 
 
 def _default_pidfile() -> Path:
+    """Handle default pidfile."""
     return Path(".run") / "file-mcp-server.pid"
 
 
@@ -176,6 +177,7 @@ def status(
 
 
 def main() -> None:
+    """Execute main."""
     app()
 
 

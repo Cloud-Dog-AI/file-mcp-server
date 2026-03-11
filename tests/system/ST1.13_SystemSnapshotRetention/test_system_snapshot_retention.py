@@ -58,4 +58,6 @@ def test_snapshot_retention_prunes_old_snapshot_dirs(tmp_path: Path) -> None:
         asyncio.run(_mutate())
 
     assert not (snapshots_dir / "20000101T000000Z").exists()
-    assert list(snapshots_dir.rglob("doc.json")), "expected fresh snapshot after mutation"
+    assert list(snapshots_dir.rglob("doc.json")), (
+        "expected fresh snapshot after mutation"
+    )

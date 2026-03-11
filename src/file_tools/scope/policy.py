@@ -1,4 +1,10 @@
-"""Scope policy scaffolding."""
+"""
+file-mcp-server — file_tools/scope/policy.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for scope policy.py.
+"""
 
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ class ScopePolicy:
         allowed_exts: Iterable[str] | None = None,
         read_only_exts: Iterable[str] | None = None,
     ) -> None:
+        """Initialise the instance state."""
         self.roots = [Path(root).resolve() for root in roots]
         self.allow_globs = list(allow_globs or ["**/*"])
         self.deny_globs = list(deny_globs or [])
@@ -31,9 +38,11 @@ class ScopePolicy:
         self.read_only_exts = [ext.lower() for ext in (read_only_exts or [])]
 
     def normalize(self, path: str | Path) -> Path:
+        """Execute normalize."""
         return Path(path).resolve()
 
     def _is_within_roots(self, path: Path) -> bool:
+        """Handle is within roots."""
         if not self.roots:
             return False
         for root in self.roots:
@@ -49,6 +58,7 @@ class ScopePolicy:
         return False
 
     def _relative_to_root(self, path: Path) -> Path:
+        """Handle relative to root."""
         for root in self.roots:
             try:
                 return path.relative_to(root)
@@ -58,6 +68,7 @@ class ScopePolicy:
 
     @staticmethod
     def _matches_globs(path: Path, globs: List[str]) -> bool:
+        """Handle matches globs."""
         if not globs:
             return False
         rel_posix = PurePosixPath(path.as_posix())
@@ -69,6 +80,7 @@ class ScopePolicy:
         return False
 
     def check(self, path: str | Path, *, operation: str = "read") -> ScopeDecision:
+        """Execute check."""
         resolved = self.normalize(path)
         if not self._is_within_roots(resolved):
             return ScopeDecision(False, "outside_roots")
@@ -90,6 +102,7 @@ class ScopePolicy:
         return ScopeDecision(True, "allowed")
 
     def require(self, path: str | Path, *, operation: str = "read") -> None:
+        """Execute require."""
         decision = self.check(path, operation=operation)
         if not decision.allowed:
             raise PermissionError(f"Scope denied: {decision.reason}")
@@ -112,6 +125,7 @@ class PosixScopePolicy:
         allowed_exts: Iterable[str] | None = None,
         read_only_exts: Iterable[str] | None = None,
     ) -> None:
+        """Initialise the instance state."""
         self.roots = [PurePosixPath(str(root) if root else "/") for root in roots]
         self.allow_globs = list(allow_globs or ["**/*"])
         self.deny_globs = list(deny_globs or [])
@@ -120,6 +134,7 @@ class PosixScopePolicy:
 
     @staticmethod
     def normalize(path: str) -> PurePosixPath:
+        """Execute normalize."""
         p = PurePosixPath(path if path else "/")
         if not str(p).startswith("/"):
             p = PurePosixPath("/") / p
@@ -127,6 +142,7 @@ class PosixScopePolicy:
         return PurePosixPath(posixpath.normpath(str(p)))  # type: ignore[name-defined]
 
     def _is_within_roots(self, path: PurePosixPath) -> bool:
+        """Handle is within roots."""
         if not self.roots:
             return False
         for root in self.roots:
@@ -140,6 +156,7 @@ class PosixScopePolicy:
         return False
 
     def _relative_to_root(self, path: PurePosixPath) -> PurePosixPath:
+        """Handle relative to root."""
         for root in self.roots:
             try:
                 return path.relative_to(root)
@@ -149,6 +166,7 @@ class PosixScopePolicy:
 
     @staticmethod
     def _matches_globs(path: PurePosixPath, globs: List[str]) -> bool:
+        """Handle matches globs."""
         if not globs:
             return False
         for pattern in globs:
@@ -159,6 +177,7 @@ class PosixScopePolicy:
         return False
 
     def check(self, path: str, *, operation: str = "read") -> ScopeDecision:
+        """Execute check."""
         resolved = self.normalize(path)
         if not self._is_within_roots(resolved):
             return ScopeDecision(False, "outside_roots")
@@ -180,6 +199,7 @@ class PosixScopePolicy:
         return ScopeDecision(True, "allowed")
 
     def require(self, path: str, *, operation: str = "read") -> None:
+        """Execute require."""
         decision = self.check(path, operation=operation)
         if not decision.allowed:
             raise PermissionError(f"Scope denied: {decision.reason}")

@@ -14,10 +14,11 @@ Recent Change History:
 
 from __future__ import annotations
 
+from tests.env_runtime import runtime_env
+
 from pathlib import Path
 from typing import Mapping
 
-import os
 
 from file_tools.config.adapter import get_profile, load_config
 from file_tools.config.models import ProfileConfig
@@ -49,8 +50,8 @@ def build_profile(
 
     previous_env: dict[str, str | None] = {}
     for key in env_values:
-        previous_env[key] = os.environ.get(key)
-        os.environ.pop(key, None)
+        previous_env[key] = runtime_env.get(key)
+        runtime_env.pop(key, None)
 
     config = load_config(
         env_path=str(env_path),
@@ -61,7 +62,7 @@ def build_profile(
 
     for key, value in previous_env.items():
         if value is None:
-            os.environ.pop(key, None)
+            runtime_env.pop(key, None)
         else:
-            os.environ[key] = value
+            runtime_env[key] = value
     return get_profile(config)

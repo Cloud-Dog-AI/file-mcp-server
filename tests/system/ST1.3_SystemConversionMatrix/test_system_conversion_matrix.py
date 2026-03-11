@@ -50,14 +50,26 @@ def test_conversion_response_matrix_fields(tmp_path: Path) -> None:
             ) as client:
                 success = await client.call_tool(
                     "convert_file",
-                    {"path": str(text_input), "target_format": "md", "output_path": str(out)},
+                    {
+                        "path": str(text_input),
+                        "target_format": "md",
+                        "output_path": str(out),
+                    },
                 )
                 failure = await client.call_tool(
                     "convert_file",
                     {"path": str(bad_input), "target_format": "txt"},
                 )
-                success_payload = json.loads("\n".join(item.text for item in success.content if hasattr(item, "text")))
-                failure_payload = json.loads("\n".join(item.text for item in failure.content if hasattr(item, "text")))
+                success_payload = json.loads(
+                    "\n".join(
+                        item.text for item in success.content if hasattr(item, "text")
+                    )
+                )
+                failure_payload = json.loads(
+                    "\n".join(
+                        item.text for item in failure.content if hasattr(item, "text")
+                    )
+                )
                 return success_payload, failure_payload
 
         success_payload, failure_payload = asyncio.run(_calls())

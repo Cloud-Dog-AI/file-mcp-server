@@ -1,0 +1,6 @@
+CLOUD_DOG_DB__DIALECT=postgresql
+CLOUD_DOG_DB__HOST=${vault.dev.databases.filemcp_dev_postgresql.server}
+CLOUD_DOG_DB__PORT=${vault.dev.databases.filemcp_dev_postgresql.port}
+CLOUD_DOG_DB__USERNAME=${vault.dev.databases.filemcp_dev_postgresql.username}
+CLOUD_DOG_DB__PASSWORD=${vault.dev.databases.filemcp_dev_postgresql.password}
+CLOUD_DOG_DB__DATABASE=${vault.dev.databases.filemcp_dev_postgresql.database}

@@ -49,12 +49,23 @@ def test_sedlike_file_edit_flow_over_http(tmp_path: Path) -> None:
                     {"op": "replace_regex", "pattern": "beta", "repl": "BETA"},
                     {"op": "insert_before_line", "line_no": 1, "content": "start"},
                     {"op": "delete_matching_lines", "pattern": "gamma"},
-                    {"op": "replace_line_range", "start": 2, "end": 2, "replacement": ["middle"]},
+                    {
+                        "op": "replace_line_range",
+                        "start": 2,
+                        "end": 2,
+                        "replacement": ["middle"],
+                    },
                 ]
                 for op_args in ops:
                     payload_args = {"path": str(target), **op_args}
                     result = await client.call_tool("sed_edit_file", payload_args)
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
 
         asyncio.run(_flow())
@@ -63,5 +74,9 @@ def test_sedlike_file_edit_flow_over_http(tmp_path: Path) -> None:
     assert "start" in text
     assert "middle" in text
     assert "gamma" not in text
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(json.loads(line).get("tool") == "sed_edit_file" for line in lines)

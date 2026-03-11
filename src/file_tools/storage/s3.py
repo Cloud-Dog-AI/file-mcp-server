@@ -1,7 +1,9 @@
-"""S3-compatible storage backend (SigV4 over HTTP).
+"""
+file-mcp-server — file_tools/storage/s3.py
 
-This implementation avoids boto3/botocore to keep dependencies minimal and to
-support offline environments where new packages cannot be installed.
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for storage s3.py.
 """
 
 from __future__ import annotations
@@ -12,9 +14,10 @@ import posixpath
 from datetime import datetime, timezone
 from urllib.parse import quote, urljoin, urlparse
 
-import requests
 from xml.etree import ElementTree as ET
 
+from file_tools.adapters import Response
+from file_tools.adapters import request as http_request
 from file_tools.config.models import StorageConfig
 
 from .base import (
@@ -27,6 +30,7 @@ from .base import (
 
 
 def _clean_posix(path: str) -> str:
+    """Handle clean posix."""
     if not path:
         return "/"
     if not path.startswith("/"):
@@ -38,6 +42,7 @@ def _clean_posix(path: str) -> str:
 
 
 def _to_bool(value: object) -> bool:
+    """Handle to bool."""
     if value is None:
         return False
     if isinstance(value, bool):
@@ -51,16 +56,19 @@ def _to_bool(value: object) -> bool:
 
 
 def _sha256_hex(data: bytes) -> str:
+    """Handle sha256 hex."""
     return hashlib.sha256(data).hexdigest()
 
 
 def _hmac(key: bytes, msg: str) -> bytes:
+    """Handle hmac."""
     return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
 def _aws_v4_signing_key(
     secret_key: str, date_yyyymmdd: str, region: str, service: str
 ) -> bytes:
+    """Handle aws v4 signing key."""
     k_date = _hmac(("AWS4" + secret_key).encode("utf-8"), date_yyyymmdd)
     k_region = _hmac(k_date, region)
     k_service = _hmac(k_region, service)
@@ -70,6 +78,7 @@ def _aws_v4_signing_key(
 
 def _canonical_query(params: dict[str, str]) -> str:
     # AWS expects sorted, URL-encoded parameters.
+    """Handle canonical query."""
     items = sorted(
         (quote(k, safe="-_.~"), quote(v, safe="-_.~")) for k, v in params.items()
     )
@@ -77,6 +86,7 @@ def _canonical_query(params: dict[str, str]) -> str:
 
 
 def _canonical_headers(headers: dict[str, str]) -> tuple[str, str]:
+    """Handle canonical headers."""
     normalized = {
         k.strip().lower(): " ".join(v.strip().split()) for k, v in headers.items()
     }
@@ -90,6 +100,7 @@ class S3Storage(StorageBackend):
     backend_name = "s3"
 
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
+        """Initialise the instance state."""
         cfg = storage.s3
         if not cfg.endpoint:
             raise ValueError("S3 storage requires s3.endpoint")
@@ -129,6 +140,7 @@ class S3Storage(StorageBackend):
         self._timeout_s = int(timeout_s) if timeout_s is not None else 30
 
     def _key(self, path: str) -> str:
+        """Handle key."""
         rel = _clean_posix(path).lstrip("/")
         if self._prefix:
             if rel:
@@ -138,6 +150,7 @@ class S3Storage(StorageBackend):
 
     def _object_url(self, key: str) -> str:
         # Path-style: {endpoint}/{bucket}/{key}
+        """Handle object url."""
         base = f"{self._endpoint.rstrip('/')}/"
         safe_key = "/".join(quote(seg) for seg in key.split("/")) if key else ""
         return urljoin(base, f"{quote(self._bucket)}/{safe_key}")
@@ -151,6 +164,7 @@ class S3Storage(StorageBackend):
         headers: dict[str, str] | None = None,
         payload: bytes = b"",
     ) -> dict[str, str]:
+        """Handle sign request."""
         parsed = urlparse(url)
         host = parsed.netloc
         canonical_uri = parsed.path or "/"
@@ -212,11 +226,12 @@ class S3Storage(StorageBackend):
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         data: bytes = b"",
-    ) -> requests.Response:
+    ) -> Response:
+        """Handle request."""
         signed = self._sign_request(
             method=method, url=url, params=params, headers=headers, payload=data
         )
-        return requests.request(
+        return http_request(
             method,
             url,
             params=params,
@@ -227,6 +242,7 @@ class S3Storage(StorageBackend):
         )
 
     def read_bytes(self, path: str) -> bytes:
+        """Read bytes."""
         key = self._key(path)
         url = self._object_url(key)
         resp = self._request("GET", url)
@@ -236,6 +252,7 @@ class S3Storage(StorageBackend):
         return resp.content
 
     def write_bytes(self, path: str, data: bytes, *, overwrite: bool = True) -> None:
+        """Write bytes."""
         key = self._key(path)
         url = self._object_url(key)
         if not overwrite:
@@ -249,6 +266,7 @@ class S3Storage(StorageBackend):
         resp.raise_for_status()
 
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
+        """Delete path."""
         key = self._key(path)
         url = self._object_url(key)
         resp = self._request("DELETE", url)
@@ -259,6 +277,7 @@ class S3Storage(StorageBackend):
         resp.raise_for_status()
 
     def stat(self, path: str) -> StorageStat | None:
+        """Execute stat."""
         key = self._key(path)
         url = self._object_url(key)
         resp = self._request("HEAD", url)
@@ -274,6 +293,7 @@ class S3Storage(StorageBackend):
 
     def list_dir(self, path: str, *, recursive: bool = False) -> list[StorageEntry]:
         # S3 has no directories; emulate based on prefixes.
+        """List dir."""
         prefix_key = self._key(path).rstrip("/")
         if prefix_key:
             prefix_key = prefix_key + "/"
@@ -313,6 +333,7 @@ class S3Storage(StorageBackend):
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
         # Use S3 server-side copy where possible.
+        """Copy path."""
         src_key = self._key(src)
         dst_key = self._key(dst)
         dst_url = self._object_url(dst_key)
@@ -325,6 +346,7 @@ class S3Storage(StorageBackend):
         resp.raise_for_status()
 
     def move_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Move path."""
         self.copy_path(src, dst, overwrite=overwrite)
         self.delete_path(src, missing_ok=False)
 
@@ -332,7 +354,9 @@ class S3Storage(StorageBackend):
         self, path: str, *, parents: bool = True, exist_ok: bool = True
     ) -> None:
         # Directory semantics don't apply to S3; treat as not supported.
+        """Create dir."""
         raise NotSupportedError("create_dir", backend=self.backend_name)
 
     def chmod_path(self, path: str, mode: int, *, recursive: bool = False) -> None:
+        """Execute chmod path."""
         raise NotSupportedError("chmod_path", backend=self.backend_name)

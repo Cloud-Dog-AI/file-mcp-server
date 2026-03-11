@@ -48,20 +48,36 @@ def test_conversion_plus_markdown_edit_workflow(tmp_path: Path) -> None:
             ) as client:
                 convert_result = await client.call_tool(
                     "convert_file",
-                    {"path": str(source), "target_format": "md", "output_path": str(converted)},
+                    {
+                        "path": str(source),
+                        "target_format": "md",
+                        "output_path": str(converted),
+                    },
                 )
                 convert_payload = json.loads(
-                    "\n".join(item.text for item in convert_result.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in convert_result.content
+                        if hasattr(item, "text")
+                    )
                 )
                 assert convert_payload["ok"] is True
                 assert Path(convert_payload["output_path"]) == converted
 
                 edit_result = await client.call_tool(
                     "markdown_set_section_file",
-                    {"path": str(converted), "heading": "Section", "new_content": "new"},
+                    {
+                        "path": str(converted),
+                        "heading": "Section",
+                        "new_content": "new",
+                    },
                 )
                 edit_payload = json.loads(
-                    "\n".join(item.text for item in edit_result.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in edit_result.content
+                        if hasattr(item, "text")
+                    )
                 )
                 assert edit_payload["ok"] is True
 
@@ -69,5 +85,11 @@ def test_conversion_plus_markdown_edit_workflow(tmp_path: Path) -> None:
 
     assert converted.exists()
     assert "new" in converted.read_text(encoding="utf-8")
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert any(json.loads(line).get("tool") == "markdown_set_section_file" for line in lines)
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert any(
+        json.loads(line).get("tool") == "markdown_set_section_file" for line in lines
+    )

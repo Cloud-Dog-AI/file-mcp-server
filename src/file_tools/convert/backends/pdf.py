@@ -1,4 +1,10 @@
-"""PDF backend scaffolding."""
+"""
+file-mcp-server — file_tools/convert/backends/pdf.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for convert backends pdf.py.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +20,7 @@ class PdfBackend(ConverterBackend):
     name = "pdf"
 
     def can_handle(self, input_path: Path, target_format: str) -> bool:
+        """Return whether handle is supported."""
         return input_path.suffix.lower() == ".pdf" and target_format in {"txt", "md"}
 
     def convert(
@@ -23,6 +30,7 @@ class PdfBackend(ConverterBackend):
         *,
         output_path: Optional[Path] = None,
     ) -> ConversionResult:
+        """Execute convert."""
         text = extract_text(str(input_path))
         if output_path:
             output_path.write_text(text, encoding="utf-8")

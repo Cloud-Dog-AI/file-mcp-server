@@ -52,7 +52,11 @@ def test_meld_optional_unavailable_returns_warning(tmp_path: Path) -> None:
                     "meld_files",
                     {"path_a": str(left), "path_b": str(right)},
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         payload = asyncio.run(_call())
         assert payload["ok"] is False
@@ -60,4 +64,3 @@ def test_meld_optional_unavailable_returns_warning(tmp_path: Path) -> None:
         assert payload["path_b"] == str(right)
         assert payload["warnings"]
         assert "not available" in payload["warnings"][0]
-

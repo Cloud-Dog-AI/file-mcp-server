@@ -1,4 +1,10 @@
-"""FTP/FTPS storage backend."""
+"""
+file-mcp-server — file_tools/storage/ftp.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for storage ftp.py.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ from .base import (
 
 
 def _clean_posix(path: str) -> str:
+    """Handle clean posix."""
     if not path:
         return "/"
     if not path.startswith("/"):
@@ -30,6 +37,7 @@ def _clean_posix(path: str) -> str:
 
 
 def _to_bool(value: object) -> bool:
+    """Handle to bool."""
     if value is None:
         return False
     if isinstance(value, bool):
@@ -43,6 +51,7 @@ def _to_bool(value: object) -> bool:
 
 
 def _to_int(value: object, default: int) -> int:
+    """Handle to int."""
     if value is None:
         return default
     if isinstance(value, bool):
@@ -61,6 +70,7 @@ class FtpStorage(StorageBackend):
     backend_name = "ftp"
 
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
+        """Initialise the instance state."""
         cfg = storage.ftp
         if not cfg.host:
             raise ValueError("FTP storage requires ftp.host")
@@ -96,6 +106,7 @@ class FtpStorage(StorageBackend):
             self._ssl_context = ctx
 
     def _connect(self) -> FTP:
+        """Handle connect."""
         if self._use_tls:
             ftp: FTP | FTP_TLS = FTP_TLS(context=self._ssl_context)
         else:
@@ -110,6 +121,7 @@ class FtpStorage(StorageBackend):
         return ftp
 
     def _remote_path(self, path: str) -> str:
+        """Handle remote path."""
         rel = _clean_posix(path).lstrip("/")
         if not rel:
             return self._base_dir
@@ -118,6 +130,7 @@ class FtpStorage(StorageBackend):
         return posixpath.join(self._base_dir, rel)
 
     def read_bytes(self, path: str) -> bytes:
+        """Read bytes."""
         remote = self._remote_path(path)
         ftp = self._connect()
         try:
@@ -136,6 +149,7 @@ class FtpStorage(StorageBackend):
                 ftp.close()
 
     def write_bytes(self, path: str, data: bytes, *, overwrite: bool = True) -> None:
+        """Write bytes."""
         remote = self._remote_path(path)
         ftp = self._connect()
         try:
@@ -154,6 +168,7 @@ class FtpStorage(StorageBackend):
                 ftp.close()
 
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
+        """Delete path."""
         remote = self._remote_path(path)
         ftp = self._connect()
         try:
@@ -180,6 +195,7 @@ class FtpStorage(StorageBackend):
                 ftp.close()
 
     def stat(self, path: str) -> StorageStat | None:
+        """Execute stat."""
         remote = self._remote_path(path)
         ftp = self._connect()
         try:
@@ -206,6 +222,7 @@ class FtpStorage(StorageBackend):
                 ftp.close()
 
     def list_dir(self, path: str, *, recursive: bool = False) -> list[StorageEntry]:
+        """List dir."""
         root = _clean_posix(path)
         ftp = self._connect()
         try:
@@ -213,6 +230,7 @@ class FtpStorage(StorageBackend):
 
             def _list_one(dir_path: str) -> list[tuple[str, bool]]:
                 # Use MLSD when available; fallback to NLST.
+                """Handle list one."""
                 remote = self._remote_path(dir_path)
                 items: list[tuple[str, bool]] = []
                 try:
@@ -262,6 +280,7 @@ class FtpStorage(StorageBackend):
     def create_dir(
         self, path: str, *, parents: bool = True, exist_ok: bool = True
     ) -> None:
+        """Create dir."""
         target = _clean_posix(path)
         parts = [p for p in target.split("/") if p]
         ftp = self._connect()
@@ -283,6 +302,7 @@ class FtpStorage(StorageBackend):
                 ftp.close()
 
     def move_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Move path."""
         ftp = self._connect()
         try:
             rsrc = self._remote_path(src)
@@ -302,8 +322,10 @@ class FtpStorage(StorageBackend):
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
         # FTP has no universal server-side copy; do client-side copy.
+        """Copy path."""
         data = self.read_bytes(src)
         self.write_bytes(dst, data, overwrite=overwrite)
 
     def chmod_path(self, path: str, mode: int, *, recursive: bool = False) -> None:
+        """Execute chmod path."""
         raise NotSupportedError("chmod_path", backend=self.backend_name)

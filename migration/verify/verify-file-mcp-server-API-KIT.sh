@@ -79,18 +79,24 @@ else
     tail -n 120 /tmp/verify-api-smoke.log
 fi
 
+REGRESSION_TESTS=(
+    "$(test_path test_server_dispatch.py)"
+    "$(test_path test_server_runtime.py)"
+    "$(test_path test_endpoint_health.py)"
+    "$(test_path test_lifecycle.py)"
+    "$(test_path test_system_auth_health.py)"
+    "$(test_path test_system_endpoint_restart_threshold.py)"
+    "$(test_path test_system_error_contract.py)"
+    "$(test_path test_server_http_integration.py)"
+    "$(test_path test_integration_multi_profile_routing_http.py)"
+    "$(test_path test_application_lifecycle_workflow.py)"
+)
+if [ "${FILE_MCP_RUN_PREPROD_AT:-0}" = "1" ]; then
+    REGRESSION_TESTS+=("$(test_path test_application_preprod_profile_chain_http.py)")
+fi
+
 if PYTHONPATH="$PROJECT/src:." "$VENV/pytest" \
-    "$(test_path test_server_dispatch.py)" \
-    "$(test_path test_server_runtime.py)" \
-    "$(test_path test_endpoint_health.py)" \
-    "$(test_path test_lifecycle.py)" \
-    "$(test_path test_system_auth_health.py)" \
-    "$(test_path test_system_endpoint_restart_threshold.py)" \
-    "$(test_path test_system_error_contract.py)" \
-    "$(test_path test_server_http_integration.py)" \
-    "$(test_path test_integration_multi_profile_routing_http.py)" \
-    "$(test_path test_application_lifecycle_workflow.py)" \
-    "$(test_path test_application_preprod_profile_chain_http.py)" \
+    "${REGRESSION_TESTS[@]}" \
     -v --env "$PROJECT/tests/env-IT" >/tmp/verify-api-regression.log 2>&1; then
     check "QG-8 Regression tests" 0
 else

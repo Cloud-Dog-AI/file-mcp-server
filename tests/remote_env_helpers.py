@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from tests.env_runtime import env_get, runtime_env
+
 from contextlib import contextmanager
 import json
-import os
 from pathlib import Path
 from typing import Mapping
 
@@ -47,14 +48,14 @@ def _resolve_path(raw: str, repo_root: Path) -> Path:
 
 
 def remote_base_env_path(repo_root: Path) -> Path:
-    override = os.getenv("FILE_MCP_REMOTE_BASE_ENV_PATH", "").strip()
+    override = env_get("FILE_MCP_REMOTE_BASE_ENV_PATH", "").strip()
     if override:
         return _resolve_path(override, repo_root)
     return repo_root / _DEFAULT_BASE_ENV
 
 
 def remote_secrets_env_path(repo_root: Path) -> Path:
-    override = os.getenv("FILE_MCP_REMOTE_SECRETS_ENV_PATH", "").strip()
+    override = env_get("FILE_MCP_REMOTE_SECRETS_ENV_PATH", "").strip()
     if override:
         return _resolve_path(override, repo_root)
     return repo_root / _DEFAULT_SECRETS_ENV
@@ -97,14 +98,14 @@ def _pick_first_existing(paths: list[Path]) -> Path | None:
 
 @contextmanager
 def _temporary_env(values: Mapping[str, str]):
-    original = dict(os.environ)
+    original = dict(runtime_env)
     try:
         for key, value in values.items():
-            os.environ[key] = value
+            runtime_env[key] = value
         yield
     finally:
-        os.environ.clear()
-        os.environ.update(original)
+        runtime_env.clear()
+        runtime_env.update(original)
 
 
 def _resolve_vault_backed_remote_values(
@@ -112,8 +113,8 @@ def _resolve_vault_backed_remote_values(
     *,
     env_files: list[str],
 ) -> dict[str, str]:
-    if not os.getenv("VAULT_ADDR") or not os.getenv("VAULT_TOKEN"):
-        override = os.getenv("FILE_MCP_VAULT_ENV_PATH", "").strip()
+    if not env_get("VAULT_ADDR") or not env_get("VAULT_TOKEN"):
+        override = env_get("FILE_MCP_VAULT_ENV_PATH", "").strip()
         candidates: list[Path] = []
         if override:
             candidates.append(_resolve_path(override, repo_root))
@@ -132,34 +133,52 @@ def _resolve_vault_backed_remote_values(
     # Resolve only keys required by remote storage suites.
     mapping: dict[str, str] = {
         "FILE_MCP_API_KEY_PRIMARY": "profiles.default.auth.api_keys",
+        "FILE_MCP_WEBDAV_BASE_URL": "profiles.default.storage.webdav.base_url",
         "FILE_MCP_WEBDAV_USERNAME": "profiles.default.storage.webdav.username",
         "FILE_MCP_WEBDAV_PASSWORD": "profiles.default.storage.webdav.password",
+        "FILE_MCP_FTP_HOST": "profiles.default.storage.ftp.host",
+        "FILE_MCP_FTP_PORT": "profiles.default.storage.ftp.port",
         "FILE_MCP_FTP_USERNAME": "profiles.default.storage.ftp.username",
         "FILE_MCP_FTP_PASSWORD": "profiles.default.storage.ftp.password",
+        "FILE_MCP_S3_ENDPOINT": "profiles.default.storage.s3.endpoint",
+        "FILE_MCP_S3_BUCKET": "profiles.default.storage.s3.bucket",
         "FILE_MCP_S3_ACCESS_KEY": "profiles.default.storage.s3.access_key",
         "FILE_MCP_S3_SECRET_KEY": "profiles.default.storage.s3.secret_key",
+        "FILE_MCP_GDRIVE_USER_EMAIL": "profiles.default.storage.google_drive.user_email",
+        "FILE_MCP_GDRIVE_FOLDER_ID": "profiles.default.storage.google_drive.folder_id",
+        "FILE_MCP_GDRIVE_FOLDER_URL": "profiles.default.storage.google_drive.folder_url",
         "FILE_MCP_GDRIVE_CLIENT_ID": "profiles.default.storage.google_drive.client_id",
         "FILE_MCP_GDRIVE_CLIENT_SECRET": "profiles.default.storage.google_drive.client_secret",
+        "FILE_MCP_GDRIVE_REFRESH_TOKEN": "profiles.default.storage.google_drive.refresh_token",
+        "FILE_MCP_GDRIVE_ACCESS_TOKEN": "profiles.default.storage.google_drive.access_token",
+        "FILE_MCP_GDRIVE_REDIRECT_URI": "profiles.default.storage.google_drive.redirect_uri",
+        "FILE_MCP_GDRIVE_TOKEN_URI": "profiles.default.storage.google_drive.token_uri",
     }
 
     remote_required = {
+        "FILE_MCP_WEBDAV_BASE_URL",
         "FILE_MCP_WEBDAV_USERNAME",
         "FILE_MCP_WEBDAV_PASSWORD",
+        "FILE_MCP_FTP_HOST",
         "FILE_MCP_FTP_USERNAME",
         "FILE_MCP_FTP_PASSWORD",
+        "FILE_MCP_S3_ENDPOINT",
         "FILE_MCP_S3_ACCESS_KEY",
         "FILE_MCP_S3_SECRET_KEY",
     }
 
     def _resolve_with(vault_vars: Mapping[str, str]) -> dict[str, str]:
         with _temporary_env(vault_vars):
-            config = platform_load(
-                env_files=env_files,
-                config_yaml=str(repo_root / "config.yaml"),
-                defaults_yaml=str(repo_root / "defaults.yaml"),
-                unresolved_policy="strict",
-                vault_enabled=True,
-            )
+            try:
+                config = platform_load(
+                    env_files=env_files,
+                    config_yaml=str(repo_root / "config.yaml"),
+                    defaults_yaml=str(repo_root / "defaults.yaml"),
+                    unresolved_policy="strict",
+                    vault_enabled=True,
+                )
+            except Exception:
+                return {}
         out: dict[str, str] = {}
         for env_key, dotted_path in mapping.items():
             value = config.get(dotted_path)
@@ -175,7 +194,7 @@ def _resolve_vault_backed_remote_values(
     attempts: list[dict[str, str]] = []
 
     # First try current runtime VAULT_* (if already exported by caller).
-    if os.getenv("VAULT_ADDR") and os.getenv("VAULT_TOKEN"):
+    if env_get("VAULT_ADDR") and env_get("VAULT_TOKEN"):
         attempts.append(_resolve_with({}))
 
     # Then try discovered candidate vault env files until remote credentials resolve.
@@ -194,15 +213,15 @@ def _resolve_vault_backed_remote_values(
 
 
 def _read_storage_from_vault_blob(vault_env: Mapping[str, str]) -> dict[str, object]:
-    addr = (vault_env.get("VAULT_ADDR") or os.getenv("VAULT_ADDR", "")).strip()
-    token = (vault_env.get("VAULT_TOKEN") or os.getenv("VAULT_TOKEN", "")).strip()
+    addr = (vault_env.get("VAULT_ADDR") or env_get("VAULT_ADDR", "")).strip()
+    token = (vault_env.get("VAULT_TOKEN") or env_get("VAULT_TOKEN", "")).strip()
     mount_raw = (
-        (vault_env.get("VAULT_MOUNT_POINT") or os.getenv("VAULT_MOUNT_POINT", ""))
+        (vault_env.get("VAULT_MOUNT_POINT") or env_get("VAULT_MOUNT_POINT", ""))
         .strip()
         .strip("/")
     )
     config_path = (
-        (vault_env.get("VAULT_CONFIG_PATH") or os.getenv("VAULT_CONFIG_PATH", ""))
+        (vault_env.get("VAULT_CONFIG_PATH") or env_get("VAULT_CONFIG_PATH", ""))
         .strip()
         .strip("/")
     )
@@ -284,6 +303,7 @@ def _resolve_remote_values_from_vault_blob(
         access_key = _coerce_env_value(s3.get("access_key_id"))
         secret_key = _coerce_env_value(s3.get("secret_access_key"))
         endpoint = _coerce_env_value(s3.get("endpoint"))
+        bucket = _coerce_env_value(s3.get("bucket"))
         region = _coerce_env_value(s3.get("region"))
         if access_key:
             resolved["FILE_MCP_S3_ACCESS_KEY"] = access_key
@@ -291,6 +311,8 @@ def _resolve_remote_values_from_vault_blob(
             resolved["FILE_MCP_S3_SECRET_KEY"] = secret_key
         if endpoint:
             resolved["FILE_MCP_S3_ENDPOINT"] = endpoint
+        if bucket:
+            resolved["FILE_MCP_S3_BUCKET"] = bucket
         if region is not None:
             resolved["FILE_MCP_S3_REGION"] = region
 
@@ -387,6 +409,7 @@ def merged_remote_env(
 ) -> dict[str, str]:
     merged: dict[str, str] = {}
     env_files: list[str] = []
+    google_file_values: dict[str, str] = {}
 
     base_env = remote_base_env_path(repo_root)
     if base_env.exists():
@@ -402,7 +425,8 @@ def merged_remote_env(
         google_env = repo_root / _DEFAULT_GOOGLE_ENV
         if google_env.exists():
             env_files.append(str(google_env))
-            merged.update(parse_env_file(google_env))
+            google_file_values = parse_env_file(google_env)
+            merged.update(google_file_values)
 
     # Resolve vault expressions through the standard package instead of raw text parsing.
     resolved = _resolve_vault_backed_remote_values(repo_root, env_files=env_files)
@@ -439,12 +463,17 @@ def merged_remote_env(
         profile_google_resolved = _resolve_google_values_from_profile_config(repo_root)
         merged.update(profile_google_resolved)
 
-    os_env = dict(os.environ)
+    os_env = dict(runtime_env)
     merged.update(os_env)
 
     # If process env injected unresolved `${vault...}` placeholders (e.g. via --env),
     # keep concrete values resolved above.
-    for source in (resolved, blob_resolved, profile_google_resolved):
+    for source in (
+        resolved,
+        blob_resolved,
+        profile_google_resolved,
+        google_file_values,
+    ):
         for key, value in source.items():
             current = merged.get(key)
             if _is_unresolved_env_value(current):

@@ -3,6 +3,73 @@
 Version: 1.21 • 2026-02-20
 Status: Release Candidate (multi-profile routing + remote backends + Google Drive admin onboarding)
 
+## W16B-CORRECTIVE Vault Wiring Snapshot (2026-03-03)
+
+Instruction:
+- `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W16B-CORRECTIVE-VAULT-WIRING.md`
+
+Corrective result:
+- `✅ COMPLETE`
+
+What was fixed:
+- Confirmed IT/AT local-docker env files now carry Vault expressions for remote backends:
+  - S3: `${vault.dev.storage.s3.*}`
+  - WebDAV: `${vault.dev.storage.webdav.*}`
+  - FTP: `${vault.dev.storage.ftp.*}`
+  - Google Drive client creds: `${vault.dev.storage.google_drive.*}`
+- Corrected remote test env resolution path in `tests/remote_env_helpers.py` so `cloud_dog_config` resolution propagates concrete remote endpoint/host values (for WebDAV/FTP/S3) and preserves concrete Google env values when `os.environ` injects empty placeholders.
+- Enabled bridge and Google live IT gates in local-docker IT/AT env contracts:
+  - `FILE_MCP_RUN_DOCKER_BRIDGE_TESTS=1`
+  - `FILE_MCP_RUN_GOOGLE_LIVE_TESTS=1`
+
+Re-run results:
+- IT (`tests/integration/ --env tests/env-IT-local-docker`): `45 passed`
+- AT (`tests/application/ --env tests/env-AT-local-docker` with preprod AT contract env): `10 passed`
+- API-KIT verify: `17 passed, 0 failed`
+- IDAM verify: `15 passed, 0 failed`
+
+Distinction (root-cause correction):
+- Prior "missing credential" failures were wiring/resolution defects (fixed).
+- No remaining IT failures after corrective wiring and Vault-sourced rerun.
+- No infrastructure blockers were observed in the final corrective IT run.
+
+Evidence:
+- `/tmp/w16b_corrective_it.log`
+- `/tmp/w16b_corrective_at.log`
+- `/tmp/w16b_corrective_apikit.log`
+- `/tmp/w16b_corrective_idam.log`
+
+## W16B Full Maturity Execution Snapshot (2026-03-03)
+
+Instruction:
+- `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W16B-FILE-MCP-SERVER-FULL-MATURITY.md`
+
+Execution status:
+- Phase A (API-KIT): `PASS` (`17 passed, 0 failed`)
+- Phase B (IDAM): `PASS` (`15 passed, 0 failed`)
+- Phase C (IT integration suite): `BLOCKED` (`35 passed, 10 failed`)
+- Phase D (AT application suite): `PASS` (`10 passed`)
+- Phase E (CONFIG/LOGGING/API-KIT/IDAM verify chain): `ALL PASS`
+
+Key implementation adjustment in this run:
+- Stabilised ST restart-threshold suite when invoked outside project root:
+  - `tests/system/ST1.7_SystemEndpointRestartThreshold/test_system_endpoint_restart_threshold.py`
+  - switched repository root resolution from `Path.cwd()` to `Path(__file__).resolve().parents[3]`.
+
+IT blocker evidence (external backend readiness/capability):
+- WebDAV: missing/unresolved `FILE_MCP_WEBDAV_BASE_URL`.
+- S3: missing/unresolved `FILE_MCP_S3_ENDPOINT`.
+- FTP: backend startup probe failures (`backend=ftp`, `reason=startup_probe_failed`).
+- Google Drive live: runtime SSL failure (`SSLError: WRONG_VERSION_NUMBER` to `www.googleapis.com`).
+
+Evidence:
+- `working/W16B-FILE-MCP-FULL-MATURITY-REPORT-2026-03-03.md`
+- `tmp/w16b-it-suite.log`
+- `tmp/w16b-it-integration.log`
+- `tmp/w16b-it-integration-full.log`
+- `tmp/w16b-at-suite.log`
+- `tmp/w16b-verify-chain.log`
+
 ## W14B-04 A2A Auth Contract Snapshot (2026-03-01)
 
 Instruction:

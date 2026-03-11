@@ -51,15 +51,31 @@ def test_structured_file_edits_xml_html_markdown(tmp_path: Path) -> None:
                 )
             ) as client:
                 for name, args in [
-                    ("xml_set_file", {"path": str(xml_file), "xpath": "/root/item", "value": "new"}),
-                    ("html_set_file", {"path": str(html_file), "selector": "p", "value": "new"}),
+                    (
+                        "xml_set_file",
+                        {"path": str(xml_file), "xpath": "/root/item", "value": "new"},
+                    ),
+                    (
+                        "html_set_file",
+                        {"path": str(html_file), "selector": "p", "value": "new"},
+                    ),
                     (
                         "markdown_set_section_file",
-                        {"path": str(md_file), "heading": "Section", "new_content": "new"},
+                        {
+                            "path": str(md_file),
+                            "heading": "Section",
+                            "new_content": "new",
+                        },
                     ),
                 ]:
                     result = await client.call_tool(name, args)
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
 
         asyncio.run(_edits())

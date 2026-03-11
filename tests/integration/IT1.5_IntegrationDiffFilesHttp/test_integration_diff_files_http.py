@@ -47,8 +47,14 @@ def test_diff_files_over_http(tmp_path: Path) -> None:
                     headers={"Authorization": "Bearer secret"},
                 )
             ) as client:
-                result = await client.call_tool("diff_files", {"path_a": str(a), "path_b": str(b)})
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                result = await client.call_tool(
+                    "diff_files", {"path_a": str(a), "path_b": str(b)}
+                )
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         payload = asyncio.run(_call())
         assert payload["ok"] is True

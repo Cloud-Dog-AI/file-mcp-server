@@ -46,9 +46,15 @@ def test_application_search_edit_audit_workflow(tmp_path: Path) -> None:
                     headers={"Authorization": "Bearer secret"},
                 )
             ) as client:
-                search_before = await client.call_tool("search_content", {"query": "TODO"})
+                search_before = await client.call_tool(
+                    "search_content", {"query": "TODO"}
+                )
                 search_before_payload = json.loads(
-                    "\n".join(item.text for item in search_before.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in search_before.content
+                        if hasattr(item, "text")
+                    )
                 )
                 edit_result = await client.call_tool(
                     "sed_edit_file",
@@ -59,11 +65,23 @@ def test_application_search_edit_audit_workflow(tmp_path: Path) -> None:
                         ],
                     },
                 )
-                edit_payload = json.loads("\n".join(item.text for item in edit_result.content if hasattr(item, "text")))
+                edit_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in edit_result.content
+                        if hasattr(item, "text")
+                    )
+                )
                 assert edit_payload["ok"] is True
-                search_after = await client.call_tool("search_content", {"query": "TODO"})
+                search_after = await client.call_tool(
+                    "search_content", {"query": "TODO"}
+                )
                 search_after_payload = json.loads(
-                    "\n".join(item.text for item in search_after.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in search_after.content
+                        if hasattr(item, "text")
+                    )
                 )
                 return search_before_payload, search_after_payload
 
@@ -74,6 +92,9 @@ def test_application_search_edit_audit_workflow(tmp_path: Path) -> None:
     text = target.read_text(encoding="utf-8")
     assert "DONE one" in text
     assert "TODO" not in text
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert any(json.loads(line).get("tool") == "sed_edit_file" for line in lines)
-

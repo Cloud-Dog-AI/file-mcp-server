@@ -36,6 +36,7 @@ def _iter_files(
     recursive: bool = True,
     max_depth: int | None = None,
 ) -> Iterator[Path]:
+    """Handle iter files."""
     for root in roots:
         resolved_root = root.resolve()
         if recursive:
@@ -65,6 +66,7 @@ def search_paths(
     max_file_mb: int | None = None,
     max_depth: int | None = None,
 ) -> List[Path]:
+    """Search paths."""
     pattern = re.compile(query) if regex else None
     matches: List[Path] = []
     for path in _iter_files(roots, max_depth=max_depth):
@@ -94,6 +96,7 @@ def search_content(
     max_file_mb: int | None = None,
     max_depth: int | None = None,
 ) -> List[SearchMatch]:
+    """Search content."""
     pattern = re.compile(query) if regex else None
     results: List[SearchMatch] = []
     for path in _iter_files(roots, max_depth=max_depth):

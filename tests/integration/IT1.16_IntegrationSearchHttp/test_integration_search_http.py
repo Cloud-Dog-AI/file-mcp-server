@@ -28,7 +28,9 @@ def test_search_http_honors_scope_deny_and_limits(tmp_path: Path) -> None:
     (public_dir / "b.txt").write_text("needle two\n", encoding="utf-8")
     (public_dir / "c.txt").write_text("needle three\n", encoding="utf-8")
     (private_dir / "secret.txt").write_text("needle private\n", encoding="utf-8")
-    (public_dir / "huge.txt").write_text("needle\n" + ("x" * (2 * 1024 * 1024)), encoding="utf-8")
+    (public_dir / "huge.txt").write_text(
+        "needle\n" + ("x" * (2 * 1024 * 1024)), encoding="utf-8"
+    )
 
     defaults_path, config_path, env_path, pidfile, _ = write_server_config(
         tmp_path,
@@ -55,13 +57,35 @@ def test_search_http_honors_scope_deny_and_limits(tmp_path: Path) -> None:
                     headers={"Authorization": "Bearer secret"},
                 )
             ) as client:
-                path_result = await client.call_tool("search_paths", {"query": "secret"})
-                regex_result = await client.call_tool("search_paths", {"query": r"public/.+\\.txt$", "regex": True})
-                content_result = await client.call_tool("search_content", {"query": "needle"})
-                path_payload = json.loads("\n".join(item.text for item in path_result.content if hasattr(item, "text")))
-                regex_payload = json.loads("\n".join(item.text for item in regex_result.content if hasattr(item, "text")))
+                path_result = await client.call_tool(
+                    "search_paths", {"query": "secret"}
+                )
+                regex_result = await client.call_tool(
+                    "search_paths", {"query": r"public/.+\\.txt$", "regex": True}
+                )
+                content_result = await client.call_tool(
+                    "search_content", {"query": "needle"}
+                )
+                path_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in path_result.content
+                        if hasattr(item, "text")
+                    )
+                )
+                regex_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in regex_result.content
+                        if hasattr(item, "text")
+                    )
+                )
                 content_payload = json.loads(
-                    "\n".join(item.text for item in content_result.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in content_result.content
+                        if hasattr(item, "text")
+                    )
                 )
                 return path_payload, regex_payload, content_payload
 
@@ -69,7 +93,10 @@ def test_search_http_honors_scope_deny_and_limits(tmp_path: Path) -> None:
 
         assert path_payload["matches"] == []
         assert all("private" not in match for match in regex_payload["matches"])
-        assert all("private" not in match["path"] for match in content_payload["matches"])
-        assert all("huge.txt" not in match["path"] for match in content_payload["matches"])
+        assert all(
+            "private" not in match["path"] for match in content_payload["matches"]
+        )
+        assert all(
+            "huge.txt" not in match["path"] for match in content_payload["matches"]
+        )
         assert len(content_payload["matches"]) == 2
-

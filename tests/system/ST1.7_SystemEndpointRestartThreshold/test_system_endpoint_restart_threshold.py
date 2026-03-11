@@ -11,7 +11,8 @@ Tests: ST1.8
 
 from __future__ import annotations
 
-import os
+from tests.env_runtime import runtime_env
+
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,10 @@ from textwrap import dedent
 
 
 def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:
-    repo_root = Path.cwd()
+    # Derive repository root from this test path so the test is stable
+    # when invoked from other working directories (for example, platform
+    # verification scripts that run outside the project root).
+    repo_root = Path(__file__).resolve().parents[3]
     defaults_path = repo_root / "defaults.yaml"
     config_path = tmp_path / "config.restart-threshold.yaml"
     env_path = tmp_path / "env.restart-threshold"
@@ -125,7 +129,12 @@ def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:
         str(pidfile),
         "--force-pidfile",
     ]
-    env = dict(os.environ)
+    env = dict(runtime_env)
+    # Prevent inherited session-level FILE_MCP_/CLOUD_DOG__ variables from
+    # overriding this test's dedicated --env-path restart-threshold fixture.
+    for key in list(env.keys()):
+        if key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"):
+            env.pop(key, None)
     env["PYTHONPATH"] = "src"
     proc = subprocess.run(
         cmd,

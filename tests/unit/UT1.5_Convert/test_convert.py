@@ -20,7 +20,12 @@ from pathlib import Path
 import pytest
 
 from tests.config_helpers import build_profile
-from file_tools.convert import ConversionError, ConverterBackend, ConverterRegistry, convert_file
+from file_tools.convert import (
+    ConversionError,
+    ConverterBackend,
+    ConverterRegistry,
+    convert_file,
+)
 from file_tools.convert.converters import ConversionResult
 from file_tools.limits import LimitError
 
@@ -134,7 +139,7 @@ def test_convert_file_max_input_mb(tmp_path: Path) -> None:
 
 def test_convert_file_timeout(tmp_path: Path) -> None:
     if os.name != "posix":
-        pytest.skip("Timeout enforcement uses POSIX signals")
+        pytest.fail("Timeout enforcement uses POSIX signals")
     profile = _build_profile(tmp_path, max_input_mb=10, timeout_s=1)
     timeout_s = profile.limits.conversion_timeout_s or 1
     registry = ConverterRegistry([SlowBackend(sleep_s=timeout_s + 1)])

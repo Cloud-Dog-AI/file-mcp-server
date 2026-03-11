@@ -40,7 +40,9 @@ def test_auth_enforcement_and_health(tmp_path: Path) -> None:
         assert health["status"] == "ok"
 
         async def _unauthorized_call() -> None:
-            async with Client(StreamableHttpTransport(f"http://127.0.0.1:{port}/mcp")) as client:
+            async with Client(
+                StreamableHttpTransport(f"http://127.0.0.1:{port}/mcp")
+            ) as client:
                 await client.call_tool("read_file", {"path": str(target)})
 
         with pytest.raises(Exception):
@@ -54,7 +56,9 @@ def test_auth_enforcement_and_health(tmp_path: Path) -> None:
                 )
             ) as client:
                 result = await client.call_tool("read_file", {"path": str(target)})
-                text_blocks = [item.text for item in result.content if hasattr(item, "text")]
+                text_blocks = [
+                    item.text for item in result.content if hasattr(item, "text")
+                ]
                 return "\n".join(text_blocks)
 
         text = asyncio.run(_authorized_call())

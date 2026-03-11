@@ -49,7 +49,9 @@ def test_conversion_missing_backend_returns_warning(tmp_path: Path) -> None:
                     "convert_file",
                     {"path": str(source), "target_format": "txt"},
                 )
-                text_blocks = [item.text for item in result.content if hasattr(item, "text")]
+                text_blocks = [
+                    item.text for item in result.content if hasattr(item, "text")
+                ]
                 if text_blocks:
                     return json.loads("\n".join(text_blocks))
                 return {}

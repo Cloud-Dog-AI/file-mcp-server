@@ -73,8 +73,8 @@ profiles:
         endpoint: "${FILE_MCP_S3_ENDPOINT}"
         bucket: "${FILE_MCP_S3_BUCKET}"
         region: "${FILE_MCP_S3_REGION}"
-        access_key: "${FILE_MCP_S3_ACCESS_KEY}"
-        secret_key: "${FILE_MCP_S3_SECRET_KEY}"
+        access_key: "${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY}"
+        secret_key: "${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY}"
         prefix: "${FILE_MCP_S3_PREFIX}"
     scope:
       roots: ["/"]
@@ -131,8 +131,8 @@ profiles:
         ca_bundle_path: "${FILE_MCP_STORAGE_TLS_CA_BUNDLE}"
       webdav:
         base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
-        username: "${FILE_MCP_WEBDAV_USERNAME}"
-        password: "${FILE_MCP_WEBDAV_PASSWORD}"
+        username: "${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME}"
+        password: "${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD}"
         move_retry_count: "${FILE_MCP_WEBDAV_MOVE_RETRY_COUNT}"
         move_retry_backoff_s: "${FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S}"
         move_probe_timeout_s: "${FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S}"
@@ -190,8 +190,8 @@ profiles:
       ftp:
         host: "${FILE_MCP_FTP_HOST}"
         port: "${FILE_MCP_FTP_PORT}"
-        username: "${FILE_MCP_FTP_USERNAME}"
-        password: "${FILE_MCP_FTP_PASSWORD}"
+        username: "${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME}"
+        password: "${vault.dev.storage.ftp.password || FILE_MCP_FTP_PASSWORD}"
         base_dir: "${FILE_MCP_FTP_BASE_DIR}"
         use_tls: "${FILE_MCP_FTP_USE_TLS}"
     scope:

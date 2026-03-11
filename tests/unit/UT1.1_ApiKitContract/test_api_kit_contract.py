@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from tests.env_runtime import runtime_env
+
 import asyncio
 import json
-import os
 
 from file_mcp_server.server import HealthCheckMiddleware
 
 
-async def _invoke_middleware(middleware, *, method: str, path: str, query: bytes = b"", headers=None):
+async def _invoke_middleware(
+    middleware, *, method: str, path: str, query: bytes = b"", headers=None
+):
     sent: list[dict] = []
 
     scope = {
@@ -29,7 +32,9 @@ async def _invoke_middleware(middleware, *, method: str, path: str, query: bytes
 
 
 def _middleware() -> HealthCheckMiddleware:
-    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+    async def fake_app(
+        scope, receive, send
+    ) -> None:  # pragma: no cover - fallback path
         await send({"type": "http.response.start", "status": 404, "headers": []})
         await send({"type": "http.response.body", "body": b""})
 
@@ -58,10 +63,10 @@ def test_health_middleware_exposes_ready_and_live() -> None:
 
 
 def test_admin_query_token_is_rejected_with_error_envelope() -> None:
-    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    prev_token = os.environ.get("FILE_MCP_ADMIN_UI_TOKEN")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
-    os.environ["FILE_MCP_ADMIN_UI_TOKEN"] = "expected-token"
+    prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    prev_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = "expected-token"
 
     try:
         middleware = _middleware()
@@ -83,10 +88,10 @@ def test_admin_query_token_is_rejected_with_error_envelope() -> None:
         assert body.get("meta", {}).get("correlation_id")
     finally:
         if prev_enabled is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
         if prev_token is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token

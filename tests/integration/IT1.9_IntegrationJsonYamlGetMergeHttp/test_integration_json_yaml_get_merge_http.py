@@ -52,7 +52,11 @@ def test_json_yaml_file_level_operation_matrix_depth(tmp_path: Path) -> None:
                     "json_set_file",
                     {"path": str(json_target), "json_path": "/root/b", "value": 2},
                 )
-                create_payload = json.loads("\n".join(item.text for item in create.content if hasattr(item, "text")))
+                create_payload = json.loads(
+                    "\n".join(
+                        item.text for item in create.content if hasattr(item, "text")
+                    )
+                )
                 assert create_payload["ok"] is True
                 assert create_payload["valid"] is True
 
@@ -61,41 +65,70 @@ def test_json_yaml_file_level_operation_matrix_depth(tmp_path: Path) -> None:
                     {"path": str(json_target), "json_path": "/root/b"},
                 )
                 extracted_payload = json.loads(
-                    "\n".join(item.text for item in extracted.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text for item in extracted.content if hasattr(item, "text")
+                    )
                 )
 
                 json_copy = await client.call_tool(
                     "json_copy_file",
-                    {"path": str(json_target), "from_path": "/root/b", "to_path": "/root/copy_b"},
+                    {
+                        "path": str(json_target),
+                        "from_path": "/root/b",
+                        "to_path": "/root/copy_b",
+                    },
                 )
                 json_copy_payload = json.loads(
-                    "\n".join(item.text for item in json_copy.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text for item in json_copy.content if hasattr(item, "text")
+                    )
                 )
                 assert json_copy_payload["ok"] is True
 
                 json_move = await client.call_tool(
                     "json_move_file",
-                    {"path": str(json_target), "from_path": "/root/copy_b", "to_path": "/root/moved_b"},
+                    {
+                        "path": str(json_target),
+                        "from_path": "/root/copy_b",
+                        "to_path": "/root/moved_b",
+                    },
                 )
                 json_move_payload = json.loads(
-                    "\n".join(item.text for item in json_move.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text for item in json_move.content if hasattr(item, "text")
+                    )
                 )
                 assert json_move_payload["ok"] is True
 
                 json_merge = await client.call_tool(
                     "json_merge_file",
-                    {"path": str(json_target), "json_path": "/root", "value": {"nested": {"x": 7}}},
+                    {
+                        "path": str(json_target),
+                        "json_path": "/root",
+                        "value": {"nested": {"x": 7}},
+                    },
                 )
                 json_merge_payload = json.loads(
-                    "\n".join(item.text for item in json_merge.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in json_merge.content
+                        if hasattr(item, "text")
+                    )
                 )
                 assert json_merge_payload["ok"] is True
 
                 merge = await client.call_tool(
                     "yaml_merge_file",
-                    {"path": str(yaml_target), "value": {"root": {"b": 2, "nested": {"x": 9}}}},
+                    {
+                        "path": str(yaml_target),
+                        "value": {"root": {"b": 2, "nested": {"x": 9}}},
+                    },
                 )
-                merge_payload = json.loads("\n".join(item.text for item in merge.content if hasattr(item, "text")))
+                merge_payload = json.loads(
+                    "\n".join(
+                        item.text for item in merge.content if hasattr(item, "text")
+                    )
+                )
                 assert merge_payload["ok"] is True
                 assert merge_payload["valid"] is True
 
@@ -104,24 +137,40 @@ def test_json_yaml_file_level_operation_matrix_depth(tmp_path: Path) -> None:
                     {"path": str(yaml_target), "yaml_path": "/root/nested/x"},
                 )
                 read_merged_payload = json.loads(
-                    "\n".join(item.text for item in read_merged.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in read_merged.content
+                        if hasattr(item, "text")
+                    )
                 )
 
                 yaml_copy = await client.call_tool(
                     "yaml_copy_file",
-                    {"path": str(yaml_target), "from_path": "/root/a", "to_path": "/root/copy_a"},
+                    {
+                        "path": str(yaml_target),
+                        "from_path": "/root/a",
+                        "to_path": "/root/copy_a",
+                    },
                 )
                 yaml_copy_payload = json.loads(
-                    "\n".join(item.text for item in yaml_copy.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text for item in yaml_copy.content if hasattr(item, "text")
+                    )
                 )
                 assert yaml_copy_payload["ok"] is True
 
                 yaml_move = await client.call_tool(
                     "yaml_move_file",
-                    {"path": str(yaml_target), "from_path": "/root/copy_a", "to_path": "/root/moved_a"},
+                    {
+                        "path": str(yaml_target),
+                        "from_path": "/root/copy_a",
+                        "to_path": "/root/moved_a",
+                    },
                 )
                 yaml_move_payload = json.loads(
-                    "\n".join(item.text for item in yaml_move.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text for item in yaml_move.content if hasattr(item, "text")
+                    )
                 )
                 assert yaml_move_payload["ok"] is True
 
@@ -129,7 +178,11 @@ def test_json_yaml_file_level_operation_matrix_depth(tmp_path: Path) -> None:
                     "yaml_delete_file",
                     {"path": str(yaml_target), "yaml_path": "/root/b"},
                 )
-                delete_payload = json.loads("\n".join(item.text for item in delete.content if hasattr(item, "text")))
+                delete_payload = json.loads(
+                    "\n".join(
+                        item.text for item in delete.content if hasattr(item, "text")
+                    )
+                )
                 assert delete_payload["ok"] is True
                 assert delete_payload["valid"] is True
 

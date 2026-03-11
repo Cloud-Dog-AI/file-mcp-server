@@ -86,15 +86,21 @@ else
     tail -n 200 /tmp/verify-idam-smoke.log
 fi
 
+REGRESSION_TESTS=(
+    "$(test_path test_auth.py)"
+    "$(test_path test_scope_policy.py)"
+    "$(test_path test_system_auth_health.py)"
+    "$(test_path test_integration_multi_profile_routing_http.py)"
+    "$(test_path test_integration_config_matrix_harness_http.py)"
+    "$(test_path test_integration_scoped_ops.py)"
+    "$(test_path test_application_security_boundary.py)"
+)
+if [ "${FILE_MCP_RUN_PREPROD_AT:-0}" = "1" ]; then
+    REGRESSION_TESTS+=("$(test_path test_application_preprod_profile_chain_http.py)")
+fi
+
 if env PYTHONPATH="$PYTHONPATH_VALUE" "$VENV/pytest" \
-    "$(test_path test_auth.py)" \
-    "$(test_path test_scope_policy.py)" \
-    "$(test_path test_system_auth_health.py)" \
-    "$(test_path test_integration_multi_profile_routing_http.py)" \
-    "$(test_path test_integration_config_matrix_harness_http.py)" \
-    "$(test_path test_integration_scoped_ops.py)" \
-    "$(test_path test_application_security_boundary.py)" \
-    "$(test_path test_application_preprod_profile_chain_http.py)" \
+    "${REGRESSION_TESTS[@]}" \
     -v --env "$ENV_FILE" >/tmp/verify-idam-regression.log 2>&1; then
     check "QG-8 Regression tests" 0
 else

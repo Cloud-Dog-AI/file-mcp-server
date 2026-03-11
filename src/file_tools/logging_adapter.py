@@ -25,6 +25,7 @@ def configure_logging_for_profile(
     name: str = "file_mcp_server",
     service_name: str = "file-mcp-server",
 ) -> AppLogger:
+    """Execute configure logging for profile."""
     return configure_operational_logger(
         profile,
         name=name,

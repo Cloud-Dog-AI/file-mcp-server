@@ -1,4 +1,10 @@
-"""WebDAV storage backend."""
+"""
+file-mcp-server — file_tools/storage/webdav.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for storage webdav.py.
+"""
 
 from __future__ import annotations
 
@@ -8,10 +14,10 @@ from dataclasses import dataclass
 from typing import Iterable
 from urllib.parse import quote, urljoin, urlparse
 
-import requests
-from requests.auth import HTTPBasicAuth
 from xml.etree import ElementTree as ET
 
+from file_tools.adapters import RequestException, Response, basic_auth
+from file_tools.adapters import request as http_request
 from file_tools.config.models import StorageConfig
 
 from .base import (
@@ -26,6 +32,7 @@ _DEFAULT_MOVE_RETRY_STATUSES = {408, 409, 423, 425, 429, 500, 502, 503, 504}
 
 
 def _clean_posix(path: str) -> str:
+    """Handle clean posix."""
     if not path:
         return "/"
     if not path.startswith("/"):
@@ -39,6 +46,7 @@ def _clean_posix(path: str) -> str:
 def _join_url(base_url: str, rel_path: str) -> str:
     # WebDAV base_url is treated as the root directory. Map `/` to base_url and
     # `/a/b.txt` to `${base_url}/a/b.txt`, quoting each segment.
+    """Handle join url."""
     base = base_url.rstrip("/") + "/"
     rel = _clean_posix(rel_path).lstrip("/")
     if not rel:
@@ -48,10 +56,12 @@ def _join_url(base_url: str, rel_path: str) -> str:
 
 
 def _dav_ns(tag: str) -> str:
+    """Handle dav ns."""
     return f"{{DAV:}}{tag}"
 
 
 def _to_int(value: object, *, default: int) -> int:
+    """Handle to int."""
     if value is None:
         return default
     if isinstance(value, int):
@@ -68,6 +78,7 @@ def _to_int(value: object, *, default: int) -> int:
 
 
 def _to_float(value: object, *, default: float) -> float:
+    """Handle to float."""
     if value is None:
         return default
     if isinstance(value, (int, float)):
@@ -84,6 +95,7 @@ def _to_float(value: object, *, default: float) -> float:
 
 
 def _to_bool(value: object) -> bool:
+    """Handle to bool."""
     if value is None:
         return False
     if isinstance(value, bool):
@@ -97,6 +109,7 @@ def _to_bool(value: object) -> bool:
 
 
 def _parse_retry_statuses(value: object) -> set[int]:
+    """Handle parse retry statuses."""
     if not isinstance(value, str):
         return set(_DEFAULT_MOVE_RETRY_STATUSES)
     cleaned = value.strip()
@@ -124,6 +137,7 @@ class _DavItem:
 
 
 def _parse_propfind_xml(body: bytes, *, base_url: str) -> list[_DavItem]:
+    """Handle parse propfind xml."""
     out: list[_DavItem] = []
     root = ET.fromstring(body)
     for resp in root.findall(_dav_ns("response")):
@@ -162,6 +176,7 @@ class WebDavStorage(StorageBackend):
     backend_name = "webdav"
 
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
+        """Initialise the instance state."""
         if not storage.webdav.base_url:
             raise ValueError("WebDAV storage requires webdav.base_url")
         if is_unresolved_placeholder(storage.webdav.base_url):
@@ -177,7 +192,7 @@ class WebDavStorage(StorageBackend):
                 "WebDAV storage requires resolved webdav.password (placeholder found)"
             )
         self._base_url = storage.webdav.base_url.rstrip("/")
-        self._auth = HTTPBasicAuth(
+        self._auth = basic_auth(
             storage.webdav.username or "", storage.webdav.password or ""
         )
         self._verify: bool | str = True
@@ -203,9 +218,11 @@ class WebDavStorage(StorageBackend):
         )
 
     def _is_transient_status(self, status_code: int) -> bool:
+        """Handle is transient status."""
         return status_code in self._move_retry_statuses
 
     def _path_exists(self, path: str) -> bool:
+        """Handle path exists."""
         try:
             url = _join_url(self._base_url, path)
             resp = self._request(
@@ -224,6 +241,7 @@ class WebDavStorage(StorageBackend):
     def _move_already_applied(self, src: str, dst: str) -> bool:
         # Some WebDAV servers can return a transient 5xx during MOVE even when
         # destination was already committed. Treat "src missing + dst present" as success.
+        """Handle move already applied."""
         src_exists = self._path_exists(src)
         dst_exists = self._path_exists(dst)
         return (not src_exists) and dst_exists
@@ -237,8 +255,9 @@ class WebDavStorage(StorageBackend):
         data: bytes | None = None,
         timeout_s: float | None = None,
         stream: bool = False,
-    ) -> requests.Response:
-        return requests.request(
+    ) -> Response:
+        """Handle request."""
+        return http_request(
             method,
             url,
             headers=headers,
@@ -250,6 +269,7 @@ class WebDavStorage(StorageBackend):
         )
 
     def read_bytes(self, path: str) -> bytes:
+        """Read bytes."""
         url = _join_url(self._base_url, path)
         resp = self._request("GET", url)
         if resp.status_code == 404:
@@ -258,6 +278,7 @@ class WebDavStorage(StorageBackend):
         return resp.content
 
     def write_bytes(self, path: str, data: bytes, *, overwrite: bool = True) -> None:
+        """Write bytes."""
         if not overwrite:
             # WebDAV has If-None-Match: * semantics for "create only".
             headers = {"If-None-Match": "*"}
@@ -277,6 +298,7 @@ class WebDavStorage(StorageBackend):
             resp.raise_for_status()
 
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
+        """Delete path."""
         url = _join_url(self._base_url, path)
         resp = self._request("DELETE", url)
         if resp.status_code == 404 and missing_ok:
@@ -286,6 +308,7 @@ class WebDavStorage(StorageBackend):
         resp.raise_for_status()
 
     def stat(self, path: str) -> StorageStat | None:
+        """Execute stat."""
         url = _join_url(self._base_url, path)
         headers = {"Depth": "0"}
         resp = self._request("PROPFIND", url, headers=headers)
@@ -300,6 +323,7 @@ class WebDavStorage(StorageBackend):
 
     def list_dir(self, path: str, *, recursive: bool = False) -> list[StorageEntry]:
         # Default to Depth:1 for non-recursive, Depth:infinity for recursive.
+        """List dir."""
         url = _join_url(self._base_url, path)
         headers = {"Depth": "infinity" if recursive else "1"}
         resp = self._request("PROPFIND", url, headers=headers)
@@ -319,6 +343,7 @@ class WebDavStorage(StorageBackend):
     def iter_paths(
         self, roots: Iterable[str], *, max_depth: int | None = None
     ) -> Iterable[str]:
+        """Execute iter paths."""
         for root in roots:
             base = _clean_posix(root)
             queue: list[tuple[str, int]] = [(base, 0)]
@@ -341,6 +366,7 @@ class WebDavStorage(StorageBackend):
         self, path: str, *, parents: bool = True, exist_ok: bool = True
     ) -> None:
         # WebDAV MKCOL does not create parents; create chain if requested.
+        """Create dir."""
         target = _clean_posix(path)
         parts = [p for p in target.split("/") if p]
         current = "/"
@@ -360,6 +386,7 @@ class WebDavStorage(StorageBackend):
             resp.raise_for_status()
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Copy path."""
         src_url = _join_url(self._base_url, src)
         dst_url = _join_url(self._base_url, dst)
         headers = {"Destination": dst_url, "Overwrite": "T" if overwrite else "F"}
@@ -369,6 +396,7 @@ class WebDavStorage(StorageBackend):
         resp.raise_for_status()
 
     def move_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Move path."""
         src_url = _join_url(self._base_url, src)
         dst_url = _join_url(self._base_url, dst)
         headers = {"Destination": dst_url, "Overwrite": "T" if overwrite else "F"}
@@ -388,7 +416,7 @@ class WebDavStorage(StorageBackend):
                         continue
                 resp.raise_for_status()
                 return
-            except requests.RequestException:
+            except RequestException:
                 if self._move_already_applied(src, dst):
                     return
                 if attempt < attempts:
@@ -397,4 +425,5 @@ class WebDavStorage(StorageBackend):
                 raise
 
     def chmod_path(self, path: str, mode: int, *, recursive: bool = False) -> None:
+        """Execute chmod path."""
         raise NotSupportedError("chmod_path", backend=self.backend_name)

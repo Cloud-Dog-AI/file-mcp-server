@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-import os
+from tests.env_runtime import runtime_env
+
 import subprocess
 import sys
 from pathlib import Path
 from tests.path_helpers import project_root
 
-from tests.http_integration_helpers import pick_free_port, wait_for_health, write_server_config
+from tests.http_integration_helpers import (
+    pick_free_port,
+    wait_for_health,
+    write_server_config,
+)
 
 
-def _run_cli(repo_root: Path, args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    repo_root: Path, args: list[str], env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-m", "file_mcp_server", *args],
         cwd=str(repo_root),
@@ -33,7 +40,7 @@ def test_operator_lifecycle_workflow(tmp_path: Path) -> None:
     repo_root = project_root(Path(__file__))
     env = {
         key: value
-        for key, value in os.environ.items()
+        for key, value in runtime_env.items()
         if not (key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"))
     }
     env["PYTHONPATH"] = "src"
@@ -71,7 +78,9 @@ def test_operator_lifecycle_workflow(tmp_path: Path) -> None:
         assert health["status"] == "ok"
     finally:
         if pidfile.exists():
-            stop = _run_cli(repo_root, ["stop", "--pidfile", str(pidfile), "--send-signal"], env)
+            stop = _run_cli(
+                repo_root, ["stop", "--pidfile", str(pidfile), "--send-signal"], env
+            )
             if start_ok:
                 assert stop.returncode == 0, stop.stderr or stop.stdout
 

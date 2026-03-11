@@ -45,14 +45,20 @@ def test_audit_log_integrity_append_only(tmp_path: Path) -> None:
             ) as client:
                 src = root_dir / "a.txt"
                 dst = root_dir / "b.txt"
-                await client.call_tool("write_file", {"path": str(src), "content": "hello"})
+                await client.call_tool(
+                    "write_file", {"path": str(src), "content": "hello"}
+                )
                 await client.call_tool("copy_file", {"src": str(src), "dst": str(dst)})
                 await client.call_tool("delete_file", {"path": str(dst)})
 
         asyncio.run(_mutate())
 
     assert audit_log.exists()
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert len(lines) >= 3
     events = [json.loads(line) for line in lines]
     for event in events:

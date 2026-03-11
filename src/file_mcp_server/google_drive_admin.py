@@ -16,12 +16,12 @@ import secrets
 from typing import Dict
 from urllib.parse import parse_qs, urlencode, urlparse
 
-import requests
-import yaml
+from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
+from file_tools.adapters import get as http_get
+from file_tools.adapters import post as http_post
+from file_tools.adapters import safe_dump
 
 
-DEFAULT_SCOPE = "https://www.googleapis.com/auth/drive"
-DEFAULT_TOKEN_URI = "https://oauth2.googleapis.com/token"
 MASKED_CLIENT_SECRET = "********"
 
 
@@ -33,6 +33,9 @@ class PendingGoogleDriveAuth:
     folder_input: str
     client_id: str
     client_secret: str
+    oauth_scope: str
+    oauth_authorize_uri: str
+    api_base_uri: str
     redirect_uri: str
     token_uri: str
 
@@ -52,14 +55,32 @@ _PENDING_LOCK = Lock()
 
 
 def _clean(value: str | None) -> str:
+    """Handle clean."""
     return (value or "").strip()
 
 
+def _normalise_base_uri(value: str) -> str:
+    """Return a cleaned base URI without a trailing slash."""
+    return _clean(value).rstrip("/")
+
+
+def _looks_like_url(value: str) -> bool:
+    """Return whether the supplied value can be treated as a URL."""
+    parsed = urlparse(value)
+    return bool(parsed.scheme and parsed.netloc)
+
+
+def _drive_api_url(base_uri: str, path: str) -> str:
+    """Build a Google Drive API URL from configured base URI and a relative path."""
+    return f"{_normalise_base_uri(base_uri)}/{path.lstrip('/')}"
+
+
 def _extract_folder_id(folder_input: str) -> tuple[str | None, str | None]:
+    """Handle extract folder id."""
     value = _clean(folder_input)
     if not value:
         return None, None
-    if value.startswith("http://") or value.startswith("https://"):
+    if _looks_like_url(value):
         parsed = urlparse(value)
         parts = [p for p in parsed.path.split("/") if p]
         if "folders" in parts:
@@ -73,20 +94,29 @@ def _extract_folder_id(folder_input: str) -> tuple[str | None, str | None]:
     return value, None
 
 
-def _build_auth_url(client_id: str, redirect_uri: str, state: str) -> str:
+def _build_auth_url(
+    client_id: str,
+    redirect_uri: str,
+    state: str,
+    *,
+    oauth_scope: str,
+    oauth_authorize_uri: str,
+) -> str:
+    """Handle build auth url."""
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": DEFAULT_SCOPE,
+        "scope": oauth_scope,
         "access_type": "offline",
         "prompt": "consent",
         "state": state,
     }
-    return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+    return f"{_normalise_base_uri(oauth_authorize_uri)}?{urlencode(params)}"
 
 
 def parse_form_urlencoded(body: bytes) -> dict[str, str]:
+    """Parse form urlencoded."""
     parsed = parse_qs(body.decode("utf-8"), keep_blank_values=True)
     return {k: (v[0] if v else "") for k, v in parsed.items()}
 
@@ -101,10 +131,13 @@ def render_setup_page(
     status_type: str = "info",
     prefills: dict[str, str] | None = None,
     has_client_secret: bool = False,
+    folder_url_example: str = "",
 ) -> str:
+    """Execute render setup page."""
     prefills = prefills or {}
 
     def _prefill(name: str) -> str:
+        """Handle prefill."""
         return escape(_clean(prefills.get(name)))
 
     resolved_profile = (
@@ -120,7 +153,7 @@ def render_setup_page(
         profile_input = (
             f"<input type='hidden' name='profile' value='{escape(resolved_profile)}' />"
             f"<input value='{escape(resolved_profile)}' disabled />"
-            "<div class='hint'>Profile is fixed for this authorization flow.</div>"
+            "<div class='hint'>Profile is fixed for this authorisation flow.</div>"
         )
     else:
         profile_input = f"<select name='profile'>{options}</select>"
@@ -135,7 +168,16 @@ def render_setup_page(
         )
         status_html = f'<p style="padding:8px;border:1px solid {color};color:{color};">{escape(status_message)}</p>'
     default_redirect = _prefill("redirect_uri") or escape(callback_url)
-    default_token_uri = _prefill("token_uri") or escape(DEFAULT_TOKEN_URI)
+    default_token_uri = _prefill("token_uri")
+    default_oauth_scope = _prefill("oauth_scope")
+    default_oauth_authorise_uri = _prefill("oauth_authorize_uri")
+    default_api_base_uri = _prefill("api_base_uri")
+    resolved_folder_url_example = _clean(folder_url_example) or _prefill(
+        "folder_url_example"
+    )
+    folder_url_example_value = escape(
+        resolved_folder_url_example or "drive.google.com/drive/folders/..."
+    )
     user_email_value = _prefill("user_email")
     folder_input_value = _prefill("folder_input")
     client_id_value = _prefill("client_id")
@@ -172,7 +214,7 @@ def render_setup_page(
     <input name="user_email" placeholder="name@example.com" value="{user_email_value}" />
     <label>Folder input</label>
     <input name="folder_input" placeholder="Folder ID, share URL, or folder name" value="{folder_input_value}" />
-    <div class="hint">Example URL: <code>https://drive.google.com/drive/folders/...</code></div>
+    <div class="hint">Example URL: <code>{folder_url_example_value}</code></div>
     <label>OAuth client id</label>
     <input name="client_id" value="{client_id_value}" />
     <label>OAuth client secret</label>
@@ -182,7 +224,10 @@ def render_setup_page(
     <input name="redirect_uri" value="{default_redirect}" />
     <label>Token URI</label>
     <input name="token_uri" value="{default_token_uri}" />
-    <button type="submit">Start Google Authorization</button>
+    <input type="hidden" name="oauth_scope" value="{default_oauth_scope}" />
+    <input type="hidden" name="oauth_authorize_uri" value="{default_oauth_authorise_uri}" />
+    <input type="hidden" name="api_base_uri" value="{default_api_base_uri}" />
+    <button type="submit">Start Google Authorisation</button>
   </form>
   <script>
     (function () {{
@@ -247,12 +292,16 @@ def render_setup_page(
 
 
 def begin_oauth(data: dict[str, str]) -> str:
+    """Execute begin oauth."""
     profile = _clean(data.get("profile"))
     folder_input = _clean(data.get("folder_input"))
     client_id = _clean(data.get("client_id"))
     client_secret = _clean(data.get("client_secret"))
+    oauth_scope = _clean(data.get("oauth_scope"))
+    oauth_authorize_uri = _clean(data.get("oauth_authorize_uri"))
+    api_base_uri = _clean(data.get("api_base_uri"))
     redirect_uri = _clean(data.get("redirect_uri"))
-    token_uri = _clean(data.get("token_uri")) or DEFAULT_TOKEN_URI
+    token_uri = _clean(data.get("token_uri"))
     if not profile:
         raise ValueError("profile is required")
     if not folder_input:
@@ -263,6 +312,14 @@ def begin_oauth(data: dict[str, str]) -> str:
         raise ValueError("client_secret is required")
     if not redirect_uri:
         raise ValueError("redirect_uri is required")
+    if not token_uri:
+        raise ValueError("token_uri is required")
+    if not oauth_scope:
+        raise ValueError("oauth_scope is required")
+    if not oauth_authorize_uri:
+        raise ValueError("oauth_authorize_uri is required")
+    if not api_base_uri:
+        raise ValueError("api_base_uri is required")
 
     state = secrets.token_urlsafe(24)
     pending = PendingGoogleDriveAuth(
@@ -272,15 +329,25 @@ def begin_oauth(data: dict[str, str]) -> str:
         folder_input=folder_input,
         client_id=client_id,
         client_secret=client_secret,
+        oauth_scope=oauth_scope,
+        oauth_authorize_uri=oauth_authorize_uri,
+        api_base_uri=api_base_uri,
         redirect_uri=redirect_uri,
         token_uri=token_uri,
     )
     with _PENDING_LOCK:
         _PENDING[state] = pending
-    return _build_auth_url(client_id=client_id, redirect_uri=redirect_uri, state=state)
+    return _build_auth_url(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        state=state,
+        oauth_scope=oauth_scope,
+        oauth_authorize_uri=oauth_authorize_uri,
+    )
 
 
 def _take_pending(state: str) -> PendingGoogleDriveAuth:
+    """Handle take pending."""
     with _PENDING_LOCK:
         pending = _PENDING.pop(state, None)
     if pending is None:
@@ -289,6 +356,7 @@ def _take_pending(state: str) -> PendingGoogleDriveAuth:
 
 
 def _exchange_code(pending: PendingGoogleDriveAuth, code: str) -> tuple[str, str]:
+    """Handle exchange code."""
     payload = {
         "client_id": pending.client_id,
         "client_secret": pending.client_secret,
@@ -296,7 +364,7 @@ def _exchange_code(pending: PendingGoogleDriveAuth, code: str) -> tuple[str, str
         "grant_type": "authorization_code",
         "redirect_uri": pending.redirect_uri,
     }
-    response = requests.post(pending.token_uri, data=payload, timeout=30)
+    response = http_post(pending.token_uri, data=payload, timeout=30)
     response.raise_for_status()
     data = response.json()
     access = _clean(data.get("access_token"))
@@ -307,14 +375,18 @@ def _exchange_code(pending: PendingGoogleDriveAuth, code: str) -> tuple[str, str
 
 
 def _auth_headers(token: str) -> dict[str, str]:
+    """Handle auth headers."""
     return {"Authorization": f"Bearer {token}"}
 
 
-def _fetch_folder(access_token: str, folder_input: str) -> tuple[str, str, str]:
+def _fetch_folder(
+    access_token: str, folder_input: str, *, api_base_uri: str
+) -> tuple[str, str, str]:
+    """Handle fetch folder."""
     folder_id_guess, folder_url = _extract_folder_id(folder_input)
     if folder_id_guess:
-        response = requests.get(
-            f"https://www.googleapis.com/drive/v3/files/{folder_id_guess}",
+        response = http_get(
+            _drive_api_url(api_base_uri, f"/files/{folder_id_guess}"),
             headers=_auth_headers(access_token),
             params={"fields": "id,name,mimeType,webViewLink"},
             timeout=30,
@@ -337,8 +409,8 @@ def _fetch_folder(access_token: str, folder_input: str) -> tuple[str, str, str]:
         "fields": "files(id,name,webViewLink,mimeType)",
         "pageSize": 5,
     }
-    response = requests.get(
-        "https://www.googleapis.com/drive/v3/files",
+    response = http_get(
+        _drive_api_url(api_base_uri, "/files"),
         headers=_auth_headers(access_token),
         params=params,
         timeout=30,
@@ -365,15 +437,8 @@ def _update_profile_google_drive(
     redirect_uri: str,
     token_uri: str,
 ) -> None:
-    raw = (
-        yaml.safe_load(config_path.read_text(encoding="utf-8"))
-        if config_path.exists()
-        else {}
-    )
-    if raw is None:
-        raw = {}
-    if not isinstance(raw, dict):
-        raise RuntimeError(f"Invalid YAML object in {config_path}")
+    """Handle update profile google drive."""
+    raw = load_yaml(str(config_path), missing_ok=True)
     raw.setdefault("profiles", {})
     profiles = raw["profiles"]
     if not isinstance(profiles, dict):
@@ -398,16 +463,17 @@ def _update_profile_google_drive(
     drive["access_token"] = access_token
     drive["redirect_uri"] = redirect_uri
     drive["token_uri"] = token_uri
-    config_path.write_text(yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+    config_path.write_text(safe_dump(raw, sort_keys=False), encoding="utf-8")
 
 
 def complete_oauth_callback(
     *, state: str, code: str, config_path: Path
 ) -> GoogleDriveBindResult:
+    """Execute complete oauth callback."""
     pending = _take_pending(state)
     access_token, refresh_token = _exchange_code(pending, code)
     folder_id, folder_name, folder_url = _fetch_folder(
-        access_token, pending.folder_input
+        access_token, pending.folder_input, api_base_uri=pending.api_base_uri
     )
     _update_profile_google_drive(
         config_path=config_path,

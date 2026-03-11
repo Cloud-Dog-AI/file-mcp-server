@@ -47,13 +47,28 @@ def test_yaml_file_structured_crud_with_audit_snapshot(tmp_path: Path) -> None:
                 )
             ) as client:
                 ops = [
-                    ("yaml_set_file", {"path": str(target), "yaml_path": "/root/b", "value": 2}),  # create
-                    ("yaml_set_file", {"path": str(target), "yaml_path": "/root/a", "value": 3}),  # update
-                    ("yaml_delete_file", {"path": str(target), "yaml_path": "/root/b"}),  # delete
+                    (
+                        "yaml_set_file",
+                        {"path": str(target), "yaml_path": "/root/b", "value": 2},
+                    ),  # create
+                    (
+                        "yaml_set_file",
+                        {"path": str(target), "yaml_path": "/root/a", "value": 3},
+                    ),  # update
+                    (
+                        "yaml_delete_file",
+                        {"path": str(target), "yaml_path": "/root/b"},
+                    ),  # delete
                 ]
                 for name, args in ops:
                     result = await client.call_tool(name, args)
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
                     assert payload["valid"] is True
 
@@ -66,7 +81,11 @@ def test_yaml_file_structured_crud_with_audit_snapshot(tmp_path: Path) -> None:
     snapshots_root = tmp_path / "snapshots"
     assert list(snapshots_root.rglob("data.yaml"))
 
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     tools = [json.loads(line).get("tool") for line in lines]
     assert "yaml_set_file" in tools
     assert "yaml_delete_file" in tools

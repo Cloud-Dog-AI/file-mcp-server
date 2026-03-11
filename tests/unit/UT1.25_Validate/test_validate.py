@@ -40,16 +40,18 @@ def _validation_config(
         for key, mode in per_type.items():
             env_key = f"FILE_MCP_VALIDATION_{key.upper()}"
             env_values[env_key] = mode
-            per_type_lines += f"        {key}: \"${{{env_key}}}\"\n"
+            per_type_lines += f'        {key}: "${{{env_key}}}"\n'
 
     per_type_block = (
-        "      per_type:\n" + per_type_lines if per_type_lines else "      per_type: {}\n"
+        "      per_type:\n" + per_type_lines
+        if per_type_lines
+        else "      per_type: {}\n"
     )
     defaults_yaml = (
         "profiles:\n"
         "  default:\n"
         "    validation:\n"
-        "      default_mode: \"${FILE_MCP_VALIDATION_DEFAULT}\"\n"
+        '      default_mode: "${FILE_MCP_VALIDATION_DEFAULT}"\n'
         f"{per_type_block}"
     )
     profile = build_profile(
@@ -62,7 +64,7 @@ def _validation_config(
 
 
 def test_validate_json() -> None:
-    assert validate_json("{\"a\": 1}").valid
+    assert validate_json('{"a": 1}').valid
     assert not validate_json("{bad}").valid
 
 
@@ -95,7 +97,9 @@ def test_validation_strict_mode(tmp_path: Path) -> None:
 
 
 def test_validation_warn_mode(tmp_path: Path) -> None:
-    validation = _validation_config(tmp_path, default_mode="strict", per_type={"markdown": "warn"})
+    validation = _validation_config(
+        tmp_path, default_mode="strict", per_type={"markdown": "warn"}
+    )
     result = validate_with_mode("markdown", "# Title\n### Skipped", validation)
     assert result.valid
     assert result.warnings

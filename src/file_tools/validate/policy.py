@@ -36,12 +36,14 @@ _VALIDATORS: Dict[str, Callable[[str], ValidationResult]] = {
 
 
 def select_validation_mode(validation: ValidationConfig, content_type: str) -> str:
+    """Execute select validation mode."""
     if validation.per_type and content_type in validation.per_type:
         return validation.per_type[content_type]
     return validation.default_mode or "strict"
 
 
 def apply_validation_mode(result: ValidationResult, mode: str) -> ValidationResult:
+    """Execute apply validation mode."""
     normalized = mode.lower()
     if normalized == "strict":
         return result
@@ -57,6 +59,7 @@ def apply_validation_mode(result: ValidationResult, mode: str) -> ValidationResu
 def validate_with_mode(
     content_type: str, text: str, validation: ValidationConfig
 ) -> ValidationResult:
+    """Validate with mode."""
     if content_type not in _VALIDATORS:
         raise ValueError(f"Unsupported validation type: {content_type}")
     mode = select_validation_mode(validation, content_type)

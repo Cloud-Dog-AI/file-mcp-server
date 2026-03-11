@@ -1,4 +1,10 @@
-"""Tool model definitions scaffolding."""
+"""
+file-mcp-server — file_tools/tools/definitions.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for tools definitions.py.
+"""
 
 from __future__ import annotations
 

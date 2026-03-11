@@ -14,7 +14,8 @@ import time
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
-import requests
+from file_tools.adapters import Response
+from file_tools.adapters import request as http_request
 
 from file_tools.config.models import StorageConfig
 
@@ -31,6 +32,7 @@ FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
 def _clean_posix(path: str) -> str:
+    """Handle clean posix."""
     if not path:
         return "/"
     if not path.startswith("/"):
@@ -42,6 +44,7 @@ def _clean_posix(path: str) -> str:
 
 
 def _to_bool(value: object) -> bool:
+    """Handle to bool."""
     if value is None:
         return False
     if isinstance(value, bool):
@@ -55,6 +58,7 @@ def _to_bool(value: object) -> bool:
 
 
 def _extract_folder_id(folder_id: str | None, folder_url: str | None) -> str | None:
+    """Handle extract folder id."""
     if folder_id and folder_id.strip():
         return folder_id.strip()
     if not folder_url:
@@ -74,10 +78,16 @@ def _extract_folder_id(folder_id: str | None, folder_url: str | None) -> str | N
     return None
 
 
+def _normalise_base_uri(value: str | None) -> str:
+    """Return a base URI without a trailing slash."""
+    return (value or "").strip().rstrip("/")
+
+
 class GoogleDriveStorage(StorageBackend):
     backend_name = "google_drive"
 
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
+        """Initialise the instance state."""
         cfg = storage.google_drive
         folder_id = _extract_folder_id(cfg.folder_id, cfg.folder_url)
         if not folder_id or is_unresolved_placeholder(folder_id):
@@ -114,9 +124,17 @@ class GoogleDriveStorage(StorageBackend):
         self._client_secret = cfg.client_secret
         self._refresh_token = cfg.refresh_token
         self._access_token = cfg.access_token
-        self._token_uri = (
-            cfg.token_uri or "https://oauth2.googleapis.com/token"
-        ).strip()
+        if not cfg.token_uri:
+            raise ValueError("Google Drive storage requires google_drive.token_uri")
+        if not cfg.api_base_uri:
+            raise ValueError("Google Drive storage requires google_drive.api_base_uri")
+        if not cfg.upload_base_uri:
+            raise ValueError(
+                "Google Drive storage requires google_drive.upload_base_uri"
+            )
+        self._token_uri = cfg.token_uri.strip()
+        self._api_base_uri = _normalise_base_uri(cfg.api_base_uri)
+        self._upload_base_uri = _normalise_base_uri(cfg.upload_base_uri)
         self._timeout_s = int(timeout_s) if timeout_s is not None else 30
         self._token_expires_at: float | None = None
 
@@ -127,7 +145,16 @@ class GoogleDriveStorage(StorageBackend):
         elif storage.tls.ca_bundle_path:
             self._verify = storage.tls.ca_bundle_path
 
+    def _api_url(self, path: str) -> str:
+        """Build a Drive API URL from configured base URI and relative path."""
+        return f"{self._api_base_uri}/{path.lstrip('/')}"
+
+    def _upload_url(self, path: str) -> str:
+        """Build a Drive upload URL from configured base URI and relative path."""
+        return f"{self._upload_base_uri}/{path.lstrip('/')}"
+
     def _token(self) -> str:
+        """Handle token."""
         now = time.time()
         if (
             self._access_token
@@ -145,8 +172,12 @@ class GoogleDriveStorage(StorageBackend):
             "refresh_token": self._refresh_token,
             "grant_type": "refresh_token",
         }
-        resp = requests.post(
-            self._token_uri, data=data, timeout=self._timeout_s, verify=self._verify
+        resp = http_request(
+            "POST",
+            self._token_uri,
+            data=data,
+            timeout=self._timeout_s,
+            verify=self._verify,
         )
         resp.raise_for_status()
         payload = resp.json()
@@ -162,17 +193,19 @@ class GoogleDriveStorage(StorageBackend):
         return token
 
     def _headers(self) -> dict[str, str]:
+        """Handle headers."""
         return {"Authorization": f"Bearer {self._token()}"}
 
-    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+    def _request(self, method: str, url: str, **kwargs) -> Response:
+        """Handle request."""
         headers = dict(kwargs.pop("headers", {}) or {})
         headers.update(self._headers())
         params = dict(kwargs.pop("params", {}) or {})
-        if "googleapis.com/drive/v3/" in url:
+        if url.startswith(f"{self._api_base_uri}/"):
             params.setdefault("supportsAllDrives", True)
             if url.rstrip("/").endswith("/files"):
                 params.setdefault("includeItemsFromAllDrives", True)
-        return requests.request(
+        return http_request(
             method,
             url,
             headers=headers,
@@ -183,11 +216,12 @@ class GoogleDriveStorage(StorageBackend):
         )
 
     def _lookup_child(self, parent_id: str, name: str) -> dict[str, Any] | None:
+        """Handle lookup child."""
         escaped_name = name.replace("'", "\\'")
         q = f"'{parent_id}' in parents and name = '{escaped_name}' and trashed = false"
         resp = self._request(
             "GET",
-            "https://www.googleapis.com/drive/v3/files",
+            self._api_url("/files"),
             params={"q": q, "fields": "files(id,name,mimeType,size)"},
         )
         resp.raise_for_status()
@@ -197,6 +231,7 @@ class GoogleDriveStorage(StorageBackend):
     def _resolve_path(
         self, path: str, *, create_dirs: bool = False
     ) -> tuple[str, bool]:
+        """Handle resolve path."""
         logical = _clean_posix(path)
         if logical == "/":
             return self._folder_id, True
@@ -216,9 +251,10 @@ class GoogleDriveStorage(StorageBackend):
         return current, info.get("mimeType") == FOLDER_MIME
 
     def _get_metadata(self, file_id: str) -> dict[str, Any]:
+        """Handle get metadata."""
         resp = self._request(
             "GET",
-            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            self._api_url(f"/files/{file_id}"),
             params={"fields": "id,name,mimeType,size,parents"},
         )
         if resp.status_code == 404:
@@ -227,10 +263,11 @@ class GoogleDriveStorage(StorageBackend):
         return resp.json()
 
     def _create_folder(self, parent_id: str, name: str) -> dict[str, Any]:
+        """Handle create folder."""
         payload = {"name": name, "mimeType": FOLDER_MIME, "parents": [parent_id]}
         resp = self._request(
             "POST",
-            "https://www.googleapis.com/drive/v3/files",
+            self._api_url("/files"),
             json=payload,
             params={"fields": "id,name,mimeType,size"},
         )
@@ -238,12 +275,13 @@ class GoogleDriveStorage(StorageBackend):
         return resp.json()
 
     def read_bytes(self, path: str) -> bytes:
+        """Read bytes."""
         file_id, is_dir = self._resolve_path(path)
         if is_dir:
             raise IsADirectoryError(path)
         resp = self._request(
             "GET",
-            f"https://www.googleapis.com/drive/v3/files/{file_id}",
+            self._api_url(f"/files/{file_id}"),
             params={"alt": "media"},
             stream=True,
         )
@@ -251,6 +289,7 @@ class GoogleDriveStorage(StorageBackend):
         return resp.content
 
     def write_bytes(self, path: str, data: bytes, *, overwrite: bool = True) -> None:
+        """Write bytes."""
         logical = _clean_posix(path)
         parent_path = _clean_posix(posixpath.dirname(logical))
         name = posixpath.basename(logical)
@@ -272,7 +311,7 @@ class GoogleDriveStorage(StorageBackend):
                 "metadata": ("metadata", json.dumps(patch_meta), "application/json"),
                 "file": (name, data, mime_type),
             }
-            url = f"https://www.googleapis.com/upload/drive/v3/files/{existing['id']}"
+            url = self._upload_url(f"/files/{existing['id']}")
             resp = self._request(
                 "PATCH", url, params={"uploadType": "multipart"}, files=files
             )
@@ -281,27 +320,27 @@ class GoogleDriveStorage(StorageBackend):
                 "metadata": ("metadata", json.dumps(metadata), "application/json"),
                 "file": (name, data, mime_type),
             }
-            url = "https://www.googleapis.com/upload/drive/v3/files"
+            url = self._upload_url("/files")
             resp = self._request(
                 "POST", url, params={"uploadType": "multipart"}, files=files
             )
         resp.raise_for_status()
 
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
+        """Delete path."""
         try:
             file_id, _ = self._resolve_path(path)
         except FileNotFoundError:
             if missing_ok:
                 return
             raise
-        resp = self._request(
-            "DELETE", f"https://www.googleapis.com/drive/v3/files/{file_id}"
-        )
+        resp = self._request("DELETE", self._api_url(f"/files/{file_id}"))
         if resp.status_code == 404 and missing_ok:
             return
         resp.raise_for_status()
 
     def stat(self, path: str) -> StorageStat | None:
+        """Execute stat."""
         try:
             file_id, is_dir = self._resolve_path(path)
         except FileNotFoundError:
@@ -316,6 +355,7 @@ class GoogleDriveStorage(StorageBackend):
         return StorageStat(path=_clean_posix(path), is_dir=is_dir, size=size)
 
     def list_dir(self, path: str, *, recursive: bool = False) -> list[StorageEntry]:
+        """List dir."""
         root_path = _clean_posix(path)
         root_id, is_dir = self._resolve_path(root_path)
         if not is_dir:
@@ -328,7 +368,7 @@ class GoogleDriveStorage(StorageBackend):
             q = f"'{parent_id}' in parents and trashed = false"
             resp = self._request(
                 "GET",
-                "https://www.googleapis.com/drive/v3/files",
+                self._api_url("/files"),
                 params={"q": q, "fields": "files(id,name,mimeType,size)"},
             )
             resp.raise_for_status()
@@ -346,6 +386,7 @@ class GoogleDriveStorage(StorageBackend):
     def iter_paths(
         self, roots: Iterable[str], *, max_depth: int | None = None
     ) -> Iterable[str]:
+        """Execute iter paths."""
         for root in roots:
             base = _clean_posix(root)
             queue: list[tuple[str, int]] = [(base, 0)]
@@ -367,6 +408,7 @@ class GoogleDriveStorage(StorageBackend):
     def create_dir(
         self, path: str, *, parents: bool = True, exist_ok: bool = True
     ) -> None:
+        """Create dir."""
         logical = _clean_posix(path)
         if logical == "/":
             return
@@ -381,6 +423,7 @@ class GoogleDriveStorage(StorageBackend):
             current = child["id"]
 
     def copy_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Copy path."""
         src_id, src_is_dir = self._resolve_path(src)
         if src_is_dir:
             raise NotSupportedError("copy_path_directory", backend=self.backend_name)
@@ -393,17 +436,18 @@ class GoogleDriveStorage(StorageBackend):
             raise FileExistsError(dst)
         if existing and overwrite:
             self._request(
-                "DELETE", f"https://www.googleapis.com/drive/v3/files/{existing['id']}"
+                "DELETE", self._api_url(f"/files/{existing['id']}")
             ).raise_for_status()
         payload = {"name": name, "parents": [parent_id]}
         resp = self._request(
             "POST",
-            f"https://www.googleapis.com/drive/v3/files/{src_id}/copy",
+            self._api_url(f"/files/{src_id}/copy"),
             json=payload,
         )
         resp.raise_for_status()
 
     def move_path(self, src: str, dst: str, *, overwrite: bool = False) -> None:
+        """Move path."""
         src_id, _ = self._resolve_path(src)
         dst_logical = _clean_posix(dst)
         parent_path = _clean_posix(posixpath.dirname(dst_logical))
@@ -414,17 +458,18 @@ class GoogleDriveStorage(StorageBackend):
             raise FileExistsError(dst)
         if existing and overwrite:
             self._request(
-                "DELETE", f"https://www.googleapis.com/drive/v3/files/{existing['id']}"
+                "DELETE", self._api_url(f"/files/{existing['id']}")
             ).raise_for_status()
         meta = self._get_metadata(src_id)
         prev_parents = ",".join(meta.get("parents") or [])
         resp = self._request(
             "PATCH",
-            f"https://www.googleapis.com/drive/v3/files/{src_id}",
+            self._api_url(f"/files/{src_id}"),
             params={"addParents": parent_id, "removeParents": prev_parents},
             json={"name": name},
         )
         resp.raise_for_status()
 
     def chmod_path(self, path: str, mode: int, *, recursive: bool = False) -> None:
+        """Execute chmod path."""
         raise NotSupportedError("chmod_path", backend=self.backend_name)

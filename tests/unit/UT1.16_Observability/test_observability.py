@@ -47,7 +47,9 @@ profiles:
 def test_operational_logger_writes_file(tmp_path: Path) -> None:
     profile, log_path = _build_profile(tmp_path, enabled=True, name="ops")
 
-    logger = configure_operational_logger(profile.observability, name="test_observability_write")
+    logger = configure_operational_logger(
+        profile.observability, name="test_observability_write"
+    )
     logger.info("hello")
 
     content = log_path.read_text(encoding="utf-8")
@@ -57,7 +59,9 @@ def test_operational_logger_writes_file(tmp_path: Path) -> None:
 def test_operational_logger_disabled(tmp_path: Path) -> None:
     profile, log_path = _build_profile(tmp_path, enabled=False, name="ops-disabled")
 
-    logger = configure_operational_logger(profile.observability, name="test_observability_disabled")
+    logger = configure_operational_logger(
+        profile.observability, name="test_observability_disabled"
+    )
     logger.info("skip")
 
     assert not log_path.exists()

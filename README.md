@@ -59,6 +59,7 @@ docker run --rm --name file-mcp-server \
 Detailed Docker deployment, certs, multi-config, and remote host examples:
 - `DOCKER-README.me`
 - `docker-env.example`
+- `env-docker-example` (preprod all-4-in-one multi-profile env template)
 - `docker-config.profiles.example.yaml` (single-container multi-profile template: local/s3/webdav/ftp)
 
 ## Configuration model
@@ -187,6 +188,7 @@ PYTHONPATH=src pytest tests/integration/IT1.2_DockerContainerRuntime/test_docker
 
 - `DOCKER-README.me`
 - `API_DOCUMENTATION.md`
+- `migration/verify/README.md`
 - `docs/REQUIREMENTS.md`
 - `docs/ARCHITECTURE.md`
 - `docs/TASKS.md`

@@ -1,0 +1,35 @@
+TEST_ENV_TIER=AT
+
+# Preprod target endpoints
+TEST_BASE_URL=https://filemcpserver0.cloud-dog.net
+TEST_MCP_URL=https://filemcpserver0.cloud-dog.net/mcp
+TEST_API_BASE_PATH=/
+TEST_MCP_BASE_PATH=/mcp
+TEST_WEB_BASE_PATH=/
+TEST_A2A_BASE_PATH=/a2a
+
+# Preprod auth (set before execution; no secrets committed)
+TEST_API_KEY=
+TEST_A2A_API_KEY=
+
+# Enable remote backend acceptance paths for preprod harness
+FILE_MCP_STRICT_REMOTE_TESTS=1
+FILE_MCP_RUN_REMOTE_MATRIX_TESTS=1
+FILE_MCP_RUN_GOOGLE_LIVE_TESTS=0
+FILE_MCP_RUN_GDRIVE_LIVE_TEST=0
+
+# Optional AT1.6 preprod profile-chain test controls
+FILE_MCP_RUN_PREPROD_AT=0
+FILE_MCP_PREPROD_URL=https://filemcpserver0.cloud-dog.net
+FILE_MCP_PREPROD_PROFILE_LOCAL=default
+FILE_MCP_PREPROD_PROFILE_S3=s3
+FILE_MCP_PREPROD_PROFILE_WEBDAV=webdav
+FILE_MCP_PREPROD_PROFILE_FTP=ftp
+FILE_MCP_PREPROD_KEY_LOCAL=
+FILE_MCP_PREPROD_KEY_S3=
+FILE_MCP_PREPROD_KEY_WEBDAV=
+FILE_MCP_PREPROD_KEY_FTP=
+
+# Optional OAuth defaults for Google Drive live runs
+FILE_MCP_GDRIVE_REDIRECT_URI=https://filemcpserver0.cloud-dog.net/admin/google-drive/callback
+FILE_MCP_GDRIVE_TOKEN_URI=https://oauth2.googleapis.com/token

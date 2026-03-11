@@ -86,7 +86,11 @@ def test_real_pandoc_backend_conversion(tmp_path: Path) -> None:
                         "backend": "pandoc",
                     },
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         payload = asyncio.run(_call())
         assert payload["ok"] is True
@@ -135,10 +139,13 @@ def test_real_libreoffice_backend_conversion(tmp_path: Path) -> None:
                         "backend": "libreoffice",
                     },
                 )
-                return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                return json.loads(
+                    "\n".join(
+                        item.text for item in result.content if hasattr(item, "text")
+                    )
+                )
 
         payload = asyncio.run(_call())
         assert payload["ok"] is True
         assert payload["backend"] == "libreoffice"
         assert output.exists()
-

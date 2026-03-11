@@ -47,13 +47,19 @@ def test_security_boundary_enforcement_with_audit(tmp_path: Path) -> None:
                     headers={"Authorization": "Bearer secret"},
                 )
             ) as client:
-                await client.call_tool("write_file", {"path": str(bad_target), "content": "x"})
+                await client.call_tool(
+                    "write_file", {"path": str(bad_target), "content": "x"}
+                )
 
         with pytest.raises(Exception):
             asyncio.run(_denied_write())
 
     assert audit_log.exists()
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert lines
     event = json.loads(lines[-1])
     assert event["tool"] == "write_file"

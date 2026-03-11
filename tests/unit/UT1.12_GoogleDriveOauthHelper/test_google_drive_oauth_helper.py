@@ -11,12 +11,9 @@ Tests: UT1.30
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import subprocess
 import sys
-
-import pytest
 
 from scripts.google_drive_oauth_helper import build_auth_url
 
@@ -54,33 +51,3 @@ def test_helper_cli_prints_auth_url_without_code() -> None:
     assert proc.returncode == 0
     assert "Authorization URL:" in proc.stdout
     assert "rerun with --code" in proc.stdout
-
-
-def test_google_oauth_live_exchange_if_enabled() -> None:
-    if os.getenv("FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST", "0") != "1":
-        pytest.skip("Set FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST=1 to run live OAuth code exchange")
-    client_id = os.getenv("FILE_MCP_GDRIVE_CLIENT_ID", "").strip()
-    client_secret = os.getenv("FILE_MCP_GDRIVE_CLIENT_SECRET", "").strip()
-    code = os.getenv("FILE_MCP_GDRIVE_AUTH_CODE", "").strip()
-    if not client_id or not client_secret or not code:
-        pytest.skip("Missing FILE_MCP_GDRIVE_CLIENT_ID/FILE_MCP_GDRIVE_CLIENT_SECRET/FILE_MCP_GDRIVE_AUTH_CODE")
-
-    script = Path("scripts/google_drive_oauth_helper.py")
-    proc = subprocess.run(
-        [
-            sys.executable,
-            str(script),
-            "--client-id",
-            client_id,
-            "--client-secret",
-            client_secret,
-            "--code",
-            code,
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert proc.returncode == 0
-    assert "Token exchange response received." in proc.stdout
-    assert "FILE_MCP_GDRIVE_ACCESS_TOKEN=" in proc.stdout

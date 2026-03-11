@@ -19,7 +19,9 @@ from tests.config_helpers import build_profile
 from file_tools.search import SearchMatch, search_content, search_paths
 
 
-def _build_profile(tmp_path: Path, *, max_results: int, max_file_mb: int, allow_glob: str):
+def _build_profile(
+    tmp_path: Path, *, max_results: int, max_file_mb: int, allow_glob: str
+):
     root = tmp_path / "root"
     defaults_yaml = """
 profiles:
@@ -50,7 +52,9 @@ profiles:
 
 
 def test_search_paths(tmp_path: Path) -> None:
-    profile, root = _build_profile(tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*")
+    profile, root = _build_profile(
+        tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*"
+    )
     root.mkdir(parents=True, exist_ok=True)
     (root / "alpha.txt").write_text("alpha")
     (root / "beta.md").write_text("beta")
@@ -60,17 +64,23 @@ def test_search_paths(tmp_path: Path) -> None:
 
 
 def test_search_paths_glob(tmp_path: Path) -> None:
-    profile, root = _build_profile(tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*.md")
+    profile, root = _build_profile(
+        tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*.md"
+    )
     root.mkdir(parents=True, exist_ok=True)
     (root / "alpha.txt").write_text("alpha")
     (root / "beta.md").write_text("beta")
 
-    matches = search_paths("", roots=[Path(profile.scope.roots[0])], glob=profile.scope.allow_globs[0])
+    matches = search_paths(
+        "", roots=[Path(profile.scope.roots[0])], glob=profile.scope.allow_globs[0]
+    )
     assert {path.name for path in matches} == {"beta.md"}
 
 
 def test_search_content(tmp_path: Path) -> None:
-    profile, root = _build_profile(tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*")
+    profile, root = _build_profile(
+        tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*"
+    )
     root.mkdir(parents=True, exist_ok=True)
     (root / "alpha.txt").write_text("alpha\nline")
     (root / "beta.txt").write_text("beta\nalpha")
@@ -82,17 +92,23 @@ def test_search_content(tmp_path: Path) -> None:
 
 
 def test_search_content_regex(tmp_path: Path) -> None:
-    profile, root = _build_profile(tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*")
+    profile, root = _build_profile(
+        tmp_path, max_results=10, max_file_mb=5, allow_glob="**/*"
+    )
     root.mkdir(parents=True, exist_ok=True)
     (root / "alpha.txt").write_text("foo123")
 
-    results = search_content(r"foo\d+", roots=[Path(profile.scope.roots[0])], regex=True)
+    results = search_content(
+        r"foo\d+", roots=[Path(profile.scope.roots[0])], regex=True
+    )
     assert len(results) == 1
     assert results[0].line == "foo123"
 
 
 def test_search_content_max_results(tmp_path: Path) -> None:
-    profile, root = _build_profile(tmp_path, max_results=1, max_file_mb=5, allow_glob="**/*")
+    profile, root = _build_profile(
+        tmp_path, max_results=1, max_file_mb=5, allow_glob="**/*"
+    )
     root.mkdir(parents=True, exist_ok=True)
     (root / "alpha.txt").write_text("alpha")
     (root / "beta.txt").write_text("alpha")
@@ -106,7 +122,9 @@ def test_search_content_max_results(tmp_path: Path) -> None:
 
 
 def test_search_content_max_file_mb(tmp_path: Path) -> None:
-    profile, root = _build_profile(tmp_path, max_results=10, max_file_mb=1, allow_glob="**/*")
+    profile, root = _build_profile(
+        tmp_path, max_results=10, max_file_mb=1, allow_glob="**/*"
+    )
     root.mkdir(parents=True, exist_ok=True)
     small = root / "small.txt"
     large = root / "large.txt"

@@ -53,7 +53,11 @@ def test_structured_failed_mutation_is_rolled_back_and_audited(tmp_path: Path) -
             ) as client:
                 await client.call_tool(
                     "json_move_file",
-                    {"path": str(json_target), "from_path": "/missing/path", "to_path": "/root/b"},
+                    {
+                        "path": str(json_target),
+                        "from_path": "/missing/path",
+                        "to_path": "/root/b",
+                    },
                 )
 
         async def _invalid_yaml_op() -> None:
@@ -65,7 +69,11 @@ def test_structured_failed_mutation_is_rolled_back_and_audited(tmp_path: Path) -
             ) as client:
                 await client.call_tool(
                     "yaml_copy_file",
-                    {"path": str(yaml_target), "from_path": "/missing/path", "to_path": "/root/b"},
+                    {
+                        "path": str(yaml_target),
+                        "from_path": "/missing/path",
+                        "to_path": "/root/b",
+                    },
                 )
 
         async def _invalid_json_type_mismatch() -> None:
@@ -77,7 +85,11 @@ def test_structured_failed_mutation_is_rolled_back_and_audited(tmp_path: Path) -
             ) as client:
                 await client.call_tool(
                     "json_copy_file",
-                    {"path": str(json_target), "from_path": "/root/a", "to_path": "/root/a/b"},
+                    {
+                        "path": str(json_target),
+                        "from_path": "/root/a",
+                        "to_path": "/root/a/b",
+                    },
                 )
 
         with pytest.raises(Exception):
@@ -90,8 +102,18 @@ def test_structured_failed_mutation_is_rolled_back_and_audited(tmp_path: Path) -
     assert json_target.read_text(encoding="utf-8") == json_before
     assert yaml_target.read_text(encoding="utf-8") == yaml_before
 
-    lines = [line for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        line
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     events = [json.loads(line) for line in lines]
-    assert any(evt["tool"] == "json_move_file" and evt["status"] == "error" for evt in events)
-    assert any(evt["tool"] == "yaml_copy_file" and evt["status"] == "error" for evt in events)
-    assert any(evt["tool"] == "json_copy_file" and evt["status"] == "error" for evt in events)
+    assert any(
+        evt["tool"] == "json_move_file" and evt["status"] == "error" for evt in events
+    )
+    assert any(
+        evt["tool"] == "yaml_copy_file" and evt["status"] == "error" for evt in events
+    )
+    assert any(
+        evt["tool"] == "json_copy_file" and evt["status"] == "error" for evt in events
+    )

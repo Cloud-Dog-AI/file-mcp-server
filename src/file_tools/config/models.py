@@ -27,6 +27,7 @@ class AuthConfig(BaseModel):
 class HttpServerConfig(BaseModel):
     transport: Optional[str] = None
     host: Optional[str] = None
+    fallback_host: Optional[str] = None
     port: Optional[int | str] = None
     base_path: Optional[str] = None
     mcp_path: Optional[str] = None
@@ -107,9 +108,9 @@ class WebDavStorageConfig(BaseModel):
     base_url: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
-    move_retry_count: Optional[str] = None
-    move_retry_backoff_s: Optional[str] = None
-    move_probe_timeout_s: Optional[str] = None
+    move_retry_count: Optional[int | str] = None
+    move_retry_backoff_s: Optional[float | str] = None
+    move_probe_timeout_s: Optional[float | str] = None
     move_retry_statuses: Optional[str] = None
 
 
@@ -126,10 +127,15 @@ class GoogleDriveStorageConfig(BaseModel):
     user_email: Optional[str] = None
     folder_id: Optional[str] = None
     folder_url: Optional[str] = None
+    folder_url_example: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
     refresh_token: Optional[str] = None
     access_token: Optional[str] = None
+    oauth_scope: Optional[str] = None
+    oauth_authorize_uri: Optional[str] = None
+    api_base_uri: Optional[str] = None
+    upload_base_uri: Optional[str] = None
     redirect_uri: Optional[str] = None
     token_uri: Optional[str] = None
 
@@ -139,7 +145,7 @@ class StorageConfig(BaseModel):
     Storage backend configuration.
 
     backend:
-      - local: native filesystem paths (current behavior)
+      - local: native filesystem paths (current behaviour)
       - s3: S3-compatible object storage (keyspace)
       - webdav: WebDAV over HTTP(S)
       - ftp: FTP/FTPS

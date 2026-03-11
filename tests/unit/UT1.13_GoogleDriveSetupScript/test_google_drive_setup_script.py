@@ -91,11 +91,18 @@ def test_load_google_defaults_from_credentials_file(tmp_path: Path) -> None:
 
     assert defaults["FILE_MCP_GDRIVE_CLIENT_ID"] == "cid-123"
     assert defaults["FILE_MCP_GDRIVE_CLIENT_SECRET"] == "csec-123"
-    assert defaults["FILE_MCP_GDRIVE_TOKEN_URI"] == "https://oauth2.googleapis.com/token"
-    assert defaults["FILE_MCP_GDRIVE_REDIRECT_URI"] == "http://127.0.0.1:8000/admin/google-drive/callback"
+    assert (
+        defaults["FILE_MCP_GDRIVE_TOKEN_URI"] == "https://oauth2.googleapis.com/token"
+    )
+    assert (
+        defaults["FILE_MCP_GDRIVE_REDIRECT_URI"]
+        == "http://127.0.0.1:8000/admin/google-drive/callback"
+    )
 
 
-def test_load_google_defaults_from_vault_blob(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_load_google_defaults_from_vault_blob(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setenv("VAULT_ADDR", "https://vault.example")
     monkeypatch.setenv("VAULT_TOKEN", "token-value")
     monkeypatch.setenv("VAULT_MOUNT_POINT", "cloud_dog_ai")
@@ -111,7 +118,9 @@ def test_load_google_defaults_from_vault_blob(monkeypatch: pytest.MonkeyPatch, t
                                 "client_id": "vault-client-id",
                                 "client_secret": "vault-client-secret",
                                 "token_uri": "https://oauth2.googleapis.com/token",
-                                "redirect_uris": ["http://127.0.0.1:8000/admin/google-drive/callback"],
+                                "redirect_uris": [
+                                    "http://127.0.0.1:8000/admin/google-drive/callback"
+                                ],
                             }
                         }
                     }
@@ -139,5 +148,10 @@ def test_load_google_defaults_from_vault_blob(monkeypatch: pytest.MonkeyPatch, t
 
     assert defaults["FILE_MCP_GDRIVE_CLIENT_ID"] == "vault-client-id"
     assert defaults["FILE_MCP_GDRIVE_CLIENT_SECRET"] == "vault-client-secret"
-    assert defaults["FILE_MCP_GDRIVE_TOKEN_URI"] == "https://oauth2.googleapis.com/token"
-    assert defaults["FILE_MCP_GDRIVE_REDIRECT_URI"] == "http://127.0.0.1:8000/admin/google-drive/callback"
+    assert (
+        defaults["FILE_MCP_GDRIVE_TOKEN_URI"] == "https://oauth2.googleapis.com/token"
+    )
+    assert (
+        defaults["FILE_MCP_GDRIVE_REDIRECT_URI"]
+        == "http://127.0.0.1:8000/admin/google-drive/callback"
+    )

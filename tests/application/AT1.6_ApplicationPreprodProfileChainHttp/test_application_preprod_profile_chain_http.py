@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from tests.env_runtime import env_get, runtime_env
+
 import asyncio
-import os
 import uuid
 from pathlib import Path
 from typing import Mapping
 
-import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
@@ -32,7 +32,7 @@ def _parse_env_file(path: Path) -> dict[str, str]:
 def _merged_env() -> dict[str, str]:
     merged: dict[str, str] = {}
     merged.update(_parse_env_file(Path("private/env-preprod-filemcp")))
-    merged.update(dict(os.environ))
+    merged.update(dict(runtime_env))
     return merged
 
 
@@ -70,14 +70,20 @@ async def _call_tool(
 
 
 def test_application_preprod_profile_chain_flow_live() -> None:
-    if os.getenv("FILE_MCP_RUN_PREPROD_AT", "0") != "1":
-        pytest.fail("Set FILE_MCP_RUN_PREPROD_AT=1 to run preprod profile-chain AT test")
+    run_preprod_at = env_get("FILE_MCP_RUN_PREPROD_AT", "0").strip()
+    assert run_preprod_at in {"0", "1"}, "FILE_MCP_RUN_PREPROD_AT must be '0' or '1'"
+    if run_preprod_at != "1":
+        return
 
     env = _merged_env()
     base_url = _require(env, "FILE_MCP_PREPROD_URL")
-    profile_local = env.get("FILE_MCP_PREPROD_PROFILE_LOCAL", "default").strip() or "default"
+    profile_local = (
+        env.get("FILE_MCP_PREPROD_PROFILE_LOCAL", "default").strip() or "default"
+    )
     profile_s3 = env.get("FILE_MCP_PREPROD_PROFILE_S3", "s3").strip() or "s3"
-    profile_webdav = env.get("FILE_MCP_PREPROD_PROFILE_WEBDAV", "webdav").strip() or "webdav"
+    profile_webdav = (
+        env.get("FILE_MCP_PREPROD_PROFILE_WEBDAV", "webdav").strip() or "webdav"
+    )
     profile_ftp = env.get("FILE_MCP_PREPROD_PROFILE_FTP", "ftp").strip() or "ftp"
 
     key_local = _require(env, "FILE_MCP_PREPROD_KEY_LOCAL")
@@ -86,8 +92,12 @@ def test_application_preprod_profile_chain_flow_live() -> None:
     key_ftp = _require(env, "FILE_MCP_PREPROD_KEY_FTP")
 
     run_id = uuid.uuid4().hex[:10]
-    base_dir = env.get("FILE_MCP_PREPROD_AT_BASE_DIR", f"/workspace/at-profile-chain-{run_id}").strip()
-    filename = env.get("FILE_MCP_PREPROD_AT_FILENAME", "chain.txt").strip() or "chain.txt"
+    base_dir = env.get(
+        "FILE_MCP_PREPROD_AT_BASE_DIR", f"/workspace/at-profile-chain-{run_id}"
+    ).strip()
+    filename = (
+        env.get("FILE_MCP_PREPROD_AT_FILENAME", "chain.txt").strip() or "chain.txt"
+    )
 
     local_path = f"{base_dir}/local/{filename}"
     s3_path = f"{base_dir}/s3/{filename}"
@@ -118,7 +128,9 @@ def test_application_preprod_profile_chain_flow_live() -> None:
             tool="sed_edit_file",
             arguments={
                 "path": local_path,
-                "operations": [{"op": "replace_regex", "pattern": "v1", "repl": "v2-local"}],
+                "operations": [
+                    {"op": "replace_regex", "pattern": "v1", "repl": "v2-local"}
+                ],
             },
         )
         local_read = await _call_tool(
@@ -146,7 +158,9 @@ def test_application_preprod_profile_chain_flow_live() -> None:
             tool="sed_edit_file",
             arguments={
                 "path": s3_path,
-                "operations": [{"op": "replace_regex", "pattern": "v2-local", "repl": "v3-s3"}],
+                "operations": [
+                    {"op": "replace_regex", "pattern": "v2-local", "repl": "v3-s3"}
+                ],
             },
         )
         s3_read = await _call_tool(
@@ -181,7 +195,9 @@ def test_application_preprod_profile_chain_flow_live() -> None:
             tool="sed_edit_file",
             arguments={
                 "path": webdav_path,
-                "operations": [{"op": "replace_regex", "pattern": "v3-s3", "repl": "v4-webdav"}],
+                "operations": [
+                    {"op": "replace_regex", "pattern": "v3-s3", "repl": "v4-webdav"}
+                ],
             },
         )
         webdav_read = await _call_tool(
@@ -216,7 +232,9 @@ def test_application_preprod_profile_chain_flow_live() -> None:
             tool="sed_edit_file",
             arguments={
                 "path": ftp_path,
-                "operations": [{"op": "replace_regex", "pattern": "v4-webdav", "repl": "v5-ftp"}],
+                "operations": [
+                    {"op": "replace_regex", "pattern": "v4-webdav", "repl": "v5-ftp"}
+                ],
             },
         )
         ftp_read = await _call_tool(

@@ -50,16 +50,64 @@ def test_structured_path_edge_cases_and_negative_contract(tmp_path: Path) -> Non
                 )
             ) as client:
                 calls = [
-                    ("json_copy_file", {"path": str(json_target), "from_path": "/a/b", "to_path": "/c/copied"}),
-                    ("json_move_file", {"path": str(json_target), "from_path": "/c/copied", "to_path": "/a/moved"}),
-                    ("json_merge_file", {"path": str(json_target), "json_path": "/a", "value": {"nested": {"x": 7}}}),
-                    ("yaml_copy_file", {"path": str(yaml_target), "from_path": "/a/b", "to_path": "/c/copied"}),
-                    ("yaml_move_file", {"path": str(yaml_target), "from_path": "/c/copied", "to_path": "/a/moved"}),
-                    ("yaml_merge_file", {"path": str(yaml_target), "yaml_path": "/a", "value": {"nested": {"x": 9}}}),
+                    (
+                        "json_copy_file",
+                        {
+                            "path": str(json_target),
+                            "from_path": "/a/b",
+                            "to_path": "/c/copied",
+                        },
+                    ),
+                    (
+                        "json_move_file",
+                        {
+                            "path": str(json_target),
+                            "from_path": "/c/copied",
+                            "to_path": "/a/moved",
+                        },
+                    ),
+                    (
+                        "json_merge_file",
+                        {
+                            "path": str(json_target),
+                            "json_path": "/a",
+                            "value": {"nested": {"x": 7}},
+                        },
+                    ),
+                    (
+                        "yaml_copy_file",
+                        {
+                            "path": str(yaml_target),
+                            "from_path": "/a/b",
+                            "to_path": "/c/copied",
+                        },
+                    ),
+                    (
+                        "yaml_move_file",
+                        {
+                            "path": str(yaml_target),
+                            "from_path": "/c/copied",
+                            "to_path": "/a/moved",
+                        },
+                    ),
+                    (
+                        "yaml_merge_file",
+                        {
+                            "path": str(yaml_target),
+                            "yaml_path": "/a",
+                            "value": {"nested": {"x": 9}},
+                        },
+                    ),
                 ]
                 for name, args in calls:
                     result = await client.call_tool(name, args)
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
                     assert payload["valid"] is True
 
@@ -77,7 +125,11 @@ def test_structured_path_edge_cases_and_negative_contract(tmp_path: Path) -> Non
             ) as client:
                 await client.call_tool(
                     "json_copy_file",
-                    {"path": str(json_target), "from_path": "/missing/path", "to_path": "/z"},
+                    {
+                        "path": str(json_target),
+                        "from_path": "/missing/path",
+                        "to_path": "/z",
+                    },
                 )
 
         with pytest.raises(Exception):
@@ -92,7 +144,11 @@ def test_structured_path_edge_cases_and_negative_contract(tmp_path: Path) -> Non
             ) as client:
                 await client.call_tool(
                     "yaml_move_file",
-                    {"path": str(yaml_target), "from_path": "/missing/path", "to_path": "/z"},
+                    {
+                        "path": str(yaml_target),
+                        "from_path": "/missing/path",
+                        "to_path": "/z",
+                    },
                 )
 
         with pytest.raises(Exception):
@@ -149,11 +205,19 @@ def test_structured_nested_list_dict_and_root_merge_paths(tmp_path: Path) -> Non
                 calls = [
                     (
                         "json_copy_file",
-                        {"path": str(json_target), "from_path": "/root/items/0/id", "to_path": "/meta/first_id"},
+                        {
+                            "path": str(json_target),
+                            "from_path": "/root/items/0/id",
+                            "to_path": "/meta/first_id",
+                        },
                     ),
                     (
                         "json_move_file",
-                        {"path": str(json_target), "from_path": "/root/items/1/id", "to_path": "/root/items/0/second_id"},
+                        {
+                            "path": str(json_target),
+                            "from_path": "/root/items/1/id",
+                            "to_path": "/root/items/0/second_id",
+                        },
                     ),
                     (
                         "json_merge_file",
@@ -161,11 +225,19 @@ def test_structured_nested_list_dict_and_root_merge_paths(tmp_path: Path) -> Non
                     ),
                     (
                         "yaml_copy_file",
-                        {"path": str(yaml_target), "from_path": "/root/items/0/id", "to_path": "/meta/first_id"},
+                        {
+                            "path": str(yaml_target),
+                            "from_path": "/root/items/0/id",
+                            "to_path": "/meta/first_id",
+                        },
                     ),
                     (
                         "yaml_move_file",
-                        {"path": str(yaml_target), "from_path": "/root/items/1/id", "to_path": "/root/items/0/second_id"},
+                        {
+                            "path": str(yaml_target),
+                            "from_path": "/root/items/1/id",
+                            "to_path": "/root/items/0/second_id",
+                        },
                     ),
                     (
                         "yaml_merge_file",
@@ -174,7 +246,13 @@ def test_structured_nested_list_dict_and_root_merge_paths(tmp_path: Path) -> Non
                 ]
                 for name, args in calls:
                     result = await client.call_tool(name, args)
-                    payload = json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    payload = json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
                     assert payload["ok"] is True
 
         asyncio.run(_valid_ops())
@@ -191,7 +269,11 @@ def test_structured_nested_list_dict_and_root_merge_paths(tmp_path: Path) -> Non
             ) as client:
                 await client.call_tool(
                     "json_move_file",
-                    {"path": str(json_target), "from_path": "/root/items/99/id", "to_path": "/meta/fail"},
+                    {
+                        "path": str(json_target),
+                        "from_path": "/root/items/99/id",
+                        "to_path": "/meta/fail",
+                    },
                 )
 
         async def _invalid_ops_yaml() -> None:
@@ -203,7 +285,11 @@ def test_structured_nested_list_dict_and_root_merge_paths(tmp_path: Path) -> Non
             ) as client:
                 await client.call_tool(
                     "yaml_move_file",
-                    {"path": str(yaml_target), "from_path": "/root/items/99/id", "to_path": "/meta/fail"},
+                    {
+                        "path": str(yaml_target),
+                        "from_path": "/root/items/99/id",
+                        "to_path": "/meta/fail",
+                    },
                 )
 
         with pytest.raises(Exception):

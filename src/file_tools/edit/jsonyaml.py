@@ -1,4 +1,10 @@
-"""JSON/YAML edit scaffolding."""
+"""
+file-mcp-server — file_tools/edit/jsonyaml.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for edit jsonyaml.py.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,8 @@ from typing import Any, List
 
 import json
 
-import yaml
+from file_tools.adapters import safe_dump as yaml_safe_dump
+from file_tools.adapters import safe_load as yaml_safe_load
 
 _RuamelYAMLClass: Any | None
 try:
@@ -25,6 +32,7 @@ if _yaml_rt is not None:
 
 
 def _parse_pointer(path: str) -> List[str | int]:
+    """Handle parse pointer."""
     if path == "" or path == "/":
         return []
     tokens: List[str | int] = []
@@ -38,6 +46,7 @@ def _parse_pointer(path: str) -> List[str | int]:
 
 
 def _parse_dot_path(path: str) -> List[str | int]:
+    """Handle parse dot path."""
     if path == "":
         return []
     tokens: List[str | int] = []
@@ -72,12 +81,14 @@ def _parse_dot_path(path: str) -> List[str | int]:
 
 
 def parse_path(path: str) -> List[str | int]:
+    """Parse path."""
     if path.startswith("/"):
         return _parse_pointer(path)
     return _parse_dot_path(path)
 
 
 def _get_value(data: Any, tokens: List[str | int]) -> Any:
+    """Handle get value."""
     current = data
     for token in tokens:
         current = current[token]
@@ -85,6 +96,7 @@ def _get_value(data: Any, tokens: List[str | int]) -> Any:
 
 
 def _ensure_container(container: Any, token: str | int) -> Any:
+    """Handle ensure container."""
     if isinstance(token, int):
         if container is None:
             return []
@@ -103,6 +115,7 @@ def _ensure_container(container: Any, token: str | int) -> Any:
 
 
 def _set_value(data: Any, tokens: List[str | int], value: Any) -> Any:
+    """Handle set value."""
     if not tokens:
         return value
     current = data
@@ -124,6 +137,7 @@ def _set_value(data: Any, tokens: List[str | int], value: Any) -> Any:
 
 
 def _delete_value(data: Any, tokens: List[str | int]) -> Any:
+    """Handle delete value."""
     if not tokens:
         raise ValueError("Cannot delete root")
     current = data
@@ -138,6 +152,7 @@ def _delete_value(data: Any, tokens: List[str | int]) -> Any:
 
 
 def _merge_nodes(base: Any, incoming: Any) -> Any:
+    """Handle merge nodes."""
     if isinstance(base, dict) and isinstance(incoming, dict):
         merged = dict(base)
         for key, value in incoming.items():
@@ -150,23 +165,27 @@ def _merge_nodes(base: Any, incoming: Any) -> Any:
 
 
 def json_get(text: str, path: str) -> Any:
+    """Execute json get."""
     data = json.loads(text)
     return _get_value(data, parse_path(path))
 
 
 def json_set(text: str, path: str, value: Any) -> str:
+    """Execute json set."""
     data = json.loads(text)
     updated = _set_value(data, parse_path(path), value)
     return json.dumps(updated, indent=2, ensure_ascii=False)
 
 
 def json_delete(text: str, path: str) -> str:
+    """Execute json delete."""
     data = json.loads(text)
     updated = _delete_value(data, parse_path(path))
     return json.dumps(updated, indent=2, ensure_ascii=False)
 
 
 def json_copy(text: str, from_path: str, to_path: str) -> str:
+    """Execute json copy."""
     data = json.loads(text)
     value = deepcopy(_get_value(data, parse_path(from_path)))
     updated = _set_value(data, parse_path(to_path), value)
@@ -174,6 +193,7 @@ def json_copy(text: str, from_path: str, to_path: str) -> str:
 
 
 def json_move(text: str, from_path: str, to_path: str) -> str:
+    """Execute json move."""
     data = json.loads(text)
     value = deepcopy(_get_value(data, parse_path(from_path)))
     updated = _delete_value(data, parse_path(from_path))
@@ -182,6 +202,7 @@ def json_move(text: str, from_path: str, to_path: str) -> str:
 
 
 def json_merge(text: str, path: str, value: Any) -> str:
+    """Execute json merge."""
     data = json.loads(text)
     tokens = parse_path(path)
     existing = _get_value(data, tokens) if tokens else data
@@ -191,58 +212,63 @@ def json_merge(text: str, path: str, value: Any) -> str:
 
 
 def yaml_get(text: str, path: str) -> Any:
+    """Execute yaml get."""
     if _yaml_rt is not None:
         data = _yaml_rt.load(text)
     else:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     return _get_value(data, parse_path(path))
 
 
 def yaml_set(text: str, path: str, value: Any) -> str:
+    """Execute yaml set."""
     if _yaml_rt is not None:
         data = _yaml_rt.load(text)
     else:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     updated = _set_value(data, parse_path(path), value)
     if _yaml_rt is not None:
         output = StringIO()
         _yaml_rt.dump(updated, output)
         return output.getvalue()
-    return yaml.safe_dump(updated, sort_keys=False)
+    return yaml_safe_dump(updated, sort_keys=False)
 
 
 def yaml_delete(text: str, path: str) -> str:
+    """Execute yaml delete."""
     if _yaml_rt is not None:
         data = _yaml_rt.load(text)
     else:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     updated = _delete_value(data, parse_path(path))
     if _yaml_rt is not None:
         output = StringIO()
         _yaml_rt.dump(updated, output)
         return output.getvalue()
-    return yaml.safe_dump(updated, sort_keys=False)
+    return yaml_safe_dump(updated, sort_keys=False)
 
 
 def yaml_copy(text: str, from_path: str, to_path: str) -> str:
+    """Execute yaml copy."""
     if _yaml_rt is not None:
         data = _yaml_rt.load(text)
     else:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     value = deepcopy(_get_value(data, parse_path(from_path)))
     updated = _set_value(data, parse_path(to_path), value)
     if _yaml_rt is not None:
         output = StringIO()
         _yaml_rt.dump(updated, output)
         return output.getvalue()
-    return yaml.safe_dump(updated, sort_keys=False)
+    return yaml_safe_dump(updated, sort_keys=False)
 
 
 def yaml_move(text: str, from_path: str, to_path: str) -> str:
+    """Execute yaml move."""
     if _yaml_rt is not None:
         data = _yaml_rt.load(text)
     else:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     value = deepcopy(_get_value(data, parse_path(from_path)))
     updated = _delete_value(data, parse_path(from_path))
     updated = _set_value(updated, parse_path(to_path), value)
@@ -250,14 +276,15 @@ def yaml_move(text: str, from_path: str, to_path: str) -> str:
         output = StringIO()
         _yaml_rt.dump(updated, output)
         return output.getvalue()
-    return yaml.safe_dump(updated, sort_keys=False)
+    return yaml_safe_dump(updated, sort_keys=False)
 
 
 def yaml_merge(text: str, path: str, value: Any) -> str:
+    """Execute yaml merge."""
     if _yaml_rt is not None:
         data = _yaml_rt.load(text)
     else:
-        data = yaml.safe_load(text)
+        data = yaml_safe_load(text)
     tokens = parse_path(path)
     existing = _get_value(data, tokens) if tokens else data
     merged = _merge_nodes(existing, value)
@@ -266,4 +293,4 @@ def yaml_merge(text: str, path: str, value: Any) -> str:
         output = StringIO()
         _yaml_rt.dump(updated, output)
         return output.getvalue()
-    return yaml.safe_dump(updated, sort_keys=False)
+    return yaml_safe_dump(updated, sort_keys=False)

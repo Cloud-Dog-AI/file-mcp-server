@@ -1,4 +1,10 @@
-"""Snapshot manager scaffolding."""
+"""
+file-mcp-server — file_tools/audit/snapshots.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for audit snapshots.py.
+"""
 
 from __future__ import annotations
 
@@ -9,12 +15,14 @@ import shutil
 
 
 def snapshot_path(base_dir: Path, source: Path) -> Path:
+    """Execute snapshot path."""
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     relative = source.as_posix().lstrip("/")
     return base_dir / timestamp / relative
 
 
 def create_snapshot(base_dir: Path, source: Path) -> Path:
+    """Create snapshot."""
     target = snapshot_path(base_dir, source)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
@@ -33,6 +41,7 @@ def snapshot_path_for_logical(base_dir: Path, logical_path: str) -> Path:
 
 
 def create_snapshot_bytes(base_dir: Path, logical_path: str, data: bytes) -> Path:
+    """Create snapshot bytes."""
     target = snapshot_path_for_logical(base_dir, logical_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
@@ -40,6 +49,7 @@ def create_snapshot_bytes(base_dir: Path, logical_path: str, data: bytes) -> Pat
 
 
 def _snapshot_dirs(base_dir: Path) -> list[Path]:
+    """Handle snapshot dirs."""
     if not base_dir.exists():
         return []
     entries: list[tuple[datetime, Path]] = []
@@ -58,6 +68,7 @@ def _snapshot_dirs(base_dir: Path) -> list[Path]:
 
 
 def _dir_size_bytes(path: Path) -> int:
+    """Handle dir size bytes."""
     total = 0
     for item in path.rglob("*"):
         if item.is_file():
@@ -74,6 +85,7 @@ def prune_snapshots(
     retention_count: int | None = None,
     max_storage_mb: int | None = None,
 ) -> int:
+    """Execute prune snapshots."""
     entries = _snapshot_dirs(base_dir)
     if not entries:
         return 0

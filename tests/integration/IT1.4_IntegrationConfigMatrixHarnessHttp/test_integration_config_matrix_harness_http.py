@@ -57,7 +57,9 @@ def _decode_result(result):
         },
     ],
 )
-def test_config_matrix_harness_validates_scope_limits_auth_and_audit(tmp_path: Path, variant: dict) -> None:
+def test_config_matrix_harness_validates_scope_limits_auth_and_audit(
+    tmp_path: Path, variant: dict
+) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
     (root_dir / "allowed" / "private").mkdir(parents=True, exist_ok=True)
@@ -114,17 +116,23 @@ def test_config_matrix_harness_validates_scope_limits_auth_and_audit(tmp_path: P
                         {"query": "matrix-text", "max_depth": 3, "timeout_s": 5},
                     )
                 )
-                read_payload = _decode_result(await client.call_tool("read_file", {"path": str(public_file)}))
+                read_payload = _decode_result(
+                    await client.call_tool("read_file", {"path": str(public_file)})
+                )
 
                 deny_result = None
                 if variant["deny_globs"]:
-                    (root_dir / "allowed" / "private").mkdir(parents=True, exist_ok=True)
+                    (root_dir / "allowed" / "private").mkdir(
+                        parents=True, exist_ok=True
+                    )
                     private_file.write_text("secret", encoding="utf-8")
                     with pytest.raises(Exception):
                         await client.call_tool("read_file", {"path": str(private_file)})
                     deny_result = "blocked"
 
-                delete_payload = _decode_result(await client.call_tool("delete_file", {"path": str(public_file)}))
+                delete_payload = _decode_result(
+                    await client.call_tool("delete_file", {"path": str(public_file)})
+                )
                 return {
                     "search": search_payload,
                     "read": read_payload,
@@ -140,7 +148,17 @@ def test_config_matrix_harness_validates_scope_limits_auth_and_audit(tmp_path: P
     if variant["deny_globs"]:
         assert payload["deny"] == "blocked"
 
-    entries = [json.loads(line) for line in audit_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+    entries = [
+        json.loads(line)
+        for line in audit_log.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert entries
-    assert any(entry.get("tool") == "write_file" and entry.get("status") == "ok" for entry in entries)
-    assert any(entry.get("tool") == "delete_file" and entry.get("status") == "ok" for entry in entries)
+    assert any(
+        entry.get("tool") == "write_file" and entry.get("status") == "ok"
+        for entry in entries
+    )
+    assert any(
+        entry.get("tool") == "delete_file" and entry.get("status") == "ok"
+        for entry in entries
+    )

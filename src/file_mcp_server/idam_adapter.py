@@ -53,6 +53,8 @@ class AuthResult:
 
 
 class MultiProfileTokenVerifierProtocol(Protocol):
+    """Protocol surface for profile-aware token verification."""
+
     def resolve_profile(self, conn: HTTPConnection) -> str: ...
 
     def header_for_profile(self, profile_name: str) -> tuple[str, str | None]: ...
@@ -68,10 +70,12 @@ _request_profile_name: contextvars.ContextVar[str | None] = contextvars.ContextV
 
 
 def set_request_profile_name(profile_name: str) -> None:
+    """Set request profile name."""
     _request_profile_name.set(profile_name)
 
 
 def get_request_profile_name(default: str | None = None) -> str | None:
+    """Return request profile name."""
     value = _request_profile_name.get()
     if value:
         return value
@@ -79,6 +83,7 @@ def get_request_profile_name(default: str | None = None) -> str | None:
 
 
 def key_digest(api_key: str) -> str:
+    """Execute key digest."""
     digest = sha256(api_key.encode("utf-8")).hexdigest()
     return f"sha256:{digest[:12]}"
 
@@ -88,17 +93,15 @@ key_fingerprint = key_digest
 
 
 class ApiKeyAuth:
-    """Compatibility helper retained for tests and non-runtime usage.
-
-    TODO: Remove once tests stop importing `ApiKeyAuth` directly and switch to
-    IDAM provider assertions.
-    """
+    """Compatibility helper retained for tests and non-runtime usage."""
 
     def __init__(self, api_keys: Iterable[str]) -> None:
+        """Initialise the instance state."""
         self._keys: List[str] = [key for key in api_keys if key]
         self._key_hashes = [hash_api_key(key) for key in self._keys]
 
     def validate(self, api_key: str | None) -> AuthResult:
+        """Execute validate."""
         if not self._keys:
             raise AuthError("No API keys configured")
         if not api_key:
@@ -120,12 +123,14 @@ class HeaderTokenAuthBackend(AuthenticationBackend):
         header_name: str,
         header_scheme: str | None,
     ) -> None:
+        """Initialise the instance state."""
         self.token_verifier = token_verifier
         self.header_name = header_name.lower()
         self.header_scheme = header_scheme
 
     @staticmethod
     def _extract_token(raw_header: str, scheme: str | None) -> str | None:
+        """Handle extract token."""
         value = raw_header.strip()
         if not value:
             return None
@@ -144,11 +149,13 @@ class HeaderTokenAuthBackend(AuthenticationBackend):
         conn: HTTPConnection,
         profile_name: str | None = None,
     ) -> None:
+        """Handle record failure."""
         recorder = getattr(self.token_verifier, "record_auth_failure", None)
         if callable(recorder):
             recorder(reason=reason, conn=conn, profile_name=profile_name)
 
     async def authenticate(self, conn: HTTPConnection):
+        """Execute authenticate."""
         if (
             hasattr(self.token_verifier, "resolve_profile")
             and hasattr(self.token_verifier, "header_for_profile")
@@ -215,6 +222,7 @@ class _IDAMAuditMixin:
     """Common helpers for IDAM-backed verifier audit emission."""
 
     def _normalise_optional_text(self, value: str | None) -> str | None:
+        """Handle normalise optional text."""
         if value is None:
             return None
         cleaned = value.strip()
@@ -223,6 +231,7 @@ class _IDAMAuditMixin:
         return cleaned
 
     def _correlation_id(self, conn: HTTPConnection | None) -> str:
+        """Handle correlation id."""
         if conn is None:
             return ""
         return (
@@ -240,6 +249,7 @@ class _IDAMAuditMixin:
         details: dict[str, Any],
         conn: HTTPConnection | None = None,
     ) -> None:
+        """Handle emit audit."""
         emitter = getattr(self, "_audit_emitter", None)
         if emitter is not None:
             emitter.emit(
@@ -267,6 +277,7 @@ class _IDAMAuditMixin:
 
     @staticmethod
     def _normalise_fingerprint(value: str) -> str:
+        """Handle normalise fingerprint."""
         if value.startswith("sha256:"):
             return value
         return f"sha256:{value[:12]}"
@@ -285,6 +296,7 @@ class ApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         audit_emitter: AuditEmitter | None = None,
         logger: Any | None = None,
     ) -> None:
+        """Initialise the instance state."""
         super().__init__(required_scopes=required_scopes)
         self._keys: List[str] = [key for key in api_keys if key]
         self._logger = logger
@@ -316,6 +328,7 @@ class ApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         conn: HTTPConnection | None = None,
         profile_name: str | None = None,
     ) -> None:
+        """Execute record auth failure."""
         details: dict[str, Any] = {"reason": reason}
         if profile_name:
             details["profile"] = profile_name
@@ -328,6 +341,7 @@ class ApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         )
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        """Execute verify token."""
         try:
             result = await self._registry.authenticate(
                 IDAMAuthRequest(auth_type="api_key_only", secret=token)
@@ -375,6 +389,7 @@ class ApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         )
 
     def get_middleware(self) -> list:
+        """Return middleware."""
         return [
             Middleware(
                 AuthenticationMiddleware,  # type: ignore[arg-type]
@@ -410,6 +425,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         audit_emitter: AuditEmitter | None = None,
         logger: Any | None = None,
     ) -> None:
+        """Initialise the instance state."""
         super().__init__(required_scopes=required_scopes)
         if default_profile not in profile_auth:
             raise ValueError(
@@ -461,6 +477,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
 
     def _resolve_profile_from_path(self, path: str) -> str | None:
         # Optional path selector format: /mcp/<profile>/...
+        """Handle resolve profile from path."""
         parts = [part for part in path.split("/") if part]
         if len(parts) >= 2 and parts[0].lower() == "mcp":
             candidate = parts[1].strip()
@@ -469,6 +486,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         return None
 
     def resolve_profile(self, conn: HTTPConnection) -> str:
+        """Execute resolve profile."""
         query_candidate = conn.query_params.get(self.profile_query_name)
         if query_candidate and query_candidate in self._profiles:
             self._emit_audit(
@@ -512,6 +530,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         return self.default_profile
 
     def header_for_profile(self, profile_name: str) -> tuple[str, str | None]:
+        """Execute header for profile."""
         state = self._profiles[profile_name]
         return state.header_name, state.header_scheme
 
@@ -522,6 +541,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         conn: HTTPConnection | None = None,
         profile_name: str | None = None,
     ) -> None:
+        """Execute record auth failure."""
         details: dict[str, Any] = {"reason": reason}
         if profile_name:
             details["profile"] = profile_name
@@ -536,6 +556,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
     async def verify_token_for_profile(
         self, token: str, profile_name: str
     ) -> AccessToken | None:
+        """Execute verify token for profile."""
         state = self._profiles.get(profile_name)
         if state is None:
             self._emit_audit(
@@ -615,9 +636,11 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
 
     async def verify_token(self, token: str) -> AccessToken | None:
         # Fallback for interfaces that do not pass request context.
+        """Execute verify token."""
         return await self.verify_token_for_profile(token, self.default_profile)
 
     def get_middleware(self) -> list:
+        """Return middleware."""
         return [
             Middleware(
                 AuthenticationMiddleware,  # type: ignore[arg-type]

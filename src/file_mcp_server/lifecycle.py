@@ -1,4 +1,10 @@
-"""Lifecycle helpers for PID file management."""
+"""
+file-mcp-server — file_mcp_server/lifecycle.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: Server module for file mcp server lifecycle.py.
+"""
 
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ class LifecycleStatus:
 
 
 def _pid_is_running(pid: int) -> bool:
+    """Handle pid is running."""
     if pid <= 0:
         return False
     try:
@@ -31,6 +38,7 @@ def _pid_is_running(pid: int) -> bool:
 
 
 def read_pid(pidfile: Path) -> Optional[int]:
+    """Read pid."""
     if not pidfile.exists():
         return None
     content = pidfile.read_text(encoding="utf-8").strip()
@@ -43,11 +51,13 @@ def read_pid(pidfile: Path) -> Optional[int]:
 
 
 def write_pid(pidfile: Path, pid: int) -> None:
+    """Write pid."""
     pidfile.parent.mkdir(parents=True, exist_ok=True)
     pidfile.write_text(str(pid), encoding="utf-8")
 
 
 def status_pidfile(pidfile: Path) -> LifecycleStatus:
+    """Execute status pidfile."""
     pid = read_pid(pidfile)
     if pid is None:
         return LifecycleStatus(False, None, "not running")
@@ -59,6 +69,7 @@ def status_pidfile(pidfile: Path) -> LifecycleStatus:
 def start_pidfile(
     pidfile: Path, *, pid: Optional[int] = None, force: bool = False
 ) -> LifecycleStatus:
+    """Execute start pidfile."""
     status = status_pidfile(pidfile)
     if status.running and not force:
         return LifecycleStatus(True, status.pid, "already running")
@@ -70,6 +81,7 @@ def start_pidfile(
 def stop_pidfile(
     pidfile: Path, *, send_signal: bool = False, timeout_s: float = 5.0
 ) -> LifecycleStatus:
+    """Execute stop pidfile."""
     status = status_pidfile(pidfile)
     if status.pid is None:
         return LifecycleStatus(False, None, "not running")

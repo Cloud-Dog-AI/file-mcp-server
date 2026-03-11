@@ -1,4 +1,10 @@
-"""Safe filesystem operations scaffolding."""
+"""
+file-mcp-server — file_tools/io/filesystem.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for io filesystem.py.
+"""
 
 from __future__ import annotations
 
@@ -12,22 +18,27 @@ from filelock import FileLock
 
 
 def ensure_parent(path: Path) -> None:
+    """Execute ensure parent."""
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def read_bytes(path: Path) -> bytes:
+    """Read bytes."""
     return path.read_bytes()
 
 
 def read_text(path: Path, *, encoding: str = "utf-8") -> str:
+    """Read text."""
     return path.read_text(encoding=encoding)
 
 
 def _lock_path(path: Path) -> Path:
+    """Handle lock path."""
     return path.with_suffix(path.suffix + ".lock")
 
 
 def atomic_write(path: Path, data: bytes, *, overwrite: bool = True) -> None:
+    """Execute atomic write."""
     if path.exists() and not overwrite:
         raise FileExistsError(f"Target already exists: {path}")
     ensure_parent(path)
@@ -44,16 +55,19 @@ def atomic_write(path: Path, data: bytes, *, overwrite: bool = True) -> None:
 
 
 def write_bytes(path: Path, data: bytes, *, overwrite: bool = True) -> None:
+    """Write bytes."""
     atomic_write(path, data, overwrite=overwrite)
 
 
 def write_text(
     path: Path, content: str, *, encoding: str = "utf-8", overwrite: bool = True
 ) -> None:
+    """Write text."""
     atomic_write(path, content.encode(encoding), overwrite=overwrite)
 
 
 def copy_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+    """Copy file."""
     if dst.exists() and not overwrite:
         raise FileExistsError(f"Target already exists: {dst}")
     ensure_parent(dst)
@@ -63,6 +77,7 @@ def copy_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
 
 
 def _remove_existing_target(path: Path) -> None:
+    """Handle remove existing target."""
     if path.is_dir() and not path.is_symlink():
         shutil.rmtree(path)
         return
@@ -70,6 +85,7 @@ def _remove_existing_target(path: Path) -> None:
 
 
 def move_path(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+    """Move path."""
     if dst.exists() and not overwrite:
         raise FileExistsError(f"Target already exists: {dst}")
     ensure_parent(dst)
@@ -79,18 +95,22 @@ def move_path(src: Path, dst: Path, *, overwrite: bool = False) -> None:
 
 
 def move_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+    """Move file."""
     move_path(src, dst, overwrite=overwrite)
 
 
 def rename_path(src: Path, dst: Path, *, overwrite: bool = False) -> None:
+    """Rename path."""
     move_path(src, dst, overwrite=overwrite)
 
 
 def create_dir(path: Path, *, parents: bool = True, exist_ok: bool = True) -> None:
+    """Create dir."""
     path.mkdir(parents=parents, exist_ok=exist_ok)
 
 
 def chmod_path(path: Path, mode: int, *, recursive: bool = False) -> None:
+    """Execute chmod path."""
     os.chmod(path, mode)
     if recursive and path.is_dir():
         for dirpath, dirnames, filenames in os.walk(path):
@@ -102,6 +122,7 @@ def chmod_path(path: Path, mode: int, *, recursive: bool = False) -> None:
 
 
 def delete_file(path: Path, *, missing_ok: bool = False) -> None:
+    """Delete file."""
     try:
         path.unlink()
     except FileNotFoundError:
@@ -110,10 +131,12 @@ def delete_file(path: Path, *, missing_ok: bool = False) -> None:
 
 
 def list_dir(path: Path, *, recursive: bool = False) -> List[Path]:
+    """List dir."""
     if recursive:
         return [item for item in path.rglob("*")]
     return list(path.iterdir())
 
 
 def normalize_paths(paths: Iterable[Path]) -> List[Path]:
+    """Normalise paths."""
     return [path.resolve() for path in paths]

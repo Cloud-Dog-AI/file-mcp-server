@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from tests.config_helpers import build_profile
 from file_tools.scope import ScopePolicy

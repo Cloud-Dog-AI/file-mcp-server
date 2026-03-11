@@ -54,6 +54,7 @@ class AuditEvent:
 
 
 def _to_outcome(value: str) -> str:
+    """Handle to outcome."""
     normalized = (value or "").strip().lower()
     if normalized in {"success", "ok"}:
         return "success"
@@ -63,6 +64,7 @@ def _to_outcome(value: str) -> str:
 
 
 def _to_legacy_status(outcome: str) -> str:
+    """Handle to legacy status."""
     return "ok" if outcome == "success" else "error"
 
 
@@ -70,10 +72,12 @@ class _CompatJsonlSink(AuditSink):
     """File sink retaining legacy top-level keys for existing consumers/tests."""
 
     def __init__(self, log_path: Path) -> None:
+        """Initialise the instance state."""
         self._log_path = log_path
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
 
     def emit(self, event: PlatformAuditEvent) -> None:
+        """Execute emit."""
         payload = event.to_dict()
         details = payload.get("details", {})
         if not isinstance(details, dict):
@@ -103,9 +107,11 @@ class _CompatJsonlSink(AuditSink):
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
     def flush(self) -> None:
+        """Execute flush."""
         return
 
     def close(self) -> None:
+        """Execute close."""
         return
 
 
@@ -115,6 +121,7 @@ class AuditLogger:
     def __init__(
         self, log_path: Path, *, service_name: str = "file-mcp-server"
     ) -> None:
+        """Initialise the instance state."""
         redaction = RedactionEngine(
             presets=[BUILTIN_PRESETS["default"], BUILTIN_PRESETS["file_tools"]]
         )
@@ -127,6 +134,7 @@ class AuditLogger:
         )
 
     def write(self, event: AuditEvent) -> None:
+        """Execute write."""
         detail_payload: Dict[str, Any] = {
             "tool": event.tool,
             "profile": event.profile,
@@ -157,9 +165,11 @@ class AuditLogger:
         self._logger.emit(platform_event)
 
     def flush(self) -> None:
+        """Execute flush."""
         self._logger.flush()
 
     def close(self) -> None:
+        """Execute close."""
         self._logger.close()
 
 
@@ -177,6 +187,7 @@ def build_event(
     paths: Optional[Dict[str, str]] = None,
     details: Optional[Dict[str, Any]] = None,
 ) -> AuditEvent:
+    """Build event."""
     return AuditEvent(
         tool=tool,
         action=action,

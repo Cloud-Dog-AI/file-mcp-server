@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import time
+from pathlib import Path
+
+from sqlalchemy import inspect, text
+
+from file_mcp_server.db.runtime import initialise_database, shutdown_database
+
+
+def _version_table_ref(runtime) -> str:
+    cfg = runtime.migration_runner.config
+    if cfg.version_table_schema:
+        return f"{cfg.version_table_schema}.{cfg.version_table}"
+    return cfg.version_table
+
+
+def _current_revision(runtime) -> str | None:
+    table_ref = _version_table_ref(runtime)
+    with runtime.engine.connect() as conn:
+        rows = conn.execute(text(f"SELECT version_num FROM {table_ref}")).fetchall()
+    if not rows:
+        return None
+    return str(rows[0][0])
+
+
+def _write_temp_migration(
+    script_location: Path, down_revision: str
+) -> tuple[str, Path]:
+    revision = f"w23a_test_{time.time_ns()}"
+    path = script_location / "versions" / f"{revision}_version_check.py"
+    path.write_text(
+        f'''"""temporary W23A version simulation migration"""
+from __future__ import annotations
+from alembic import op
+import sqlalchemy as sa
+
+revision = "{revision}"
+down_revision = "{down_revision}"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        "_test_version_check",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("marker", sa.String(length=64), nullable=False),
+    )
+
+
+def downgrade() -> None:
+    op.drop_table("_test_version_check")
+''',
+        encoding="utf-8",
+    )
+    return revision, path
+
+
+def test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade() -> None:
+    runtime = initialise_database(force_reinit=True)
+    try:
+        baseline_revision = _current_revision(runtime)
+        assert baseline_revision
+
+        runtime.migration_runner.downgrade("base")
+        assert _current_revision(runtime) is None
+
+        runtime.migration_runner.upgrade("head")
+        assert _current_revision(runtime) == baseline_revision
+    finally:
+        shutdown_database()
+
+
+def test_st_db_04_schema_versioning_simulation() -> None:
+    runtime = initialise_database(force_reinit=True)
+    script_location = Path(runtime.migration_runner.config.script_location)
+    baseline_revision = _current_revision(runtime)
+    assert baseline_revision
+
+    _, temp_migration = _write_temp_migration(script_location, baseline_revision)
+    try:
+        runtime.migration_runner.upgrade("head")
+        inspector = inspect(runtime.engine)
+        assert "_test_version_check" in inspector.get_table_names()
+
+        with runtime.engine.begin() as conn:
+            conn.execute(text("INSERT INTO _test_version_check (marker) VALUES ('ok')"))
+            count = conn.execute(
+                text("SELECT COUNT(*) FROM _test_version_check")
+            ).scalar_one()
+        assert count == 1
+
+        runtime.migration_runner.downgrade(baseline_revision)
+        inspector = inspect(runtime.engine)
+        assert "_test_version_check" not in inspector.get_table_names()
+    finally:
+        if temp_migration.exists():
+            temp_migration.unlink()
+        runtime.migration_runner.upgrade("head")
+        shutdown_database()

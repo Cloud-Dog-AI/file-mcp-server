@@ -1,0 +1,9 @@
+# W26A AT1.11 private overlay (git-ignored)
+# Optional overrides for dynamic profile CRUD lifecycle AT.
+# Keep secrets in Vault or other git-ignored local files only.
+
+# Optional: override default profile root used by local operators
+# FILE_MCP_W26A_AT1_11_PROFILE_ROOT=/tmp/file-mcp-w26a
+
+# Optional: override target runtime URL if running against external file-mcp
+# FILE_MCP_W26A_AT1_11_BASE_URL=http://127.0.0.1:38190

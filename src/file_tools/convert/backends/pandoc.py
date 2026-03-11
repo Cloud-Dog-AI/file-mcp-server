@@ -1,4 +1,10 @@
-"""Pandoc backend scaffolding."""
+"""
+file-mcp-server — file_tools/convert/backends/pandoc.py
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+Description: File tools module for convert backends pandoc.py.
+"""
 
 from __future__ import annotations
 
@@ -14,9 +20,11 @@ class PandocBackend(ConverterBackend):
     name = "pandoc"
 
     def is_available(self) -> bool:
+        """Return whether available."""
         return which("pandoc") is not None
 
     def can_handle(self, input_path: Path, target_format: str) -> bool:
+        """Return whether handle is supported."""
         return input_path.suffix.lower() in {".md", ".txt", ".docx"}
 
     def convert(
@@ -26,6 +34,7 @@ class PandocBackend(ConverterBackend):
         *,
         output_path: Optional[Path] = None,
     ) -> ConversionResult:
+        """Execute convert."""
         if not self.is_available():
             raise ConversionError("pandoc not available")
         output_path = output_path or input_path.with_suffix(f".{target_format}")

@@ -70,7 +70,9 @@ def test_recover_backend_after_failure(tmp_path: Path) -> None:
     assert failed.status in {"temporary_unavailable", "busy_temporary", "failed"}
 
     manager._probe_backend = lambda *_args, **_kwargs: None  # type: ignore[assignment]
-    manager._set_state("default", replace(failed, updated_at="2000-01-01T00:00:00+00:00"))
+    manager._set_state(
+        "default", replace(failed, updated_at="2000-01-01T00:00:00+00:00")
+    )
     recovered = manager.maybe_recover_backend(
         profile_name="default",
         profile=profile,

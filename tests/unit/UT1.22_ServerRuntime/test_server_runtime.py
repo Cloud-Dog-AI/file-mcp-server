@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from tests.env_runtime import runtime_env
+
 import asyncio
 from datetime import datetime, timezone
 import json
-import os
 
 from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
@@ -104,7 +105,9 @@ def test_resolve_http_settings_with_base_path() -> None:
 def test_health_middleware_supports_legacy_api_alias_path() -> None:
     sent = []
 
-    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+    async def fake_app(
+        scope, receive, send
+    ) -> None:  # pragma: no cover - fallback path
         await send({"type": "http.response.start", "status": 404, "headers": []})
         await send({"type": "http.response.body", "body": b""})
 
@@ -133,7 +136,9 @@ def test_health_middleware_supports_legacy_api_alias_path() -> None:
 def test_health_middleware_supports_legacy_root_alias_path() -> None:
     sent = []
 
-    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+    async def fake_app(
+        scope, receive, send
+    ) -> None:  # pragma: no cover - fallback path
         await send({"type": "http.response.start", "status": 404, "headers": []})
         await send({"type": "http.response.body", "body": b""})
 
@@ -336,7 +341,7 @@ def test_streamable_http_accept_compatibility_middleware_patches_json_only_accep
 
 def test_root_status_page_returns_html_summary(tmp_path) -> None:
     sent = []
-    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         (
@@ -350,7 +355,7 @@ def test_root_status_page_returns_html_summary(tmp_path) -> None:
         ),
         encoding="utf-8",
     )
-    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
 
     async def fake_app(
         scope, receive, send
@@ -394,18 +399,18 @@ def test_root_status_page_returns_html_summary(tmp_path) -> None:
         assert "Action" in body
     finally:
         if prev_config is None:
-            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
 
 
 def test_root_status_page_shows_google_drive_authorize_button_when_token_missing(
     tmp_path,
 ) -> None:
     sent = []
-    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
-    prev_admin = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    prev_admin = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         (
@@ -422,7 +427,7 @@ def test_root_status_page_shows_google_drive_authorize_button_when_token_missing
         ),
         encoding="utf-8",
     )
-    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
 
     async def fake_app(
         scope, receive, send
@@ -457,25 +462,25 @@ def test_root_status_page_shows_google_drive_authorize_button_when_token_missing
         asyncio.run(_run())
         assert sent[0]["status"] == 200
         body = sent[1]["body"].decode("utf-8")
-        assert "Authorize Google Drive" in body
+        assert "Authorise Google Drive" in body
         assert "/admin/google-drive?profile=gdrive" in body
     finally:
         if prev_config is None:
-            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
         if prev_admin is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_admin
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_admin
 
 
 def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
     sent = []
-    previous = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    previous_profiles = os.environ.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
-    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,s3,webdav,ftp,google_drive"
+    previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    previous_profiles = runtime_env.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,s3,webdav,ftp,google_drive"
 
     async def fake_app(
         scope, receive, send
@@ -512,28 +517,28 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
         asyncio.run(_run())
         assert sent[0]["status"] == 200
         body = sent[1]["body"].decode("utf-8")
-        assert "Profile is fixed for this authorization flow." in body
+        assert "Profile is fixed for this authorisation flow." in body
         assert "value='google_drive'" in body
     finally:
         if previous is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = previous
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = previous
         if previous_profiles is None:
-            os.environ.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = previous_profiles
+            runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = previous_profiles
 
 
 def test_root_status_page_returns_json_for_api_accept(tmp_path) -> None:
     sent = []
-    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         "profiles:\n  ftp:\n    storage:\n      backend: ftp\n",
         encoding="utf-8",
     )
-    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
 
     async def fake_app(
         scope, receive, send
@@ -590,15 +595,15 @@ def test_root_status_page_returns_json_for_api_accept(tmp_path) -> None:
     finally:
         ENDPOINT_HEALTH_MANAGER._states.clear()
         if prev_config is None:
-            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
 
 
 def test_health_middleware_serves_google_drive_admin_page() -> None:
     sent = []
-    previous = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
 
     async def fake_app(
         scope, receive, send
@@ -636,15 +641,15 @@ def test_health_middleware_serves_google_drive_admin_page() -> None:
         assert b"Google Drive Profile Setup" in sent[1]["body"]
     finally:
         if previous is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = previous
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = previous
 
 
 def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
     sent = []
-    previous = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
 
     async def fake_app(
         scope, receive, send
@@ -688,20 +693,20 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
         )
     finally:
         if previous is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = previous
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = previous
 
 
 def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
     tmp_path,
 ) -> None:
     sent = []
-    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    prev_profiles = os.environ.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
-    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
-    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,google_drive"
+    prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    prev_profiles = runtime_env.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
+    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,google_drive"
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         (
@@ -719,7 +724,7 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
         ),
         encoding="utf-8",
     )
-    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
 
     async def fake_app(
         scope, receive, send
@@ -767,17 +772,17 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
         )
     finally:
         if prev_enabled is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
         if prev_profiles is None:
-            os.environ.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = prev_profiles
+            runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = prev_profiles
         if prev_config is None:
-            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
 
 
 def test_health_middleware_google_drive_start_reuses_masked_secret(
@@ -785,11 +790,11 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
 ) -> None:
     sent = []
     captured: dict[str, str] = {}
-    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    prev_profiles = os.environ.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
-    prev_config = os.environ.get("FILE_MCP_ACTIVE_CONFIG_PATH")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
-    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,google_drive"
+    prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    prev_profiles = runtime_env.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
+    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,google_drive"
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         (
@@ -806,7 +811,7 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
         ),
         encoding="utf-8",
     )
-    os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
 
     def _fake_begin_oauth(data: dict[str, str]) -> str:
         captured.update(data)
@@ -861,23 +866,23 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
         assert captured["redirect_uri"].endswith("/admin/google-drive/callback")
     finally:
         if prev_enabled is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
         if prev_profiles is None:
-            os.environ.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = prev_profiles
+            runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = prev_profiles
         if prev_config is None:
-            os.environ.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
-            os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
 
 
 def test_health_middleware_reload_requires_admin_gate() -> None:
     sent = []
-    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "false"
+    prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "false"
 
     async def fake_app(
         scope, receive, send
@@ -909,18 +914,18 @@ def test_health_middleware_reload_requires_admin_gate() -> None:
         assert sent[0]["status"] == 404
     finally:
         if prev_enabled is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
 
 
 def test_health_middleware_reload_enforces_token_and_returns_json() -> None:
     sent_unauthorized = []
     sent_authorized = []
-    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    prev_token = os.environ.get("FILE_MCP_ADMIN_UI_TOKEN")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
-    os.environ["FILE_MCP_ADMIN_UI_TOKEN"] = "secret-token"
+    prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    prev_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = "secret-token"
 
     async def fake_app(
         scope, receive, send
@@ -971,19 +976,19 @@ def test_health_middleware_reload_enforces_token_and_returns_json() -> None:
         assert payload["result"]["reloaded"] is True
     finally:
         if prev_enabled is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
         if prev_token is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
 
 
 def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
     sent = []
-    prev_enabled = os.environ.get("FILE_MCP_ADMIN_UI_ENABLED")
-    os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
     monkeypatch.setattr(
         "file_mcp_server.server.complete_oauth_callback",
         lambda **kwargs: _FakeBindResult(),
@@ -1033,6 +1038,6 @@ def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
         assert len(reload_calls) == 1
     finally:
         if prev_enabled is None:
-            os.environ.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
+            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
-            os.environ["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled

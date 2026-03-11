@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from tests.env_runtime import runtime_env
+
 import asyncio
 import json
-import os
 import shutil
 from pathlib import Path
 from tests.path_helpers import project_root
@@ -59,10 +60,24 @@ def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> N
                 )
                 mismatched = await client.call_tool(
                     "convert_file",
-                    {"path": str(src), "target_format": "md", "backend": "nonexistent-backend"},
+                    {
+                        "path": str(src),
+                        "target_format": "md",
+                        "backend": "nonexistent-backend",
+                    },
                 )
-                selected_payload = json.loads("\n".join(item.text for item in selected.content if hasattr(item, "text")))
-                mismatched_payload = json.loads("\n".join(item.text for item in mismatched.content if hasattr(item, "text")))
+                selected_payload = json.loads(
+                    "\n".join(
+                        item.text for item in selected.content if hasattr(item, "text")
+                    )
+                )
+                mismatched_payload = json.loads(
+                    "\n".join(
+                        item.text
+                        for item in mismatched.content
+                        if hasattr(item, "text")
+                    )
+                )
                 return selected_payload, mismatched_payload
 
         selected_payload, mismatched_payload = asyncio.run(_calls())
@@ -89,13 +104,13 @@ def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> 
     fake_pandoc = bin_dir / "pandoc"
     fake_pandoc.write_text(
         "#!/bin/sh\n"
-        "in=\"$1\"\n"
-        "flag=\"$2\"\n"
-        "out=\"$3\"\n"
-        "if [ \"$flag\" != \"-o\" ]; then\n"
+        'in="$1"\n'
+        'flag="$2"\n'
+        'out="$3"\n'
+        'if [ "$flag" != "-o" ]; then\n'
         "  exit 2\n"
         "fi\n"
-        "cp \"$in\" \"$out\"\n",
+        'cp "$in" "$out"\n',
         encoding="utf-8",
     )
     fake_pandoc.chmod(0o755)
@@ -112,7 +127,7 @@ def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> 
             config_path=config_path,
             env_path=env_path,
             pidfile=pidfile,
-            extra_env={"PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"},
+            extra_env={"PATH": f"{bin_dir}:{runtime_env.get('PATH', '')}"},
         ):
             wait_for_health(f"http://127.0.0.1:{port}/health")
 
@@ -132,7 +147,13 @@ def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> 
                             "backend": "pandoc",
                         },
                     )
-                    return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    return json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
 
             payload = asyncio.run(_call())
             assert payload["ok"] is True
@@ -157,12 +178,12 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
     fake_soffice = bin_dir / "soffice"
     fake_soffice.write_text(
         "#!/bin/sh\n"
-        "target=\"$3\"\n"
-        "outdir=\"$5\"\n"
-        "infile=\"$6\"\n"
-        "stem=$(basename \"$infile\")\n"
+        'target="$3"\n'
+        'outdir="$5"\n'
+        'infile="$6"\n'
+        'stem=$(basename "$infile")\n'
         "stem=${stem%.*}\n"
-        "cp \"$infile\" \"$outdir/$stem.$target\"\n",
+        'cp "$infile" "$outdir/$stem.$target"\n',
         encoding="utf-8",
     )
     fake_soffice.chmod(0o755)
@@ -179,7 +200,7 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
             config_path=config_path,
             env_path=env_path,
             pidfile=pidfile,
-            extra_env={"PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"},
+            extra_env={"PATH": f"{bin_dir}:{runtime_env.get('PATH', '')}"},
         ):
             wait_for_health(f"http://127.0.0.1:{port}/health")
 
@@ -199,7 +220,13 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
                             "backend": "libreoffice",
                         },
                     )
-                    return json.loads("\n".join(item.text for item in result.content if hasattr(item, "text")))
+                    return json.loads(
+                        "\n".join(
+                            item.text
+                            for item in result.content
+                            if hasattr(item, "text")
+                        )
+                    )
 
             payload = asyncio.run(_call())
             assert payload["ok"] is True
@@ -210,7 +237,9 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
         shutil.rmtree(bin_dir, ignore_errors=True)
 
 
-def test_conversion_explicit_backend_unavailable_and_unsupported_codes(tmp_path: Path) -> None:
+def test_conversion_explicit_backend_unavailable_and_unsupported_codes(
+    tmp_path: Path,
+) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
     root_dir.mkdir(parents=True, exist_ok=True)
@@ -244,17 +273,29 @@ def test_conversion_explicit_backend_unavailable_and_unsupported_codes(tmp_path:
             ) as client:
                 unavailable = await client.call_tool(
                     "convert_file",
-                    {"path": str(office_src), "target_format": "txt", "backend": "libreoffice"},
+                    {
+                        "path": str(office_src),
+                        "target_format": "txt",
+                        "backend": "libreoffice",
+                    },
                 )
                 unsupported = await client.call_tool(
                     "convert_file",
                     {"path": str(text_src), "target_format": "md", "backend": "pdf"},
                 )
                 unavailable_payload = json.loads(
-                    "\n".join(item.text for item in unavailable.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in unavailable.content
+                        if hasattr(item, "text")
+                    )
                 )
                 unsupported_payload = json.loads(
-                    "\n".join(item.text for item in unsupported.content if hasattr(item, "text"))
+                    "\n".join(
+                        item.text
+                        for item in unsupported.content
+                        if hasattr(item, "text")
+                    )
                 )
                 return unavailable_payload, unsupported_payload
 

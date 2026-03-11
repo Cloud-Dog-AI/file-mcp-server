@@ -1,7 +1,33 @@
 from pathlib import Path
+import re
+import sys
+from functools import lru_cache
 
 import pytest
-from dotenv import load_dotenv
+from cloud_dog_config.compiler.vault_resolver import resolve_vault_identifier
+from cloud_dog_config.vault.client import VaultClient, VaultConnectionConfig
+from tests.env_runtime import runtime_env
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_SRC_DIR = _PROJECT_ROOT / "src"
+_VAULT_REF_PATTERN = re.compile(r"^\$\{(vault\.[^}]+)\}$")
+_OPTIONAL_TEST_ENV_KEYS = (
+    "TEST_ENV_TIER",
+    "TEST_WEB_BASE_PATH",
+    "TEST_A2A_BASE_PATH",
+    "CLOUD_DOG_DB__DIALECT",
+    "CLOUD_DOG_DB__HOST",
+    "CLOUD_DOG_DB__PORT",
+    "CLOUD_DOG_DB__USERNAME",
+    "CLOUD_DOG_DB__PASSWORD",
+    "CLOUD_DOG_DB__DATABASE",
+    "LOCAL_DOCKER_SOURCE_ENV",
+    "LOCAL_DOCKER_COMPOSE_FILE",
+    "LOCAL_DOCKER_PROJECT_NAME",
+    "LOCAL_DOCKER_SERVICES",
+)
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -13,6 +39,66 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+@lru_cache(maxsize=1)
+def _vault_client() -> VaultClient | None:
+    addr = runtime_env.get("VAULT_ADDR", "").strip()
+    token = runtime_env.get("VAULT_TOKEN", "").strip()
+    if not addr or not token:
+        return None
+
+    mount = runtime_env.get("VAULT_MOUNT_POINT", "").strip().strip("/")
+    config_path = runtime_env.get("VAULT_CONFIG_PATH", "").strip().strip("/")
+    if config_path:
+        mount = "/".join([part for part in (mount, config_path) if part])
+
+    try:
+        return VaultClient(
+            VaultConnectionConfig(
+                server=addr,
+                token=token,
+                timeout_seconds=10.0,
+                mount_point=mount,
+            )
+        )
+    except Exception:
+        return None
+
+
+def _resolve_env_value(raw_value: str) -> str:
+    value = raw_value.strip()
+    if not value:
+        return value
+    match = _VAULT_REF_PATTERN.match(value)
+    if match is None:
+        return value
+    client = _vault_client()
+    if client is None:
+        return value
+    resolved = resolve_vault_identifier(match.group(1), vault=client)
+    if isinstance(resolved, (str, int, float, bool)):
+        resolved_text = str(resolved).strip()
+        if resolved_text:
+            return resolved_text
+    return value
+
+
+def _load_env_file(path: Path) -> None:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith("#") or "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        if not key:
+            continue
+        runtime_env[key] = _resolve_env_value(value.strip())
+
+
+def _consume_optional_test_env_keys() -> None:
+    for key in _OPTIONAL_TEST_ENV_KEYS:
+        runtime_env.get(key, "")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def load_env_files(pytestconfig: pytest.Config) -> None:
     env_path = pytestconfig.getoption("--env")
@@ -21,4 +107,5 @@ def load_env_files(pytestconfig: pytest.Config) -> None:
     path = Path(env_path)
     if not path.exists():
         pytest.fail(f"ERROR: env file not found: {path}")
-    load_dotenv(path, override=True)
+    _load_env_file(path)
+    _consume_optional_test_env_keys()

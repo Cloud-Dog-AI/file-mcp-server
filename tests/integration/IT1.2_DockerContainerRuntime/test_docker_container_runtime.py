@@ -7,9 +7,10 @@ Description: Validate file-mcp-server container build/run behavior and network m
 
 from __future__ import annotations
 
+from tests.env_runtime import env_get, runtime_env
+
 import asyncio
 import json
-import os
 import shutil
 import socket
 import subprocess
@@ -43,7 +44,7 @@ def _wait_for_health(url: str, timeout_s: float = 20.0) -> dict:
 
 
 def _docker_cmd(*args: str) -> list[str]:
-    docker_host = os.getenv("FILE_MCP_DOCKER_HOST", "").strip()
+    docker_host = env_get("FILE_MCP_DOCKER_HOST", "").strip()
     cmd = ["docker"]
     if docker_host:
         cmd.extend(["-H", docker_host])
@@ -238,7 +239,7 @@ def _detect_docker_host_endpoint() -> str | None:
 
 @pytest.fixture(scope="session")
 def docker_image() -> str:
-    if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
+    if env_get("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
         pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_TESTS=1 to enable Docker integration tests"
         )
@@ -246,7 +247,7 @@ def docker_image() -> str:
         pytest.fail("Docker daemon unavailable")
 
     repo_root = project_root(Path(__file__))
-    requested = os.getenv("FILE_MCP_DOCKER_TEST_IMAGE", "").strip()
+    requested = env_get("FILE_MCP_DOCKER_TEST_IMAGE", "").strip()
     if requested:
         if not _docker_image_exists(repo_root, requested):
             raise RuntimeError(f"Requested docker test image not found: {requested}")
@@ -262,30 +263,30 @@ def docker_image() -> str:
 
 
 def test_docker_command_builder_supports_remote_host_flag() -> None:
-    prev = os.environ.get("FILE_MCP_DOCKER_HOST")
-    os.environ["FILE_MCP_DOCKER_HOST"] = "tcp://docker-remote:2375"
+    prev = runtime_env.get("FILE_MCP_DOCKER_HOST")
+    runtime_env["FILE_MCP_DOCKER_HOST"] = "tcp://docker-remote:2375"
     try:
         cmd = _docker_cmd("ps")
         assert cmd == ["docker", "-H", "tcp://docker-remote:2375", "ps"]
     finally:
         if prev is None:
-            os.environ.pop("FILE_MCP_DOCKER_HOST", None)
+            runtime_env.pop("FILE_MCP_DOCKER_HOST", None)
         else:
-            os.environ["FILE_MCP_DOCKER_HOST"] = prev
+            runtime_env["FILE_MCP_DOCKER_HOST"] = prev
 
 
 def test_docker_command_builder_defaults_to_local_daemon() -> None:
-    prev = os.environ.pop("FILE_MCP_DOCKER_HOST", None)
+    prev = runtime_env.pop("FILE_MCP_DOCKER_HOST", None)
     try:
         cmd = _docker_cmd("run", "--rm", "hello-world")
         assert cmd[:2] == ["docker", "run"]
     finally:
         if prev is not None:
-            os.environ["FILE_MCP_DOCKER_HOST"] = prev
+            runtime_env["FILE_MCP_DOCKER_HOST"] = prev
 
 
 def test_docker_remote_host_exec_path_if_enabled() -> None:
-    if os.getenv("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
+    if env_get("FILE_MCP_RUN_DOCKER_TESTS", "0") != "1":
         pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_TESTS=1 to enable Docker integration tests"
         )
@@ -295,16 +296,16 @@ def test_docker_remote_host_exec_path_if_enabled() -> None:
     if not docker_host:
         pytest.fail("Unable to detect a Docker host endpoint from docker context")
 
-    prev = os.environ.get("FILE_MCP_DOCKER_HOST")
-    os.environ["FILE_MCP_DOCKER_HOST"] = docker_host
+    prev = runtime_env.get("FILE_MCP_DOCKER_HOST")
+    runtime_env["FILE_MCP_DOCKER_HOST"] = docker_host
     try:
         result = _run(_docker_cmd("ps"), cwd=Path.cwd(), check=True)
         assert result.returncode == 0
     finally:
         if prev is None:
-            os.environ.pop("FILE_MCP_DOCKER_HOST", None)
+            runtime_env.pop("FILE_MCP_DOCKER_HOST", None)
         else:
-            os.environ["FILE_MCP_DOCKER_HOST"] = prev
+            runtime_env["FILE_MCP_DOCKER_HOST"] = prev
 
 
 def test_container_smoke_with_host_network_and_mcp_call(
@@ -368,7 +369,7 @@ def test_container_smoke_with_host_network_and_mcp_call(
 def test_container_smoke_with_bridge_network_port_publish(
     docker_image: str, tmp_path: Path
 ) -> None:
-    if os.getenv("FILE_MCP_RUN_DOCKER_BRIDGE_TESTS", "0") != "1":
+    if env_get("FILE_MCP_RUN_DOCKER_BRIDGE_TESTS", "0") != "1":
         pytest.fail(
             "Set FILE_MCP_RUN_DOCKER_BRIDGE_TESTS=1 to enable bridge publish validation"
         )

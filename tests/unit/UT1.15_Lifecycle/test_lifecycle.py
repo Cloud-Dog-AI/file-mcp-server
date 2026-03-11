@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from file_mcp_server.lifecycle import read_pid, start_pidfile, status_pidfile, stop_pidfile
+from file_mcp_server.lifecycle import (
+    read_pid,
+    start_pidfile,
+    status_pidfile,
+    stop_pidfile,
+)
 
 
 def test_pidfile_lifecycle(tmp_path: Path) -> None:
