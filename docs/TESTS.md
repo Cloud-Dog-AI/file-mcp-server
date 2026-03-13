@@ -1,5 +1,18 @@
 # File MCP Server Test Catalogue
 
+## Latest W28A-134 Status (2026-03-12)
+
+- Instruction file used:
+  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W28A-134-REPO-TIDY.md`
+- Verification command summaries:
+  - `.venv/bin/python -m pytest tests/quality --env tests/env-QT -q` -> `33 passed`
+  - `.venv/bin/python -m pytest tests/unit --env tests/env-UT -q` -> `140 passed`
+- Evidence paths:
+  - `working/w28a-134-qt.log`
+  - `working/w28a-134-ut.log`
+- Doc/audit insight promoted in this cycle:
+  - Dedicated DB health probe test now exists in UT (`UT1.29`, `FR1.30`, `BO1.5`) and baseline UT pass count is now 140.
+
 ## Latest W25A-B Status (2026-03-09)
 
 - Instruction file used:

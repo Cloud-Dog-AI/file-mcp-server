@@ -210,11 +210,10 @@ System shall support simple server start/stop/status routines suitable for local
 - The server SHOULD expose a health/readiness check (transport-appropriate) that reports status without disclosing secrets.
 - Health endpoints SHALL include `/health`, `/ready`, and `/live` responses aligned to PS-20.
 
-### FR1.46: A2A Health Auth Contract
-- The server SHALL expose `GET /a2a/health` in local-server and local-docker runtime modes.
-- `GET /a2a/health` without valid auth SHALL return `401`.
-- `GET /a2a/health` with `Authorization: Bearer 12345678` SHALL return `200` in strict local test mode.
-- A2A auth verification SHALL use the same API-key authority as MCP/API auth verification (no separate A2A key store).
+### FR-P001: backend_status tool
+The server SHALL expose a `backend_status` MCP tool that returns the health and configuration
+status of all configured storage backends (local, WebDAV, S3, Google Drive, FTP).
+Reference: ARCHITECTURE.md § Storage Backend Management
 
 ### FR1.24: Tool Reuse Outside Server
 - The `file_tools` library SHALL have no dependency on MCP server transport.
@@ -339,6 +338,12 @@ System shall support simple server start/stop/status routines suitable for local
 - On backend timeout/unavailable/error conditions, UI SHALL show explicit failure state and SHALL NOT silently report success.
 - Loading states SHALL be visible while requests are in flight.
 - E2E/a11y validation for closeout SHALL run against a real backend runtime (no degraded fallback mode).
+
+### FR1.46: A2A Health Auth Contract
+- The server SHALL expose `GET /a2a/health` in local-server and local-docker runtime modes.
+- `GET /a2a/health` without valid auth SHALL return `401`.
+- `GET /a2a/health` with `Authorization: Bearer 12345678` SHALL return `200` in strict local test mode.
+- A2A auth verification SHALL use the same API-key authority as MCP/API auth verification (no separate A2A key store).
 
 ---
 

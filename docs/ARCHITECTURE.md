@@ -1,196 +1,272 @@
-# File MCP Server — ARCHITECTURE.md
-Version: 0.6 • 2026-02-19
-Status: Active (Release Candidate)
+# File MCP Server — Architecture
 
-## 1. System Overview
-`file-mcp-server` is a transport-facing MCP service backed by a reusable `file_tools` library.
+## 1. Overview
+`file-mcp-server` provides file and document operations over MCP/HTTP transports with strong path scope controls, audit trails, and multi-backend storage support.
 
-Design goals:
-- deterministic file operations inside configured scope
-- strict auth + scope policy enforcement
-- mutation auditability and optional snapshots
-- tool reuse outside server runtime
+The system exposes a large tool surface for read/write, structured editing (JSON/YAML/XML/Markdown), conversions, diff/meld, validation, and remote storage interactions. Runtime behaviour is profile-driven, allowing isolated policy sets per workspace or tenant.
 
-Out of scope:
-- LLM/model integration
-- internet crawling/search
+This service is a foundational utility backend for platform workflows that require deterministic and policy-safe file operations.
 
-## 2. Runtime Architecture
+## 2. System Context Diagram
+```mermaid
+graph TB
+    subgraph External
+        USER[Client / Agent]
+        FS[Local Filesystem]
+        S3[S3-Compatible Storage]
+        DAV[WebDAV/FTP]
+        GDRIVE[Google Drive]
+        DB[(SQLite/PostgreSQL)]
+        VAULT[HashiCorp Vault]
+    end
 
-### 2.1 Layers
-- `src/file_tools/*`: reusable domain modules (config, scope, IO, edit, search, validate, convert, audit, diff)
-- `src/file_mcp_server/*`: transport/auth/dispatch lifecycle layer
+    subgraph "Cloud-Dog AI Platform"
+        THIS[<b>file-mcp-server</b>]
+        CHAT[chat-client]
+        GIT[git-mcp-server]
+        INDEX[index-retriever-mcp-server]
+        EXP[expert-agent-mcp-server]
+    end
 
-### 2.2 Core Runtime Flow
-1. Load config through `file_tools.config.adapter`, which delegates to `cloud_dog_config` (PS-80 precedence/compile).
-2. Load all configured profiles and set a server default profile.
-3. Resolve active profile per request (query/header with default fallback), then apply profile-aware auth and registry routing.
-4. Run endpoint health startup checks for configured backends.
-5. Configure structured operational/audit logging through `cloud_dog_logging` (PS-40) using loaded profile config paths/levels.
-6. For each call: authenticate -> scope-check -> backend health gate -> execute handler -> return structured output/error.
-7. Propagate correlation ID through request middleware into app + audit entries for tool call/result tracing.
-8. For mutating calls: optional snapshot + validation + append-only audit event.
+    USER -->|MCP tools| THIS
+    CHAT -->|file workflows| THIS
+    GIT -->|file ops composition| THIS
+    INDEX -->|ingest pre-processing| THIS
+    EXP -->|file ingest paths| THIS
+    THIS -->|read/write/scope| FS
+    THIS -->|remote storage ops| S3
+    THIS -->|remote storage ops| DAV
+    THIS -->|drive auth + files| GDRIVE
+    THIS -->|platform DB state| DB
+    THIS -->|secrets/config| VAULT
+```
 
-### 2.3 Key Modules
-- `src/file_mcp_server/server.py`: FastMCP transport wiring, middleware, tool registration, file-level handlers.
-- `src/file_mcp_server/server.py`: compatibility export layer (thin module, migration-safe import surface).
-- `src/file_mcp_server/server_runtime.py`: FastMCP transport wiring, middleware, tool registration, file-level handlers.
-- `src/file_mcp_server/main.py`: CLI commands (`serve`, `start`, `stop`, `status`).
-- `src/file_mcp_server/lifecycle.py`: pidfile and lifecycle primitives.
-- `src/file_mcp_server/endpoint_health.py`: endpoint probe/retry/recovery manager.
-- `src/file_tools/config/adapter.py`: `cloud_dog_config` bridge that binds output into `ServerConfig`.
-- `cloud_dog_config`: platform config package handling precedence, compile, Vault expressions, and immutable snapshots.
-- `src/file_tools/observability.py`: bridge configuring PS-40 logging from loaded `ProfileConfig`.
-- `src/file_tools/audit/adapter.py`: audit compatibility adapter mapping domain events to PS-40 audit schema.
-- `cloud_dog_logging`: platform logging package handling JSONL formatting, redaction, sinks, and correlation context.
-- `src/file_tools/scope/policy.py`: path and allow/deny enforcement.
-- `src/file_tools/audit/snapshots.py`: domain snapshot lifecycle/retention.
-- `src/file_tools/storage/google_drive.py`: Google Drive backend implementation.
+`file-mcp-server` is primarily a secure file-operation engine with pluggable storage targets and protocol-compatible MCP interfaces.
 
-## 3. Configuration Model
+## 3. Component Architecture
+```mermaid
+graph LR
+    subgraph Transport Layer
+        HTTP[HTTP Runtime<br/>server_runtime.py]
+        MCP[MCP Contract<br/>tools/list + tools/call]
+        ADMIN[Admin Routes<br/>status + Google Drive setup]
+    end
 
-### 3.1 Precedence
-1. `os.environ`
-2. `--env-path` file
-3. `config.yaml`
-4. `defaults.yaml`
+    subgraph Domain Layer
+        REG[Tool Registry<br/>file_tools/tools/registry.py]
+        SCOPE[Scope Policy<br/>file_tools/scope]
+        EDIT[Edit Engines<br/>json/yaml/xml/md/sed]
+        CONV[Conversion Backends]
+        SEARCH[Search + Diff/Meld]
+        AUTH[IDAM Adapter]
+        AUDIT[Audit + Snapshots]
+    end
 
-### 3.2 Profile Areas
-- `auth`: API keys, header name/scheme
-- `storage`: backend selection (local/s3/webdav/ftp/google_drive) and TLS controls
-- `scope`: roots, allow/deny globs, extension constraints
-- `audit`: log path and options
-- `snapshots`: mode + retention (`days`, `count`, `max_storage_mb`)
-- `validation`: per-type policy (`strict` / `warn` / `ignore`)
-- `limits`: search limits (`max_results`, `max_file_mb`, `search_timeout_s`), storage timeout, and conversion timeout
-- `conversion`: backends and input-size limit
-- `endpoint_health`: startup checks, retry policy, recovery cooldown, restart threshold
-  - includes optional process-exit policy (`restart_on_threshold`, `restart_exit_code`)
+    subgraph Data Layer
+        STORAGE[Storage Backends<br/>local/s3/webdav/ftp/gdrive]
+        DBRT[Platform DB Runtime]
+        STATE[FilePlatformDbState]
+    end
 
-## 4. Transport & Interface
+    HTTP --> MCP --> REG
+    HTTP --> ADMIN
+    REG --> SCOPE
+    REG --> EDIT
+    REG --> CONV
+    REG --> SEARCH
+    REG --> STORAGE
+    HTTP --> AUTH
+    REG --> AUDIT
+    HTTP --> DBRT --> STATE
+```
 
-### 4.1 Supported HTTP Modes
-Configured by `http.transport`:
-- `streamable-http` (default): MCP streamable HTTP endpoint on `http.mcp_path` (default `/mcp`)
-- `http`: non-streaming MCP HTTP endpoint on `http.mcp_path`
-- `sse`: SSE endpoint on `http.events_path` (default `/events`)
+The runtime separates protocol handling from tool implementations, allowing policy checks and auditing to wrap every tool execution uniformly.
 
-Health endpoint:
-- `GET http.health_path` (default `/health`)
-- `GET /ready`
-- `GET /live`
-- Admin endpoints (when enabled):
-  - `GET /admin/google-drive`
-  - `POST /admin/google-drive/start`
-  - `GET /admin/google-drive/callback`
-  - `POST /admin/reload`
+## 4. Module Decomposition
+| Module | Path | Responsibility | Platform Package |
+|---|---|---|---|
+| Runtime server | `src/file_mcp_server/server_runtime.py` | HTTP/MCP contract, readiness, admin routes, tool registration | `cloud_dog_api_kit` compatible patterns |
+| Entrypoint | `src/file_mcp_server/main.py` | CLI process control and env wiring | — |
+| Auth adapter | `src/file_mcp_server/idam_adapter.py` | Token verification and request context | `cloud_dog_idam` |
+| DB runtime/models | `src/file_mcp_server/db/runtime.py`, `src/file_mcp_server/db/models.py` | DB startup and platform state table | `cloud_dog_db` |
+| Tool registry | `src/file_tools/tools/registry.py` | Tool definitions and dispatch contract | — |
+| Config models | `src/file_tools/config/models.py` | Typed profile configuration | `cloud_dog_config` |
+| Audit subsystem | `src/file_tools/audit/*` | JSONL audit events and snapshots | `cloud_dog_logging` |
+| Storage backends | `src/file_tools/storage/*` | local/s3/webdav/ftp/gdrive backends | — |
+| File engines | `src/file_tools/io/*`, `src/file_tools/edit/*`, `src/file_tools/convert/*` | Core file operation implementations | — |
 
-### 4.2 Authentication
-- API key required for tool calls.
-- Header name and scheme are profile-configurable.
-- Validation is profile-aware: selected-profile keys are accepted, cross-profile keys are rejected.
-- Raw secrets are never written to logs.
+## 5. Data Model
+```mermaid
+erDiagram
+    FILE_PLATFORM_DB_STATE {
+        int id
+        string service
+        string status
+        datetime created_at
+        datetime updated_at
+    }
+```
 
-### 4.3 Profile Selection
-- Server default profile is set by `FILE_MCP_PROFILE` / CLI `--profile`.
-- Request-level override is supported by:
-  - query parameter `profile=<name>`
-  - header `X-File-MCP-Profile: <name>`
-- If override is missing or unknown, server default profile is used.
+`file-mcp-server` uses `cloud_dog_db` for runtime DB integration and currently persists service-level platform state in `file_platform_db_state`. Operational artefacts (audit JSONL, snapshots, file outputs) are stored in filesystem/storage backends.
 
-## 5. Tool Surface
+## 6. Interface Specifications
+### 6.1 REST API
+| Method | Path | Description | Auth |
+|---|---|---|---|
+| GET | `/health` | Liveness and profile health summary | None |
+| GET | `/ready` | Readiness with dependency checks | None |
+| GET | `/` | Status page/summary payload | Optional |
+| GET | `/mcp/tools` | MCP tool catalogue helper | Optional/API key |
+| POST | `/mcp` | MCP JSON-RPC endpoint (streamable/http mode) | API key/JWT (profile dependent) |
+| GET | `/admin/google-drive` | Google Drive setup UI | Admin auth |
+| GET | `/admin/google-drive/callback` | OAuth callback | Admin auth |
+| POST | `/admin/reload` | Reload profile/tool registry | Admin auth |
 
-Tool groups:
-- filesystem (`read_file`, `write_file`, `copy_file`, `move_file`, `delete_file`, `list_dir`)
-- search (`search_paths`, `search_content`)
-- structured text/object operations (`json_*`, `yaml_*`, `xml_set_file`, `html_set_file`, `markdown_*`)
-- sed-like edits (`sed_edit_file`)
-- validate (`validate_text`, `validate_file`)
-- conversion (`convert_file`)
-- diff and optional GUI compare (`diff_text`, `diff_files`, `meld_files`)
-- base64 operations (`b64_*`)
-- runtime status (`backend_status`)
+### 6.2 MCP Tools
+| Tool | Description | Category |
+|---|---|---|
+| `read_file`, `write_file`, `delete_file`, `move_file`, `copy_file` | Core file CRUD | io |
+| `list_dir`, `create_dir`, `move_path`, `rename_path` | Directory/path operations | io |
+| `search_content`, `search_paths` | Content/path search | search |
+| `json_*`, `yaml_*`, `xml_set_file`, `markdown_*`, `sed_edit_file` | Structured editing operations | edit |
+| `convert_file` | Document conversion pipeline | conversion |
+| `diff_files`, `diff_text`, `meld_files` | Comparison workflows | diff |
+| `validate_file`, `validate_text` | Validation and policy checks | validation |
+| `backend_status` | Backend status probe | admin |
 
-Mutating operations support `dry_run` where deterministic preview is possible.
+### 6.3 A2A Endpoints
+Dedicated A2A server is not a primary surface in this project; the canonical machine interface is MCP/HTTP.
 
-## 6. Data Safety & Integrity
+## 7. Dependencies & External Services
+### 7.1 Platform Packages
+| Package | Version | Usage in this project |
+|---|---|---|
+| `cloud_dog_api_kit` | `>=0.2.0` | HTTP integration patterns and server conventions |
+| `cloud_dog_config` | `>=0.2.0` | Profile/config loading |
+| `cloud_dog_db` | `>=0.1.0` | DB runtime and `PlatformBase` models |
+| `cloud_dog_idam` | `>=0.2.0` | Auth middleware and token verification |
+| `cloud_dog_logging` | `>=0.2.0` | Structured audit/log adapters |
 
-### 6.1 Scope Enforcement
-- normalize + root-bound checks
-- allow/deny glob checks
-- extension constraints
-- no traversal/cross-root escape
+### 7.2 External Services
+| Service | Purpose | Connection | Vault Path |
+|---|---|---|---|
+| Local filesystem | Primary storage backend | profile storage config | n/a |
+| S3/WebDAV/FTP | Remote storage backends | profile storage config | `dev.storage.*` |
+| Google Drive | Remote storage backend with OAuth | admin setup + profile config | `dev.storage.gdrive.*` |
+| SQL database | Platform state persistence | `db.url`/runtime config | `dev.databases.*` |
+| Vault | Secret/config resolution | env + vault client | `secret/*` |
 
-### 6.2 Mutation Safety
-- atomic write path in IO layer
-- configurable post-edit validation
-- append-only audit entries for all mutation attempts
-- snapshot creation before change when enabled
+### 7.3 Cross-Project Dependencies
+```mermaid
+graph LR
+    THIS[<b>file-mcp-server</b>]
+    CHAT[chat-client]
+    GIT[git-mcp-server]
+    INDEX[index-retriever]
+    EXP[expert-agent]
 
-### 6.3 Snapshot Retention
-Retention supports:
-- `retention_days`
-- `retention_count`
-- `max_storage_mb`
+    CHAT -->|user file workflows| THIS
+    GIT -->|branch/file helper composition| THIS
+    INDEX -->|file extraction pre-step| THIS
+    EXP -->|upload/ingest workflows| THIS
+```
 
-Applied in prune order: age -> count -> size.
+## 8. Configuration Architecture
+```mermaid
+graph TD
+    ENV[os.environ] --> MERGE
+    YAML[defaults.yaml + config.yaml] --> MERGE
+    PROFILE[profiles.* blocks] --> MERGE
+    VAULT[Vault references] --> MERGE
+    MERGE[cloud_dog_config adapter] --> APP[file runtime]
+```
 
-## 7. Search Model
-- path and content search across scoped roots
-- optional `max_depth` traversal control
-- optional `timeout_s` operation bound
-- respects deny patterns and file-size/result limits
+Profile domains include auth, scope, audit, limits, conversion, storage, TLS, and endpoint-health behaviours.
 
-## 8. Operations & Lifecycle
+## 9. Security Architecture
+- Authentication: profile-configurable IDAM/token validation at runtime.
+- Authorisation: scope policies and role-sensitive admin endpoints.
+- Secrets: backend credentials from env/Vault-backed profile settings.
+- Audit: per-operation audit records and optional snapshot retention.
+- Network: health/readiness/admin and MCP endpoints with configurable TLS/proxy behaviour.
 
-### 8.1 CLI
-- `python -m file_mcp_server serve ...`
-- `python -m file_mcp_server start ...`
-- `python -m file_mcp_server stop ...`
-- `python -m file_mcp_server status ...`
+## 10. Deployment Architecture
+```mermaid
+graph TB
+    subgraph Development
+        DEV[Local venv + profile config]
+    end
 
-### 8.2 Lifecycle Script
-Project-provided wrapper:
-- `./server_control.sh --env <env-file> start|stop|status|restart|serve`
+    subgraph Preprod
+        PRE[Docker runtime]
+        PRESTOR[(remote/local storage)]
+        PREDB[(SQL DB)]
+        PREV[Vault]
+    end
 
-`--env` is required by design for explicit operational context.
+    subgraph Production
+        PROD[Managed deployment]
+        PRODSTOR[(managed storage backends)]
+        PRODDB[(managed SQL)]
+        PRODV[Vault]
+        PROXY[TLS Proxy]
+    end
 
-### 8.3 Endpoint Health Lifecycle
-- Startup probes evaluate configured backends and classify status (`healthy`, `temporary_unavailable`, `busy_temporary`, `auth_failed`, `failed`).
-- Runtime calls trigger delayed recovery attempts for unhealthy backends.
-- Endpoint state is queryable via the `backend_status` tool and logged during startup and retries.
-- When `restart_on_threshold` is enabled and threshold is reached, the server exits with `restart_exit_code` so an external supervisor/container policy can restart it.
+    DEV -.->|promote| PRE
+    PRE -.->|promote| PROD
+    PRE --> PRESTOR
+    PRE --> PREDB
+    PRE --> PREV
+    PROD --> PRODSTOR
+    PROD --> PRODDB
+    PROD --> PRODV
+```
 
-### 8.4 Runtime Reload Lifecycle
-- Middleware hosts admin routes for Google Drive onboarding and profile rebinding.
-- `POST /admin/reload` rebuilds the active profile registry from current env/config/defaults.
-- Reload path reruns endpoint startup checks and updates `backend_status` state.
-- Admin route access is explicitly gated by `FILE_MCP_ADMIN_UI_ENABLED` and optional `FILE_MCP_ADMIN_UI_TOKEN`.
+## 11. Key Flows
+### 11.1 MCP Tool Execution Flow
+```mermaid
+sequenceDiagram
+    participant C as MCP Client
+    participant RT as Runtime Server
+    participant AUTH as Auth Adapter
+    participant REG as Tool Registry
+    participant POL as Scope Policy
+    participant ST as Storage Backend
+    participant AUD as Audit Logger
 
-## 9. Storage Backend Architecture
+    C->>RT: tools/call(tool, args)
+    RT->>AUTH: validate request context
+    AUTH-->>RT: authorised
+    RT->>REG: resolve tool handler
+    REG->>POL: validate path/scope policy
+    POL-->>REG: allowed
+    REG->>ST: execute backend operation
+    ST-->>REG: result
+    REG->>AUD: write audit record
+    REG-->>RT: result envelope
+    RT-->>C: MCP response
+```
 
-### 9.1 Shared Backend Contract
-- Backends implement `StorageBackend` with logical POSIX path semantics.
-- Unsupported capabilities return deterministic `Not supported for backend` errors.
-- Local and remote backends share the same MCP tool surface where semantics are valid.
-- WebDAV backend includes configurable transient `MOVE` retry/backoff logic with destination-state confirmation for partial-success cases.
+### 11.2 Google Drive Admin Setup Flow
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant UI as /admin/google-drive
+    participant O as OAuth Provider
+    participant RT as Runtime
 
-### 9.2 Google Drive Backend
-- Uses OAuth credentials and token refresh against Google OAuth token endpoint.
-- Resolves target root from `folder_id` or Google Drive folder URL.
-- Supports read/write/list/delete/copy/move/create-dir semantics scoped to the configured Drive folder.
-- Returns deterministic not-supported for POSIX-only operations such as `chmod_path`.
+    A->>UI: open setup page
+    UI->>O: initiate OAuth flow
+    O-->>RT: callback with auth code
+    RT->>RT: persist credential references
+    RT-->>A: setup result + profile status
+```
 
-## 10. Testing Architecture
-- Unit tests for module correctness.
-- System tests for runtime contracts.
-- Integration tests for multi-module behavior over real HTTP tool calls.
-- Application tests for realistic multi-step workflows.
-
-Current baseline: full suite green (`181 passed, 15 skipped`) under smoke env; additional suites remain explicitly flag-gated (docker, remote matrix, live OAuth/live Drive, preprod).
-
-## 11. Documentation Map
-- Requirements: `docs/REQUIREMENTS.md`
-- Tasks traceability: `docs/TASKS.md`
-- Test traceability + run evidence: `docs/TESTS.md`
-- API contract summary: `API_DOCUMENTATION.md` and `openapi.json`
+## 12. Non-Functional Characteristics
+| Characteristic | Approach |
+|---|---|
+| Scalability | Stateless tool dispatch over pluggable storage backends |
+| Reliability | Endpoint health manager, readiness checks, deterministic tool envelopes |
+| Observability | Structured audit JSONL + operation metadata |
+| Performance | Direct backend execution with bounded limits/timeouts |
+| Maintainability | Clear split between runtime, tool library, storage, and config models |

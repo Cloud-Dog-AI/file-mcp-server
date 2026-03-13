@@ -2,8 +2,10 @@
 .env
 private/env-*
 private/*
+data/
 __pycache__/
 *.py[cod]
+*.db
 docker-build.log
 run/certs/
 run/env.handoff
@@ -19,3 +21,9 @@ logs/
 *.pid
 run/workspace/logs/
 *.log
+.pytest_cache/
+.mypy_cache/
+dist/
+*.egg-info/
+private/
+env-*-secrets

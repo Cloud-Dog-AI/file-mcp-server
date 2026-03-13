@@ -516,3 +516,16 @@ I acknowledge this failure and the time it cost. I will not repeat this behaviou
   - ST (`env-ST-local-docker`): pass (`21 passed`).
   - IT (`env-IT-local-docker`): pass (`34 passed, 11 skipped`).
   - AT (`env-AT-local-docker`): pass (`9 passed, 1 skipped`).
+
+## 2026-03-12 — W28A-134-E repo tidy and documentation completion
+
+- Added missing mandatory docs in `docs/`:
+  - `BUILD.md`
+  - `DEPLOY.md`
+  - `API-REFERENCE.md`
+  - `ENV-REFERENCE.md`
+- Added root `.env.example` for non-secret baseline runtime configuration.
+- Normalised `README.md` sections to platform-required order (quick start, architecture, interfaces, configuration, standards, doc links, licence).
+- Archived superseded root documentation files into `archive/superseded-docs/` and moved malformed tracked scratch artefact into `archive/scratch/`.
+- Updated `docs/ARCHITECTURE.md` documentation map to point to current API/build/deploy/env references.
+- Updated `docs/TESTS.md` with latest W28A-134 verification evidence (`QT=33`, `UT=140`).
