@@ -46,8 +46,11 @@ COPY --from=cloud_dog_site_packages /cloud_dog_api_kit /usr/local/lib/python3.11
 COPY --from=cloud_dog_config_src /cloud_dog_config /usr/local/lib/python3.11/site-packages/cloud_dog_config
 COPY --from=cloud_dog_site_packages /cloud_dog_idam /usr/local/lib/python3.11/site-packages/cloud_dog_idam
 COPY --from=cloud_dog_logging_src /cloud_dog_logging /usr/local/lib/python3.11/site-packages/cloud_dog_logging
+COPY --from=cloud_dog_db_src /cloud_dog_db /usr/local/lib/python3.11/site-packages/cloud_dog_db
 
 FROM python:3.11-slim
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.vendor="Cloud-Dog, Viewdeck Engineering Limited"
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -86,6 +89,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src ./src
 COPY scripts ./scripts
+COPY pyproject.toml ./pyproject.toml
 COPY server_control.sh ./server_control.sh
 COPY defaults.yaml ./defaults.yaml
 COPY config.yaml ./config.yaml
@@ -97,8 +101,9 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 COPY healthcheck.sh ./healthcheck.sh
 COPY DOCKER-README.me ./DOCKER-README.me
 COPY certs ./certs
+COPY database ./database
 
-RUN mkdir -p /app/.run /app/logs /app/certs /app/storage /app/tmp /app/archive /app/database
+RUN mkdir -p /app/.run /app/logs /app/certs /app/storage /app/tmp /app/archive
 RUN chmod +x /app/docker-entrypoint.sh /app/healthcheck.sh /app/server_control.sh
 
 ENV PYTHONUNBUFFERED=1

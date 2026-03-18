@@ -87,8 +87,8 @@ Build/deploy guidance: [docs/BUILD.md](docs/BUILD.md), [docs/DEPLOY.md](docs/DEP
 | [RULES.md](RULES.md) | Project rules extending platform rules |
 | [CONTEXT-SUMMARY.md](CONTEXT-SUMMARY.md) | Current project context and handoff notes |
 
+---
+
 ## Licence
 
-Apache 2.0 — © 2026 Cloud-Dog, Viewdeck Engineering Limited
-
-See [LICENCE](LICENCE) for full text.
+Apache-2.0 — Copyright (c) 2026 Cloud-Dog, Viewdeck Engineering Limited
