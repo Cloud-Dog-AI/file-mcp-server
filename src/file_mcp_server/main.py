@@ -1,6 +1,4 @@
 # Copyright 2026 Cloud-Dog, Viewdeck Engineering Limited
-# """
-# License: Apache 2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,6 +33,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from os import environ as runtime_env
 
 import typer
 
@@ -62,35 +61,35 @@ def serve(
 ) -> None:
     """Run the FastMCP HTTP/SSE server."""
     if env_path:
-        os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = str(
+        runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = str(
             Path(env_path).expanduser().resolve()
         )
     else:
-        os.environ["FILE_MCP_ACTIVE_ENV_PATH"] = ""
+        runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = ""
     if config_path:
-        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
+        runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
             Path(config_path).expanduser().resolve()
         )
     else:
-        os.environ["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
+        runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
             (Path.cwd() / "config.yaml").resolve()
         )
     if defaults_path:
-        os.environ["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
+        runtime_env["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
             Path(defaults_path).expanduser().resolve()
         )
     else:
-        os.environ["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
+        runtime_env["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
             (Path.cwd() / "defaults.yaml").resolve()
         )
-    os.environ["FILE_MCP_ACTIVE_PROFILE"] = profile
+    runtime_env["FILE_MCP_ACTIVE_PROFILE"] = profile
 
     config = load_config(
         env_path=env_path,
         config_path=config_path,
         defaults_path=defaults_path,
     )
-    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
+    runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
     profile_config = get_profile(config, name=profile)
     logger = configure_logging_for_profile(profile_config)
     current_pid = os.getpid()

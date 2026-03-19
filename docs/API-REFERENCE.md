@@ -111,7 +111,7 @@ Example request (tool call):
 
 | Method | Path | Purpose | Auth | Response |
 |---|---|---|---|---|
-| `GET` | `/a2a/health` | A2A health contract in local runtime test mode | Required (`Authorization: Bearer <API key>`) | `200` with valid key, `401` otherwise |
+| `GET` | `/a2a/health` | A2A health contract in local runtime test mode | Required (`Authorisation: Bearer <API key>`) | `200` with valid key, `401` otherwise |
 
 ## 4. Error Contract
 

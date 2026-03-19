@@ -1,0 +1,10 @@
+# Detailed Change Report
+
+- report_window_sessions: 3
+- included_session_ids: 20260315_191906, 20260315_201253, 20260317_165744
+
+<thinking>Okay, let's tackle this analyst report. The user wants a detailed comparison of changes across the past 6 sessions and the current one, focusing on trend shifts, source consistency, and confidence deltas. But wait, the report window sessions are only 3, with session IDs 20260315_191906, 20260315_201253, and 20260317_165744. The current session is 20260317_165744. Hmm, maybe the user meant the past 3 sessions leading up to the current one? The mention of 6 sessions might be a mistake, but I'll proceed with t</thinking><reasoning>Okay, let's tackle this analyst report. The user wants a detailed comparison of changes across the past 6 sessions and the current one, focusing on trend shifts, source consistency, and confidence deltas. But wait, the report window sessions are only 3, with session IDs 20260315_191906, 20260315_201253, and 20260317_165744. The current session is 20260317_165744. Hmm, maybe the user meant the past 3 sessions leading up to the current one? The mention of 6 sessions might be a mistake, but I'll proceed with the three provided.
+
+First, I need to look at the access logs and the downloaded files. The sessions on 2026-03-15 have accesses to both www.gov.uk and www.army.mod.uk, while the current session on 2026-03-17 also accessed both sites. The files downloaded in the current session are from www.gov.uk and www.army.mod.uk, similar to the previous sessions. However, the specific file paths and URLs might have changed. For example, in the earlier session (20260315_191906), there were specific government publications like the Strategic Defence Review 2025 and a case study on operational analysis. The current session's files are named more generically, like www.gov.uk_20260317_165744_01_root.md, which might indicate a broader or mor
+
+DEFAULT_OK

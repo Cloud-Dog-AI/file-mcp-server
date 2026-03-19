@@ -16,7 +16,7 @@
 |---|---|---|---|---|
 | `FILE_MCP_API_KEY_PRIMARY` | Primary API key for profile auth | none | Yes | `secret` |
 | `FILE_MCP_API_KEY_SECONDARY` | Secondary API key (rotation/testing) | empty | No | `12345678` |
-| `FILE_MCP_AUTH_HEADER_NAME` | Auth header name | `Authorization` | Yes | `Authorization` |
+| `FILE_MCP_AUTH_HEADER_NAME` | Auth header name | `Authorisation` | Yes | `Authorisation` |
 | `FILE_MCP_AUTH_HEADER_SCHEME` | Auth scheme | `Bearer` | Yes | `Bearer` |
 | `FILE_MCP_ROOT` | Scope root path | none | Yes | `.` |
 | `FILE_MCP_AUDIT_LOG` | Audit JSONL output path | none | Yes | `./working/test-env-ut/audit.log.jsonl` |

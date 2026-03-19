@@ -89,7 +89,7 @@ Every requirement MUST map to at least one task and at least one test.
 **Architecture:** 6.2 Search
 **Tests:** UT1.5, IT1.4
 **Dependencies:** T4
-**Status:** Completed (search utilities + unit tests added; HTTP IT1.4 coverage now verifies deny-glob enforcement, regex path search, size limits, and max-results behavior)
+**Status:** Completed (search utilities + unit tests added; HTTP IT1.4 coverage now verifies deny-glob enforcement, regex path search, size limits, and max-results behaviour)
 
 ### T7: Base64 Utilities
 **Description:** Implement base64 encode/decode helpers and optional file-based operations.
@@ -212,7 +212,7 @@ Every requirement MUST map to at least one task and at least one test.
 **Status:** Completed (added `openapi.json` and `API_DOCUMENTATION.md`)
 
 ### T22: Search Depth/Timeout Controls
-**Description:** Add optional search traversal depth and timeout controls and verify behavior through integration flows.
+**Description:** Add optional search traversal depth and timeout controls and verify behaviour through integration flows.
 **Requirements:** FR1.9, NF1.2, CS1.5
 **Architecture:** 6.2 Search, 7.2 Performance
 **Tests:** IT1.4, IT1.9

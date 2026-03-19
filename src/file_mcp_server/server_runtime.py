@@ -1,6 +1,4 @@
 # Copyright 2026 Cloud-Dog, Viewdeck Engineering Limited
-# """
-# License: Apache 2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,18 +36,18 @@ from html import escape
 
 import inspect
 import json
-import logging
-import os
 import sys
 import time
 import uuid
 from urllib.parse import parse_qs
 import re
+from os import getenv as read_env_var
 
 from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
+from cloud_dog_logging import get_logger  # type: ignore[import-untyped]
 from cloud_dog_api_kit.correlation.context import (  # type: ignore[import-not-found,import-untyped]
     get_correlation_id as get_api_kit_correlation_id,
     set_correlation_id as set_api_kit_correlation_id,
@@ -345,32 +343,32 @@ class HealthCheckMiddleware:
         self.a2a_auth_verifier = a2a_auth_verifier
         self.db_runtime = db_runtime
         self.a2a_base_path = _normalize_path(
-            os.getenv("TEST_A2A_BASE_PATH"), default="/a2a"
+            read_env_var("TEST_A2A_BASE_PATH"), default="/a2a"
         )
         self.a2a_health_path = _join_paths(self.a2a_base_path, "/health")
-        self.logger = logging.getLogger("file_mcp_server.admin")
+        self.logger = get_logger("file_mcp_server.admin")
         self.app_name = "file-mcp-server"
-        self.version = str(os.getenv("FILE_MCP_VERSION") or "0.0.0").strip() or "0.0.0"
-        self.env_file = str(os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
+        self.version = str(read_env_var("FILE_MCP_VERSION") or "0.0.0").strip() or "0.0.0"
+        self.env_file = str(read_env_var("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
         self.active_config = str(
-            os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml"
+            read_env_var("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml"
         )
         self.profile_names = [
             name.strip()
             for name in (
-                os.getenv("FILE_MCP_ACTIVE_PROFILE_NAMES") or profile_name
+                read_env_var("FILE_MCP_ACTIVE_PROFILE_NAMES") or profile_name
             ).split(",")
             if name.strip()
         ]
         self.admin_ui_enabled = _to_bool(
-            os.getenv("FILE_MCP_ADMIN_UI_ENABLED"), default=False
+            read_env_var("FILE_MCP_ADMIN_UI_ENABLED"), default=False
         )
-        self.admin_ui_token = str(os.getenv("FILE_MCP_ADMIN_UI_TOKEN") or "").strip()
+        self.admin_ui_token = str(read_env_var("FILE_MCP_ADMIN_UI_TOKEN") or "").strip()
         self.admin_apply_on_callback = _to_bool(
-            os.getenv("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
+            read_env_var("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
         )
         self.enable_legacy_api_alias = _to_bool(
-            os.getenv("FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS"), default=True
+            read_env_var("FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS"), default=True
         )
         self.callback_host_fallback = callback_host_fallback.strip()
 
@@ -591,7 +589,7 @@ class HealthCheckMiddleware:
         match = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", text)
         if not match:
             return text
-        return str(os.getenv(match.group(1), "")).strip()
+        return str(read_env_var(match.group(1), "")).strip()
 
     def _configured_value(self, value: Any) -> str:
         """Handle configured value."""
@@ -630,7 +628,7 @@ class HealthCheckMiddleware:
             "redirect_uri": callback_url,
             "token_uri": "",
         }
-        defaults_path = str(os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
+        defaults_path = str(read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
         try:
             cfg = load_config(
                 env_path=self.env_file,
@@ -3953,9 +3951,9 @@ async def run_fastmcp_http_server(
     reload_fn = getattr(server, "_file_mcp_reload_registry", None)
     registry_provider = getattr(server, "_file_mcp_registry_provider", None)
     auth_verifier = getattr(server, "_file_mcp_auth_verifier", None)
-    env_path = os.getenv("FILE_MCP_ACTIVE_ENV_PATH") or None
-    config_path = os.getenv("FILE_MCP_ACTIVE_CONFIG_PATH") or None
-    defaults_path = os.getenv("FILE_MCP_ACTIVE_DEFAULTS_PATH") or None
+    env_path = read_env_var("FILE_MCP_ACTIVE_ENV_PATH") or None
+    config_path = read_env_var("FILE_MCP_ACTIVE_CONFIG_PATH") or None
+    defaults_path = read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or None
 
     def _reload_callback():
         """Handle reload callback."""

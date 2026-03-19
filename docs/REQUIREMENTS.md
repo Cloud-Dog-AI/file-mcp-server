@@ -243,7 +243,7 @@ Reference: ARCHITECTURE.md § Storage Backend Management
 
 ### FR1.30: Endpoint Health Startup Checks
 - On startup, the system SHALL probe configured storage endpoints and record per-backend status (`healthy`, `temporary_unavailable`, `busy_temporary`, `auth_failed`, `failed`).
-- Startup checks SHALL support configurable retry behavior (`max_retries`, `retry_interval_s`, `retry_window_s`).
+- Startup checks SHALL support configurable retry behaviour (`max_retries`, `retry_interval_s`, `retry_window_s`).
 - The server SHALL log startup endpoint status to console and operational logs.
 
 ### FR1.31: Endpoint Health Runtime Recovery
@@ -342,7 +342,7 @@ Reference: ARCHITECTURE.md § Storage Backend Management
 ### FR1.46: A2A Health Auth Contract
 - The server SHALL expose `GET /a2a/health` in local-server and local-docker runtime modes.
 - `GET /a2a/health` without valid auth SHALL return `401`.
-- `GET /a2a/health` with `Authorization: Bearer 12345678` SHALL return `200` in strict local test mode.
+- `GET /a2a/health` with `Authorisation: Bearer 12345678` SHALL return `200` in strict local test mode.
 - A2A auth verification SHALL use the same API-key authority as MCP/API auth verification (no separate A2A key store).
 
 ---

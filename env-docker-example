@@ -47,15 +47,15 @@ FILE_MCP_SNAPSHOT_DIR=/workspace/logs/snapshots
 # Auth contract (profile-specific keys for local/s3/webdav/ftp profiles)
 FILE_MCP_AUTH_HEADER_NAME=Authorization
 FILE_MCP_AUTH_HEADER_SCHEME=Bearer
-FILE_MCP_API_KEY_LOCAL=preprod-local-key
-FILE_MCP_API_KEY_S3=preprod-s3-key
-FILE_MCP_API_KEY_WEBDAV=preprod-webdav-key
-FILE_MCP_API_KEY_FTP=preprod-ftp-key
+FILE_MCP_API_KEY_LOCAL=changeme
+FILE_MCP_API_KEY_S3=changeme
+FILE_MCP_API_KEY_WEBDAV=changeme
+FILE_MCP_API_KEY_FTP=changeme
 
 # Compatibility + A2A test contract key
-FILE_MCP_API_KEY_PRIMARY=preprod-local-key
-FILE_MCP_API_KEY_SECONDARY=preprod-a2a-key
-TEST_A2A_API_KEY=preprod-a2a-key
+FILE_MCP_API_KEY_PRIMARY=changeme
+FILE_MCP_API_KEY_SECONDARY=changeme
+TEST_A2A_API_KEY=changeme
 
 # Remote backend endpoints and credentials
 # S3 / MinIO
@@ -87,7 +87,7 @@ FILE_MCP_FTP_USE_TLS=false
 # Tokens/folder are deployment-specific and should be set per environment.
 FILE_MCP_GDRIVE_CLIENT_ID=${vault.dev.storage.google_drive.client_id}
 FILE_MCP_GDRIVE_CLIENT_SECRET=${vault.dev.storage.google_drive.client_secret}
-FILE_MCP_GDRIVE_TOKEN_URI=https://oauth2.googleapis.com/token
+FILE_MCP_GDRIVE_TOKEN_URI=changeme
 FILE_MCP_GDRIVE_REDIRECT_URI=http://127.0.0.1:18090/admin/google-drive/callback
 FILE_MCP_GDRIVE_USER_EMAIL=
 FILE_MCP_GDRIVE_FOLDER_ID=

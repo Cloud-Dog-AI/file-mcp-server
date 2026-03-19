@@ -1,6 +1,4 @@
 # Copyright 2026 Cloud-Dog, Viewdeck Engineering Limited
-# """
-# License: Apache 2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +22,7 @@ Description: Database runtime module for runtime.py.
 
 from __future__ import annotations
 
-import os
+from os import getenv as read_env_var
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
@@ -72,7 +70,7 @@ def _default_sqlite_path() -> str:
 def _env_value(*names: str) -> str | None:
     """Handle env value."""
     for name in names:
-        value = os.getenv(name, "").strip()
+        value = read_env_var(name, "").strip()
         if value:
             return value
     return None

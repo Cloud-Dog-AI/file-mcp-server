@@ -23,6 +23,8 @@ argon2-cffi>=23.0
 cryptography>=42.0
 PyJWT[crypto]>=2.8
 SQLAlchemy>=2.0
+pymysql>=1.1,<2.0
+psycopg[binary]>=3.2,<4.0
 fastmcp
 fastapi>=0.110,<1.0
 uvicorn>=0.30,<1.0

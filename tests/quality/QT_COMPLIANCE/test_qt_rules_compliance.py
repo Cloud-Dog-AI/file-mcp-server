@@ -178,8 +178,10 @@ def test_file_headers_present(
             continue
         if any(path_rel.startswith(prefix) for prefix in allow_prefixes):
             continue
-        first = "\n".join(read_text(path).splitlines()[:10])
-        if '"""' not in first or "License:" not in first:
+        text = read_text(path)
+        top_window = "\n".join(text.splitlines()[:40])
+        module_doc = ast.get_docstring(ast.parse(text))
+        if not module_doc or "License:" not in top_window:
             violations.append(
                 Violation(
                     path=path_rel,

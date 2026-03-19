@@ -22,6 +22,7 @@ CERT_ARG=""
 CLOUD_DOG_SITE_PACKAGES="${CLOUD_DOG_SITE_PACKAGES:-}"
 CLOUD_DOG_CONFIG_SRC="${CLOUD_DOG_CONFIG_SRC:-}"
 CLOUD_DOG_LOGGING_SRC="${CLOUD_DOG_LOGGING_SRC:-}"
+CLOUD_DOG_DB_SRC="${CLOUD_DOG_DB_SRC:-}"
 
 if [[ -z "${CLOUD_DOG_SITE_PACKAGES}" ]]; then
   CLOUD_DOG_SITE_PACKAGES="$(find .venv/lib -maxdepth 2 -type d -name site-packages 2>/dev/null | head -n 1 || true)"
@@ -41,6 +42,10 @@ if [[ -z "${CLOUD_DOG_LOGGING_SRC}" && -f "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog
   CLOUD_DOG_LOGGING_SRC="$(head -n 1 "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_logging.pth" | tr -d '\r')"
 fi
 
+if [[ -z "${CLOUD_DOG_DB_SRC}" && -f "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_db.pth" ]]; then
+  CLOUD_DOG_DB_SRC="$(head -n 1 "${CLOUD_DOG_SITE_PACKAGES}/_cloud_dog_db.pth" | tr -d '\r')"
+fi
+
 if [[ ! -d "${CLOUD_DOG_CONFIG_SRC}/cloud_dog_config" ]]; then
   echo "Unable to locate cloud_dog_config source: ${CLOUD_DOG_CONFIG_SRC:-<unset>}"
   echo "Set CLOUD_DOG_CONFIG_SRC=<path> and re-run."
@@ -53,6 +58,12 @@ if [[ ! -d "${CLOUD_DOG_LOGGING_SRC}/cloud_dog_logging" ]]; then
   exit 1
 fi
 
+if [[ ! -d "${CLOUD_DOG_DB_SRC}/cloud_dog_db" ]]; then
+  echo "Unable to locate cloud_dog_db source: ${CLOUD_DOG_DB_SRC:-<unset>}"
+  echo "Set CLOUD_DOG_DB_SRC=<path> and re-run."
+  exit 1
+fi
+
 echo "=========================================="
 echo "Docker Build"
 echo "=========================================="
@@ -62,6 +73,7 @@ echo "CA Cert: ${CUSTOM_CA_CERT:-<none>}"
 echo "Cloud packages: ${CLOUD_DOG_SITE_PACKAGES}"
 echo "cloud_dog_config src: ${CLOUD_DOG_CONFIG_SRC}"
 echo "cloud_dog_logging src: ${CLOUD_DOG_LOGGING_SRC}"
+echo "cloud_dog_db src: ${CLOUD_DOG_DB_SRC}"
 echo "=========================================="
 
 if [[ -n "${CUSTOM_CA_CERT}" && -f "${CUSTOM_CA_CERT}" ]]; then
@@ -78,6 +90,7 @@ docker buildx build \
   --build-context cloud_dog_site_packages="${CLOUD_DOG_SITE_PACKAGES}" \
   --build-context cloud_dog_config_src="${CLOUD_DOG_CONFIG_SRC}" \
   --build-context cloud_dog_logging_src="${CLOUD_DOG_LOGGING_SRC}" \
+  --build-context cloud_dog_db_src="${CLOUD_DOG_DB_SRC}" \
   -f Dockerfile \
   ${CERT_ARG} \
   --build-arg HTTP_PROXY="${HTTP_PROXY:-}" \

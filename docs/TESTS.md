@@ -1,417 +1,283 @@
-# File MCP Server Test Catalogue
+# File MCP Server - TESTS
 
-## Latest W28A-134 Status (2026-03-12)
+## Test Catalogue
 
-- Instruction file used:
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W28A-134-REPO-TIDY.md`
-- Verification command summaries:
-  - `.venv/bin/python -m pytest tests/quality --env tests/env-QT -q` -> `33 passed`
-  - `.venv/bin/python -m pytest tests/unit --env tests/env-UT -q` -> `140 passed`
-- Evidence paths:
-  - `working/w28a-134-qt.log`
-  - `working/w28a-134-ut.log`
-- Doc/audit insight promoted in this cycle:
-  - Dedicated DB health probe test now exists in UT (`UT1.29`, `FR1.30`, `BO1.5`) and baseline UT pass count is now 140.
+| # | Test ID | Type | Suite Scope | Traces To | Last Run | Result |
+|---|---|---|---|---|---|---|
+| 1 | UT1.10 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 2 | UT1.11 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 3 | UT1.12 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 4 | UT1.13 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 5 | UT1.14 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 6 | UT1.15 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 7 | UT1.16 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 8 | UT1.17 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 9 | UT1.18 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 10 | UT1.19 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 11 | UT1.1 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 12 | UT1.20 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 13 | UT1.21 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 14 | UT1.22 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 15 | UT1.23 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 16 | UT1.24 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 17 | UT1.25 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 18 | UT1.26 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 19 | UT1.27 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 20 | UT1.28 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 21 | UT1.29 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 22 | UT1.2 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 23 | UT1.3 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 24 | UT1.4 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 25 | UT1.5 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 26 | UT1.6 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 27 | UT1.7 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 28 | UT1.8 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 29 | UT1.9 | UT | `tests/unit` | FR1.7, FR1.8, FR1.18 | 2026-03-13 | See `working/` logs |
+| 30 | ST1.10 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 31 | ST1.11 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 32 | ST1.12 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 33 | ST1.13 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 34 | ST1.14 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 35 | ST1.15 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 36 | ST1.16 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 37 | ST1.17 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 38 | ST1.1 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 39 | ST1.2 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 40 | ST1.3 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 41 | ST1.4 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 42 | ST1.5 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 43 | ST1.6 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 44 | ST1.7 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 45 | ST1.8 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 46 | ST1.9 | ST | `tests/system` | FR1.2, FR1.5, NF1.1 | 2026-03-13 | See `working/` logs |
+| 47 | IT1.10 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 48 | IT1.11 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 49 | IT1.12 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 50 | IT1.13 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 51 | IT1.14 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 52 | IT1.15 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 53 | IT1.16 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 54 | IT1.17 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 55 | IT1.18 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 56 | IT1.19 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 57 | IT1.1 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 58 | IT1.20 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 59 | IT1.21 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 60 | IT1.22 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 61 | IT1.23 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 62 | IT1.24 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 63 | IT1.25 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 64 | IT1.2 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 65 | IT1.3 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 66 | IT1.4 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 67 | IT1.5 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 68 | IT1.6 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 69 | IT1.7 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 70 | IT1.8 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 71 | IT1.9 | IT | `tests/integration` | FR1.3, FR1.6, FR1.19 | 2026-03-13 | See `working/` logs |
+| 72 | AT1.10 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 73 | AT1.11 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 74 | AT1.12 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 75 | AT1.1 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 76 | AT1.2 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 77 | AT1.3 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 78 | AT1.4 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 79 | AT1.5 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 80 | AT1.6 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 81 | AT1.7 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 82 | AT1.8 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 83 | AT1.9 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
 
-## Latest W25A-B Status (2026-03-09)
+## Requirement Coverage References
 
-- Instruction file used:
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W25A-B-FIX-CONFIG-BURNDOWN.md`
-- Config/runtime work completed in this run:
-  - added missing `tests/env-QT` to support explicit QT tier execution with `--env tests/env-QT`.
-- Strict command summaries:
-  - `python3 -m pytest tests/quality --env tests/env-QT -q -rs` -> `30 passed`
-  - `python3 -m pytest tests/unit --env tests/env-UT -q -rs` -> `139 passed, 1 skipped`
-- Evidence paths:
-  - `working/w25ab-config-file-qt-after.log`
-  - `working/w25ab-config-file-ut-after.log`
-  - `working/W25A-B-FIX-CONFIG-BURNDOWN-REPORT.md`
+The following requirement IDs are explicitly tracked in this test catalogue:
+- BO1.1
+- BO1.2
+- BO1.3
+- BO1.4
+- BO1.5
+- BR1.1
+- BR1.2
+- BR1.3
+- BR1.4
+- BR1.5
+- BR1.6
+- CS1.1
+- CS1.2
+- CS1.3
+- CS1.4
+- CS1.5
+- FR1.1
+- FR1.10
+- FR1.11
+- FR1.12
+- FR1.13
+- FR1.14
+- FR1.15
+- FR1.16
+- FR1.17
+- FR1.18
+- FR1.19
+- FR1.2
+- FR1.20
+- FR1.21
+- FR1.22
+- FR1.23
+- FR1.24
+- FR1.25
+- FR1.26
+- FR1.27
+- FR1.28
+- FR1.29
+- FR1.3
+- FR1.30
+- FR1.31
+- FR1.32
+- FR1.33
+- FR1.34
+- FR1.35
+- FR1.36
+- FR1.37
+- FR1.38
+- FR1.39
+- FR1.4
+- FR1.40
+- FR1.41
+- FR1.42
+- FR1.43
+- FR1.44
+- FR1.45
+- FR1.46
+- FR1.5
+- FR1.6
+- FR1.7
+- FR1.8
+- FR1.9
+- NF1.1
+- NF1.2
+- NF1.3
+- NF1.4
+- NF1.5
+- NF1.6
+- NF1.7
+- NF1.8
+- SV1.1
+- SV1.2
+- SV1.3
+- SV1.4
+- UC1.1
+- UC1.10
+- UC1.11
+- UC1.12
+- UC1.13
+- UC1.14
+- UC1.2
+- UC1.3
+- UC1.4
+- UC1.5
+- UC1.6
+- UC1.7
+- UC1.8
+- UC1.9
 
-## Latest W14B-04 Status (2026-03-01)
+## File Index
 
-- Instruction file used:
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W14B-04-FILE-MCP-A2A-ENABLE-AUTH-CONTRACT-STRICT.md`
-- Hard-stop prechecks:
-  - `GET /a2a/health` without auth -> `401`
-  - `GET /a2a/health` with `Authorization: Bearer 12345678` -> `200`
-  - `/a2a/health` is no longer `404` in local-docker runtime.
-- Runtime/env contract updates:
-  - local env contracts include `TEST_A2A_API_KEY=12345678`
-  - local runtime auth contract includes `FILE_MCP_API_KEY_SECONDARY=12345678`
-- Exact strict backend summary lines:
-  - `137 passed, 1 skipped`
-  - `21 passed`
-  - `40 passed, 5 skipped`
-  - `9 passed, 1 skipped`
-- Exact strict UI summary lines:
-  - `e2e: 16 passed (41.6s)`
-  - `a11y: 6 passed (17.9s)`
-- Evidence paths:
-  - `working/W14B-04-FILE-MCP-A2A-ENABLE-AUTH-CONTRACT-REPORT-2026-03-01.md`
-  - `/tmp/w14b04_file_ensure.log`
-  - `/tmp/w14b04_file_health.json`
-  - `/tmp/w14b04_file_mcp_tools.json`
-  - `/tmp/w14b04_file_a2a_noauth.code`
-  - `/tmp/w14b04_file_a2a_auth.code`
-  - `/tmp/w14b04_file_ut.log`
-  - `/tmp/w14b04_file_st.log`
-  - `/tmp/w14b04_file_it.log`
-  - `/tmp/w14b04_file_at.log`
-  - `/tmp/w14b04_file_ui_lint.log`
-  - `/tmp/w14b04_file_ui_typecheck.log`
-  - `/tmp/w14b04_file_ui_e2e.log`
-  - `/tmp/w14b04_file_ui_a11y.log`
-- Current status: `COMPLETE VERIFIED`
-
-## Latest W14A-03 Status (2026-03-01)
-
-- Instruction file used:
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W14A-03-FILE-MCP-ROUTE-PFX-AND-TRACKER-RECONCILE-STRICT.md`
-- Route-prefix contract adopted in active env files:
-  - `TEST_API_BASE_PATH=/app/v1`
-  - `TEST_MCP_BASE_PATH=/mcp`
-  - `TEST_WEB_BASE_PATH=/`
-  - `TEST_A2A_BASE_PATH=/a2a`
-- Runtime route behavior:
-  - canonical API: `/app/v1/*`
-  - canonical MCP: `/mcp` (`GET /mcp/tools`)
-  - compatibility aliases (explicit): `/health`, `/ready`, `/live`, and `/api/v1/health`
-- Exact strict backend summary lines:
-  - `133 passed, 1 skipped`
-  - `21 passed`
-  - `39 passed, 5 skipped`
-  - `8 passed, 1 skipped`
-- Exact strict UI summary lines (uncached):
-  - `e2e: 16 passed (41.6s)`
-  - `a11y: 6 passed (17.9s)`
-- Evidence paths:
-  - `working/W14A-03-FILE-MCP-ROUTE-PFX-AND-TRACKER-RECONCILE-REPORT-2026-03-01.md`
-  - `working/w14a03/precheck-runtime-ensure.log`
-  - `working/w14a03/precheck-health.json`
-  - `working/w14a03/precheck-tools.json`
-  - `working/w14a03/pytest-ut.log`
-  - `working/w14a03/pytest-st.log`
-  - `working/w14a03/pytest-it.log`
-  - `working/w14a03/pytest-at.log`
-  - `working/w14a03/health-canonical.json`
-  - `working/w14a03/tools-canonical.json`
-  - `working/w14a03/health-legacy-alias.json`
-  - `working/w14a03/ui-lint.log`
-  - `working/w14a03/ui-typecheck.log`
-  - `working/w14a03/ui-e2e.log`
-  - `working/w14a03/ui-a11y.log`
-  - `working/w14a03/ui-last-run.json`
-- Current status: `COMPLETE VERIFIED`
-
-## Latest W11D Status (2026-02-28)
-
-- Instruction files used:
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W11D-04-FILE-MCP-LOCAL-DOCKER-IT-AT-STRICT.md`
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W11D-04A-FILE-MCP-CONTRACT-PUBLISH-CONSUMER-HANDOFF.md`
-  - `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W11D-04B-FILE-MCP-ROOT-SCOPE-CONTRACT-STRICT.md`
-- Runtime env/controller env files used:
-  - `tests/env-local-docker-server`
-  - `tests/env-IT-local-docker`
-  - `tests/env-AT-local-docker`
-- Runtime image + hash:
-  - `cloud-dog/file-mcp-server:latest`
-  - `sha256:f1f25680c614fcfab73134ba5475cf2a5f03a4549aeb717308ba0caaa3858cca`
-- Exact commands run:
-  - `bash local-docker-server.sh --env tests/env-local-docker-server ensure`
-  - `curl -fsS http://127.0.0.1:18090/health`
-  - `curl -fsS http://127.0.0.1:18090/mcp/tools`
-  - `./.venv/bin/python -m pytest tests/integration/ --env tests/env-IT-local-docker -q`
-  - `./.venv/bin/python -m pytest tests/application/ --env tests/env-AT-local-docker -q`
-  - W11D-04B strict sequence: `IT1.23`, `IT1.6`, `IT1.3`, `IT1.5`, `IT1.15`, `AT1.9`, restart, `IT1.6` (Req: `FR1.23`, `FR1.6`, `FR1.10`, `FR1.11`, `CS1.2`)
-- Exact summary lines:
-  - `39 passed, 5 skipped`
-  - `8 passed, 1 skipped`
-  - W11D-04B producer strict suites: all required suites passed
-- Evidence report paths:
-  - `working/W11D-P4-FILE-MCP-LOCAL-DOCKER-IT-AT-REPORT-2026-02-27.md`
-  - `working/W11D-P4A-FILE-MCP-CONTRACT-PUBLISH-REPORT-2026-02-28.md`
-  - `working/W11D-P4B-FILE-MCP-ROOT-SCOPE-CONTRACT-REPORT-2026-02-28.md`
-  - Consumer closure evidence: `chat-client/working/W11D-P6B-FILE-MCP-CONSUMER-ALIGNMENT-RERUN-2026-02-28.md`
-- Current status: `COMPLETE VERIFIED`
-
-## Latest Verified Execution (2026-02-23)
-
-| Tier | Command | Result |
-|---|---|---|
-| UT | `python3 -m pytest tests/unit/ --env tests/env-UT -v --tb=short` | `122 passed, 1 skipped, 0 failed` |
-| ST | `python3 -m pytest tests/system/ --env tests/env-ST -v --tb=short` | `21 passed, 0 skipped, 0 failed` |
-| IT | `set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a; python3 -m pytest tests/integration/ --env tests/env-IT -v --tb=short` | `29 passed, 16 skipped, 0 failed` |
-| AT | `set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a; python3 -m pytest tests/application/ --env tests/env-IT -v --tb=short` | `8 passed, 1 skipped, 0 failed` |
-| Total | Tiered suite above | `180 passed, 18 skipped, 0 failed` |
-
-## W11D-04A Local-Docker Contract Publish (2026-02-28)
-
-| Item | Evidence |
-|---|---|
-| Instruction | `AGENT-INSTRUCTION-W11D-04A-FILE-MCP-CONTRACT-PUBLISH-CONSUMER-HANDOFF.md` |
-| Control env | `tests/env-local-docker-server` (`LOCAL_DOCKER_SOURCE_ENV=tests/env-IT-local-docker`) |
-| Runtime image target | `docker-compose.local.yml` -> running container image `cloud-dog/file-mcp-server:latest` |
-| Runtime ensure command | `bash local-docker-server.sh --env tests/env-local-docker-server ensure` |
-| Runtime ensure result | `ALREADY RUNNING with matching env` |
-| Endpoint prechecks | `curl -fsS http://127.0.0.1:18090/health >/tmp/w11d04a_file_health.json` (`status=ok`) |
-| MCP contract endpoint | `http://127.0.0.1:18090/mcp` |
-| Auth contract | `Authorization: Bearer <FILE_MCP_API_KEY_PRIMARY>` |
-| IT command | `./.venv/bin/python -m pytest tests/integration/ --env tests/env-IT-local-docker -q` -> `39 passed, 5 skipped` |
-| AT command | `./.venv/bin/python -m pytest tests/application/ --env tests/env-AT-local-docker -q` -> `8 passed, 1 skipped` |
-| Container/image identity | `file-mcp-local`, image `cloud-dog/file-mcp-server:latest`, image id `sha256:f1f25680c614fcfab73134ba5475cf2a5f03a4549aeb717308ba0caaa3858cca` |
-| Report | `working/W11D-P4A-FILE-MCP-CONTRACT-PUBLISH-REPORT-2026-02-28.md` |
-
-## W11D-04B Root/Scope Contract Strict (2026-02-28)
-
-| Item | Evidence |
-|---|---|
-| Instruction | `AGENT-INSTRUCTION-W11D-04B-FILE-MCP-ROOT-SCOPE-CONTRACT-STRICT.md` |
-| Runtime preconditions | `health=ok`, `FILE_MCP_ROOT=.`, `FILE_MCP_HTTP_PORT=18090`, `GET /mcp/tools -> TOOLS_OK 54` |
-| Contract decode artifact | `/tmp/w11d04b_chat_path_contract.txt` (`PATH_CONTRACT_LINES 9`) |
-| File-MCP strict suites | `IT1.23`, `IT1.6`, `IT1.3`, `IT1.5`, `IT1.15`, `AT1.9`, restart, `IT1.6` -> all passed |
-| Consumer strict suites | `IT2.12`, `IT2.13`, `IT2.14`, `IT2.16`, `AT1.10`, `AT1.11` -> passed (Req: `FR1.24`, `FR1.2`) |
-| Consumer blocker | Historical only (2026-02-28 initial run): `AT1.12` failed in chat-client with `500 INTERNAL_ERROR: ... missing MARKER line`; resolved by consumer rerun evidence (`chat-client/working/W11D-P6B-FILE-MCP-CONSUMER-ALIGNMENT-RERUN-2026-02-28.md`). (Req: `FR1.24`) |
-| Error mapping proof | `/sessions/{id}/mcp/files/upload` returns `502` + code `UPSTREAM_ERROR` when upstream tool returns `isError=true` |
-| Report | `working/W11D-P4B-FILE-MCP-ROOT-SCOPE-CONTRACT-REPORT-2026-02-28.md` |
-
-## Consumer Handoff (chat-client)
-
-- Runtime controller: `bash local-docker-server.sh --env tests/env-local-docker-server ensure`
-- Health endpoint: `http://127.0.0.1:18090/health`
-- MCP endpoint: `http://127.0.0.1:18090/mcp`
-- Tools index compatibility endpoint: `http://127.0.0.1:18090/mcp/tools`
-- MCP auth header: `Authorization: Bearer <FILE_MCP_API_KEY_PRIMARY>`
-- A2A health endpoint: `http://127.0.0.1:18090/a2a/health`
-- A2A strict local auth header: `Authorization: Bearer <TEST_A2A_API_KEY>`
-- Consumer preflight: assert health endpoint `status=ok` before initiating MCP calls.
-
-## Migration Verification Scripts (2026-02-23)
-
-| Script | Result |
-|---|---|
-| `migration/verify/verify-file-mcp-server-CONFIG.sh` | `14/14 PASS` |
-| `migration/verify/verify-file-mcp-server-LOGGING.sh` | `15/15 PASS` |
-| `migration/verify/verify-file-mcp-server-API-KIT.sh` | `17/17 PASS` |
-| `migration/verify/verify-file-mcp-server-IDAM.sh` | `15/15 PASS` |
-
-## Mock/Stub Audit (RULES.md §5.5)
-
-| File | Tier | Outcome |
-|---|---|---|
-| `test_api_kit_contract.py` | UT | Uses in-process test doubles only; allowed in UT. |
-| `test_google_drive_admin.py` | UT | Uses monkeypatching for isolated OAuth/admin logic; allowed in UT. |
-| `test_server_runtime.py` | UT | Uses in-process middleware/app harnessing; allowed in UT. |
-| `test_system_conversion_backend_selection.py` | IT | Reclassified to IT because it boots a real server and performs HTTP MCP calls. |
-| `test_webdav_storage.py` | UT | Uses monkeypatching for backend unit logic; allowed in UT. |
-
-## UT Catalogue
-
-| ID Folder | Module | What Is Tested |
-|---|---|---|
-| `UT1.10_Filesystem` | `test_filesystem.py` | Filesystem utility tests (`FR1.7`, `FR1.8`, `NF1.1`) |
-| `UT1.11_GoogleDriveAdmin` | `test_google_drive_admin.py` | Tests for server-hosted Google Drive admin flow helpers |
-| `UT1.12_GoogleDriveOauthHelper` | `test_google_drive_oauth_helper.py` | Unit tests for OAuth URL generation and local CLI guidance (`FR1.32`) |
-| `UT1.13_GoogleDriveSetupScript` | `test_google_drive_setup_script.py` | Unit tests for interactive Google Drive setup script helpers |
-| `UT1.14_GoogleDriveStorage` | `test_google_drive_storage.py` | Google Drive storage unit tests |
-| `UT1.15_Lifecycle` | `test_lifecycle.py` | Lifecycle |
-| `UT1.16_Observability` | `test_observability.py` | Observability helper tests |
-| `UT1.17_Posix` | `test_posix.py` | POSIX portability tests |
-| `UT1.18_ScopePolicy` | `test_scope_policy.py` | Scope policy |
-| `UT1.19_Search` | `test_search.py` | Search utility tests |
-| `UT1.1_ApiKitContract` | `test_api_kit_contract.py` | Api kit contract |
-| `UT1.20_Sedlike` | `test_sedlike.py` | Sed-like edit tests |
-| `UT1.21_ServerDispatch` | `test_server_dispatch.py` | Server dispatch |
-| `UT1.22_ServerRuntime` | `test_server_runtime.py` | Server runtime |
-| `UT1.23_ToolReuse` | `test_tool_reuse.py` | Tool reuse tests |
-| `UT1.24_ToolsRegistry` | `test_tools_registry.py` | Tool registry tests |
-| `UT1.25_Validate` | `test_validate.py` | Validation policy tests |
-| `UT1.26_WebdavStorage` | `test_webdav_storage.py` | WebDAV backend unit tests |
-| `UT1.27_RemoteStoragePlaceholderValidation` | `test_remote_storage_placeholder_validation.py` | Placeholder rejection across remote storage credential fields |
-| `UT1.28_RemoteEnvHelpers` | `test_remote_env_helpers.py` | Remote env/profile merge helpers including Google OAuth config hydration |
-| `UT1.29_DatabaseAbstraction` | `test_database_abstraction.py` | Database abstraction contract and session lifecycle behavior |
-| `UT1.2_Audit` | `test_audit.py` | Audit |
-| `UT1.3_Auth` | `test_auth.py` | Auth |
-| `UT1.4_ConfigLoader` | `test_config_loader.py` | Config loader tests |
-| `UT1.5_Convert` | `test_convert.py` | Conversion pipeline tests |
-| `UT1.6_Diff` | `test_diff.py` | Diff utility tests |
-| `UT1.7_EditStructured` | `test_edit_structured.py` | Structured edit tests |
-| `UT1.8_Encoding` | `test_encoding.py` | Base64 encoding tests |
-| `UT1.9_EndpointHealth` | `test_endpoint_health.py` | Endpoint health manager tests |
-
-## ST Catalogue
-
-| ID Folder | Module | What Is Tested |
-|---|---|---|
-| `ST1.10_SystemLimitsTimeout` | `test_system_limits_timeout.py` | System limits timeout (`CS1.5`, `NF1.2`) |
-| `ST1.11_SystemReadPartialRanges` | `test_system_read_partial_ranges.py` | System read partial ranges |
-| `ST1.12_SystemSedTransactionContract` | `test_system_sed_transaction_contract.py` | System sed transaction contract |
-| `ST1.13_SystemSnapshotRetention` | `test_system_snapshot_retention.py` | System snapshot retention |
-| `ST1.14_SystemStructuredPathEdgeCases` | `test_system_structured_path_edge_cases.py` | System structured path edge cases |
-| `ST1.15_SystemStructuredRollbackContract` | `test_system_structured_rollback_contract.py` | System structured rollback contract |
-| `ST1.16_SystemValidateFileTool` | `test_system_validate_file_tool.py` | System validate file tool |
-| `ST1.17_SystemDatabaseMigration` | `test_database_migration.py`, `test_database_migration_multibackend.py` | Database migration lifecycle, schema versioning, and CRUD across migration boundaries |
-| `ST1.1_SystemAuditIntegrity` | `test_system_audit_integrity.py` | System audit integrity |
-| `ST1.2_SystemAuthHealth` | `test_system_auth_health.py` | System auth health |
-| `ST1.3_SystemConversionMatrix` | `test_system_conversion_matrix.py` | System conversion matrix |
-| `ST1.4_SystemConversionOptionality` | `test_system_conversion_optionality.py` | System conversion optionality |
-| `ST1.5_SystemConversionRealBackends` | `test_system_conversion_real_backends.py` | System conversion real backends |
-| `ST1.6_SystemDryRunContract` | `test_system_dry_run_contract.py` | System dry run contract |
-| `ST1.7_SystemEndpointRestartThreshold` | `test_system_endpoint_restart_threshold.py` | System tests for endpoint health restart threshold behavior |
-| `ST1.8_SystemErrorContract` | `test_system_error_contract.py` | System error contract |
-| `ST1.9_SystemLimits` | `test_system_limits.py` | System limits |
-
-## IT Catalogue
-
-| ID Folder | Module | What Is Tested |
-|---|---|---|
-| `IT1.10_IntegrationMarkdownAdvancedHttp` | `test_integration_markdown_advanced_http.py` | Integration markdown advanced http |
-| `IT1.11_IntegrationMeldOptionalityHttp` | `test_integration_meld_optionality_http.py` | Integration meld optionality http |
-| `IT1.12_IntegrationMultiProfileRoutingHttp` | `test_integration_multi_profile_routing_http.py` | Integration multi profile routing http |
-| `IT1.13_IntegrationRemoteBackendToolMatrixHttp` | `test_integration_remote_backend_tool_matrix_http.py` | Remote backend MCP tool matrix integration tests |
-| `IT1.14_IntegrationRemoteStorageBackendsHttp` | `test_integration_remote_storage_backends_http.py` | Integration remote storage backends http (`FR1.26`, `FR1.29`) |
-| `IT1.15_IntegrationScopedOps` | `test_integration_scoped_ops.py` | Integration scoped ops |
-| `IT1.16_IntegrationSearchHttp` | `test_integration_search_http.py` | Integration search http |
-| `IT1.17_IntegrationSedlikeFileHttp` | `test_integration_sedlike_file_http.py` | Integration sedlike file http |
-| `IT1.18_IntegrationSedlikeTransactionHttp` | `test_integration_sedlike_transaction_http.py` | Integration sedlike transaction http |
-| `IT1.19_IntegrationStoryMultitypeCrudHttp` | `test_integration_story_multitype_crud_http.py` | Integration story multitype crud http |
-| `IT1.1_DockerContainerRemoteStorageBackends` | `test_docker_container_remote_storage_backends.py` | Docker container remote storage backend tests |
-| `IT1.20_IntegrationStructuredAuditSnapshot` | `test_integration_structured_audit_snapshot.py` | Integration structured audit snapshot |
-| `IT1.21_IntegrationStructuredFormats` | `test_integration_structured_formats.py` | Integration structured formats |
-| `IT1.22_IntegrationYamlFileStructuredOps` | `test_integration_yaml_file_structured_ops.py` | Integration yaml file structured ops |
-| `IT1.23_ServerHttpIntegration` | `test_server_http_integration.py` | Server http integration |
-| `IT1.24_SystemConversionBackendSelection` | `test_system_conversion_backend_selection.py` | System conversion backend selection |
-| `IT1.25_IntegrationA2AAuthContract` | `test_integration_a2a_auth_contract.py` | Integration A2A auth matrix (`401/401/200`) for `/a2a/health` |
-| `IT1.2_DockerContainerRuntime` | `test_docker_container_runtime.py` | Docker container runtime tests |
-| `IT1.3_IntegrationBase64FileOps` | `test_integration_base64_file_ops.py` | Integration base64 file ops |
-| `IT1.4_IntegrationConfigMatrixHarnessHttp` | `test_integration_config_matrix_harness_http.py` | Integration config matrix harness http |
-| `IT1.5_IntegrationDiffFilesHttp` | `test_integration_diff_files_http.py` | Integration diff files http |
-| `IT1.6_IntegrationFilesystemPathToolsHttp` | `test_integration_filesystem_path_tools_http.py` | Integration filesystem path tools http |
-| `IT1.7_IntegrationGoogleDriveLiveHttp` | `test_integration_google_drive_live_http.py` | Live Google Drive backend integration tests |
-| `IT1.8_IntegrationIterativeCycleGuardHttp` | `test_integration_iterative_cycle_guard_http.py` | Integration iterative cycle guard http |
-| `IT1.9_IntegrationJsonYamlGetMergeHttp` | `test_integration_json_yaml_get_merge_http.py` | Integration json yaml get merge http |
-
-## AT Catalogue
-
-| ID Folder | Module | What Is Tested |
-|---|---|---|
-| `AT1.1_ApplicationCompoundReleaseWorkflow` | `test_application_compound_release_workflow.py` | Application compound release workflow |
-| `AT1.10_ApplicationA2AAuthWorkflow` | `test_application_a2a_auth_workflow.py` | Application A2A auth flow using `TEST_A2A_API_KEY` |
-| `AT1.11_DynamicProfileCRUDLifecycle` | `test_dynamic_profile_crud_lifecycle.py` | Dynamic runtime profile/key lifecycle with markdown/PDF CRUD, search, and teardown |
-| `AT1.12_GoogleDriveOauthLive` | `test_google_drive_oauth_live.py` | Live Google OAuth code exchange flow for Google Drive helper (`FR1.32`) |
-| `AT1.2_ApplicationConversionEditWorkflow` | `test_application_conversion_edit_workflow.py` | Application conversion edit workflow |
-| `AT1.3_ApplicationConversionStructuredWorkflow` | `test_application_conversion_structured_workflow.py` | Application conversion structured workflow |
-| `AT1.4_ApplicationLifecycleWorkflow` | `test_application_lifecycle_workflow.py` | Application lifecycle workflow |
-| `AT1.5_ApplicationMultifileTransactionWorkflow` | `test_application_multifile_transaction_workflow.py` | Application multifile transaction workflow |
-| `AT1.6_ApplicationPreprodProfileChainHttp` | `test_application_preprod_profile_chain_http.py` | Application preprod profile chain http |
-| `AT1.7_ApplicationSafeEditWorkflow` | `test_application_safe_edit_workflow.py` | Application safe edit workflow |
-| `AT1.8_ApplicationSearchEditAuditWorkflow` | `test_application_search_edit_audit_workflow.py` | Application search edit audit workflow |
-| `AT1.9_ApplicationSecurityBoundary` | `test_application_security_boundary.py` | Application security boundary |
-
-## QT Compliance Catalogue
-
-| ID Folder | Module | What Is Tested | Requirement Link |
-|---|---|---|---|
-| `QT1.1_RulesCompliance` | `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py` | Static RULES.md checks (hardcoding, mocks/skips, headers, docstring density) | `FR1.3`, `FR1.19`, `NF1.7` |
-| `QT1.2_PackageAdoption` | `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py` | Platform package adoption and bespoke implementation drift checks | `FR1.2`, `FR1.3`, `FR1.5`, `FR1.19` |
-| `QT1.3_VaultConfigContract` | `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py` | Vault/config/secrets contract checks for defaults/config/env tiers | `FR1.3`, `FR1.5`, `CS1.1` |
-| `QT1.4_MigrationCompleteness` | `tests/quality/QT_COMPLIANCE/test_qt_migration_completeness.py` | Migration guard checks for raw framework/config/auth/env access | `FR1.2`, `FR1.3`, `FR1.5`, `FR1.19` |
-| `QT1.5_Traceability` | `tests/quality/QT_COMPLIANCE/test_qt_traceability.py` | Requirements↔tests↔code traceability and delivery matrix assertions | `BO1.5`, `FR1.3` |
-| `QT1.6_TraceabilityManifest` | `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py` | Full requirement manifest verification (all REQUIREMENTS IDs mapped to code + tests) | `SV1.1`-`SV1.4`, `BO1.1`-`BO1.5`, `BR1.1`-`BR1.6`, `FR1.1`-`FR1.46`, `UC1.1`-`UC1.14`, `CS1.1`-`CS1.5`, `NF1.1`-`NF1.8` |
-
-### Traceability Manifest Artefacts
-
-- Source manifest: `src/file_mcp_server/requirement_traceability.py`
-- Verification test: `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py`
-- Purpose: eliminate missing requirement-to-code and requirement-to-test links without waivers by keeping an explicit, validated mapping.
-
-## Web UI Traceability (`UI-P5-FILE-TST`)
-
-### Scope
-
-This section maps file-mcp Web UI requirements to `apps/file-mcp` Playwright coverage in `cloud-dog-ai-ui-monorepo`.
-
-### Requirement -> Playwright Mapping
-
-| Requirement ID | Spec ID | Playwright File | Coverage |
-|---|---|---|---|
-| `FR1.37`, `FR1.39` | `UI-E2E-01` | `apps/file-mcp/tests/e2e/auth.spec.ts` | API-key sign-in/sign-out flow, invalid-key rejection |
-| `FR1.41` | `UI-E2E-02` | `apps/file-mcp/tests/e2e/dashboard.spec.ts` | Dashboard status cards and quick actions |
-| `FR1.42` | `UI-E2E-03` | `apps/file-mcp/tests/e2e/file-browser.spec.ts` | Browse/create/edit/copy/move/delete flow |
-| `FR1.42` | `UI-E2E-04` | `apps/file-mcp/tests/e2e/search.spec.ts` | Content/regex search and open-result handoff to browser |
-| `FR1.43` | `UI-E2E-05` | `apps/file-mcp/tests/e2e/profiles.spec.ts` | Profile create/edit/test/delete workflow |
-| `FR1.43` | `UI-E2E-06` | `apps/file-mcp/tests/e2e/audit-log.spec.ts` | Audit refresh/filter/export/pagination flow |
-| `FR1.44` | `UI-E2E-07` | `apps/file-mcp/tests/e2e/settings.spec.ts` | Settings route contract: runtime-path fields visible and health-check action succeeds |
-| `FR1.40` | `UI-E2E-08` | `apps/file-mcp/tests/e2e/routes.spec.ts` | Unknown route contract: wildcard route redirects to `/dashboard` |
-| `FR1.44` | `UI-A11Y-01` | `apps/file-mcp/tests/a11y.spec.ts` | Automated WCAG 2.1 AA scans across authenticated dashboard/file-browser/search/storage-profiles/audit-log/settings routes |
-| `FR1.38`, `FR1.40`, `FR1.45` | `UI-E2E-00` | `apps/file-mcp/tests/fixtures.ts`, `apps/file-mcp/playwright.config.ts` | Real runtime config injection, real backend boot via `server_control.sh --env tests/env-ST serve`, no mocked API path |
-
-### Validation Commands (Strict)
-
-Run from monorepo root:
-
-```bash
-npm run lint -- --filter=@cloud-dog/app-file-mcp
-npm run typecheck -- --filter=@cloud-dog/app-file-mcp
-npm run e2e -- --filter=@cloud-dog/app-file-mcp
-npm run a11y -- --filter=@cloud-dog/app-file-mcp
-```
-
-Latest strict summary (2026-03-01):
-
-- `npm run lint -- --filter=@cloud-dog/app-file-mcp` -> pass
-- `npm run typecheck -- --filter=@cloud-dog/app-file-mcp` -> pass
-- `npm run e2e -- --filter=@cloud-dog/app-file-mcp` -> `16 passed (41.6s)`
-- `npm run a11y -- --filter=@cloud-dog/app-file-mcp` -> `6 passed (17.9s)`
-- Evidence: `working/w14a03/ui-lint.log`, `working/w14a03/ui-typecheck.log`, `working/w14a03/ui-e2e.log`, `working/w14a03/ui-a11y.log`, `working/w14a03/ui-last-run.json`
-
-### Gap Closeout Tracker (UI-P5-FILE-GAP)
-
-Instruction: `cloud-dog-ai-platform-standards/working/AGENT-INSTRUCTION-W12D-FILE-MCP-UI-GAP-CLOSEOUT-STRICT.md`
-
-| Gap ID | Description | Status | Required Evidence |
-|---|---|---|---|
-| `UI-GAP-01` | Add dedicated Playwright spec validating `/settings` interactions (`runtime-path` display + health-check action) end-to-end | COMPLETE VERIFIED (revalidated 2026-03-01) | `apps/file-mcp/tests/e2e/settings.spec.ts`; `working/w14a03/ui-e2e.log` (`settings route shows runtime paths and runs health check` passed) |
-| `UI-GAP-02` | Add route-guard/navigation spec asserting unknown-route redirect contract (`* -> /dashboard`) | COMPLETE VERIFIED (revalidated 2026-03-01) | `apps/file-mcp/tests/e2e/routes.spec.ts`; `working/w14a03/ui-e2e.log` (`unknown route redirects to dashboard` passed) |
-| `UI-GAP-03` | Expand a11y automation beyond dashboard to include file-browser/search/profiles/audit/settings routes | COMPLETE VERIFIED (revalidated 2026-03-01) | `apps/file-mcp/tests/a11y.spec.ts`; `working/w14a03/ui-a11y.log` (`6 passed`) |
-
-Strict closeout pass criteria:
-
-1. `npm run lint -- --filter=@cloud-dog/app-file-mcp` passes.
-2. `npm run typecheck -- --filter=@cloud-dog/app-file-mcp` passes.
-3. `npm run e2e -- --filter=@cloud-dog/app-file-mcp` passes including new gap specs.
-4. `npm run a11y -- --filter=@cloud-dog/app-file-mcp` passes including expanded route coverage.
-5. `cloud-dog-ai-ui-monorepo/apps/file-mcp/test-results/.last-run.json` reports passed status with no failed tests.
-
-## W15B-02 Compliance Lockdown (2026-03-02)
-
-- Scope: strict unresolved-placeholder fail-closed policy for active runtime config loading.
-- Runtime loader policy:
-  - `src/file_tools/config/adapter.py` now uses `unresolved_policy="strict"` (platform-supported strict mode).
-  - Supporting config-load helper paths aligned:
-    - `tests/remote_env_helpers.py`
-    - `scripts/google_drive_setup.py`
-- Deterministic runtime startup hardening:
-  - `server_control.sh` now clears inherited `VAULT_*` only when the selected env file does not explicitly provide `VAULT_*` keys.
-  - `src/file_mcp_server/main.py` start wait increased to 30s for strict startup paths.
-- Mandatory verifier evidence:
-  - `bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-CONFIG.sh` -> pass (`14/14`).
-  - `bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-LOGGING.sh` -> pass (`12/12`).
-  - `bash ../cloud-dog-ai-platform-standards/migration/verify/verify-file-mcp-server-API-KIT.sh` -> pass (`17/17`).
-- Mandatory strict tier evidence:
-  - `python3 -m pytest tests/system/ --env tests/env-ST-local-docker -q` -> `21 passed`.
-  - `python3 -m pytest tests/integration/ --env tests/env-IT-local-docker -q` -> `34 passed, 11 skipped`.
-  - `python3 -m pytest tests/application/ --env tests/env-AT-local-docker -q` -> `9 passed, 1 skipped`.
-- Local-docker remote-backend policy:
-  - Local-docker envs explicitly set `FILE_MCP_STRICT_REMOTE_TESTS=0` and `FILE_MCP_RUN_REMOTE_MATRIX_TESTS=0`.
-  - Live remote backend IT test (`IT1.14`) is explicitly gated by `FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS` unless strict remote mode is enabled.
-
-### Database Abstraction Tests (cloud_dog_db)
-
-| Test ID | Tier | Description | Traces To |
-|---------|------|-------------|-----------|
-| UT-DB-01 | UT | cloud_dog_db engine factory creates valid SQLite engine from config | R-DB-01, R-DB-02 |
-| UT-DB-02 | UT | Session manager provides working sessions | R-DB-01, R-DB-03 |
-| ST-DB-01 | ST | Schema migration init→current on fresh SQLite | R-DB-04 |
-| ST-DB-02 | ST | CRUD operations via repository abstraction | R-DB-01 |
-| IT-DB-01 | IT | Full app startup with cloud_dog_db engine | R-DB-02 |
-| AT-DB-01 | AT | End-to-end flow uses cloud_dog_db path | R-DB-01 |
+- `test_application_a2a_auth_workflow.py`
+- `test_dynamic_profile_crud_lifecycle.py`
+- `test_google_drive_oauth_live.py`
+- `test_application_compound_release_workflow.py`
+- `test_application_conversion_edit_workflow.py`
+- `test_application_conversion_structured_workflow.py`
+- `test_application_lifecycle_workflow.py`
+- `test_application_multifile_transaction_workflow.py`
+- `test_application_preprod_profile_chain_http.py`
+- `test_application_safe_edit_workflow.py`
+- `test_application_search_edit_audit_workflow.py`
+- `test_application_security_boundary.py`
+- `test_profile_crud.py`
+- `test_integration_markdown_advanced_http.py`
+- `test_integration_meld_optionality_http.py`
+- `test_integration_multi_profile_routing_http.py`
+- `test_integration_remote_backend_tool_matrix_http.py`
+- `test_integration_remote_storage_backends_http.py`
+- `test_integration_scoped_ops.py`
+- `test_integration_search_http.py`
+- `test_integration_sedlike_file_http.py`
+- `test_integration_sedlike_transaction_http.py`
+- `test_integration_story_multitype_crud_http.py`
+- `test_docker_container_remote_storage_backends.py`
+- `test_integration_structured_audit_snapshot.py`
+- `test_integration_structured_formats.py`
+- `test_integration_yaml_file_structured_ops.py`
+- `test_server_http_integration.py`
+- `test_system_conversion_backend_selection.py`
+- `test_integration_a2a_auth_contract.py`
+- `test_docker_container_runtime.py`
+- `test_integration_base64_file_ops.py`
+- `test_integration_config_matrix_harness_http.py`
+- `test_integration_diff_files_http.py`
+- `test_integration_filesystem_path_tools_http.py`
+- `test_integration_google_drive_live_http.py`
+- `test_integration_iterative_cycle_guard_http.py`
+- `test_integration_json_yaml_get_merge_http.py`
+- `test_qt1_security_suite.py`
+- `test_qt26_secrets_separation.py`
+- `test_qt27_bespoke_code_scan.py`
+- `test_qt3_documentation_suite.py`
+- `test_logging_compliance.py`
+- `test_qt_migration_completeness.py`
+- `test_qt_package_adoption.py`
+- `test_qt_requirement_traceability_manifest.py`
+- `test_qt_rules_compliance.py`
+- `test_qt_traceability.py`
+- `test_qt_vault_config_contract.py`
+- `test_system_limits_timeout.py`
+- `test_system_read_partial_ranges.py`
+- `test_system_sed_transaction_contract.py`
+- `test_system_snapshot_retention.py`
+- `test_system_structured_path_edge_cases.py`
+- `test_system_structured_rollback_contract.py`
+- `test_system_validate_file_tool.py`
+- `test_database_migration.py`
+- `test_database_migration_multibackend.py`
+- `test_system_audit_integrity.py`
+- `test_system_auth_health.py`
+- `test_system_conversion_matrix.py`
+- `test_system_conversion_optionality.py`
+- `test_system_conversion_real_backends.py`
+- `test_system_dry_run_contract.py`
+- `test_system_endpoint_restart_threshold.py`
+- `test_system_error_contract.py`
+- `test_integrity_running.py`
+- `test_system_limits.py`
+- `test_rotation_config.py`
+- `test_filesystem.py`
+- `test_google_drive_admin.py`
+- `test_google_drive_oauth_helper.py`
+- `test_google_drive_setup_script.py`
+- `test_google_drive_storage.py`
+- `test_lifecycle.py`
+- `test_observability.py`
+- `test_posix.py`
+- `test_scope_policy.py`
+- `test_search.py`
+- `test_audit_log_format.py`
+- `test_api_kit_contract.py`
+- `test_sedlike.py`
+- `test_server_dispatch.py`
+- `test_server_runtime.py`
+- `test_tool_reuse.py`
+- `test_tools_registry.py`
+- `test_validate.py`
+- `test_webdav_storage.py`
+- `test_remote_storage_placeholder_validation.py`
+- `test_remote_env_helpers.py`
+- `test_database_abstraction.py`
+- `test_audit.py`
+- `test_auth.py`
+- `test_config_loader.py`
+- `test_convert.py`
+- `test_diff.py`
+- `test_edit_structured.py`
+- `test_encoding.py`
+- `test_endpoint_health.py`

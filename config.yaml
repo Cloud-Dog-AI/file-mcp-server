@@ -39,14 +39,14 @@ profiles:
         folder_url_example: ${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com/drive/folders/}
         client_id: ${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID}
         client_secret: ${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET}
-        refresh_token: ${FILE_MCP_GDRIVE_REFRESH_TOKEN}
-        access_token: ${FILE_MCP_GDRIVE_ACCESS_TOKEN}
+        refresh_token: ${vault.dev.storage.google_drive.refresh_token || FILE_MCP_GDRIVE_REFRESH_TOKEN}
+        access_token: ${vault.dev.storage.google_drive.access_token || FILE_MCP_GDRIVE_ACCESS_TOKEN}
         oauth_scope: ${FILE_MCP_GDRIVE_OAUTH_SCOPE:https://www.googleapis.com/auth/drive}
         oauth_authorize_uri: ${FILE_MCP_GDRIVE_AUTHORIZE_URI:https://accounts.google.com/o/oauth2/v2/auth}
         api_base_uri: ${FILE_MCP_GDRIVE_API_BASE_URI:https://www.googleapis.com/drive/v3}
         upload_base_uri: ${FILE_MCP_GDRIVE_UPLOAD_BASE_URI:https://www.googleapis.com/upload/drive/v3}
         redirect_uri: ${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}
-        token_uri: ${FILE_MCP_GDRIVE_TOKEN_URI:https://oauth2.googleapis.com/token}
+        token_uri: ${vault.dev.storage.google_drive.token_uri || FILE_MCP_GDRIVE_TOKEN_URI}
     scope:
       roots:
       - ${FILE_MCP_ROOT}

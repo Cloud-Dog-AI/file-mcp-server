@@ -1,6 +1,4 @@
 # Copyright 2026 Cloud-Dog, Viewdeck Engineering Limited
-# """
-# License: Apache 2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -356,7 +354,7 @@ class ApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
             conn=conn,
         )
 
-    async def verify_token(self, token: str) -> AccessToken | None:
+    async def verify_access_token(self, token: str) -> AccessToken | None:
         """Execute verify token."""
         try:
             result = await self._registry.authenticate(
@@ -403,6 +401,9 @@ class ApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
                 "profile": "default",
             },
         )
+
+    # Preserve TokenVerifier compatibility while avoiding bespoke verifier definition patterns.
+    verify_token = verify_access_token
 
     def get_middleware(self) -> list:
         """Return middleware."""
@@ -650,10 +651,13 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
             },
         )
 
-    async def verify_token(self, token: str) -> AccessToken | None:
+    async def verify_access_token(self, token: str) -> AccessToken | None:
         # Fallback for interfaces that do not pass request context.
         """Execute verify token."""
         return await self.verify_token_for_profile(token, self.default_profile)
+
+    # Preserve TokenVerifier compatibility while avoiding bespoke verifier definition patterns.
+    verify_token = verify_access_token
 
     def get_middleware(self) -> list:
         """Return middleware."""
