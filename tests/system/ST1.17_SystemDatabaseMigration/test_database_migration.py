@@ -22,7 +22,7 @@ from file_mcp_server.db.models import FilePlatformDbState
 from file_mcp_server.db.runtime import initialise_database, shutdown_database
 
 
-_BASELINE_REVISION = "20260305_0001"
+_BASELINE_REVISION = "20260321_0002"
 
 
 def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:

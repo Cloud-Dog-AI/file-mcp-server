@@ -468,3 +468,23 @@ Every requirement SHALL map to at least one test in `docs/TESTS.md`. Tests valid
 - R-DB-05: Direct sqlite3/create_engine()/sessionmaker()/raw Session() FORBIDDEN in app code
 - R-DB-06: DB health MUST use `cloud_dog_db.health.probe_database()`
 - R-DB-07: DB connection config MUST come from cloud_dog_config/Vault-backed env hierarchy
+
+## Configuration CRUD Requirements (CFG)
+
+Profile concept for this project: file storage profiles defining scope roots, storage backend settings, auth policy, limits, validation behaviour, snapshots, and audit paths.
+
+| ID | Requirement |
+|----|-------------|
+| CFG-01 | The system SHALL support creating a new file profile via the API with all profile settings that would otherwise be available via environment variables or env-file configuration. |
+| CFG-02 | The system SHALL support reading file profiles via the API, including both list and detail retrieval. |
+| CFG-03 | The system SHALL support updating an existing file profile via the API. |
+| CFG-04 | The system SHALL support deleting a file profile via the API. |
+| CFG-05 | File profile CRUD operations SHALL be available as MCP tools with equivalent functionality. |
+| CFG-06 | File profile change events SHALL be broadcast via the A2A interface. |
+| CFG-07 | File profile CRUD operations SHALL be available in the WebUI with RBAC enforcement. |
+| CFG-08 | The system SHALL support creating, reading, updating, and deleting users via the API. |
+| CFG-09 | The system SHALL support creating, reading, updating, and deleting groups with role assignments via the API. |
+| CFG-10 | The system SHALL support creating, listing, and revoking API keys with per-key capability scoping via the API. |
+| CFG-11 | User, group, and API-key management SHALL be available via MCP, A2A, and WebUI with RBAC. |
+| CFG-12 | All CRUD operations SHALL be audit logged with user identity, action, timestamp, and outcome. |
+| CFG-13 | Only admin users SHALL be able to create, update, and delete file profiles and manage users or groups; read-only access SHALL be available to authorised non-admin users. |

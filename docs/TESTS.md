@@ -184,6 +184,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 
 - `test_application_a2a_auth_workflow.py`
 - `test_dynamic_profile_crud_lifecycle.py`
+- `test_application_webui_admin.py`
 - `test_google_drive_oauth_live.py`
 - `test_application_compound_release_workflow.py`
 - `test_application_conversion_edit_workflow.py`
@@ -209,6 +210,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 - `test_integration_structured_audit_snapshot.py`
 - `test_integration_structured_formats.py`
 - `test_integration_yaml_file_structured_ops.py`
+- `test_integration_config_crud_identity_workflow.py`
 - `test_server_http_integration.py`
 - `test_system_conversion_backend_selection.py`
 - `test_integration_a2a_auth_contract.py`
@@ -273,6 +275,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 - `test_remote_storage_placeholder_validation.py`
 - `test_remote_env_helpers.py`
 - `test_database_abstraction.py`
+- `test_admin_identity.py`
 - `test_audit.py`
 - `test_auth.py`
 - `test_config_loader.py`

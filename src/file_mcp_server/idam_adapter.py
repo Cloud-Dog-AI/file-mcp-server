@@ -30,7 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 from hmac import compare_digest
-from typing import Any, Iterable, List, Mapping, Protocol, cast
+from typing import Any, Callable, Iterable, List, Mapping, Protocol, cast
 
 import contextvars
 import time
@@ -438,6 +438,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         default_profile: str,
         profile_header_name: str = "x-file-mcp-profile",
         profile_query_name: str = "profile",
+        dynamic_key_resolver: Callable[[str, str], Any | None] | None = None,
         required_scopes: list[str] | None = None,
         audit_emitter: AuditEmitter | None = None,
         logger: Any | None = None,
@@ -452,6 +453,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         self.default_profile = default_profile
         self.profile_header_name = profile_header_name.strip().lower()
         self.profile_query_name = profile_query_name.strip()
+        self._dynamic_key_resolver = dynamic_key_resolver
         self._logger = logger
         self._audit_emitter = audit_emitter
         role_permissions: dict[str, set[str]] = {"admin": {"*"}}
@@ -584,6 +586,20 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
             )
             return None
 
+        def _dynamic_value(payload: Any, key: str, default: Any = "") -> Any:
+            if isinstance(payload, Mapping):
+                return payload.get(key, default)
+            return getattr(payload, key, default)
+
+        def _dynamic_permissions(payload: Any) -> set[str]:
+            raw = _dynamic_value(payload, "permissions", ())
+            values: set[str] = set()
+            for item in raw or ():
+                text = str(item).strip()
+                if text:
+                    values.add(text)
+            return values
+
         try:
             result = await state.registry.authenticate(
                 IDAMAuthRequest(
@@ -593,13 +609,84 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
                 )
             )
         except AuthenticationError:
+            dynamic_payload = None
+            if callable(self._dynamic_key_resolver):
+                try:
+                    dynamic_payload = self._dynamic_key_resolver(token, profile_name)
+                except Exception:  # pragma: no cover - defensive safety
+                    dynamic_payload = None
+
+            if dynamic_payload is None:
+                self._emit_audit(
+                    action="authenticate",
+                    outcome="failure",
+                    actor_id="anonymous",
+                    details={"reason": "invalid_api_key", "profile": profile_name},
+                )
+                return None
+
+            dynamic_permissions = _dynamic_permissions(dynamic_payload)
+            dynamic_role = str(
+                _dynamic_value(dynamic_payload, "role", "viewer") or "viewer"
+            )
+            dynamic_user_id = str(
+                _dynamic_value(dynamic_payload, "user_id", "dynamic-api-key")
+            )
+            dynamic_client_id = str(
+                _dynamic_value(dynamic_payload, "api_key_id", dynamic_user_id)
+            )
+            required_permission = f"profile:{profile_name}"
+            if dynamic_role == "admin":
+                dynamic_permissions.add("*")
+                dynamic_permissions.add(required_permission)
+            if (
+                required_permission not in dynamic_permissions
+                and "*" not in dynamic_permissions
+            ):
+                self._emit_audit(
+                    action="authorise",
+                    outcome="failure",
+                    actor_id=dynamic_user_id,
+                    details={
+                        "reason": "profile_permission_denied",
+                        "profile": profile_name,
+                        "role": dynamic_role,
+                    },
+                )
+                return None
+
+            scopes = list(self.required_scopes or [])
+            for permission in sorted(dynamic_permissions):
+                if permission not in scopes:
+                    scopes.append(permission)
+            if required_permission not in scopes and "*" not in scopes:
+                scopes.append(required_permission)
+
+            fingerprint = key_digest(token)
             self._emit_audit(
                 action="authenticate",
-                outcome="failure",
-                actor_id="anonymous",
-                details={"reason": "invalid_api_key", "profile": profile_name},
+                outcome="success",
+                actor_id=dynamic_user_id,
+                details={
+                    "profile": profile_name,
+                    "role": dynamic_role,
+                    "fingerprint": fingerprint,
+                    "source": "dynamic_admin_store",
+                },
             )
-            return None
+            return AccessToken(
+                token=fingerprint,
+                client_id=dynamic_client_id or "file-mcp-client",
+                scopes=scopes,
+                claims={
+                    "fingerprint": fingerprint,
+                    "profile": profile_name,
+                    "role": dynamic_role,
+                    "permissions": sorted(dynamic_permissions),
+                    "dynamic": True,
+                    "user_id": dynamic_user_id,
+                },
+            )
 
         user = result.user
         role = str(user.role or state.role_name)

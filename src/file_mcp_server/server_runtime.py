@@ -115,8 +115,10 @@ from file_tools.convert import (
 )
 from file_tools.limits import LimitError, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
+from file_tools.adapters.yaml_codec import safe_dump
 from starlette.middleware import Middleware
 from starlette.requests import HTTPConnection
+from mcp.server.auth.middleware.auth_context import get_access_token
 
 from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
@@ -133,6 +135,7 @@ from .google_drive_admin import (
     parse_form_urlencoded,
     render_setup_page,
 )
+from .admin_identity import AdminIdentityError, AdminIdentityService
 
 OOB_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
 _REQUEST_SESSION_ID: ContextVar[str | None] = ContextVar(
@@ -330,6 +333,7 @@ class HealthCheckMiddleware:
         mcp_path: str = "/mcp",
         a2a_auth_verifier=None,
         db_runtime: PlatformDatabaseRuntime | None = None,
+        admin_identity_service: AdminIdentityService | None = None,
         callback_host_fallback: str = "",
     ) -> None:
         """Initialise the instance state."""
@@ -342,6 +346,7 @@ class HealthCheckMiddleware:
         self.mcp_path = _normalize_path(mcp_path, default="/mcp")
         self.a2a_auth_verifier = a2a_auth_verifier
         self.db_runtime = db_runtime
+        self.admin_identity_service = admin_identity_service
         self.a2a_base_path = _normalize_path(
             read_env_var("TEST_A2A_BASE_PATH"), default="/a2a"
         )
@@ -513,6 +518,30 @@ class HealthCheckMiddleware:
         )
         await send({"type": "http.response.body", "body": b""})
 
+    async def _send_json(self, send, *, status: int, payload: dict[str, Any]) -> None:
+        """Send a JSON response payload."""
+        body = json.dumps(payload).encode("utf-8")
+        await self._send_bytes(
+            send, status=status, body=body, content_type="application/json"
+        )
+
+    async def _read_json_body(self, receive) -> dict[str, Any]:
+        """Read and decode a JSON request body."""
+        body = await self._read_http_body(receive)
+        if not body:
+            return {}
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except Exception as exc:
+            raise AdminIdentityError(
+                "VALIDATION_ERROR", f"invalid JSON body: {exc}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise AdminIdentityError(
+                "VALIDATION_ERROR", "JSON body must be an object"
+            )
+        return payload
+
     @staticmethod
     def _extract_auth_token(raw_header: str, scheme: str | None) -> str | None:
         """Handle extract auth token."""
@@ -527,13 +556,13 @@ class HealthCheckMiddleware:
             return token or None
         return value
 
-    async def _is_a2a_authorized(
+    async def _authenticate_request(
         self, *, scope: dict[str, Any], headers: dict[str, str]
-    ) -> bool:
-        """Handle is a2a authorized."""
+    ) -> tuple[Any | None, str]:
+        """Resolve auth token for a request and return auth-info/profile."""
         verifier = self.a2a_auth_verifier
         if verifier is None:
-            return False
+            return (None, self.profile_name)
 
         conn = HTTPConnection(scope)
         profile_name = self.profile_name
@@ -565,7 +594,7 @@ class HealthCheckMiddleware:
         raw_header = headers.get(header_name, "")
         token = self._extract_auth_token(raw_header, header_scheme)
         if not token:
-            return False
+            return (None, profile_name)
 
         if hasattr(verifier, "verify_token_for_profile") and callable(
             getattr(verifier, "verify_token_for_profile")
@@ -576,7 +605,56 @@ class HealthCheckMiddleware:
         ):
             auth_info = await verifier.verify_token(token)
         else:
-            return False
+            return (None, profile_name)
+        return (auth_info, profile_name)
+
+    @staticmethod
+    def _token_scopes(auth_info: Any | None) -> set[str]:
+        """Extract scopes from a token object."""
+        if auth_info is None:
+            return set()
+        raw = getattr(auth_info, "scopes", None) or []
+        return {str(scope).strip() for scope in raw if str(scope).strip()}
+
+    @staticmethod
+    def _has_admin_scope(scopes: set[str]) -> bool:
+        """Return True if scope set represents administrative access."""
+        return (
+            "*" in scopes
+            or "admin" in scopes
+            or "role:admin" in scopes
+            or "admin:*" in scopes
+        )
+
+    def _load_config_document(self) -> dict[str, Any]:
+        """Load active config YAML as mutable dictionary."""
+        config_path = Path(self.active_config)
+        if not config_path.exists():
+            return {"profiles": {}}
+        try:
+            parsed = load_yaml(str(config_path), missing_ok=True)
+        except Exception:
+            return {"profiles": {}}
+        if not isinstance(parsed, dict):
+            return {"profiles": {}}
+        if not isinstance(parsed.get("profiles"), dict):
+            parsed["profiles"] = {}
+        return parsed
+
+    def _write_config_document(self, document: dict[str, Any]) -> None:
+        """Persist active config YAML document."""
+        config_path = Path(self.active_config)
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            safe_dump(document, sort_keys=False),
+            encoding="utf-8",
+        )
+
+    async def _is_a2a_authorized(
+        self, *, scope: dict[str, Any], headers: dict[str, str]
+    ) -> bool:
+        """Handle is a2a authorized."""
+        auth_info, _ = await self._authenticate_request(scope=scope, headers=headers)
         return auth_info is not None
 
     def _resolve_config_value(self, value: Any) -> str:
@@ -883,6 +961,164 @@ class HealthCheckMiddleware:
             "</body></html>"
         )
 
+    @staticmethod
+    def _deep_copy_jsonish(value: Any) -> Any:
+        """Clone a nested JSON-like structure."""
+        return json.loads(json.dumps(value))
+
+    def _merge_mapping(self, base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+        """Deep-merge mapping values recursively."""
+        for key, value in patch.items():
+            if (
+                key in base
+                and isinstance(base[key], dict)
+                and isinstance(value, dict)
+            ):
+                self._merge_mapping(base[key], value)
+            else:
+                base[key] = self._deep_copy_jsonish(value)
+        return base
+
+    def _profile_payload(self, *, name: str, profile: dict[str, Any]) -> dict[str, Any]:
+        """Normalise a profile entry for API/UI responses."""
+        storage = profile.get("storage") if isinstance(profile, dict) else {}
+        scope = profile.get("scope") if isinstance(profile, dict) else {}
+        auth = profile.get("auth") if isinstance(profile, dict) else {}
+        backend = (
+            str((storage or {}).get("backend") or "unknown")
+            if isinstance(storage, dict)
+            else "unknown"
+        )
+        roots = []
+        if isinstance(scope, dict):
+            roots = [str(item) for item in (scope.get("roots") or [])]
+        api_keys = []
+        if isinstance(auth, dict):
+            api_keys = [str(item) for item in (auth.get("api_keys") or [])]
+        return {
+            "name": name,
+            "backend": backend,
+            "roots": roots,
+            "api_keys_count": len(api_keys),
+            "profile": profile,
+        }
+
+    def _list_profile_payloads(self) -> list[dict[str, Any]]:
+        """Return all configured profiles from active config document."""
+        document = self._load_config_document()
+        profiles = document.get("profiles")
+        if not isinstance(profiles, dict):
+            return []
+        payloads: list[dict[str, Any]] = []
+        for name, profile in sorted(profiles.items()):
+            if not isinstance(profile, dict):
+                continue
+            payloads.append(self._profile_payload(name=str(name), profile=profile))
+        return payloads
+
+    def _render_profiles_admin_html(self) -> str:
+        """Render admin profile management page."""
+        rows = []
+        for item in self._list_profile_payloads():
+            rows.append(
+                "<tr>"
+                f"<td>{escape(item['name'])}</td>"
+                f"<td>{escape(str(item['backend']))}</td>"
+                f"<td>{escape(', '.join(item['roots']) or '-')}</td>"
+                f"<td>{escape(str(item['api_keys_count']))}</td>"
+                "</tr>"
+            )
+        if not rows:
+            rows.append("<tr><td colspan='4'><em>No profiles configured</em></td></tr>")
+        return (
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            "<title>file-mcp profile admin</title>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;margin:20px;color:#111;}"
+            "table{border-collapse:collapse;width:100%;max-width:980px;margin-bottom:18px;}"
+            "th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:14px;}"
+            "th{background:#f3f4f6;}"
+            "code{background:#f3f4f6;padding:2px 4px;border-radius:3px;}"
+            "</style></head><body>"
+            "<h1>Profile Management</h1>"
+            "<p>Use API endpoints <code>/admin/profiles</code> for create/update/delete.</p>"
+            "<table><thead><tr><th>Profile</th><th>Backend</th><th>Roots</th><th>API keys</th></tr></thead><tbody>"
+            + "".join(rows)
+            + "</tbody></table>"
+            "<p><a href='/'>Back to status</a></p>"
+            "</body></html>"
+        )
+
+    def _render_identity_admin_html(self) -> str:
+        """Render admin identity page for users/groups/api keys."""
+        if self.admin_identity_service is None:
+            return (
+                "<!doctype html><html><body><h1>Identity Management</h1>"
+                "<p>Admin identity service unavailable.</p></body></html>"
+            )
+        users = self.admin_identity_service.list_users()
+        groups = self.admin_identity_service.list_groups()
+        keys = self.admin_identity_service.list_api_keys(include_inactive=True)
+
+        user_rows = "".join(
+            "<tr>"
+            f"<td>{escape(str(item.get('username') or ''))}</td>"
+            f"<td>{escape(str(item.get('display_name') or ''))}</td>"
+            f"<td>{escape(str(item.get('is_active')))}</td>"
+            f"<td>{escape(', '.join(item.get('groups') or []))}</td>"
+            "</tr>"
+            for item in users
+        ) or "<tr><td colspan='4'><em>No users</em></td></tr>"
+
+        group_rows = "".join(
+            "<tr>"
+            f"<td>{escape(str(item.get('name') or ''))}</td>"
+            f"<td>{escape(', '.join(item.get('roles') or []))}</td>"
+            f"<td>{escape(', '.join(item.get('members') or []))}</td>"
+            "</tr>"
+            for item in groups
+        ) or "<tr><td colspan='3'><em>No groups</em></td></tr>"
+
+        key_rows = "".join(
+            "<tr>"
+            f"<td>{escape(str(item.get('id') or ''))}</td>"
+            f"<td>{escape(str(item.get('user_id') or ''))}</td>"
+            f"<td>{escape(str(item.get('label') or ''))}</td>"
+            f"<td>{escape(', '.join(item.get('scopes') or []))}</td>"
+            f"<td>{escape(str(item.get('is_active')))}</td>"
+            "</tr>"
+            for item in keys
+        ) or "<tr><td colspan='5'><em>No API keys</em></td></tr>"
+
+        return (
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            "<title>file-mcp identity admin</title>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;margin:20px;color:#111;}"
+            "table{border-collapse:collapse;width:100%;max-width:980px;margin-bottom:18px;}"
+            "th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:14px;}"
+            "th{background:#f3f4f6;}"
+            "code{background:#f3f4f6;padding:2px 4px;border-radius:3px;}"
+            "</style></head><body>"
+            "<h1>Identity Management</h1>"
+            "<p>Use API endpoints <code>/admin/users</code>, <code>/admin/groups</code>, and "
+            "<code>/admin/api-keys</code> for mutations.</p>"
+            "<h2>Users</h2>"
+            "<table><thead><tr><th>Username</th><th>Display Name</th><th>Active</th><th>Groups</th></tr></thead><tbody>"
+            + user_rows
+            + "</tbody></table>"
+            "<h2>Groups</h2>"
+            "<table><thead><tr><th>Name</th><th>Roles</th><th>Members</th></tr></thead><tbody>"
+            + group_rows
+            + "</tbody></table>"
+            "<h2>API Keys</h2>"
+            "<table><thead><tr><th>ID</th><th>User ID</th><th>Label</th><th>Scopes</th><th>Active</th></tr></thead><tbody>"
+            + key_rows
+            + "</tbody></table>"
+            "<p><a href='/'>Back to status</a></p>"
+            "</body></html>"
+        )
+
     async def __call__(self, scope, receive, send) -> None:
         """Handle callable invocation for this instance."""
         headers = {
@@ -1027,13 +1263,36 @@ class HealthCheckMiddleware:
                 send, status=200, body=body, content_type="application/json"
             )
             return
+        is_identity_api_route = (
+            path == "/admin/users"
+            or path.startswith("/admin/users/")
+            or path == "/admin/groups"
+            or path.startswith("/admin/groups/")
+            or path == "/admin/api-keys"
+            or path.startswith("/admin/api-keys/")
+        )
+        is_profile_api_route = path == "/admin/profiles" or path.startswith(
+            "/admin/profiles/"
+        )
+        is_profiles_html_request = (
+            path == "/admin/profiles"
+            and "text/html" in accept
+            and "application/json" not in accept
+        )
+        is_webui_admin_route = (
+            path == "/admin/identity"
+            or is_profiles_html_request
+            or path.startswith("/admin/google-drive")
+        )
         if scope.get("type") == "http" and is_admin_route:
-            if not self.admin_ui_enabled:
+            if (
+                is_webui_admin_route or path == "/admin/reload"
+            ) and not self.admin_ui_enabled:
                 await self._send_api_error(
                     send, status=404, code="NOT_FOUND", message="Not Found"
                 )
                 return
-            if self.admin_ui_token:
+            if (is_webui_admin_route or path == "/admin/reload") and self.admin_ui_token:
                 provided = headers.get("x-admin-token", "")
                 if provided != self.admin_ui_token:
                     await self._send_api_error(
@@ -1043,6 +1302,406 @@ class HealthCheckMiddleware:
                         message="Unauthorised",
                     )
                     return
+
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and is_profiles_html_request
+        ):
+            await self._send_html(send, status=200, html=self._render_profiles_admin_html())
+            return
+
+        if (
+            scope.get("type") == "http"
+            and scope.get("method") == "GET"
+            and path == "/admin/identity"
+        ):
+            await self._send_html(send, status=200, html=self._render_identity_admin_html())
+            return
+
+        if scope.get("type") == "http" and (is_identity_api_route or is_profile_api_route):
+            method = str(scope.get("method") or "GET").upper()
+            supplied_admin_token = headers.get("x-admin-token", "")
+            ui_admin = bool(
+                self.admin_ui_token and supplied_admin_token == self.admin_ui_token
+            )
+            auth_info, selected_profile = await self._authenticate_request(
+                scope=scope, headers=headers
+            )
+            scopes = self._token_scopes(auth_info)
+            token_admin = self._has_admin_scope(scopes)
+            is_authenticated = ui_admin or auth_info is not None
+            if not is_authenticated:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return
+            if method != "GET" and not (ui_admin or token_admin):
+                await self._send_api_error(
+                    send,
+                    status=403,
+                    code="FORBIDDEN",
+                    message="Admin access required",
+                )
+                return
+
+            try:
+                segments = [segment for segment in path.split("/") if segment]
+
+                if is_profile_api_route:
+                    if method == "GET" and len(segments) == 2:
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "profiles": self._list_profile_payloads()},
+                        )
+                        return
+
+                    if method == "POST" and len(segments) == 2:
+                        payload = await self._read_json_body(receive)
+                        profile_name = str(payload.get("name") or "").strip()
+                        if not profile_name:
+                            raise AdminIdentityError(
+                                "VALIDATION_ERROR", "profile name is required"
+                            )
+                        document = self._load_config_document()
+                        profiles = document.setdefault("profiles", {})
+                        if profile_name in profiles:
+                            raise AdminIdentityError(
+                                "CONFLICT",
+                                f"profile already exists: {profile_name}",
+                                status=409,
+                            )
+                        profile_body = payload.get("profile")
+                        if isinstance(profile_body, dict):
+                            profile = self._deep_copy_jsonish(profile_body)
+                        else:
+                            template = profiles.get(self.profile_name)
+                            if not isinstance(template, dict) and profiles:
+                                template = next(iter(profiles.values()))
+                            if isinstance(template, dict):
+                                profile = self._deep_copy_jsonish(template)
+                            else:
+                                profile = {
+                                    "auth": {"api_keys": []},
+                                    "storage": {"backend": "local"},
+                                    "scope": {"roots": []},
+                                }
+                            root = str(payload.get("root") or "").strip()
+                            if root:
+                                scope_cfg = profile.setdefault("scope", {})
+                                scope_cfg["roots"] = [root]
+                            backend = str(payload.get("backend") or "").strip()
+                            if backend:
+                                storage_cfg = profile.setdefault("storage", {})
+                                storage_cfg["backend"] = backend
+                            api_keys = [
+                                str(item).strip()
+                                for item in (payload.get("api_keys") or [])
+                                if str(item).strip()
+                            ]
+                            if api_keys:
+                                auth_cfg = profile.setdefault("auth", {})
+                                auth_cfg["api_keys"] = api_keys
+                        profiles[profile_name] = profile
+                        self._write_config_document(document)
+                        reload_result = None
+                        if callable(self.reload_callback):
+                            reload_result = self.reload_callback()
+                        await self._send_json(
+                            send,
+                            status=201,
+                            payload={
+                                "ok": True,
+                                "profile": self._profile_payload(
+                                    name=profile_name,
+                                    profile=profile,
+                                ),
+                                "reloaded": bool(reload_result),
+                                "reload": reload_result,
+                            },
+                        )
+                        return
+
+                    if len(segments) == 3:
+                        profile_name = segments[2]
+                        document = self._load_config_document()
+                        profiles = document.setdefault("profiles", {})
+                        profile = profiles.get(profile_name)
+                        if not isinstance(profile, dict):
+                            raise AdminIdentityError(
+                                "NOT_FOUND",
+                                f"unknown profile: {profile_name}",
+                                status=404,
+                            )
+
+                        if method == "GET":
+                            await self._send_json(
+                                send,
+                                status=200,
+                                payload={
+                                    "ok": True,
+                                    "profile": self._profile_payload(
+                                        name=profile_name,
+                                        profile=profile,
+                                    ),
+                                },
+                            )
+                            return
+                        if method in {"PUT", "PATCH"}:
+                            payload = await self._read_json_body(receive)
+                            candidate = self._deep_copy_jsonish(profile)
+                            patch = payload.get("profile")
+                            if isinstance(patch, dict):
+                                self._merge_mapping(candidate, patch)
+                            if "root" in payload:
+                                root = str(payload.get("root") or "").strip()
+                                candidate.setdefault("scope", {})["roots"] = (
+                                    [root] if root else []
+                                )
+                            if "backend" in payload:
+                                backend = str(payload.get("backend") or "").strip()
+                                if backend:
+                                    candidate.setdefault("storage", {})[
+                                        "backend"
+                                    ] = backend
+                            if "api_keys" in payload:
+                                api_keys = [
+                                    str(item).strip()
+                                    for item in (payload.get("api_keys") or [])
+                                    if str(item).strip()
+                                ]
+                                candidate.setdefault("auth", {})["api_keys"] = api_keys
+                            profiles[profile_name] = candidate
+                            self._write_config_document(document)
+                            reload_result = None
+                            if callable(self.reload_callback):
+                                reload_result = self.reload_callback()
+                            await self._send_json(
+                                send,
+                                status=200,
+                                payload={
+                                    "ok": True,
+                                    "profile": self._profile_payload(
+                                        name=profile_name,
+                                        profile=candidate,
+                                    ),
+                                    "reloaded": bool(reload_result),
+                                    "reload": reload_result,
+                                },
+                            )
+                            return
+                        if method == "DELETE":
+                            if profile_name == selected_profile:
+                                raise AdminIdentityError(
+                                    "VALIDATION_ERROR",
+                                    "cannot delete active profile",
+                                )
+                            del profiles[profile_name]
+                            self._write_config_document(document)
+                            reload_result = None
+                            if callable(self.reload_callback):
+                                reload_result = self.reload_callback()
+                            await self._send_json(
+                                send,
+                                status=200,
+                                payload={
+                                    "ok": True,
+                                    "deleted": True,
+                                    "name": profile_name,
+                                    "reloaded": bool(reload_result),
+                                    "reload": reload_result,
+                                },
+                            )
+                            return
+
+                    await self._send_api_error(
+                        send,
+                        status=405,
+                        code="METHOD_NOT_ALLOWED",
+                        message=f"Unsupported method for {path}: {method}",
+                    )
+                    return
+
+                if self.admin_identity_service is None:
+                    await self._send_api_error(
+                        send,
+                        status=501,
+                        code="INTERNAL_ERROR",
+                        message="Admin identity service unavailable",
+                    )
+                    return
+
+                service = self.admin_identity_service
+                if len(segments) >= 2 and segments[1] == "users":
+                    if method == "GET" and len(segments) == 2:
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "users": service.list_users()},
+                        )
+                        return
+                    if method == "POST" and len(segments) == 2:
+                        payload = await self._read_json_body(receive)
+                        created = service.create_user(
+                            username=str(payload.get("username") or ""),
+                            display_name=str(payload.get("display_name") or ""),
+                            is_active=bool(payload.get("is_active", True)),
+                            groups=payload.get("groups") or [],
+                        )
+                        await self._send_json(
+                            send,
+                            status=201,
+                            payload={"ok": True, "user": created},
+                        )
+                        return
+                    if len(segments) == 3 and method == "GET":
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "user": service.get_user(segments[2])},
+                        )
+                        return
+                    if len(segments) == 3 and method in {"PUT", "PATCH"}:
+                        payload = await self._read_json_body(receive)
+                        updated = service.update_user(segments[2], data=payload)
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "user": updated},
+                        )
+                        return
+                    if len(segments) == 3 and method == "DELETE":
+                        deleted = service.delete_user(segments[2])
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "result": deleted},
+                        )
+                        return
+
+                if len(segments) >= 2 and segments[1] == "groups":
+                    if method == "GET" and len(segments) == 2:
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "groups": service.list_groups()},
+                        )
+                        return
+                    if method == "POST" and len(segments) == 2:
+                        payload = await self._read_json_body(receive)
+                        created = service.create_group(
+                            name=str(payload.get("name") or ""),
+                            description=str(payload.get("description") or ""),
+                            roles=payload.get("roles") or [],
+                            is_active=bool(payload.get("is_active", True)),
+                        )
+                        await self._send_json(
+                            send,
+                            status=201,
+                            payload={"ok": True, "group": created},
+                        )
+                        return
+                    if len(segments) == 3 and method == "GET":
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={
+                                "ok": True,
+                                "group": service.get_group(segments[2]),
+                            },
+                        )
+                        return
+                    if len(segments) == 3 and method in {"PUT", "PATCH"}:
+                        payload = await self._read_json_body(receive)
+                        updated = service.update_group(segments[2], data=payload)
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "group": updated},
+                        )
+                        return
+                    if len(segments) == 3 and method == "DELETE":
+                        deleted = service.delete_group(segments[2])
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "result": deleted},
+                        )
+                        return
+
+                if len(segments) >= 2 and segments[1] == "api-keys":
+                    if method == "GET" and len(segments) == 2:
+                        query = parse_qs(
+                            scope.get("query_string", b"").decode("utf-8")
+                        )
+                        include_flag = str(
+                            (query.get("include_inactive") or ["false"])[0]
+                        ).strip()
+                        include_inactive = (
+                            include_flag.lower()
+                            in {"1", "true", "yes"}
+                        )
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={
+                                "ok": True,
+                                "api_keys": service.list_api_keys(
+                                    include_inactive=include_inactive
+                                ),
+                            },
+                        )
+                        return
+                    if method == "POST" and len(segments) == 2:
+                        payload = await self._read_json_body(receive)
+                        created = service.create_api_key(
+                            user_id=str(payload.get("user_id") or ""),
+                            label=str(payload.get("label") or ""),
+                            scopes=payload.get("scopes") or [],
+                            profile_name=str(payload.get("profile_name") or ""),
+                        )
+                        await self._send_json(
+                            send,
+                            status=201,
+                            payload={"ok": True, "api_key": created},
+                        )
+                        return
+                    if len(segments) == 4 and segments[3] == "revoke" and method == "POST":
+                        revoked = service.revoke_api_key(segments[2])
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "api_key": revoked},
+                        )
+                        return
+
+                await self._send_api_error(
+                    send,
+                    status=405,
+                    code="METHOD_NOT_ALLOWED",
+                    message=f"Unsupported method for {path}: {method}",
+                )
+                return
+            except AdminIdentityError as exc:
+                await self._send_api_error(
+                    send,
+                    status=exc.status,
+                    code=exc.code,
+                    message=str(exc),
+                )
+                return
+            except Exception as exc:
+                await self._send_api_error(
+                    send,
+                    status=500,
+                    code="INTERNAL_ERROR",
+                    message=str(exc),
+                )
+                return
 
         if (
             scope.get("type") == "http"
@@ -1506,6 +2165,7 @@ def build_tool_registry(
     *,
     profile_name: str = "default",
     logger: LogLike | None = None,
+    admin_identity_service: AdminIdentityService | None = None,
 ) -> ToolRegistry:
     """Build tool registry."""
     backend = build_storage_backend(profile)
@@ -1707,6 +2367,18 @@ def build_tool_registry(
     def backend_status() -> Dict[str, Any]:
         """Execute backend status."""
         return _backend_health_snapshot()
+
+    def _assert_admin_for_admin_tool() -> None:
+        """Require an authenticated admin scope for admin management tools."""
+        token = get_access_token()
+        scopes = set(getattr(token, "scopes", []) or [])
+        if not (
+            "*" in scopes
+            or "admin" in scopes
+            or "admin:*" in scopes
+            or "role:admin" in scopes
+        ):
+            raise PermissionError("Admin scope required")
 
     def read_file(
         path: str,
@@ -3079,6 +3751,127 @@ def build_tool_registry(
             )
             raise
 
+    def admin_list_users() -> Dict[str, Any]:
+        """List admin users."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "users": admin_identity_service.list_users()}
+
+    def admin_create_user(
+        username: str,
+        display_name: str = "",
+        is_active: bool = True,
+        groups: list[str] | None = None,
+    ) -> Dict[str, Any]:
+        """Create admin user."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {
+            "ok": True,
+            "user": admin_identity_service.create_user(
+                username=username,
+                display_name=display_name,
+                is_active=is_active,
+                groups=groups or [],
+            ),
+        }
+
+    def admin_update_user(user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update admin user."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "user": admin_identity_service.update_user(user_id, data=data)}
+
+    def admin_delete_user(user_id: str) -> Dict[str, Any]:
+        """Delete admin user."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "result": admin_identity_service.delete_user(user_id)}
+
+    def admin_list_groups() -> Dict[str, Any]:
+        """List admin groups."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "groups": admin_identity_service.list_groups()}
+
+    def admin_create_group(
+        name: str,
+        description: str = "",
+        roles: list[str] | None = None,
+        is_active: bool = True,
+    ) -> Dict[str, Any]:
+        """Create admin group."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {
+            "ok": True,
+            "group": admin_identity_service.create_group(
+                name=name,
+                description=description,
+                roles=roles or [],
+                is_active=is_active,
+            ),
+        }
+
+    def admin_update_group(group_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update admin group."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "group": admin_identity_service.update_group(group_id, data=data)}
+
+    def admin_delete_group(group_id: str) -> Dict[str, Any]:
+        """Delete admin group."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "result": admin_identity_service.delete_group(group_id)}
+
+    def admin_list_api_keys(include_inactive: bool = False) -> Dict[str, Any]:
+        """List admin API keys."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {
+            "ok": True,
+            "api_keys": admin_identity_service.list_api_keys(
+                include_inactive=include_inactive
+            ),
+        }
+
+    def admin_create_api_key(
+        user_id: str,
+        label: str,
+        scopes: list[str] | None = None,
+        profile_name: str = "",
+    ) -> Dict[str, Any]:
+        """Create admin API key."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {
+            "ok": True,
+            "api_key": admin_identity_service.create_api_key(
+                user_id=user_id,
+                label=label,
+                scopes=scopes or [],
+                profile_name=profile_name,
+            ),
+        }
+
+    def admin_revoke_api_key(api_key_id: str) -> Dict[str, Any]:
+        """Revoke admin API key."""
+        _assert_admin_for_admin_tool()
+        if admin_identity_service is None:
+            raise RuntimeError("admin identity service unavailable")
+        return {"ok": True, "api_key": admin_identity_service.revoke_api_key(api_key_id)}
+
     tools = ToolRegistry()
     tools.register(
         ToolDefinition(
@@ -3621,6 +4414,114 @@ def build_tool_registry(
             handler=backend_status,
         )
     )
+    if admin_identity_service is not None:
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_list_users",
+                    description="List managed admin users",
+                ),
+                handler=admin_list_users,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_create_user",
+                    description="Create managed admin user",
+                    mutating=True,
+                ),
+                handler=admin_create_user,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_update_user",
+                    description="Update managed admin user",
+                    mutating=True,
+                ),
+                handler=admin_update_user,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_delete_user",
+                    description="Delete managed admin user",
+                    mutating=True,
+                ),
+                handler=admin_delete_user,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_list_groups",
+                    description="List managed admin groups",
+                ),
+                handler=admin_list_groups,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_create_group",
+                    description="Create managed admin group",
+                    mutating=True,
+                ),
+                handler=admin_create_group,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_update_group",
+                    description="Update managed admin group",
+                    mutating=True,
+                ),
+                handler=admin_update_group,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_delete_group",
+                    description="Delete managed admin group",
+                    mutating=True,
+                ),
+                handler=admin_delete_group,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_list_api_keys",
+                    description="List managed admin API keys",
+                ),
+                handler=admin_list_api_keys,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_create_api_key",
+                    description="Create managed admin API key",
+                    mutating=True,
+                ),
+                handler=admin_create_api_key,
+            )
+        )
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(
+                    name="admin_revoke_api_key",
+                    description="Revoke managed admin API key",
+                    mutating=True,
+                ),
+                handler=admin_revoke_api_key,
+            )
+        )
     setattr(tools, "profile_config", profile)
     setattr(tools, "profile_name", profile_name)
     setattr(tools, "storage_backend_name", active_backend)
@@ -3824,6 +4725,7 @@ def build_fastmcp_server(
     http: HttpRuntimeSettings,
     *,
     logger: LogLike | None = None,
+    admin_identity_service: AdminIdentityService | None = None,
 ) -> FastMCP:
     """Build fastmcp server."""
     if default_profile_name not in config.profiles:
@@ -3842,6 +4744,16 @@ def build_fastmcp_server(
             for name, profile in config.profiles.items()
         },
         default_profile=default_profile_name,
+        dynamic_key_resolver=(
+            (
+                lambda token, profile_name: admin_identity_service.resolve_dynamic_api_key(
+                    token=token,
+                    profile_name=profile_name,
+                )
+            )
+            if admin_identity_service is not None
+            else None
+        ),
         audit_emitter=AuditEmitter(),
         logger=logger,
     )
@@ -3867,7 +4779,10 @@ def build_fastmcp_server(
                     profile = profiles_holder[default_profile_name]
                     profile_name = default_profile_name
                 registry = build_tool_registry(
-                    profile, profile_name=profile_name, logger=logger
+                    profile,
+                    profile_name=profile_name,
+                    logger=logger,
+                    admin_identity_service=admin_identity_service,
                 )
                 registry_by_profile[profile_name] = registry
             return registry
@@ -3929,6 +4844,10 @@ async def run_fastmcp_http_server(
     )
 
     db_runtime = initialise_database()
+    admin_identity_service = AdminIdentityService(
+        session_manager=db_runtime.session_manager,
+        logger=logger,
+    )
     http = resolve_http_settings(http_config)
     for profile_name, profile in config.profiles.items():
         ENDPOINT_HEALTH_MANAGER.run_startup_checks(
@@ -3947,7 +4866,13 @@ async def run_fastmcp_http_server(
                             restart_exit_code=exit_code,
                         )
                     raise SystemExit(exit_code)
-    server = build_fastmcp_server(default_profile_name, config, http, logger=logger)
+    server = build_fastmcp_server(
+        default_profile_name,
+        config,
+        http,
+        logger=logger,
+        admin_identity_service=admin_identity_service,
+    )
     reload_fn = getattr(server, "_file_mcp_reload_registry", None)
     registry_provider = getattr(server, "_file_mcp_registry_provider", None)
     auth_verifier = getattr(server, "_file_mcp_auth_verifier", None)
@@ -3980,6 +4905,7 @@ async def run_fastmcp_http_server(
             mcp_path=http.mcp_path,
             a2a_auth_verifier=auth_verifier,
             db_runtime=db_runtime,
+            admin_identity_service=admin_identity_service,
             callback_host_fallback=http.host,
         ),
     ]
