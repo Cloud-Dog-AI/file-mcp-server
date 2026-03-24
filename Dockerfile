@@ -41,12 +41,14 @@ COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
 # Install public/runtime deps from REQUIREMENTS and inject cloud_dog_* packages
 # from the local build context (private package index is not guaranteed in all runners).
 RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
-    pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt
+    pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
+    pip install --no-cache-dir 'redis>=5.0'
 COPY --from=cloud_dog_site_packages /cloud_dog_api_kit /usr/local/lib/python3.11/site-packages/cloud_dog_api_kit
 COPY --from=cloud_dog_config_src /cloud_dog_config /usr/local/lib/python3.11/site-packages/cloud_dog_config
 COPY --from=cloud_dog_site_packages /cloud_dog_idam /usr/local/lib/python3.11/site-packages/cloud_dog_idam
 COPY --from=cloud_dog_logging_src /cloud_dog_logging /usr/local/lib/python3.11/site-packages/cloud_dog_logging
 COPY --from=cloud_dog_db_src /cloud_dog_db /usr/local/lib/python3.11/site-packages/cloud_dog_db
+COPY --from=cloud_dog_jobs_src /cloud_dog_jobs /usr/local/lib/python3.11/site-packages/cloud_dog_jobs
 
 FROM python:3.11-slim
 LABEL org.opencontainers.image.licenses="Apache-2.0"
