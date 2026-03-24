@@ -31,11 +31,12 @@ from dataclasses import dataclass
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, Callable, Dict, Literal, Optional, Protocol, TextIO, cast
-from threading import Lock, RLock
+from threading import RLock
 from html import escape
 
 import inspect
 import json
+import mimetypes
 import sys
 import time
 import uuid
@@ -383,6 +384,16 @@ class HealthCheckMiddleware:
             read_env_var("FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS"), default=True
         )
         self.callback_host_fallback = callback_host_fallback.strip()
+        self.ui_base_path = _normalize_path(
+            read_env_var("FILE_MCP_UI_BASE_PATH"), default="/ui"
+        )
+        configured_ui_dist = str(read_env_var("FILE_MCP_UI_DIST_PATH") or "").strip()
+        if configured_ui_dist:
+            self.ui_dist_path = Path(configured_ui_dist).expanduser().resolve()
+        else:
+            self.ui_dist_path = (
+                Path(__file__).resolve().parents[2] / "ui" / "dist"
+            ).resolve()
 
     def _ready_path(self) -> str:
         """Handle ready path."""
@@ -531,6 +542,144 @@ class HealthCheckMiddleware:
         await self._send_bytes(
             send, status=status, body=body, content_type="application/json"
         )
+
+    def _ui_index_path(self) -> Path:
+        """Return the configured SPA index path."""
+        return self.ui_dist_path / "index.html"
+
+    @staticmethod
+    def _ui_route_paths() -> tuple[str, ...]:
+        """Return root routes owned by the file-mcp SPA."""
+        return (
+            "/login",
+            "/dashboard",
+            "/file-browser",
+            "/search",
+            "/storage-profiles",
+            "/audit-log",
+            "/settings",
+        )
+
+    def _is_ui_route(self, path: str) -> bool:
+        """Return True if request path should serve the SPA entrypoint."""
+        if path in self._ui_route_paths():
+            return True
+        if path == self.ui_base_path:
+            return True
+        if path.startswith(f"{self.ui_base_path}/"):
+            return not (
+                path == f"{self.ui_base_path}/assets"
+                or path.startswith(f"{self.ui_base_path}/assets/")
+            )
+        return False
+
+    def _resolve_ui_asset_path(self, path: str) -> Path | None:
+        """Resolve an asset path under ui/dist while preventing traversal."""
+        relative_path = ""
+        if path.startswith("/assets/"):
+            relative_path = path.lstrip("/")
+        elif path.startswith(f"{self.ui_base_path}/assets/"):
+            relative_path = path[len(f"{self.ui_base_path}/") :]
+        if not relative_path:
+            return None
+
+        candidate = (self.ui_dist_path / relative_path).resolve()
+        try:
+            candidate.relative_to(self.ui_dist_path)
+        except ValueError:
+            return None
+        if not candidate.is_file():
+            return None
+        return candidate
+
+    async def _send_file(self, send, *, path: Path, method: str) -> None:
+        """Send a file response for GET/HEAD requests."""
+        body = path.read_bytes()
+        content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"content-type", content_type.encode("utf-8")),
+                    (b"content-length", str(len(body)).encode("utf-8")),
+                ],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"" if method == "HEAD" else body,
+            }
+        )
+
+    def _runtime_config_payload(self) -> dict[str, str]:
+        """Build runtime-config values for the UI bootstrap script."""
+        env_name = str(read_env_var("FILE_MCP_UI_ENV") or read_env_var("CLOUD_DOG_ENV") or "dev")
+        env_name = env_name.strip() or "dev"
+
+        api_base_url = str(read_env_var("FILE_MCP_UI_API_BASE_URL") or "").strip() or "/"
+        auth_mode = str(read_env_var("FILE_MCP_UI_AUTH_MODE") or "api_key").strip() or "api_key"
+        if auth_mode not in {"api_key", "cookie", "oidc"}:
+            auth_mode = "api_key"
+
+        audit_log_path = (
+            str(read_env_var("FILE_MCP_UI_AUDIT_LOG_PATH") or "").strip()
+            or "working/test-env-st/audit.log.jsonl"
+        )
+        default_browse_path = (
+            str(read_env_var("FILE_MCP_UI_DEFAULT_BROWSE_PATH") or "").strip() or "src"
+        )
+        profile_store_path = (
+            str(read_env_var("FILE_MCP_UI_PROFILE_STORE_PATH") or "").strip()
+            or "working/ui-file-mcp/storage-profiles.json"
+        )
+
+        return {
+            "ENV": env_name,
+            "API_BASE_URL": api_base_url,
+            "AUTH_MODE": auth_mode,
+            "AUDIT_LOG_PATH": audit_log_path,
+            "DEFAULT_BROWSE_PATH": default_browse_path,
+            "PROFILE_STORE_PATH": profile_store_path,
+        }
+
+    async def _serve_runtime_config(self, send, *, method: str) -> None:
+        """Serve runtime configuration bootstrap JavaScript."""
+        payload = self._runtime_config_payload()
+        script = (
+            "window.__RUNTIME_CONFIG__ = "
+            f"{json.dumps(payload, separators=(',', ':'))};\n"
+        ).encode("utf-8")
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [
+                    (b"content-type", b"application/javascript; charset=utf-8"),
+                    (b"cache-control", b"no-store"),
+                    (b"content-length", str(len(script)).encode("utf-8")),
+                ],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b"" if method == "HEAD" else script,
+            }
+        )
+
+    async def _serve_spa_index(self, send, *, method: str) -> None:
+        """Serve SPA entrypoint from ui/dist."""
+        index_path = self._ui_index_path()
+        if not index_path.is_file():
+            await self._send_html(
+                send,
+                status=503,
+                html="<h1>UI not built</h1><p>Expected ui/dist/index.html.</p>",
+            )
+            return
+        await self._send_file(send, path=index_path, method=method)
 
     async def _read_json_body(self, receive) -> dict[str, Any]:
         """Read and decode a JSON request body."""
@@ -1253,7 +1402,23 @@ class HealthCheckMiddleware:
             for k, v in (scope.get("headers") or [])
         }
         path = str(scope.get("path") or "")
+        method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
+
+        if scope.get("type") == "http" and method in {"GET", "HEAD"}:
+            if path == "/runtime-config.js":
+                await self._serve_runtime_config(send, method=method)
+                return
+
+            asset_path = self._resolve_ui_asset_path(path)
+            if asset_path is not None:
+                await self._send_file(send, path=asset_path, method=method)
+                return
+
+            if self._is_ui_route(path):
+                await self._serve_spa_index(send, method=method)
+                return
+
         health_paths = {self.health_path}
         ready_paths = {self._ready_path()}
         live_paths = {self._live_path()}
@@ -1282,7 +1447,7 @@ class HealthCheckMiddleware:
             return
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and scope.get("path") == "/"
         ):
             summary = self._build_root_summary()
@@ -1298,7 +1463,7 @@ class HealthCheckMiddleware:
             return
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and path in health_paths
         ):
             readiness, checks = self._dependency_checks()
@@ -1329,7 +1494,7 @@ class HealthCheckMiddleware:
             return
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and scope.get("path") == f"{self.mcp_path.rstrip('/')}/tools"
         ):
             payload = self._list_tools_payload()
@@ -1340,7 +1505,7 @@ class HealthCheckMiddleware:
             return
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and path == self.a2a_health_path
         ):
             if not await self._is_a2a_authorized(scope=scope, headers=headers):
@@ -1365,7 +1530,7 @@ class HealthCheckMiddleware:
             return
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and path in ready_paths
         ):
             readiness, checks = self._dependency_checks()
@@ -1376,7 +1541,7 @@ class HealthCheckMiddleware:
             return
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and path in live_paths
         ):
             body = json.dumps(
@@ -1432,7 +1597,7 @@ class HealthCheckMiddleware:
 
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and is_profiles_html_request
         ):
             await self._send_html(send, status=200, html=self._render_profiles_admin_html())
@@ -1440,7 +1605,7 @@ class HealthCheckMiddleware:
 
         if (
             scope.get("type") == "http"
-            and scope.get("method") == "GET"
+            and method == "GET"
             and path == "/admin/identity"
         ):
             await self._send_html(send, status=200, html=self._render_identity_admin_html())

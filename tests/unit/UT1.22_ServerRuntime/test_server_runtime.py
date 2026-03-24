@@ -132,6 +132,30 @@ profiles:
     )
 
 
+def _run_middleware_request(middleware, *, path: str, method: str = "GET", headers=None):
+    sent: list[dict] = []
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": method,
+            "path": path,
+            "headers": headers or [],
+            "query_string": b"",
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    return sent
+
+
 def test_resolve_http_settings_with_base_path() -> None:
     config = HttpServerConfig(
         transport="streamable-http",
@@ -758,6 +782,122 @@ def test_root_status_page_returns_json_for_api_accept(tmp_path) -> None:
             runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
             runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+
+
+def test_runtime_config_endpoint_returns_dynamic_script() -> None:
+    previous = {
+        key: runtime_env.get(key)
+        for key in (
+            "FILE_MCP_UI_ENV",
+            "FILE_MCP_UI_API_BASE_URL",
+            "FILE_MCP_UI_AUTH_MODE",
+            "FILE_MCP_UI_AUDIT_LOG_PATH",
+            "FILE_MCP_UI_DEFAULT_BROWSE_PATH",
+            "FILE_MCP_UI_PROFILE_STORE_PATH",
+        )
+    }
+    runtime_env["FILE_MCP_UI_ENV"] = "preprod"
+    runtime_env["FILE_MCP_UI_API_BASE_URL"] = "https://api.filemcp.example"
+    runtime_env["FILE_MCP_UI_AUTH_MODE"] = "api_key"
+    runtime_env["FILE_MCP_UI_AUDIT_LOG_PATH"] = "working/preprod/audit.jsonl"
+    runtime_env["FILE_MCP_UI_DEFAULT_BROWSE_PATH"] = "storage"
+    runtime_env["FILE_MCP_UI_PROFILE_STORE_PATH"] = "working/preprod/profiles.json"
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        sent = _run_middleware_request(middleware, path="/runtime-config.js")
+        assert sent[0]["status"] == 200
+        body = sent[1]["body"].decode("utf-8")
+        assert body.startswith("window.__RUNTIME_CONFIG__ = ")
+        payload = json.loads(body.split("=", 1)[1].strip().rstrip(";"))
+        assert payload["ENV"] == "preprod"
+        assert payload["API_BASE_URL"] == "https://api.filemcp.example"
+        assert payload["AUTH_MODE"] == "api_key"
+        assert payload["AUDIT_LOG_PATH"] == "working/preprod/audit.jsonl"
+        assert payload["DEFAULT_BROWSE_PATH"] == "storage"
+        assert payload["PROFILE_STORE_PATH"] == "working/preprod/profiles.json"
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                runtime_env.pop(key, None)
+            else:
+                runtime_env[key] = value
+
+
+def test_ui_routes_serve_spa_index_from_configured_dist(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        for route in ("/ui", "/ui/dashboard", "/dashboard"):
+            sent = _run_middleware_request(middleware, path=route)
+            assert sent[0]["status"] == 200
+            assert b"file-mcp-ui-shell" in sent[1]["body"]
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
+
+
+def test_ui_assets_are_served_from_dist(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    assets = dist / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    asset_file = assets / "app.js"
+    asset_file.write_text("console.log('asset-ok');", encoding="utf-8")
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        for route in ("/assets/app.js", "/ui/assets/app.js"):
+            sent = _run_middleware_request(middleware, path=route)
+            assert sent[0]["status"] == 200
+            assert sent[1]["body"] == b"console.log('asset-ok');"
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 
 
 def test_health_middleware_serves_google_drive_admin_page() -> None:

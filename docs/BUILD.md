@@ -31,7 +31,35 @@ Use the project build wrapper (do not use ad-hoc `docker build`):
 ./docker-build.sh registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
 ```
 
-## 5. Lint and type-check
+## 5. Build and stage web UI bundle (`ui/dist`)
+
+`file-mcp-server` serves the monorepo SPA from `ui/dist/`.
+
+```bash
+cd /opt/iac/Development/cloud-dog-ai/cloud-dog-ai-ui-monorepo
+npm run build --workspace=apps/file-mcp
+
+cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
+mkdir -p ui
+rm -rf ui/dist
+cp -r /opt/iac/Development/cloud-dog-ai/cloud-dog-ai-ui-monorepo/apps/file-mcp/dist ui/dist
+```
+
+Runtime config endpoint:
+- `GET /runtime-config.js`
+- served dynamically by the backend (no frontend rebuild required per environment)
+
+Optional runtime-config env overrides:
+- `FILE_MCP_UI_ENV`
+- `FILE_MCP_UI_API_BASE_URL`
+- `FILE_MCP_UI_AUTH_MODE`
+- `FILE_MCP_UI_AUDIT_LOG_PATH`
+- `FILE_MCP_UI_DEFAULT_BROWSE_PATH`
+- `FILE_MCP_UI_PROFILE_STORE_PATH`
+- `FILE_MCP_UI_BASE_PATH` (default `/ui`)
+- `FILE_MCP_UI_DIST_PATH` (default `<repo>/ui/dist`)
+
+## 6. Lint and type-check
 
 ```bash
 .venv/bin/ruff check src tests
@@ -39,7 +67,7 @@ Use the project build wrapper (do not use ad-hoc `docker build`):
 .venv/bin/mypy src
 ```
 
-## 6. Test execution by tier
+## 7. Test execution by tier
 
 All test runs must include `--env`.
 
@@ -62,7 +90,7 @@ set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
 .venv/bin/python -m pytest tests/application --env tests/env-AT -q
 ```
 
-## 7. Local runtime start/stop
+## 8. Local runtime start/stop
 
 ```bash
 ./server_control.sh --env tests/env-UT start

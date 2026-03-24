@@ -12,6 +12,9 @@ Authentication: API key for protected MCP/A2A/admin operations. Health endpoint 
 | `POST` | `/admin/google-drive/start` | Start Google OAuth | Required (Bearer API key) | JSON body | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
 | `POST` | `/admin/reload` | Reload Active Configuration | Required (Bearer API key) | JSON body | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
 | `GET` | `/health` | Health Check | Not required | None | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
+| `GET` | `/runtime-config.js` | UI runtime bootstrap config (`window.__RUNTIME_CONFIG__`) | Not required | None | JavaScript payload | `400`, `404`, `500` |
+| `GET` | `/ui`, `/ui/*` | File MCP SPA shell (`ui/dist/index.html` fallback) | Not required | None | HTML payload | `404`, `503` |
+| `GET` | `/assets/*`, `/ui/assets/*` | Static SPA assets from `ui/dist/assets` | Not required | None | Static file payload | `404` |
 | `GET` | `/api/v1/jobs` | List managed jobs for selected profile | Required (Bearer API key) | Query: `limit`, `status`, `session_id`, `job_type` | JSON payload | `400`, `401`, `403`, `404`, `405`, `500`, `503` |
 | `GET` | `/api/v1/jobs/queue/status` | Return queue status counters | Required (Bearer API key) | None | JSON payload | `400`, `401`, `403`, `404`, `405`, `500`, `503` |
 | `GET` | `/api/v1/jobs/{job_id}` | Read one managed job | Required (Bearer API key) | None | JSON payload | `400`, `401`, `403`, `404`, `405`, `500`, `503` |

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from urllib.request import urlopen
 from tests.path_helpers import project_root
 
 import pytest
@@ -36,6 +37,14 @@ def test_auth_enforcement_and_health(tmp_path: Path) -> None:
     root_dir.mkdir(parents=True, exist_ok=True)
     target = root_dir / "hello.txt"
     target.write_text("hello", encoding="utf-8")
+    ui_dist = tmp_path / "ui" / "dist"
+    ui_dist_assets = ui_dist / "assets"
+    ui_dist_assets.mkdir(parents=True, exist_ok=True)
+    (ui_dist / "index.html").write_text(
+        "<!doctype html><html><body>st-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    (ui_dist_assets / "app.js").write_text("console.log('st-asset');", encoding="utf-8")
 
     defaults_path, config_path, env_path, pidfile, _ = write_server_config(
         tmp_path,
@@ -49,9 +58,21 @@ def test_auth_enforcement_and_health(tmp_path: Path) -> None:
         config_path=config_path,
         env_path=env_path,
         pidfile=pidfile,
+        extra_env={"FILE_MCP_UI_DIST_PATH": str(ui_dist)},
     ):
         health = wait_for_health(f"http://127.0.0.1:{port}/health")
         assert health["status"] == "ok"
+        runtime_config_url = f"http://127.0.0.1:{port}/runtime-config.js"
+        with urlopen(runtime_config_url, timeout=2.0) as runtime_config_response:
+            assert runtime_config_response.status == 200
+            runtime_config_body = runtime_config_response.read().decode("utf-8")
+        assert "window.__RUNTIME_CONFIG__" in runtime_config_body
+
+        ui_url = f"http://127.0.0.1:{port}/ui"
+        with urlopen(ui_url, timeout=2.0) as ui_response:
+            assert ui_response.status == 200
+            ui_body = ui_response.read().decode("utf-8")
+        assert "st-ui-shell" in ui_body
 
         async def _unauthorized_call() -> None:
             async with Client(

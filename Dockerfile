@@ -102,6 +102,7 @@ COPY healthcheck.sh ./healthcheck.sh
 COPY DOCKER-README.me ./DOCKER-README.me
 COPY certs ./certs
 COPY database ./database
+COPY ui ./ui
 
 RUN mkdir -p /app/.run /app/logs /app/certs /app/storage /app/tmp /app/archive
 RUN chmod +x /app/docker-entrypoint.sh /app/healthcheck.sh /app/server_control.sh

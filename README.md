@@ -41,6 +41,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | REST | Health/admin/runtime endpoints | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) |
 | MCP | Tool discovery and tool execution (`/mcp`) | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) |
 | A2A | `/a2a/health` auth contract in local runtime flows | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) |
+| Web UI | SPA shell at `/ui` (bundle from `ui/dist`) and dynamic `/runtime-config.js` | [docs/BUILD.md](docs/BUILD.md) |
 
 ## Configuration
 

@@ -59,6 +59,19 @@
 | `FILE_MCP_HTTP_STATELESS` | Stateless HTTP toggle | `true` | No | `true` |
 | `FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS` | Legacy alias exposure toggle | `true` | No | `true` |
 
+## 3.1 Web UI Runtime Variables
+
+| Variable | Description | Default | Required | Example |
+|---|---|---|---|---|
+| `FILE_MCP_UI_BASE_PATH` | UI entry route prefix | `/ui` | No | `/ui` |
+| `FILE_MCP_UI_DIST_PATH` | Absolute/relative path to built SPA artefacts | `<repo>/ui/dist` | No | `/opt/iac/Development/cloud-dog-ai/file-mcp-server/ui/dist` |
+| `FILE_MCP_UI_ENV` | Runtime environment label injected into `/runtime-config.js` | `dev` | No | `preprod` |
+| `FILE_MCP_UI_API_BASE_URL` | API base URL consumed by frontend API client | empty (same-origin root) | No | `https://filemcpserver0.cloud-dog.net` |
+| `FILE_MCP_UI_AUTH_MODE` | UI auth mode (`api_key`, `cookie`, `oidc`) | `api_key` | No | `api_key` |
+| `FILE_MCP_UI_AUDIT_LOG_PATH` | Default audit log path shown in UI | `working/test-env-st/audit.log.jsonl` | No | `working/preprod/audit.log.jsonl` |
+| `FILE_MCP_UI_DEFAULT_BROWSE_PATH` | Default browse root shown in UI | `src` | No | `storage` |
+| `FILE_MCP_UI_PROFILE_STORE_PATH` | Storage profile export/import path used by UI | `working/ui-file-mcp/storage-profiles.json` | No | `working/preprod/storage-profiles.json` |
+
 ## 4. Storage Backend Variables
 
 ### 4.1 S3
