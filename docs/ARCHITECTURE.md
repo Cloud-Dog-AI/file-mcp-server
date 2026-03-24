@@ -58,6 +58,7 @@ graph LR
         EDIT[Edit Engines<br/>json/yaml/xml/md/sed]
         CONV[Conversion Backends]
         SEARCH[Search + Diff/Meld]
+        JOBS[Managed Jobs Runtime<br/>cloud_dog_jobs]
         AUTH[IDAM Adapter]
         AUDIT[Audit + Snapshots]
     end
@@ -74,6 +75,7 @@ graph LR
     REG --> EDIT
     REG --> CONV
     REG --> SEARCH
+    REG --> JOBS
     REG --> STORAGE
     HTTP --> AUTH
     REG --> AUDIT
@@ -86,6 +88,7 @@ The runtime separates protocol handling from tool implementations, allowing poli
 | Module | Path | Responsibility | Platform Package |
 |---|---|---|---|
 | Runtime server | `src/file_mcp_server/server_runtime.py` | HTTP/MCP contract, readiness, admin routes, tool registration | `cloud_dog_api_kit` compatible patterns |
+| Jobs runtime | `src/file_mcp_server/jobs_runtime.py` | Managed job queue lifecycle for long-running file operations | `cloud_dog_jobs` |
 | Entrypoint | `src/file_mcp_server/main.py` | CLI process control and env wiring | — |
 | Auth adapter | `src/file_mcp_server/idam_adapter.py` | Token verification and request context | `cloud_dog_idam` |
 | DB runtime/models | `src/file_mcp_server/db/runtime.py`, `src/file_mcp_server/db/models.py` | DB startup and platform state table | `cloud_dog_db` |
@@ -117,6 +120,9 @@ erDiagram
 | GET | `/ready` | Readiness with dependency checks | None |
 | GET | `/` | Status page/summary payload | Optional |
 | GET | `/mcp/tools` | MCP tool catalogue helper | Optional/API key |
+| GET | `/api/v1/jobs` | Managed jobs list with filters | API key/JWT |
+| GET | `/api/v1/jobs/queue/status` | Managed jobs queue counters | API key/JWT |
+| GET | `/api/v1/jobs/{job_id}` | Managed job status lookup | API key/JWT |
 | POST | `/mcp` | MCP JSON-RPC endpoint (streamable/http mode) | API key/JWT (profile dependent) |
 | GET | `/admin/google-drive` | Google Drive setup UI | Admin auth |
 | GET | `/admin/google-drive/callback` | OAuth callback | Admin auth |
@@ -129,7 +135,7 @@ erDiagram
 | `list_dir`, `create_dir`, `move_path`, `rename_path` | Directory/path operations | io |
 | `search_content`, `search_paths` | Content/path search | search |
 | `json_*`, `yaml_*`, `xml_set_file`, `markdown_*`, `sed_edit_file` | Structured editing operations | edit |
-| `convert_file` | Document conversion pipeline | conversion |
+| `convert_file` | Document conversion pipeline (managed jobs enabled by profile) | conversion |
 | `diff_files`, `diff_text`, `meld_files` | Comparison workflows | diff |
 | `validate_file`, `validate_text` | Validation and policy checks | validation |
 | `backend_status` | Backend status probe | admin |
@@ -146,6 +152,7 @@ Dedicated A2A server is not a primary surface in this project; the canonical mac
 | `cloud_dog_db` | `>=0.1.0` | DB runtime and `PlatformBase` models |
 | `cloud_dog_idam` | `>=0.2.0` | Auth middleware and token verification |
 | `cloud_dog_logging` | `>=0.2.0` | Structured audit/log adapters |
+| `cloud_dog_jobs` | `>=0.2.0` | Managed job queue backends and lifecycle APIs |
 
 ### 7.2 External Services
 | Service | Purpose | Connection | Vault Path |
@@ -181,7 +188,7 @@ graph TD
     MERGE[cloud_dog_config adapter] --> APP[file runtime]
 ```
 
-Profile domains include auth, scope, audit, limits, conversion, storage, TLS, and endpoint-health behaviours.
+Profile domains include auth, scope, audit, limits, conversion, jobs, storage, TLS, and endpoint-health behaviours.
 
 ## 9. Security Architecture
 - Authentication: profile-configurable IDAM/token validation at runtime.

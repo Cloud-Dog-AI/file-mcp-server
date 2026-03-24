@@ -26,11 +26,24 @@
 | `FILE_MCP_STORAGE_TIMEOUT_S` | Storage operation timeout (seconds) | `30` | No | `30` |
 | `FILE_MCP_STORAGE_TLS_INSECURE` | Skip TLS verification for remote backends | `false` | No | `false` |
 | `FILE_MCP_STORAGE_TLS_CA_BUNDLE` | CA bundle path for backend TLS | empty | No | `/app/certs/ca.crt` |
+| `FILE_MCP_SERVER_ID` | Stable server identity for logs and jobs | `file-mcp-local` | No | `filemcpserver0` |
 | `FILE_MCP_SEARCH_MAX_RESULTS` | Search result cap | `250` | No | `250` |
 | `FILE_MCP_SEARCH_MAX_FILE_MB` | Maximum file size for search | `5` | No | `5` |
 | `FILE_MCP_SEARCH_TIMEOUT_S` | Search timeout (seconds) | `30` | No | `30` |
 | `FILE_MCP_CONVERSION_TIMEOUT_S` | Convert timeout (seconds) | `60` | No | `60` |
 | `FILE_MCP_CONVERSION_MAX_INPUT_MB` | Convert input max size (MB) | `25` | No | `25` |
+
+## 2.1 Managed Jobs Variables
+
+| Variable | Description | Default | Required | Example |
+|---|---|---|---|---|
+| `FILE_MCP_JOBS_ENABLED` | Enable managed job tracking | `true` | No | `true` |
+| `FILE_MCP_JOBS_BACKEND` | Jobs backend (`sql`, `redis`, `memory`) | `sql` | No | `sql` |
+| `FILE_MCP_JOBS_QUEUE` | Queue name for submitted jobs | `file-mcp` | No | `file-mcp` |
+| `FILE_MCP_JOBS_PAYLOAD_MAX_BYTES` | Max serialised payload bytes accepted by queue | `65536` | No | `65536` |
+| `FILE_MCP_JOBS_SQL_URL` | SQL backend URL override | `sqlite:///database/file_mcp.db` | No | `sqlite:///database/file_mcp.db` |
+| `FILE_MCP_JOBS_REDIS_URL` | Redis backend URL | `disabled` | Required when `FILE_MCP_JOBS_BACKEND=redis` | `redis://localhost:6379/0` |
+| `FILE_MCP_JOBS_REDIS_KEY_PREFIX` | Redis key namespace prefix | `file_mcp_jobs` | No | `file_mcp_jobs_preprod` |
 
 ## 3. HTTP Transport Variables
 
@@ -218,6 +231,13 @@ FILE_MCP_HTTP_MCP_PATH
 FILE_MCP_HTTP_PORT
 FILE_MCP_HTTP_STATELESS
 FILE_MCP_HTTP_TRANSPORT
+FILE_MCP_JOBS_BACKEND
+FILE_MCP_JOBS_ENABLED
+FILE_MCP_JOBS_PAYLOAD_MAX_BYTES
+FILE_MCP_JOBS_QUEUE
+FILE_MCP_JOBS_REDIS_KEY_PREFIX
+FILE_MCP_JOBS_REDIS_URL
+FILE_MCP_JOBS_SQL_URL
 FILE_MCP_PREPROD_KEY_FTP
 FILE_MCP_PREPROD_KEY_LOCAL
 FILE_MCP_PREPROD_KEY_S3
@@ -245,6 +265,7 @@ FILE_MCP_S3_SECRET_KEY
 FILE_MCP_SEARCH_MAX_FILE_MB
 FILE_MCP_SEARCH_MAX_RESULTS
 FILE_MCP_SEARCH_TIMEOUT_S
+FILE_MCP_SERVER_ID
 FILE_MCP_SERVER_LOG
 FILE_MCP_SNAPSHOT_DIR
 FILE_MCP_SNAPSHOT_MAX_STORAGE_MB

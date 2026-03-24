@@ -44,4 +44,5 @@ def configure_logging_for_profile(
         profile,
         name=name,
         service_name=service_name,
+        server_id=profile.server_id,
     )

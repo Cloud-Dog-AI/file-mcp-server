@@ -87,6 +87,8 @@
 | 81 | AT1.7 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
 | 82 | AT1.8 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
 | 83 | AT1.9 | AT | `tests/application` | FR1.4, FR1.13, FR1.21 | 2026-03-13 | See `working/` logs |
+| 84 | UT1.31 | UT | `tests/unit` | FR1.21, FR1.23, NF1.3 | 2026-03-23 | See `working/w28a-277-ut.log` |
+| 85 | IT1.27 | IT | `tests/integration` | FR1.21, FR1.23, NF1.3 | 2026-03-23 | See `working/w28a-277-it.log` |
 
 ## Requirement Coverage References
 
@@ -195,6 +197,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 - `test_application_safe_edit_workflow.py`
 - `test_application_search_edit_audit_workflow.py`
 - `test_application_security_boundary.py`
+- `test_profile_lifecycle.py`
 - `test_profile_crud.py`
 - `test_integration_markdown_advanced_http.py`
 - `test_integration_meld_optionality_http.py`
@@ -214,6 +217,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 - `test_server_http_integration.py`
 - `test_system_conversion_backend_selection.py`
 - `test_integration_a2a_auth_contract.py`
+- `test_integration_jobs_managed_file_ops.py`
 - `test_docker_container_runtime.py`
 - `test_integration_base64_file_ops.py`
 - `test_integration_config_matrix_harness_http.py`
@@ -276,6 +280,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 - `test_remote_env_helpers.py`
 - `test_database_abstraction.py`
 - `test_admin_identity.py`
+- `test_jobs_runtime.py`
 - `test_audit.py`
 - `test_auth.py`
 - `test_config_loader.py`

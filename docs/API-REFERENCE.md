@@ -12,6 +12,9 @@ Authentication: API key for protected MCP/A2A/admin operations. Health endpoint 
 | `POST` | `/admin/google-drive/start` | Start Google OAuth | Required (Bearer API key) | JSON body | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
 | `POST` | `/admin/reload` | Reload Active Configuration | Required (Bearer API key) | JSON body | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
 | `GET` | `/health` | Health Check | Not required | None | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
+| `GET` | `/api/v1/jobs` | List managed jobs for selected profile | Required (Bearer API key) | Query: `limit`, `status`, `session_id`, `job_type` | JSON payload | `400`, `401`, `403`, `404`, `405`, `500`, `503` |
+| `GET` | `/api/v1/jobs/queue/status` | Return queue status counters | Required (Bearer API key) | None | JSON payload | `400`, `401`, `403`, `404`, `405`, `500`, `503` |
+| `GET` | `/api/v1/jobs/{job_id}` | Read one managed job | Required (Bearer API key) | None | JSON payload | `400`, `401`, `403`, `404`, `405`, `500`, `503` |
 | `POST` | `/mcp` | MCP Tool Endpoint | Required (Bearer API key) | JSON body | JSON payload | `400`, `401`, `403`, `404`, `500` (contract-dependent) |
 
 ### OpenAPI
@@ -53,12 +56,12 @@ Example request (tool call):
 | Tool | Description | Mutating | Parameters | Return Schema |
 |---|---|---|---|---|
 | `b64_decode` | Decode base64 to text | no | `data, encoding='utf-8', urlsafe=False` | JSON object; schema depends on tool |
-| `b64_decode_to_file` | Decode base64 to file | yes | `path, data, urlsafe=False, overwrite=True, dry_run=False` | JSON object; schema depends on tool |
+| `b64_decode_to_file` | Decode base64 to file (managed job when enabled) | yes | `path, data, urlsafe=False, overwrite=True, dry_run=False` | JSON object; includes `job_id` when jobs are enabled |
 | `b64_encode` | Encode text as base64 | no | `text, encoding='utf-8', urlsafe=False` | JSON object; schema depends on tool |
 | `b64_encode_file` | Encode file contents as base64 | no | `path, urlsafe=False` | JSON object; schema depends on tool |
 | `backend_status` | Return endpoint health states for configured storage backends | no | `-` | JSON object; schema depends on tool |
 | `chmod_path` | Change file or directory mode | yes | `path, mode, recursive=False, dry_run=False` | JSON object; schema depends on tool |
-| `convert_file` | Convert file with limits and warning-based optional backend handling | no | `path, target_format, output_path=None, max_input_mb=None, timeout_s=None, simulate_delay_s=None, backend=None` | JSON object; schema depends on tool |
+| `convert_file` | Convert file with limits and warning-based optional backend handling (managed job when enabled) | no | `path, target_format, output_path=None, max_input_mb=None, timeout_s=None, simulate_delay_s=None, backend=None` | JSON object; includes `job_id` when jobs are enabled |
 | `copy_file` | Copy a file | yes | `src, dst, overwrite=False, dry_run=False` | JSON object; schema depends on tool |
 | `create_dir` | Create a directory | yes | `path, parents=True, exist_ok=True, dry_run=False` | JSON object; schema depends on tool |
 | `delete_file` | Delete a file | yes | `path, missing_ok=False, dry_run=False` | JSON object; schema depends on tool |

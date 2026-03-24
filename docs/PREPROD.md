@@ -26,6 +26,7 @@ Section 2 documents the full preprod environment surface that differs from or ma
 |---|---|---|---|---|
 | `FILE_MCP_HTTP_*` | sourced from env-backed defaults | Terraform + `private/env-PREPROD` | Yes | Preprod uses streamable HTTP on `0.0.0.0:8080` with `/mcp`, `/health`, and `/events`. |
 | `FILE_MCP_ROOT`, `FILE_MCP_AUDIT_LOG`, `FILE_MCP_SERVER_LOG`, `FILE_MCP_SNAPSHOT_DIR` | repo-local defaults | Terraform + `private/env-PREPROD` | Yes | Container storage is rooted under `/workspace`. |
+| `FILE_MCP_SERVER_ID`, `FILE_MCP_JOBS_*` | defaults-backed runtime identity and queue settings | Terraform + `private/env-PREPROD` | Yes | Preprod should use a stable server identifier and SQL/Redis jobs backend wiring. |
 | `FILE_MCP_ADMIN_UI_ENABLED`, `FILE_MCP_ENDPOINT_HEALTH_CHECK_ALL` | admin enabled, endpoint health enabled in defaults | Terraform + `private/env-PREPROD` | Yes | Preprod keeps admin UI on but limits expensive all-backend checks. |
 
 ### Storage backend settings

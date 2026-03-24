@@ -1,5 +1,6 @@
 profiles:
   default:
+    server_id: "${FILE_MCP_SERVER_ID:file-mcp-local}"
     auth:
       api_keys:
         - "${FILE_MCP_API_KEY_PRIMARY}"
@@ -81,6 +82,14 @@ profiles:
       search_timeout_s: 30
       storage_timeout_s: 30
       conversion_timeout_s: 60
+    jobs:
+      enabled: "${FILE_MCP_JOBS_ENABLED:true}"
+      backend: "${FILE_MCP_JOBS_BACKEND:sql}"
+      queue_name: "${FILE_MCP_JOBS_QUEUE:file-mcp}"
+      payload_max_bytes: "${FILE_MCP_JOBS_PAYLOAD_MAX_BYTES:65536}"
+      sql_url: "${FILE_MCP_JOBS_SQL_URL:sqlite:///database/file_mcp.db}"
+      redis_url: "${FILE_MCP_JOBS_REDIS_URL:disabled}"
+      redis_key_prefix: "${FILE_MCP_JOBS_REDIS_KEY_PREFIX:file_mcp_jobs}"
     endpoint_health:
       enabled: true
       check_on_startup: true
@@ -105,7 +114,7 @@ http:
   stateless_http: "${FILE_MCP_HTTP_STATELESS}"
 
 log:
-  service_instance: "${HOSTNAME:file-mcp-local}"
+  service_instance: "${FILE_MCP_SERVER_ID:file-mcp-local}"
   environment: "${CLOUD_DOG_ENVIRONMENT:dev}"
   retention:
     hot_days: 14

@@ -50,11 +50,15 @@ def _clean_path(value: str | None) -> str | None:
 
 def _coerce_profile(
     config: ObservabilityConfig | ProfileConfig,
-) -> tuple[ObservabilityConfig, str | None]:
+) -> tuple[ObservabilityConfig, str | None, str | None]:
     """Handle coerce profile."""
     if isinstance(config, ProfileConfig):
-        return config.observability, _clean_path(config.audit.log_path)
-    return config, None
+        return (
+            config.observability,
+            _clean_path(config.audit.log_path),
+            _clean_path(config.server_id),
+        )
+    return config, None, None
 
 
 def configure_operational_logger(
@@ -62,18 +66,24 @@ def configure_operational_logger(
     *,
     name: str = "file_mcp_server",
     service_name: str = "file-mcp-server",
+    server_id: str | None = None,
 ) -> AppLogger:
     """Configure cloud_dog_logging from already-loaded profile settings."""
-    observability, audit_path = _coerce_profile(config)
+    observability, audit_path, profile_server_id = _coerce_profile(config)
     app_path = _clean_path(observability.log_path)
     enabled = observability.enabled is not False
     level = (observability.level or "INFO").strip().upper() or "INFO"
+    resolved_server_id = (
+        _clean_path(server_id) or profile_server_id or f"{service_name}-local"
+    )
 
     payload: dict[str, Any] = {
         "service_name": service_name,
+        "service_instance": resolved_server_id,
         "log": {
             "level": level,
             "format": "json",
+            "service_instance": resolved_server_id,
             "app_log": app_path if enabled else None,
             "audit_log": audit_path,
             "console": bool(enabled and not app_path),

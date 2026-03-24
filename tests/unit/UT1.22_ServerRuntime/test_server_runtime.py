@@ -23,6 +23,7 @@ import json
 from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
 from file_mcp_server.endpoint_health import ENDPOINT_HEALTH_MANAGER, EndpointState
+from file_mcp_server.jobs_runtime import FileMcpJobsRuntime
 from file_mcp_server.server import (
     HealthCheckMiddleware,
     StreamableHttpAcceptCompatibilityMiddleware,
@@ -57,6 +58,41 @@ class _StubA2AVerifier:
         if token == self.valid_token and profile_name == "default":
             return object()
         return None
+
+
+class _StubJobsRuntime:
+    def __init__(self) -> None:
+        self.server_id = "ut-jobs-server"
+        self.backend_name = "memory"
+        self._jobs = {
+            "job-1": {
+                "job_id": "job-1",
+                "status": "succeeded",
+                "job_type": "file.convert",
+            }
+        }
+
+    def list_jobs(
+        self,
+        *,
+        limit: int = 100,
+        status: str | None = None,
+        session_id: str | None = None,
+        job_type: str | None = None,
+    ) -> list[dict]:
+        del session_id
+        jobs = list(self._jobs.values())
+        if status:
+            jobs = [job for job in jobs if job.get("status") == status]
+        if job_type:
+            jobs = [job for job in jobs if job.get("job_type") == job_type]
+        return jobs[:limit]
+
+    def queue_status(self) -> dict[str, int]:
+        return {"succeeded": 1}
+
+    def get_job(self, job_id: str) -> dict | None:
+        return self._jobs.get(job_id)
 
 
 def _profile(tmp_path):
@@ -309,6 +345,116 @@ def test_a2a_health_uses_auth_verifier_contract() -> None:
     assert body["status"] == "ok"
     assert body["a2a"]["base_path"] == "/a2a"
     assert verifier.verify_calls == [("12345678", "default")]
+
+
+def test_health_middleware_jobs_route_lists_jobs() -> None:
+    sent = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+        jobs_runtime_provider=lambda _profile_name: _StubJobsRuntime(),
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/jobs",
+            "headers": [(b"authorization", b"Bearer 12345678")],
+            "query_string": b"limit=5&status=succeeded",
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["ok"] is True
+    assert payload["queue_backend"] == "memory"
+    assert payload["jobs"][0]["job_id"] == "job-1"
+
+
+def test_health_middleware_jobs_route_reads_single_job() -> None:
+    sent = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+        jobs_runtime_provider=lambda _profile_name: _StubJobsRuntime(),
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/jobs/job-1",
+            "headers": [(b"authorization", b"Bearer 12345678")],
+            "query_string": b"",
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["ok"] is True
+    assert payload["job"]["job_id"] == "job-1"
+
+
+def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
+    profile = _profile(tmp_path)
+    jobs_runtime = FileMcpJobsRuntime.from_profile(
+        profile,
+        profile_name="default",
+        fallback_sql_url=None,
+    )
+    assert jobs_runtime is not None
+    registry = build_tool_registry(profile, jobs_runtime=jobs_runtime)
+
+    src = tmp_path / "doc.txt"
+    out = tmp_path / "doc.md"
+    src.write_text("hello", encoding="utf-8")
+    result = registry.get("convert_file").handler(
+        str(src),
+        "md",
+        str(out),
+        backend="builtin-text-copy",
+    )
+
+    assert result["ok"] is True
+    assert "job_id" in result
+    job = jobs_runtime.get_job(str(result["job_id"]))
+    assert job is not None
+    assert job["status"] == "succeeded"
 
 
 def test_streamable_http_accept_compatibility_middleware_patches_json_only_accept() -> (

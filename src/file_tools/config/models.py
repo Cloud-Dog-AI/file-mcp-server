@@ -97,6 +97,16 @@ class LimitsConfig(BaseModel):
     conversion_timeout_s: Optional[int] = None
 
 
+class JobsConfig(BaseModel):
+    enabled: Optional[bool | str] = None
+    backend: Optional[str] = None
+    queue_name: Optional[str] = None
+    payload_max_bytes: Optional[int | str] = None
+    sql_url: Optional[str] = None
+    redis_url: Optional[str] = None
+    redis_key_prefix: Optional[str] = None
+
+
 class TlsConfig(BaseModel):
     """
     TLS controls for outbound connections to remote storage backends.
@@ -189,6 +199,7 @@ class EndpointHealthConfig(BaseModel):
 
 
 class ProfileConfig(BaseModel):
+    server_id: Optional[str] = None
     auth: AuthConfig = Field(default_factory=AuthConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     scope: ScopeConfig = Field(default_factory=ScopeConfig)
@@ -198,6 +209,7 @@ class ProfileConfig(BaseModel):
     conversion: ConversionConfig = Field(default_factory=ConversionConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     limits: LimitsConfig = Field(default_factory=LimitsConfig)
+    jobs: JobsConfig = Field(default_factory=JobsConfig)
     endpoint_health: EndpointHealthConfig = Field(default_factory=EndpointHealthConfig)
 
 

@@ -30,8 +30,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional, Protocol, TextIO, cast
-from threading import Lock
+from typing import Any, Callable, Dict, Literal, Optional, Protocol, TextIO, cast
+from threading import Lock, RLock
 from html import escape
 
 import inspect
@@ -128,6 +128,7 @@ from .db import (
     initialise_database,
     shutdown_database,
 )
+from .jobs_runtime import FileMcpJobsRuntime
 from .google_drive_admin import (
     MASKED_CLIENT_SECRET,
     begin_oauth,
@@ -334,6 +335,8 @@ class HealthCheckMiddleware:
         a2a_auth_verifier=None,
         db_runtime: PlatformDatabaseRuntime | None = None,
         admin_identity_service: AdminIdentityService | None = None,
+        jobs_runtime_provider: Callable[[str | None], FileMcpJobsRuntime | None]
+        | None = None,
         callback_host_fallback: str = "",
     ) -> None:
         """Initialise the instance state."""
@@ -347,6 +350,7 @@ class HealthCheckMiddleware:
         self.a2a_auth_verifier = a2a_auth_verifier
         self.db_runtime = db_runtime
         self.admin_identity_service = admin_identity_service
+        self.jobs_runtime_provider = jobs_runtime_provider
         self.a2a_base_path = _normalize_path(
             read_env_var("TEST_A2A_BASE_PATH"), default="/a2a"
         )
@@ -371,6 +375,9 @@ class HealthCheckMiddleware:
         self.admin_ui_token = str(read_env_var("FILE_MCP_ADMIN_UI_TOKEN") or "").strip()
         self.admin_apply_on_callback = _to_bool(
             read_env_var("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
+        )
+        self.server_id = (
+            str(read_env_var("FILE_MCP_SERVER_ID") or "").strip() or "file-mcp-local"
         )
         self.enable_legacy_api_alias = _to_bool(
             read_env_var("FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS"), default=True
@@ -1119,6 +1126,124 @@ class HealthCheckMiddleware:
             "</body></html>"
         )
 
+    def _resolve_jobs_runtime(
+        self, *, profile_name: str | None
+    ) -> FileMcpJobsRuntime | None:
+        """Resolve jobs runtime for profile when jobs are enabled."""
+        provider = self.jobs_runtime_provider
+        if not callable(provider):
+            return None
+        return provider(profile_name)
+
+    async def _handle_jobs_api(
+        self,
+        *,
+        scope: dict[str, Any],
+        headers: dict[str, str],
+        path: str,
+        send,
+    ) -> bool:
+        """Handle read-only jobs status API routes."""
+        if scope.get("type") != "http":
+            return False
+        method = str(scope.get("method") or "").upper()
+        if not (path == "/api/v1/jobs" or path.startswith("/api/v1/jobs/")):
+            return False
+
+        supplied_admin_token = headers.get("x-admin-token", "")
+        ui_admin = bool(self.admin_ui_token and supplied_admin_token == self.admin_ui_token)
+        auth_info, selected_profile = await self._authenticate_request(
+            scope=scope, headers=headers
+        )
+        if not ui_admin and auth_info is None:
+            await self._send_api_error(
+                send,
+                status=401,
+                code="UNAUTHENTICATED",
+                message="Unauthorised",
+            )
+            return True
+
+        if method != "GET":
+            await self._send_api_error(
+                send,
+                status=405,
+                code="METHOD_NOT_ALLOWED",
+                message=f"Unsupported method for {path}: {method}",
+            )
+            return True
+
+        runtime = self._resolve_jobs_runtime(profile_name=selected_profile)
+        if runtime is None:
+            await self._send_api_error(
+                send,
+                status=503,
+                code="SERVICE_UNAVAILABLE",
+                message="Jobs runtime not enabled for selected profile",
+            )
+            return True
+
+        query = parse_qs(scope.get("query_string", b"").decode("utf-8"))
+        if path == "/api/v1/jobs":
+            limit = _to_int((query.get("limit") or [100])[0], default=100)
+            status = str((query.get("status") or [""])[0]).strip() or None
+            session_id = str((query.get("session_id") or [""])[0]).strip() or None
+            job_type = str((query.get("job_type") or [""])[0]).strip() or None
+            await self._send_json(
+                send,
+                status=200,
+                payload={
+                    "ok": True,
+                    "profile": selected_profile,
+                    "server_id": runtime.server_id,
+                    "queue_backend": runtime.backend_name,
+                    "jobs": runtime.list_jobs(
+                        limit=limit,
+                        status=status,
+                        session_id=session_id,
+                        job_type=job_type,
+                    ),
+                },
+            )
+            return True
+
+        if path == "/api/v1/jobs/queue/status":
+            await self._send_json(
+                send,
+                status=200,
+                payload={
+                    "ok": True,
+                    "profile": selected_profile,
+                    "server_id": runtime.server_id,
+                    "queue_backend": runtime.backend_name,
+                    "queue_status": runtime.queue_status(),
+                },
+            )
+            return True
+
+        segments = [segment for segment in path.split("/") if segment]
+        if len(segments) == 4:
+            job_id = segments[3]
+            payload = runtime.get_job(job_id)
+            if payload is None:
+                await self._send_api_error(
+                    send,
+                    status=404,
+                    code="NOT_FOUND",
+                    message=f"Job not found: {job_id}",
+                )
+                return True
+            await self._send_json(send, status=200, payload={"ok": True, "job": payload})
+            return True
+
+        await self._send_api_error(
+            send,
+            status=404,
+            code="NOT_FOUND",
+            message="Not Found",
+        )
+        return True
+
     async def __call__(self, scope, receive, send) -> None:
         """Handle callable invocation for this instance."""
         headers = {
@@ -1153,6 +1278,8 @@ class HealthCheckMiddleware:
                 live_paths.add(legacy_root_live)
 
         is_admin_route = path.startswith("/admin/")
+        if await self._handle_jobs_api(scope=scope, headers=headers, path=path, send=send):
+            return
         if (
             scope.get("type") == "http"
             and scope.get("method") == "GET"
@@ -2166,6 +2293,7 @@ def build_tool_registry(
     profile_name: str = "default",
     logger: LogLike | None = None,
     admin_identity_service: AdminIdentityService | None = None,
+    jobs_runtime: FileMcpJobsRuntime | None = None,
 ) -> ToolRegistry:
     """Build tool registry."""
     backend = build_storage_backend(profile)
@@ -2197,6 +2325,71 @@ def build_tool_registry(
         profile.snapshots.enabled and snapshot_dir and profile.snapshots.mode != "none"
     )
     snapshot_retention_days = profile.snapshots.retention_days
+
+    def _request_user_id() -> str | None:
+        """Extract caller identity from auth context when available."""
+        token = get_access_token()
+        if token is None:
+            return None
+        for attribute in ("subject", "sub", "identity", "principal", "user_id"):
+            value = getattr(token, attribute, None)
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+        return None
+
+    def _start_managed_job(job_type: str, payload: dict[str, Any]) -> str | None:
+        """Submit and claim a managed job for this tool call."""
+        if jobs_runtime is None:
+            return None
+        try:
+            job_id = jobs_runtime.submit_job(
+                job_type=job_type,
+                payload=payload,
+                session_id=get_request_session_id(),
+                correlation_id=get_correlation_id(),
+                user_id=_request_user_id(),
+                request_ip=get_request_client_ip(),
+            )
+            jobs_runtime.mark_running(job_id)
+            return job_id
+        except Exception as exc:
+            if logger is not None:
+                logger.warning(
+                    "managed_job_start_failed",
+                    profile=profile_name,
+                    job_type=job_type,
+                    reason=str(exc),
+                )
+            return None
+
+    def _finish_managed_job(payload: dict[str, Any], job_id: str | None) -> dict[str, Any]:
+        """Attach job metadata and update lifecycle state."""
+        if jobs_runtime is None or not job_id:
+            return payload
+        result = dict(payload)
+        result["job_id"] = job_id
+        try:
+            if bool(result.get("ok")):
+                jobs_runtime.mark_succeeded(job_id)
+            else:
+                warnings = result.get("warnings")
+                if isinstance(warnings, list) and warnings:
+                    error_message = str(warnings[0])
+                else:
+                    error_message = str(result.get("error_code") or "job_failed")
+                jobs_runtime.mark_failed(job_id, error=error_message)
+        except Exception as exc:
+            if logger is not None:
+                logger.warning(
+                    "managed_job_finish_failed",
+                    profile=profile_name,
+                    job_id=job_id,
+                    reason=str(exc),
+                )
+        return result
 
     def _write_audit(
         *,
@@ -3295,6 +3488,15 @@ def build_tool_registry(
             if output_path
             else None
         )
+        job_id = _start_managed_job(
+            "file.convert",
+            {
+                "path": str(resolved),
+                "target_format": str(target_format),
+                "output_path": str(resolved_output or ""),
+                "backend": str(backend or ""),
+            },
+        )
         effective_max_mb = (
             max_input_mb
             if max_input_mb is not None
@@ -3316,6 +3518,10 @@ def build_tool_registry(
                 "warnings": [message],
             }
 
+        def _done(payload: Dict[str, Any]) -> Dict[str, Any]:
+            """Attach managed job metadata and close lifecycle state."""
+            return _finish_managed_job(payload, job_id)
+
         try:
             if backend == "builtin-text-copy":
                 text_like_exts = {
@@ -3333,9 +3539,11 @@ def build_tool_registry(
                     "txt",
                     "md",
                 }:
-                    return _fail(
-                        "builtin-text-copy backend does not support input/target combination",
-                        code="unsupported_format",
+                    return _done(
+                        _fail(
+                            "builtin-text-copy backend does not support input/target combination",
+                            code="unsupported_format",
+                        )
                     )
                 content = storage_backend.read_bytes(resolved).decode(
                     "utf-8", errors="replace"
@@ -3344,20 +3552,24 @@ def build_tool_registry(
                     storage_backend.write_bytes(
                         resolved_output, content.encode("utf-8"), overwrite=True
                     )
-                    return {
+                    return _done(
+                        {
+                            "ok": True,
+                            "backend": "builtin-text-copy",
+                            "used_fallback": False,
+                            "warnings": [],
+                            "output_path": str(resolved_output),
+                        }
+                    )
+                return _done(
+                    {
                         "ok": True,
                         "backend": "builtin-text-copy",
                         "used_fallback": False,
                         "warnings": [],
-                        "output_path": str(resolved_output),
+                        "content": content,
                     }
-                return {
-                    "ok": True,
-                    "backend": "builtin-text-copy",
-                    "used_fallback": False,
-                    "warnings": [],
-                    "content": content,
-                }
+                )
 
             with enforce_timeout(effective_timeout):
                 if simulate_delay_s and simulate_delay_s > 0:
@@ -3411,13 +3623,13 @@ def build_tool_registry(
                 )
             if result.content is not None:
                 payload["content"] = result.content
-            return payload
+            return _done(payload)
         except BackendNotFoundError as exc:
-            return _fail(str(exc), backend=backend, code="unknown_backend")
+            return _done(_fail(str(exc), backend=backend, code="unknown_backend"))
         except BackendUnavailableError as exc:
-            return _fail(str(exc), backend=backend, code="backend_unavailable")
+            return _done(_fail(str(exc), backend=backend, code="backend_unavailable"))
         except BackendCannotHandleError as exc:
-            return _fail(str(exc), backend=backend, code="unsupported_format")
+            return _done(_fail(str(exc), backend=backend, code="unsupported_format"))
         except ConversionError as exc:
             # Deterministic built-in fallback for text-like sources when external backends are unavailable.
             text_like_exts = {".txt", ".md", ".json", ".yaml", ".yml", ".html", ".xml"}
@@ -3426,7 +3638,7 @@ def build_tool_registry(
                 "md",
             }:
                 if backend and backend != "builtin-text-copy":
-                    return _fail(str(exc), code="backend_unavailable")
+                    return _done(_fail(str(exc), code="backend_unavailable"))
                 content = storage_backend.read_bytes(resolved).decode(
                     "utf-8", errors="replace"
                 )
@@ -3434,25 +3646,29 @@ def build_tool_registry(
                     storage_backend.write_bytes(
                         resolved_output, content.encode("utf-8"), overwrite=True
                     )
-                    return {
+                    return _done(
+                        {
+                            "ok": True,
+                            "backend": "builtin-text-copy",
+                            "used_fallback": True,
+                            "warnings": ["fallback_text_copy"],
+                            "output_path": str(resolved_output),
+                        }
+                    )
+                return _done(
+                    {
                         "ok": True,
                         "backend": "builtin-text-copy",
                         "used_fallback": True,
                         "warnings": ["fallback_text_copy"],
-                        "output_path": str(resolved_output),
+                        "content": content,
                     }
-                return {
-                    "ok": True,
-                    "backend": "builtin-text-copy",
-                    "used_fallback": True,
-                    "warnings": ["fallback_text_copy"],
-                    "content": content,
-                }
-            return _fail(str(exc), code="backend_unavailable")
+                )
+            return _done(_fail(str(exc), code="backend_unavailable"))
         except TimeoutError as exc:
-            return _fail(str(exc), code="timeout")
+            return _done(_fail(str(exc), code="timeout"))
         except LimitError as exc:
-            return _fail(str(exc), code="limit_exceeded")
+            return _done(_fail(str(exc), code="limit_exceeded"))
 
     def meld_files_tool(path_a: str, path_b: str) -> Dict[str, Any]:
         """Execute meld files tool."""
@@ -3489,6 +3705,14 @@ def build_tool_registry(
             path=path,
             operation="write",
         )
+        job_id = _start_managed_job(
+            "file.upload.b64_decode",
+            {
+                "path": str(resolved),
+                "bytes_in": len(data),
+                "dry_run": bool(dry_run),
+            },
+        )
         snapshot = _snapshot_if_enabled(resolved)
         decoded = b64_decode(data, urlsafe=urlsafe)
         try:
@@ -3504,12 +3728,15 @@ def build_tool_registry(
                         "snapshot_path": str(snapshot) if snapshot else None,
                     },
                 )
-                return {
-                    "ok": True,
-                    "path": str(resolved),
-                    "dry_run": True,
-                    "bytes_written": len(decoded),
-                }
+                return _finish_managed_job(
+                    {
+                        "ok": True,
+                        "path": str(resolved),
+                        "dry_run": True,
+                        "bytes_written": len(decoded),
+                    },
+                    job_id,
+                )
             backend.write_bytes(resolved, decoded, overwrite=overwrite)
             _write_audit(
                 tool_name="b64_decode_to_file",
@@ -3521,19 +3748,24 @@ def build_tool_registry(
                     "dry_run": False,
                 },
             )
-            return {
-                "ok": True,
-                "path": str(resolved),
-                "bytes_written": len(decoded),
-                "dry_run": False,
-            }
-        except Exception:
+            return _finish_managed_job(
+                {
+                    "ok": True,
+                    "path": str(resolved),
+                    "bytes_written": len(decoded),
+                    "dry_run": False,
+                },
+                job_id,
+            )
+        except Exception as exc:
             _write_audit(
                 tool_name="b64_decode_to_file",
                 action="write",
                 status="error",
                 paths={"path": str(resolved)},
             )
+            if jobs_runtime is not None and job_id:
+                jobs_runtime.mark_failed(job_id, error=str(exc))
             raise
 
     def validate_file(
@@ -4528,6 +4760,7 @@ def build_tool_registry(
     setattr(tools, "endpoint_health_manager", ENDPOINT_HEALTH_MANAGER)
     setattr(tools, "logger", logger)
     setattr(tools, "audit_writer", _write_audit)
+    setattr(tools, "jobs_runtime", jobs_runtime)
     return tools
 
 
@@ -4726,6 +4959,10 @@ def build_fastmcp_server(
     *,
     logger: LogLike | None = None,
     admin_identity_service: AdminIdentityService | None = None,
+    jobs_runtime_factory: Callable[
+        [ProfileConfig, str], FileMcpJobsRuntime | None
+    ]
+    | None = None,
 ) -> FastMCP:
     """Build fastmcp server."""
     if default_profile_name not in config.profiles:
@@ -4762,9 +4999,32 @@ def build_fastmcp_server(
         name=f"file-mcp-server:{default_profile_name}",
         auth=auth,
     )
-    registry_lock = Lock()
+    registry_lock = RLock()
     profiles_holder: dict[str, ProfileConfig] = dict(config.profiles)
     registry_by_profile: dict[str, ToolRegistry] = {}
+    jobs_runtime_by_profile: dict[str, FileMcpJobsRuntime | None] = {}
+
+    def _jobs_runtime_provider(
+        profile_name: str | None = None,
+    ) -> FileMcpJobsRuntime | None:
+        """Resolve jobs runtime for a profile."""
+        selected_name = (
+            str(profile_name or "").strip() or default_profile_name
+        )
+        with registry_lock:
+            if selected_name in jobs_runtime_by_profile:
+                return jobs_runtime_by_profile[selected_name]
+            profile = profiles_holder.get(selected_name)
+            if profile is None:
+                profile = profiles_holder[default_profile_name]
+                selected_name = default_profile_name
+            runtime = (
+                jobs_runtime_factory(profile, selected_name)
+                if jobs_runtime_factory is not None
+                else None
+            )
+            jobs_runtime_by_profile[selected_name] = runtime
+            return runtime
 
     def _registry_provider() -> ToolRegistry:
         """Handle registry provider."""
@@ -4783,6 +5043,7 @@ def build_fastmcp_server(
                     profile_name=profile_name,
                     logger=logger,
                     admin_identity_service=admin_identity_service,
+                    jobs_runtime=_jobs_runtime_provider(profile_name),
                 )
                 registry_by_profile[profile_name] = registry
             return registry
@@ -4795,6 +5056,10 @@ def build_fastmcp_server(
             env_path=env_path, config_path=config_path, defaults_path=defaults_path
         )
         with registry_lock:
+            for runtime in jobs_runtime_by_profile.values():
+                if runtime is not None:
+                    runtime.close()
+            jobs_runtime_by_profile.clear()
             profiles_holder.clear()
             profiles_holder.update(cfg.profiles)
             registry_by_profile.clear()
@@ -4812,9 +5077,19 @@ def build_fastmcp_server(
             },
         }
 
+    def _close_jobs_runtimes() -> None:
+        """Close all active jobs backends."""
+        with registry_lock:
+            for runtime in jobs_runtime_by_profile.values():
+                if runtime is not None:
+                    runtime.close()
+            jobs_runtime_by_profile.clear()
+
     setattr(server, "_file_mcp_registry_provider", _registry_provider)
     setattr(server, "_file_mcp_reload_registry", _reload_registry)
     setattr(server, "_file_mcp_auth_verifier", auth)
+    setattr(server, "_file_mcp_jobs_runtime_provider", _jobs_runtime_provider)
+    setattr(server, "_file_mcp_jobs_runtime_close_all", _close_jobs_runtimes)
 
     register_tools_with_fastmcp(
         server,
@@ -4848,6 +5123,7 @@ async def run_fastmcp_http_server(
         session_manager=db_runtime.session_manager,
         logger=logger,
     )
+    db_sync_url = db_runtime.settings.to_sync_url()
     http = resolve_http_settings(http_config)
     for profile_name, profile in config.profiles.items():
         ENDPOINT_HEALTH_MANAGER.run_startup_checks(
@@ -4872,10 +5148,19 @@ async def run_fastmcp_http_server(
         http,
         logger=logger,
         admin_identity_service=admin_identity_service,
+        jobs_runtime_factory=(
+            lambda profile, profile_name: FileMcpJobsRuntime.from_profile(
+                profile,
+                profile_name=profile_name,
+                fallback_sql_url=db_sync_url,
+            )
+        ),
     )
     reload_fn = getattr(server, "_file_mcp_reload_registry", None)
     registry_provider = getattr(server, "_file_mcp_registry_provider", None)
     auth_verifier = getattr(server, "_file_mcp_auth_verifier", None)
+    jobs_runtime_provider = getattr(server, "_file_mcp_jobs_runtime_provider", None)
+    jobs_runtime_close_all = getattr(server, "_file_mcp_jobs_runtime_close_all", None)
     env_path = read_env_var("FILE_MCP_ACTIVE_ENV_PATH") or None
     config_path = read_env_var("FILE_MCP_ACTIVE_CONFIG_PATH") or None
     defaults_path = read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or None
@@ -4906,6 +5191,7 @@ async def run_fastmcp_http_server(
             a2a_auth_verifier=auth_verifier,
             db_runtime=db_runtime,
             admin_identity_service=admin_identity_service,
+            jobs_runtime_provider=jobs_runtime_provider,
             callback_host_fallback=http.host,
         ),
     ]
@@ -4930,4 +5216,6 @@ async def run_fastmcp_http_server(
             stateless_http=http.stateless_http,
         )
     finally:
+        if callable(jobs_runtime_close_all):
+            jobs_runtime_close_all()
         shutdown_database()
