@@ -233,6 +233,7 @@ The following requirement IDs are explicitly tracked in this test catalogue:
 - `test_logging_compliance.py`
 - `test_qt_migration_completeness.py`
 - `test_qt_package_adoption.py`
+- `test_package_compliance.py`
 - `test_qt_requirement_traceability_manifest.py`
 - `test_qt_rules_compliance.py`
 - `test_qt_traceability.py`
