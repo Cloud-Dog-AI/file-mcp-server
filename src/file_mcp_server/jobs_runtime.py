@@ -36,7 +36,6 @@ from cloud_dog_jobs import (
     AdminService,
     JobQueue,
     JobRequest,
-    MemoryQueueBackend,
     RedisQueueBackend,
     SQLQueueBackend,
 )
@@ -111,7 +110,10 @@ class FileMcpJobsRuntime:
                 key_prefix=redis_key_prefix,
             )
         elif backend_name == "memory":
-            backend = MemoryQueueBackend()
+            raise ValueError(
+                "In-memory queue backend is not supported in production. "
+                "Use jobs.backend=sql (default) or jobs.backend=redis."
+            )
         else:
             sql_url = str(profile.jobs.sql_url or "").strip()
             if not sql_url:

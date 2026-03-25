@@ -36,3 +36,7 @@ CONTEXT-SUMMARY.md
 RULES.md
 API_DOCUMENTATION.md
 openapi.json
+src/sample-*
+src/search-target-*
+src/*.txt.lock
+src/*.txt.copy
