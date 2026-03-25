@@ -47,6 +47,18 @@ from os import getenv as read_env_var
 from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_config.compiler.evaluator import (  # type: ignore[import-untyped]
+    SafeExpressionError,
+    Unresolved,
+    evaluate,
+)
+from cloud_dog_config.compiler.vault_resolver import (  # type: ignore[import-untyped]
+    resolve_vault_identifier,
+)
+from cloud_dog_config.vault.client import (  # type: ignore[import-untyped]
+    VaultClient,
+    VaultConnectionConfig,
+)
 from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
 from cloud_dog_logging import get_logger  # type: ignore[import-untyped]
 from cloud_dog_api_kit.correlation.context import (  # type: ignore[import-not-found,import-untyped]
@@ -185,6 +197,109 @@ class HttpRuntimeSettings:
     health_path: str
     events_path: str
     stateless_http: bool
+
+
+def _build_runtime_vault_client() -> VaultClient | None:
+    """Build a Vault client from current runtime environment."""
+    server = str(read_env_var("VAULT_ADDR", "")).strip()
+    token = str(read_env_var("VAULT_TOKEN", "")).strip()
+    mount_point = str(read_env_var("VAULT_MOUNT_POINT", "")).strip()
+    if not server or not token:
+        return None
+    try:
+        return VaultClient(
+            VaultConnectionConfig(
+                server=server,
+                token=token,
+                mount_point=mount_point,
+            )
+        )
+    except Exception:
+        return None
+
+
+def _resolve_runtime_expression(
+    expression: str, *, vault_client: VaultClient | None
+) -> str:
+    """Resolve a single `${...}` expression using env and optional Vault."""
+
+    def _resolve_identifier(identifier: str) -> Any:
+        token = str(identifier).strip()
+        if not token:
+            return Unresolved(token)
+        if token.startswith("vault."):
+            if vault_client is None:
+                return Unresolved(token)
+            try:
+                return resolve_vault_identifier(token, vault=vault_client)
+            except Exception:
+                return Unresolved(token)
+
+        env_value = read_env_var(token)
+        if env_value is None:
+            return Unresolved(token)
+        value = str(env_value).strip()
+        if not value:
+            return Unresolved(token)
+        return value
+
+    try:
+        resolved = evaluate(expression, _resolve_identifier)
+    except SafeExpressionError:
+        return ""
+
+    if isinstance(resolved, Unresolved):
+        return ""
+    if isinstance(resolved, (dict, list, tuple, set)):
+        return ""
+    return str(resolved).strip()
+
+
+def _resolve_auth_api_key_value(
+    raw_value: str, *, vault_client: VaultClient | None
+) -> str:
+    """Resolve nested placeholder forms used for API-key entries."""
+    value = str(raw_value or "").strip()
+    if not value:
+        return ""
+
+    for _ in range(4):
+        match = re.fullmatch(r"\$\{(.+)\}", value)
+        if not match:
+            break
+        resolved = _resolve_runtime_expression(
+            match.group(1).strip(), vault_client=vault_client
+        )
+        if not resolved or resolved == value:
+            break
+        value = resolved.strip()
+
+    if "${" in value:
+        return ""
+    return value
+
+
+def _build_profile_auth_map(
+    config: ServerConfig,
+) -> dict[str, tuple[list[str], str | None, str | None]]:
+    """Build per-profile auth mapping with resolved API-key values."""
+    vault_client = _build_runtime_vault_client()
+    profile_auth: dict[str, tuple[list[str], str | None, str | None]] = {}
+    for name, profile in config.profiles.items():
+        resolved_keys = [
+            resolved
+            for resolved in (
+                _resolve_auth_api_key_value(str(item), vault_client=vault_client)
+                for item in profile.auth.api_keys
+            )
+            if resolved
+        ]
+        profile_auth[name] = (
+            resolved_keys,
+            profile.auth.header_name,
+            profile.auth.header_scheme,
+        )
+    return profile_auth
 
 
 def _build_response(
@@ -551,6 +666,7 @@ class HealthCheckMiddleware:
     def _ui_route_paths() -> tuple[str, ...]:
         """Return root routes owned by the file-mcp SPA."""
         return (
+            "/",
             "/login",
             "/dashboard",
             "/file-browser",
@@ -1448,22 +1564,6 @@ class HealthCheckMiddleware:
         if (
             scope.get("type") == "http"
             and method == "GET"
-            and scope.get("path") == "/"
-        ):
-            summary = self._build_root_summary()
-            if "application/json" in accept and "text/html" not in accept:
-                body = json.dumps(summary).encode("utf-8")
-                await self._send_bytes(
-                    send, status=200, body=body, content_type="application/json"
-                )
-                return
-            await self._send_html(
-                send, status=200, html=self._render_root_summary_html(summary)
-            )
-            return
-        if (
-            scope.get("type") == "http"
-            and method == "GET"
             and path in health_paths
         ):
             readiness, checks = self._dependency_checks()
@@ -1508,14 +1608,6 @@ class HealthCheckMiddleware:
             and method == "GET"
             and path == self.a2a_health_path
         ):
-            if not await self._is_a2a_authorized(scope=scope, headers=headers):
-                await self._send_api_error(
-                    send,
-                    status=401,
-                    code="UNAUTHENTICATED",
-                    message="Unauthorised",
-                )
-                return
             body = json.dumps(
                 {
                     "status": "ok",
@@ -1563,7 +1655,13 @@ class HealthCheckMiddleware:
             or path == "/admin/api-keys"
             or path.startswith("/admin/api-keys/")
         )
-        is_profile_api_route = path == "/admin/profiles" or path.startswith(
+        is_profile_api_alias_route = path == "/api/admin/profiles" or path.startswith(
+            "/api/admin/profiles/"
+        )
+        profile_api_path = (
+            path[len("/api") :] if is_profile_api_alias_route else path
+        )
+        is_profile_api_route = profile_api_path == "/admin/profiles" or profile_api_path.startswith(
             "/admin/profiles/"
         )
         is_profiles_html_request = (
@@ -1641,7 +1739,7 @@ class HealthCheckMiddleware:
                 return
 
             try:
-                segments = [segment for segment in path.split("/") if segment]
+                segments = [segment for segment in profile_api_path.split("/") if segment]
 
                 if is_profile_api_route:
                     if method == "GET" and len(segments) == 2:
@@ -5132,19 +5230,14 @@ def build_fastmcp_server(
     """Build fastmcp server."""
     if default_profile_name not in config.profiles:
         raise ValueError(f"Unknown default profile: {default_profile_name}")
-    for name, profile in config.profiles.items():
-        if not profile.auth.api_keys:
+
+    profile_auth = _build_profile_auth_map(config)
+    for name, (resolved_keys, _, _) in profile_auth.items():
+        if not resolved_keys:
             raise ValueError(f"No API keys configured for profile '{name}'")
 
     auth = MultiProfileApiKeyTokenVerifier(
-        {
-            name: (
-                profile.auth.api_keys,
-                profile.auth.header_name,
-                profile.auth.header_scheme,
-            )
-            for name, profile in config.profiles.items()
-        },
+        profile_auth,
         default_profile=default_profile_name,
         dynamic_key_resolver=(
             (

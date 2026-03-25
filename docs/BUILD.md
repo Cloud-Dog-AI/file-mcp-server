@@ -97,3 +97,27 @@ set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
 ./server_control.sh --env tests/env-UT status
 ./server_control.sh --env tests/env-UT stop
 ```
+
+## Publication Build Reference
+
+### Dockerfile Location
+
+- Dockerfile: `Dockerfile`
+- Build script: `docker-build.sh`
+- Primary compose/runtime file: `docker-compose.local.yml`
+
+### Registry Push
+
+```bash
+cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
+set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+bash docker-build.sh latest
+docker push registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+```
+
+### Standard Build Arguments and Prerequisites
+
+- `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` when required by the host environment
+- Cloud-Dog CA bundle if private trust material is needed
+- Vault-backed credentials for private package indexes and registry access
+- BuildKit-enabled Docker where the project build script expects it

@@ -17,12 +17,10 @@ from __future__ import annotations
 from tests.env_runtime import runtime_env
 
 import asyncio
-from datetime import datetime, timezone
 import json
 
 from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
-from file_mcp_server.endpoint_health import ENDPOINT_HEALTH_MANAGER, EndpointState
 from file_mcp_server.jobs_runtime import FileMcpJobsRuntime
 from file_mcp_server.server import (
     HealthCheckMiddleware,
@@ -30,6 +28,7 @@ from file_mcp_server.server import (
     build_tool_registry,
     resolve_http_settings,
 )
+from file_mcp_server.server_runtime import _resolve_auth_api_key_value
 
 
 class _FakeBindResult:
@@ -293,7 +292,7 @@ def test_health_middleware_returns_ok() -> None:
     assert body["status"] == "ok"
 
 
-def test_a2a_health_requires_auth() -> None:
+def test_a2a_health_is_public_without_auth() -> None:
     sent = []
 
     async def fake_app(
@@ -323,13 +322,13 @@ def test_a2a_health_requires_auth() -> None:
         await middleware(scope, receive, send)
 
     asyncio.run(_run())
-    assert sent[0]["status"] == 401
+    assert sent[0]["status"] == 200
     body = json.loads(sent[1]["body"].decode("utf-8"))
-    assert body["ok"] is False
+    assert body["status"] == "ok"
     assert verifier.verify_calls == []
 
 
-def test_a2a_health_uses_auth_verifier_contract() -> None:
+def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
     sent = []
 
     async def fake_app(
@@ -368,6 +367,46 @@ def test_a2a_health_uses_auth_verifier_contract() -> None:
     body = json.loads(sent[1]["body"].decode("utf-8"))
     assert body["status"] == "ok"
     assert body["a2a"]["base_path"] == "/a2a"
+    assert verifier.verify_calls == []
+
+
+def test_admin_profiles_api_route_supports_api_prefix_alias() -> None:
+    sent = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/admin/profiles",
+            "headers": [(b"authorization", b"Bearer 12345678")],
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 200
+    body = json.loads(sent[1]["body"].decode("utf-8"))
+    assert body["ok"] is True
+    assert "profiles" in body
     assert verifier.verify_calls == [("12345678", "default")]
 
 
@@ -523,23 +562,55 @@ def test_streamable_http_accept_compatibility_middleware_patches_json_only_accep
     assert "text/event-stream" in accept
 
 
-def test_root_status_page_returns_html_summary(tmp_path) -> None:
-    sent = []
-    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        (
-            "profiles:\n"
-            "  local:\n"
-            "    storage:\n"
-            "      backend: local\n"
-            "  s3:\n"
-            "    storage:\n"
-            "      backend: s3\n"
-        ),
+def test_resolve_auth_api_key_value_unwraps_nested_env_placeholders() -> None:
+    previous_outer = runtime_env.get("W28A355_OUTER_KEY")
+    previous_inner = runtime_env.get("W28A355_INNER_KEY")
+    runtime_env["W28A355_OUTER_KEY"] = "${W28A355_INNER_KEY}"
+    runtime_env["W28A355_INNER_KEY"] = "resolved-secret-key"
+    try:
+        assert (
+            _resolve_auth_api_key_value(
+                "${W28A355_OUTER_KEY}",
+                vault_client=None,
+            )
+            == "resolved-secret-key"
+        )
+    finally:
+        if previous_outer is None:
+            runtime_env.pop("W28A355_OUTER_KEY", None)
+        else:
+            runtime_env["W28A355_OUTER_KEY"] = previous_outer
+        if previous_inner is None:
+            runtime_env.pop("W28A355_INNER_KEY", None)
+        else:
+            runtime_env["W28A355_INNER_KEY"] = previous_inner
+
+
+def test_resolve_auth_api_key_value_returns_empty_for_unresolved_placeholder() -> None:
+    previous = runtime_env.get("W28A355_MISSING_KEY")
+    runtime_env.pop("W28A355_MISSING_KEY", None)
+    try:
+        assert (
+            _resolve_auth_api_key_value(
+                "${W28A355_MISSING_KEY}",
+                vault_client=None,
+            )
+            == ""
+        )
+    finally:
+        if previous is not None:
+            runtime_env["W28A355_MISSING_KEY"] = previous
+
+
+def test_root_route_serves_spa_index_from_configured_dist(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
         encoding="utf-8",
     )
-    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
 
     async def fake_app(
         scope, receive, send
@@ -554,64 +625,28 @@ def test_root_status_page_returns_html_summary(tmp_path) -> None:
         transport="streamable-http",
     )
 
-    async def _run() -> None:
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/",
-            "headers": [(b"accept", b"text/html")],
-        }
-
-        async def receive():
-            return {"type": "http.request"}
-
-        async def send(message):
-            sent.append(message)
-
-        await middleware(scope, receive, send)
-
     try:
-        asyncio.run(_run())
+        sent = _run_middleware_request(
+            middleware, path="/", headers=[(b"accept", b"text/html")]
+        )
         assert sent[0]["status"] == 200
-        body = sent[1]["body"].decode("utf-8")
-        assert "file-mcp-server status" in body
-        assert "Configured Profiles" in body
-        assert "local" in body
-        assert "s3" in body
-        assert "status-dot" in body
-        assert "Signal" in body
-        assert "Action" in body
+        assert b"file-mcp-ui-shell" in sent[1]["body"]
     finally:
-        if prev_config is None:
-            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
         else:
-            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 
 
-def test_root_status_page_shows_google_drive_authorize_button_when_token_missing(
-    tmp_path,
-) -> None:
-    sent = []
-    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
-    prev_admin = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
-    runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        (
-            "profiles:\n"
-            "  gdrive:\n"
-            "    storage:\n"
-            "      backend: google_drive\n"
-            "      google_drive:\n"
-            "        folder_id: folder123\n"
-            "        client_id: client-abc\n"
-            "        client_secret: secret-xyz\n"
-            "        refresh_token: ''\n"
-            "        access_token: ''\n"
-        ),
+def test_root_route_with_api_accept_serves_spa_index(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
         encoding="utf-8",
     )
-    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
 
     async def fake_app(
         scope, receive, send
@@ -626,37 +661,17 @@ def test_root_status_page_shows_google_drive_authorize_button_when_token_missing
         transport="streamable-http",
     )
 
-    async def _run() -> None:
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/",
-            "headers": [(b"accept", b"text/html")],
-        }
-
-        async def receive():
-            return {"type": "http.request"}
-
-        async def send(message):
-            sent.append(message)
-
-        await middleware(scope, receive, send)
-
     try:
-        asyncio.run(_run())
+        sent = _run_middleware_request(
+            middleware, path="/", headers=[(b"accept", b"application/json")]
+        )
         assert sent[0]["status"] == 200
-        body = sent[1]["body"].decode("utf-8")
-        assert "Authorise Google Drive" in body
-        assert "/admin/google-drive?profile=gdrive" in body
+        assert b"file-mcp-ui-shell" in sent[1]["body"]
     finally:
-        if prev_config is None:
-            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
         else:
-            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
-        if prev_admin is None:
-            runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
-        else:
-            runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_admin
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 
 
 def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
@@ -712,76 +727,6 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
             runtime_env.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
         else:
             runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = previous_profiles
-
-
-def test_root_status_page_returns_json_for_api_accept(tmp_path) -> None:
-    sent = []
-    prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        "profiles:\n  ftp:\n    storage:\n      backend: ftp\n",
-        encoding="utf-8",
-    )
-    runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(config_path)
-
-    async def fake_app(
-        scope, receive, send
-    ) -> None:  # pragma: no cover - fallback path
-        await send({"type": "http.response.start", "status": 404, "headers": []})
-        await send({"type": "http.response.body", "body": b""})
-
-    middleware = HealthCheckMiddleware(
-        fake_app,
-        health_path="/health",
-        profile_name="local",
-        transport="streamable-http",
-    )
-    ENDPOINT_HEALTH_MANAGER._states.clear()
-    ENDPOINT_HEALTH_MANAGER._set_state(
-        "ftp",
-        EndpointState(
-            backend="ftp",
-            status="healthy",
-            reason="startup_probe_ok",
-            last_error="",
-            updated_at=datetime.now(timezone.utc).isoformat(),
-            failures_in_window=0,
-            consecutive_failures=0,
-            retries_used=0,
-            requires_restart=False,
-        ),
-    )
-
-    async def _run() -> None:
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/",
-            "headers": [(b"accept", b"application/json")],
-        }
-
-        async def receive():
-            return {"type": "http.request"}
-
-        async def send(message):
-            sent.append(message)
-
-        await middleware(scope, receive, send)
-
-    try:
-        asyncio.run(_run())
-        assert sent[0]["status"] == 200
-        payload = json.loads(sent[1]["body"].decode("utf-8"))
-        assert payload["status"] == "ok"
-        assert payload["profiles"]["ftp"] == "ftp"
-        assert payload["profile_health"]["ftp"]["status"] == "healthy"
-        assert payload["profile_health"]["ftp"]["signal"] == "green"
-    finally:
-        ENDPOINT_HEALTH_MANAGER._states.clear()
-        if prev_config is None:
-            runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
-        else:
-            runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
 
 
 def test_runtime_config_endpoint_returns_dynamic_script() -> None:

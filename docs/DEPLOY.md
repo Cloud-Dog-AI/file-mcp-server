@@ -92,3 +92,25 @@ Expected healthy response includes `ok/status` runtime indicators without secret
 - Audit log path: `FILE_MCP_AUDIT_LOG`
 - Correlation-aware structured logs are emitted through `cloud_dog_logging`.
 - Endpoint health state is queryable via MCP tool `backend_status`.
+
+## Preprod Deployment Reference
+
+### Terraform
+
+- Terraform root: `/opt/iac/cloud-dog-repo/terraform/server0.viewdeck.com/60 Cloud-Dog AI Containers`
+- Public hostname: `https://filemcpserver0.cloud-dog.net`
+- Container name: `filemcpserver0.app.vpc0.cloud-dog.net`
+
+### Health Verification
+
+```bash
+curl -sk https://filemcpserver0.cloud-dog.net/health
+curl -sk https://filemcpserver0.cloud-dog.net/login
+```
+
+### Rollback
+
+1. Identify the last known good registry tag or digest.
+2. Update the deployment target back to that tag or digest.
+3. Re-apply Terraform or re-run the deployment workflow for this service.
+4. Re-check `/health`, the public login route, and any project-specific API or MCP health endpoints.

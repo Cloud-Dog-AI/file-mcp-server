@@ -28,3 +28,5 @@ ui/dist/
 *.egg-info/
 private/
 env-*-secrets
+archive/
+database/
