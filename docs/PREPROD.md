@@ -3,20 +3,20 @@
 This document describes the pre-production operator/deployment overlay for this service. The Terraform container environment is the runtime source of truth, and `private/env-PREPROD` is the operator/test overlay used for local control commands and pytest runs against the deployed preprod service. Defaults and non-preprod settings remain documented in `docs/ENV-REFERENCE.md`, `docs/ARCHITECTURE.md`, and `defaults.yaml`.
 
 ## 1. Overview
-- Service URL: `https://filemcpserver0.cloud-dog.net`
-- Container hostname: `filemcpserver0.app.vpc0.cloud-dog.net`
-- Health endpoint verified during W28A-241: `https://filemcpserver0.cloud-dog.net/health`
-- Docker image: `registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest`
-- Active Terraform container definition: `/opt/iac/cloud-dog-repo/terraform/server0.viewdeck.com/60 Cloud-Dog AI Containers/filemcpserver_containers.tf.json`
-- Legacy/parallel Terraform definition to cross-check when investigating drift: `/opt/iac/cloud-dog-repo/terraform/server0.viewdeck.com/27 MLAgents/filemcpserver_containers.tf.json`
-- Operator overlay file: `/opt/iac/Development/cloud-dog-ai/file-mcp-server/private/env-PREPROD`
+- Service URL: `https://filemcpserver0.your-domain.com`
+- Container hostname: `filemcpserver0.internal.example`
+- Health endpoint verified during W28A-241: `https://filemcpserver0.your-domain.com/health`
+- Docker image: `registry.example.com/cloud-dog/file-mcp-server:latest`
+- Active Terraform container definition: `terraform/primary-environment/filemcpserver_containers.tf.json`
+- Legacy/parallel Terraform definition to cross-check when investigating drift: `terraform/legacy-environment/filemcpserver_containers.tf.json`
+- Operator overlay file: `./file-mcp-server/private/env-PREPROD`
 
 ### Port allocation
 | Surface | Internal port | External URL |
 |---|---:|---|
-| HTTP/MCP | 8080 | `https://filemcpserver0.cloud-dog.net` |
-| MCP path | same process | `https://filemcpserver0.cloud-dog.net/mcp` |
-| Health | same process | `https://filemcpserver0.cloud-dog.net/health` |
+| HTTP/MCP | 8080 | `https://filemcpserver0.your-domain.com` |
+| MCP path | same process | `https://filemcpserver0.your-domain.com/mcp` |
+| Health | same process | `https://filemcpserver0.your-domain.com/health` |
 
 ## 2. Configuration
 Section 2 documents the full preprod environment surface that differs from or materially specialises the defaults. Use it together with `defaults.yaml` and `docs/ENV-REFERENCE.md` when tracing a value through the precedence chain `os.environ -> --env file -> config.yaml -> defaults.yaml`.
@@ -46,7 +46,7 @@ Section 2 documents the full preprod environment surface that differs from or ma
 | `VAULT_ADDR`, `VAULT_MOUNT_POINT`, `VAULT_CONFIG_PATH` | unset | Terraform + `private/env-PREPROD` | Yes | Required to resolve Vault expression-backed defaults during operator runs. |
 
 ## 3. Preprod-Specific Overrides
-Only settings that differ materially from defaults or that must be supplied for preprod are listed here. The literal operator/test overlay is `/opt/iac/Development/cloud-dog-ai/file-mcp-server/private/env-PREPROD`.
+Only settings that differ materially from defaults or that must be supplied for preprod are listed here. The literal operator/test overlay is `./file-mcp-server/private/env-PREPROD`.
 
 | Override | Why preprod differs | Source of truth |
 |---|---|---|
@@ -66,7 +66,7 @@ This service reads preprod secrets from the shared Vault config blob at `cloud_d
 
 ### Operator setup
 ```bash
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+set -a; source .env.local
 vault kv get -mount=cloud_dog_ai config
 ```
 
@@ -92,26 +92,26 @@ The project rules forbid ad-hoc `docker build`; use the repo entrypoint script.
 
 1. Load Vault-backed build credentials.
 ```bash
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+set -a; source .env.local
 ```
 2. Build the image.
 ```bash
-cd /opt/iac/Development/cloud-dog-ai/file-mcp-server && ./docker-build.sh cloud-dog/file-mcp-server:latest
+cd ./file-mcp-server && ./docker-build.sh cloud-dog/file-mcp-server:latest
 ```
 3. Tag and push the image.
 ```bash
-docker tag cloud-dog/file-mcp-server:latest registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
-docker push registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+docker tag cloud-dog/file-mcp-server:latest registry.example.com/cloud-dog/file-mcp-server:latest
+docker push registry.example.com/cloud-dog/file-mcp-server:latest
 ```
 4. Plan and apply the Terraform update from the shared preprod workspace.
 ```bash
-cd '/opt/iac/cloud-dog-repo/terraform/server0.viewdeck.com/60 Cloud-Dog AI Containers'
+cd 'terraform/60 Cloud-Dog AI Containers'
 terraform plan -out=tfplan.out
 terraform apply tfplan.out
 ```
 5. Verify the deployed service.
 ```bash
-curl -fsS https://filemcpserver0.cloud-dog.net/health
+curl -fsS https://filemcpserver0.your-domain.com/health
 ```
 
 ## 6. Testing Against Preprod
@@ -126,6 +126,6 @@ Known limitations:
 - Google Drive flows may still require operator token refresh if Vault does not store refresh/access tokens.
 
 ## 7. Troubleshooting
-- `curl -fsS https://filemcpserver0.cloud-dog.net/health` returns a backend-health JSON document.
-- `docker -H server0.viewdeck.com logs filemcpserver0.app.vpc0.cloud-dog.net` for runtime logs.
+- `curl -fsS https://filemcpserver0.your-domain.com/health` returns a backend-health JSON document.
+- `docker -H your-docker-host logs filemcpserver0.internal.example` for runtime logs.
 - If S3/WebDAV/FTP probes fail, compare `private/env-PREPROD` against the Vault paths listed above before changing code.

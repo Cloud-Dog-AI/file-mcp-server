@@ -1,116 +1,74 @@
-# file-mcp-server Deployment Guide
+# Deployment Guide
 
-## 1. Docker deployment
+## Option 1: Docker (recommended)
 
-Build:
+### Without Vault
 ```bash
-./docker-build.sh registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+cat > .env <<EOF
+CLOUD_DOG__WEB_SERVER__PORT=8080
+CLOUD_DOG__MCP_SERVER__PORT=8081
+CLOUD_DOG__A2A_SERVER__PORT=8082
+CLOUD_DOG__API_SERVER__PORT=8083
+CLOUD_DOG__WEB_SERVER__USERNAME=admin
+CLOUD_DOG__WEB_SERVER__PASSWORD=your-secure-password
+CLOUD_DOG__API_SERVER__API_KEY=your-api-key
+EOF
+
+docker build -t file-mcp:latest .
+docker run -d --name file-mcp \
+  --env-file .env \
+  -p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083 \
+  file-mcp:latest
 ```
 
-Run (single container):
+### With Vault
 ```bash
-docker run --rm --name file-mcp-server \
-  --network=host \
-  -v "$(pwd)/tests/env-IT:/app/.env:ro" \
-  -e FILE_MCP_ENV_PATH=/app/.env \
-  registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+cat > .env <<EOF
+VAULT_ADDR=https://your-vault-server
+VAULT_TOKEN=your-vault-token
+VAULT_MOUNT_POINT=secret
+VAULT_CONFIG_PATH=services/your-service
+CLOUD_DOG__WEB_SERVER__PORT=8080
+CLOUD_DOG__MCP_SERVER__PORT=8081
+CLOUD_DOG__A2A_SERVER__PORT=8082
+CLOUD_DOG__API_SERVER__PORT=8083
+EOF
+
+docker run -d --name file-mcp \
+  --env-file .env \
+  -p 8080:8080 -p 8081:8081 -p 8082:8082 -p 8083:8083 \
+  file-mcp:latest
 ```
 
-Compose (local):
+### With Custom CA Certificates
 ```bash
-docker compose -f docker-compose.local.yml --env-file tests/env-IT-local-docker up -d
+docker run -d --name file-mcp \
+  --env-file .env \
+  -v /path/to/ca-bundle.pem:/app/certs/ca-bundle.pem \
+  -e REQUESTS_CA_BUNDLE=/app/certs/ca-bundle.pem \
+  -e SSL_CERT_FILE=/app/certs/ca-bundle.pem \
+  file-mcp:latest
 ```
 
-## 2. Bare metal deployment
-
+## Option 2: Direct (no Docker)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]" --index-url https://pypi.cloud-dog.net/simple/
-./server_control.sh --env tests/env-IT start
+pip install -e ".[dev]"
+./server_control.sh --env env.example start all
 ```
 
-Use systemd/supervisor wrapper to call `server_control.sh --env <env-file> serve`.
+## Example Environment File
+- See `docs/ENV-REFERENCE.md` for the full variable catalogue.
+- Use only generic examples in shared documentation; inject secrets at runtime.
 
-## 3. Terraform integration
-
-Deployment manifests are managed externally under `cloud-dog-repo/terraform/`.
-This repository consumes those artefacts; it does not mutate Terraform state.
-
-## 4. Vault integration
-
-Load Vault environment before IT/AT runtime operations:
-
+## Health Checks
 ```bash
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
-bash scripts/validate-vault.sh
+curl -f http://127.0.0.1:8083/health
+curl -f http://127.0.0.1:8081/health
 ```
 
-Primary Vault paths consumed by this service:
-- `dev.storage.s3.*`
-- `dev.storage.webdav.*`
-- `dev.storage.ftp.*`
-- `dev.storage.google_drive.*`
-- `dev.databases.filemcp_dev_mysql.*`
-- `dev.databases.filemcp_dev_postgresql.*`
-
-## 5. Database options
-
-- SQLite (development/default)
-  - `CLOUD_DOG__DB__DIALECT=sqlite`
-  - `CLOUD_DOG__DB__DATABASE=./database/file_mcp.db`
-- PostgreSQL (preprod/prod)
-  - `CLOUD_DOG_DB__DIALECT=postgresql`
-  - `CLOUD_DOG_DB__HOST`, `PORT`, `USERNAME`, `PASSWORD`, `DATABASE`
-- MySQL (optional)
-  - `CLOUD_DOG_DB__DIALECT=mysql`
-  - `CLOUD_DOG_DB__HOST`, `PORT`, `USERNAME`, `PASSWORD`, `DATABASE`
-
-Migrations are executed through `cloud_dog_db` runtime bootstrap.
-
-## 6. VDB options
-
-Not applicable for `file-mcp-server`.
-No vector database dependency is required for this service.
-
-## 7. LLM configuration
-
-Not applicable for `file-mcp-server`.
-The service does not implement model/runtime LLM integration.
-
-## 8. Health checks
-
-- `GET /health`
-- `GET /ready`
-- `GET /live`
-
-Expected healthy response includes `ok/status` runtime indicators without secret material.
-
-## 9. Monitoring and logs
-
-- Server log path: `FILE_MCP_SERVER_LOG`
-- Audit log path: `FILE_MCP_AUDIT_LOG`
-- Correlation-aware structured logs are emitted through `cloud_dog_logging`.
-- Endpoint health state is queryable via MCP tool `backend_status`.
-
-## Preprod Deployment Reference
-
-### Terraform
-
-- Terraform root: `/opt/iac/cloud-dog-repo/terraform/server0.viewdeck.com/60 Cloud-Dog AI Containers`
-- Public hostname: `https://filemcpserver0.cloud-dog.net`
-- Container name: `filemcpserver0.app.vpc0.cloud-dog.net`
-
-### Health Verification
-
-```bash
-curl -sk https://filemcpserver0.cloud-dog.net/health
-curl -sk https://filemcpserver0.cloud-dog.net/login
-```
-
-### Rollback
-
-1. Identify the last known good registry tag or digest.
-2. Update the deployment target back to that tag or digest.
-3. Re-apply Terraform or re-run the deployment workflow for this service.
-4. Re-check `/health`, the public login route, and any project-specific API or MCP health endpoints.
+## Deployment Notes
+- Service focus: Deterministic file operations, structured edits, conversion, validation, and storage-backend actions exposed through profile-governed HTTP and MCP surfaces.
+- Primary capabilities: file read/write, directory operations, structured JSON/YAML/XML/Markdown edits, conversion and validation, admin identity tooling.
+- Review the published environment reference before deploying to a shared environment.

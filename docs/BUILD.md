@@ -4,17 +4,17 @@
 
 - Python 3.10+
 - `pip` and virtualenv support
-- Access to Cloud-Dog package index (`https://pypi.cloud-dog.net/simple/`)
+- Access to Cloud-Dog package index (`https://your-package-index/simple/`)
 - Docker 24+ (optional for container build/test)
 
 ## 2. Local venv setup
 
 ```bash
-cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
+cd ./file-mcp-server
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e ".[dev]" --index-url https://pypi.cloud-dog.net/simple/
+pip install -e ".[dev]" --index-url https://your-package-index/simple/
 ```
 
 ## 3. Source build
@@ -28,7 +28,7 @@ python -m build
 Use the project build wrapper (do not use ad-hoc `docker build`):
 
 ```bash
-./docker-build.sh registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+./docker-build.sh registry.example.com/cloud-dog/file-mcp-server:latest
 ```
 
 ## 5. Build and stage web UI bundle (`ui/dist`)
@@ -36,13 +36,13 @@ Use the project build wrapper (do not use ad-hoc `docker build`):
 `file-mcp-server` serves the monorepo SPA from `ui/dist/`.
 
 ```bash
-cd /opt/iac/Development/cloud-dog-ai/cloud-dog-ai-ui-monorepo
+cd ./cloud-dog-ai-ui-monorepo
 npm run build --workspace=apps/file-mcp
 
-cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
+cd ./file-mcp-server
 mkdir -p ui
 rm -rf ui/dist
-cp -r /opt/iac/Development/cloud-dog-ai/cloud-dog-ai-ui-monorepo/apps/file-mcp/dist ui/dist
+cp -r ./cloud-dog-ai-ui-monorepo/apps/file-mcp/dist ui/dist
 ```
 
 Runtime config endpoint:
@@ -82,11 +82,11 @@ All test runs must include `--env`.
 .venv/bin/python -m pytest tests/system --env tests/env-ST -q
 
 # IT
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+set -a; source .env.local
 .venv/bin/python -m pytest tests/integration --env tests/env-IT -q
 
 # AT
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+set -a; source .env.local
 .venv/bin/python -m pytest tests/application --env tests/env-AT -q
 ```
 
@@ -109,10 +109,10 @@ set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
 ### Registry Push
 
 ```bash
-cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+cd ./file-mcp-server
+set -a; source .env.local
 bash docker-build.sh latest
-docker push registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+docker push registry.example.com/cloud-dog/file-mcp-server:latest
 ```
 
 ### Standard Build Arguments and Prerequisites

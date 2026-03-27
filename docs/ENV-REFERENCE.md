@@ -1,308 +1,164 @@
-# file-mcp-server Environment Reference
+# Environment Reference
 
-## 1. Configuration Precedence
+This reference is generated from `defaults.yaml` and the standard Cloud-Dog environment override pattern.
 
-`file-mcp-server` resolves configuration in this order:
+## `a2a_server`
 
-1. `os.environ`
-2. `--env` file(s)
-3. `config.yaml`
-4. `defaults.yaml`
-5. Vault expressions resolved by `cloud_dog_config`
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__A2A_SERVER__HOST` | `${CLOUD_DOG__A2A_SERVER__HOST:0.0.0.0}` | Optional | `0.0.0.0` | Host binding or upstream host for a2a server. |
+| `CLOUD_DOG__A2A_SERVER__PORT` | `${CLOUD_DOG__A2A_SERVER__PORT:8063}` | Optional | `8080` | Port for a2a server connections. |
+| `CLOUD_DOG__A2A_SERVER__ENABLED` | `${CLOUD_DOG__A2A_SERVER__ENABLED:true}` | Optional | `${CLOUD_DOG__A2A_SERVER__ENABLED:true}` | Toggle for a2a server. |
 
-## 2. Core Runtime Variables
+## `api_server`
 
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_API_KEY_PRIMARY` | Primary API key for profile auth | none | Yes | `secret` |
-| `FILE_MCP_API_KEY_SECONDARY` | Secondary API key (rotation/testing) | empty | No | `12345678` |
-| `FILE_MCP_AUTH_HEADER_NAME` | Auth header name | `Authorisation` | Yes | `Authorisation` |
-| `FILE_MCP_AUTH_HEADER_SCHEME` | Auth scheme | `Bearer` | Yes | `Bearer` |
-| `FILE_MCP_ROOT` | Scope root path | none | Yes | `.` |
-| `FILE_MCP_AUDIT_LOG` | Audit JSONL output path | none | Yes | `./working/test-env-ut/audit.log.jsonl` |
-| `FILE_MCP_SERVER_LOG` | Server log path | none | Yes | `./working/test-env-ut/server.log` |
-| `FILE_MCP_SNAPSHOT_DIR` | Snapshot directory path | none | Yes | `./working/test-env-ut/snapshots` |
-| `FILE_MCP_STORAGE_BACKEND` | Active storage backend | `local` | Yes | `local` |
-| `FILE_MCP_STORAGE_TIMEOUT_S` | Storage operation timeout (seconds) | `30` | No | `30` |
-| `FILE_MCP_STORAGE_TLS_INSECURE` | Skip TLS verification for remote backends | `false` | No | `false` |
-| `FILE_MCP_STORAGE_TLS_CA_BUNDLE` | CA bundle path for backend TLS | empty | No | `/app/certs/ca.crt` |
-| `FILE_MCP_SERVER_ID` | Stable server identity for logs and jobs | `file-mcp-local` | No | `filemcpserver0` |
-| `FILE_MCP_SEARCH_MAX_RESULTS` | Search result cap | `250` | No | `250` |
-| `FILE_MCP_SEARCH_MAX_FILE_MB` | Maximum file size for search | `5` | No | `5` |
-| `FILE_MCP_SEARCH_TIMEOUT_S` | Search timeout (seconds) | `30` | No | `30` |
-| `FILE_MCP_CONVERSION_TIMEOUT_S` | Convert timeout (seconds) | `60` | No | `60` |
-| `FILE_MCP_CONVERSION_MAX_INPUT_MB` | Convert input max size (MB) | `25` | No | `25` |
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__API_SERVER__HOST` | `${CLOUD_DOG__API_SERVER__HOST:0.0.0.0}` | Optional | `0.0.0.0` | Host binding or upstream host for api server. |
+| `CLOUD_DOG__API_SERVER__PORT` | `${CLOUD_DOG__API_SERVER__PORT:8060}` | Optional | `8080` | Port for api server connections. |
+| `CLOUD_DOG__API_SERVER__ENABLED` | `${CLOUD_DOG__API_SERVER__ENABLED:true}` | Optional | `${CLOUD_DOG__API_SERVER__ENABLED:true}` | Credential or authentication setting for the related subsystem. |
 
-## 2.1 Managed Jobs Variables
+## `http`
 
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_JOBS_ENABLED` | Enable managed job tracking | `true` | No | `true` |
-| `FILE_MCP_JOBS_BACKEND` | Jobs backend (`sql`, `redis`, `memory`) | `sql` | No | `sql` |
-| `FILE_MCP_JOBS_QUEUE` | Queue name for submitted jobs | `file-mcp` | No | `file-mcp` |
-| `FILE_MCP_JOBS_PAYLOAD_MAX_BYTES` | Max serialised payload bytes accepted by queue | `65536` | No | `65536` |
-| `FILE_MCP_JOBS_SQL_URL` | SQL backend URL override | `sqlite:///database/file_mcp.db` | No | `sqlite:///database/file_mcp.db` |
-| `FILE_MCP_JOBS_REDIS_URL` | Redis backend URL | `disabled` | Required when `FILE_MCP_JOBS_BACKEND=redis` | `redis://localhost:6379/0` |
-| `FILE_MCP_JOBS_REDIS_KEY_PREFIX` | Redis key namespace prefix | `file_mcp_jobs` | No | `file_mcp_jobs_preprod` |
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__HTTP__TRANSPORT` | `${FILE_MCP_HTTP_TRANSPORT}` | Optional | `${FILE_MCP_HTTP_TRANSPORT}` | Configuration value for http transport. |
+| `CLOUD_DOG__HTTP__HOST` | `${FILE_MCP_HTTP_HOST}` | Optional | `0.0.0.0` | Host binding or upstream host for http. |
+| `CLOUD_DOG__HTTP__FALLBACK_HOST` | `${FILE_MCP_HTTP_FALLBACK_HOST:127.0.0.1}` | Optional | `${FILE_MCP_HTTP_FALLBACK_HOST:127.0.0.1}` | Host binding or upstream host for http fallback. |
+| `CLOUD_DOG__HTTP__PORT` | `${FILE_MCP_HTTP_PORT}` | Optional | `8080` | Port for http connections. |
+| `CLOUD_DOG__HTTP__BASE_PATH` | `${FILE_MCP_HTTP_BASE_PATH}` | Optional | `${FILE_MCP_HTTP_BASE_PATH}` | Configuration value for http base path. |
+| `CLOUD_DOG__HTTP__MCP_PATH` | `${FILE_MCP_HTTP_MCP_PATH}` | Optional | `${FILE_MCP_HTTP_MCP_PATH}` | Configuration value for http mcp path. |
+| `CLOUD_DOG__HTTP__HEALTH_PATH` | `${FILE_MCP_HTTP_HEALTH_PATH}` | Optional | `${FILE_MCP_HTTP_HEALTH_PATH}` | Configuration value for http health path. |
+| `CLOUD_DOG__HTTP__EVENTS_PATH` | `${FILE_MCP_HTTP_EVENTS_PATH}` | Optional | `${FILE_MCP_HTTP_EVENTS_PATH}` | Configuration value for http events path. |
+| `CLOUD_DOG__HTTP__STATELESS_HTTP` | `${FILE_MCP_HTTP_STATELESS}` | Optional | `${FILE_MCP_HTTP_STATELESS}` | Configuration value for http stateless http. |
 
-## 3. HTTP Transport Variables
+## `log`
 
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_HTTP_TRANSPORT` | Transport mode (`streamable-http`, `http`, `sse`) | `streamable-http` | Yes | `streamable-http` |
-| `FILE_MCP_HTTP_HOST` | Bind host | `127.0.0.1` | Yes | `127.0.0.1` |
-| `FILE_MCP_HTTP_PORT` | Bind port | `38190` | Yes | `38190` |
-| `FILE_MCP_HTTP_BASE_PATH` | Base path prefix | `/app/v1` | Yes | `/app/v1` |
-| `FILE_MCP_HTTP_MCP_PATH` | MCP path | `/mcp` | Yes | `/mcp` |
-| `FILE_MCP_HTTP_HEALTH_PATH` | Health path | `/health` | Yes | `/health` |
-| `FILE_MCP_HTTP_EVENTS_PATH` | SSE events path | `/events` | Yes | `/events` |
-| `FILE_MCP_HTTP_STATELESS` | Stateless HTTP toggle | `true` | No | `true` |
-| `FILE_MCP_HTTP_ENABLE_LEGACY_API_ALIAS` | Legacy alias exposure toggle | `true` | No | `true` |
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__LOG__SERVICE_INSTANCE` | `${FILE_MCP_SERVER_ID:file-mcp-local}` | Optional | `${FILE_MCP_SERVER_ID:file-mcp-local}` | Configuration value for log service instance. |
+| `CLOUD_DOG__LOG__ENVIRONMENT` | `${CLOUD_DOG_ENVIRONMENT:dev}` | Optional | `${CLOUD_DOG_ENVIRONMENT:dev}` | Configuration value for log environment. |
+| `CLOUD_DOG__LOG__RETENTION__HOT_DAYS` | `14` | Optional | `14` | Configuration value for log retention hot days. |
+| `CLOUD_DOG__LOG__RETENTION__COLD_DAYS` | `60` | Optional | `60` | Configuration value for log retention cold days. |
+| `CLOUD_DOG__LOG__RETENTION__ARCHIVE_FORMAT` | `gz` | Optional | `gz` | Configuration value for log retention archive format. |
+| `CLOUD_DOG__LOG__INTEGRITY__ENABLED` | `true` | Optional | `true` | Toggle for log integrity. |
+| `CLOUD_DOG__LOG__INTEGRITY__INTERVAL_SECONDS` | `300` | Optional | `300` | Timeout or duration control for log integrity interval. |
+| `CLOUD_DOG__LOG__INTEGRITY__LOG_FILE` | `logs/audit-integrity.log` | Optional | `logs/audit-integrity.log` | Configuration value for log integrity log file. |
+| `CLOUD_DOG__LOG__INTEGRITY__HASH_ALGORITHM` | `sha256` | Optional | `sha256` | Configuration value for log integrity hash algorithm. |
+| `CLOUD_DOG__LOG__ROTATION__MODE` | `size` | Optional | `size` | Configuration value for log rotation mode. |
+| `CLOUD_DOG__LOG__ROTATION__MAX_BYTES` | `104857600` | Optional | `104857600` | Configuration value for log rotation max bytes. |
+| `CLOUD_DOG__LOG__ROTATION__BACKUP_COUNT` | `10` | Optional | `10` | Configuration value for log rotation backup count. |
+| `CLOUD_DOG__LOG__ROTATION__WHEN` | `midnight` | Optional | `midnight` | Configuration value for log rotation when. |
+| `CLOUD_DOG__LOG__ROTATION__INTERVAL` | `1` | Optional | `1` | Configuration value for log rotation interval. |
+| `CLOUD_DOG__LOG__ROTATION__COMPRESS` | `true` | Optional | `true` | Configuration value for log rotation compress. |
 
-## 3.1 Web UI Runtime Variables
+## `mcp_server`
 
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_UI_BASE_PATH` | UI entry route prefix | `/ui` | No | `/ui` |
-| `FILE_MCP_UI_DIST_PATH` | Absolute/relative path to built SPA artefacts | `<repo>/ui/dist` | No | `/opt/iac/Development/cloud-dog-ai/file-mcp-server/ui/dist` |
-| `FILE_MCP_UI_ENV` | Runtime environment label injected into `/runtime-config.js` | `dev` | No | `preprod` |
-| `FILE_MCP_UI_API_BASE_URL` | API base URL consumed by frontend API client | empty (same-origin root) | No | `https://filemcpserver0.cloud-dog.net` |
-| `FILE_MCP_UI_AUTH_MODE` | UI auth mode (`api_key`, `cookie`, `oidc`) | `api_key` | No | `api_key` |
-| `FILE_MCP_UI_AUDIT_LOG_PATH` | Default audit log path shown in UI | `working/test-env-st/audit.log.jsonl` | No | `working/preprod/audit.log.jsonl` |
-| `FILE_MCP_UI_DEFAULT_BROWSE_PATH` | Default browse root shown in UI | `src` | No | `storage` |
-| `FILE_MCP_UI_PROFILE_STORE_PATH` | Storage profile export/import path used by UI | `working/ui-file-mcp/storage-profiles.json` | No | `working/preprod/storage-profiles.json` |
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__MCP_SERVER__HOST` | `${CLOUD_DOG__MCP_SERVER__HOST:0.0.0.0}` | Optional | `0.0.0.0` | Host binding or upstream host for mcp server. |
+| `CLOUD_DOG__MCP_SERVER__PORT` | `${CLOUD_DOG__MCP_SERVER__PORT:8062}` | Optional | `8080` | Port for mcp server connections. |
+| `CLOUD_DOG__MCP_SERVER__TRANSPORT` | `${CLOUD_DOG__MCP_SERVER__TRANSPORT:streamable-http}` | Optional | `${CLOUD_DOG__MCP_SERVER__TRANSPORT:streamable-http}` | Configuration value for mcp server transport. |
+| `CLOUD_DOG__MCP_SERVER__ENABLED` | `${CLOUD_DOG__MCP_SERVER__ENABLED:true}` | Optional | `${CLOUD_DOG__MCP_SERVER__ENABLED:true}` | Toggle for mcp server. |
 
-## 4. Storage Backend Variables
+## `profiles`
 
-### 4.1 S3
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__PROFILES__DEFAULT__SERVER_ID` | `${FILE_MCP_SERVER_ID:file-mcp-local}` | Optional | `${FILE_MCP_SERVER_ID:file-mcp-local}` | Configuration value for profiles default server id. |
+| `CLOUD_DOG__PROFILES__DEFAULT__AUTH__API_KEYS` | `<secret>` | Deployment dependent | `your-api-key` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__AUTH__HEADER_NAME` | `${FILE_MCP_AUTH_HEADER_NAME}` | Optional | `${FILE_MCP_AUTH_HEADER_NAME}` | Configuration value for profiles default auth header name. |
+| `CLOUD_DOG__PROFILES__DEFAULT__AUTH__HEADER_SCHEME` | `${FILE_MCP_AUTH_HEADER_SCHEME}` | Optional | `${FILE_MCP_AUTH_HEADER_SCHEME}` | Configuration value for profiles default auth header scheme. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__BACKEND` | `${FILE_MCP_STORAGE_BACKEND}` | Optional | `${FILE_MCP_STORAGE_BACKEND}` | Configuration value for profiles default storage backend. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__TLS__INSECURE_SKIP_VERIFY` | `${FILE_MCP_STORAGE_TLS_INSECURE}` | Optional | `${FILE_MCP_STORAGE_TLS_INSECURE}` | Configuration value for profiles default storage tls insecure skip verify. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__TLS__CA_BUNDLE_PATH` | `${FILE_MCP_STORAGE_TLS_CA_BUNDLE}` | Optional | `${FILE_MCP_STORAGE_TLS_CA_BUNDLE}` | Configuration value for profiles default storage tls ca bundle path. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__ENDPOINT` | `${FILE_MCP_S3_ENDPOINT}` | Optional | `${FILE_MCP_S3_ENDPOINT}` | Configuration value for profiles default storage s3 endpoint. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__BUCKET` | `${FILE_MCP_S3_BUCKET}` | Optional | `${FILE_MCP_S3_BUCKET}` | Configuration value for profiles default storage s3 bucket. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__REGION` | `${FILE_MCP_S3_REGION}` | Optional | `${FILE_MCP_S3_REGION}` | Configuration value for profiles default storage s3 region. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__ACCESS_KEY` | `${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KE...` | Optional | `${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KE...` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__SECRET_KEY` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__PREFIX` | `${FILE_MCP_S3_PREFIX}` | Optional | `${FILE_MCP_S3_PREFIX}` | Configuration value for profiles default storage s3 prefix. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__BASE_URL` | `${FILE_MCP_WEBDAV_BASE_URL}` | Deployment dependent | `${FILE_MCP_WEBDAV_BASE_URL}` | Endpoint or connection URL for profiles default storage webdav base. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__USERNAME` | `${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNA...` | Optional | `service-admin` | Configuration value for profiles default storage webdav username. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__PASSWORD` | `<secret>` | Deployment dependent | `your-secure-password` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_RETRY_COUNT` | `3` | Optional | `3` | Configuration value for profiles default storage webdav move retry count. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_RETRY_BACKOFF_S` | `1.0` | Optional | `1.0` | Configuration value for profiles default storage webdav move retry backoff s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_PROBE_TIMEOUT_S` | `5` | Optional | `5` | Configuration value for profiles default storage webdav move probe timeout s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_RETRY_STATUSES` | `423,502,503,504` | Optional | `423,502,503,504` | Configuration value for profiles default storage webdav move retry statuses. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__HOST` | `${FILE_MCP_FTP_HOST}` | Optional | `0.0.0.0` | Host binding or upstream host for profiles default storage ftp. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__PORT` | `${FILE_MCP_FTP_PORT}` | Optional | `8080` | Port for profiles default storage ftp connections. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__USERNAME` | `${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME || ''}` | Optional | `service-admin` | Configuration value for profiles default storage ftp username. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__PASSWORD` | `<secret>` | Deployment dependent | `your-secure-password` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__BASE_DIR` | `${FILE_MCP_FTP_BASE_DIR}` | Optional | `${FILE_MCP_FTP_BASE_DIR}` | Configuration value for profiles default storage ftp base dir. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__USE_TLS` | `${FILE_MCP_FTP_USE_TLS}` | Optional | `${FILE_MCP_FTP_USE_TLS}` | Configuration value for profiles default storage ftp use tls. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__USER_EMAIL` | `${FILE_MCP_GDRIVE_USER_EMAIL}` | Optional | `${FILE_MCP_GDRIVE_USER_EMAIL}` | Configuration value for profiles default storage google drive user email. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__FOLDER_ID` | `${FILE_MCP_GDRIVE_FOLDER_ID}` | Optional | `${FILE_MCP_GDRIVE_FOLDER_ID}` | Configuration value for profiles default storage google drive folder id. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__FOLDER_URL` | `${FILE_MCP_GDRIVE_FOLDER_URL}` | Deployment dependent | `${FILE_MCP_GDRIVE_FOLDER_URL}` | Endpoint or connection URL for profiles default storage google drive folder. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__FOLDER_URL_EXAMPLE` | `${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com...` | Deployment dependent | `${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com...` | Configuration value for profiles default storage google drive folder url example. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__CLIENT_ID` | `${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE...` | Optional | `${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE...` | Configuration value for profiles default storage google drive client id. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__CLIENT_SECRET` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__REFRESH_TOKEN` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__ACCESS_TOKEN` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__OAUTH_SCOPE` | `${FILE_MCP_GDRIVE_OAUTH_SCOPE:https://www.googleapis.com/auth...` | Optional | `${FILE_MCP_GDRIVE_OAUTH_SCOPE:https://www.googleapis.com/auth...` | Configuration value for profiles default storage google drive oauth scope. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__OAUTH_AUTHORIZE_URI` | `${FILE_MCP_GDRIVE_AUTHORIZE_URI:https://accounts.google.com/o...` | Deployment dependent | `${FILE_MCP_GDRIVE_AUTHORIZE_URI:https://accounts.google.com/o...` | Endpoint or connection URL for profiles default storage google drive oauth authorize. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__API_BASE_URI` | `${FILE_MCP_GDRIVE_API_BASE_URI:https://www.googleapis.com/dri...` | Deployment dependent | `${FILE_MCP_GDRIVE_API_BASE_URI:https://www.googleapis.com/dri...` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__UPLOAD_BASE_URI` | `${FILE_MCP_GDRIVE_UPLOAD_BASE_URI:https://www.googleapis.com/...` | Deployment dependent | `${FILE_MCP_GDRIVE_UPLOAD_BASE_URI:https://www.googleapis.com/...` | Endpoint or connection URL for profiles default storage google drive upload base. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__REDIRECT_URI` | `${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}` | Deployment dependent | `${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}` | Endpoint or connection URL for profiles default storage google drive redirect. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__TOKEN_URI` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SCOPE__ROOTS` | `["${FILE_MCP_ROOT}"]` | Optional | `<set as needed>` | Configuration value for profiles default scope roots. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SCOPE__ALLOW_GLOBS` | `["**/*"]` | Optional | `<set as needed>` | Configuration value for profiles default scope allow globs. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SCOPE__DENY_GLOBS` | `["**/.git/**"]` | Optional | `<set as needed>` | Configuration value for profiles default scope deny globs. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SCOPE__ALLOWED_EXTS` | `[]` | Optional | `<set as needed>` | Configuration value for profiles default scope allowed exts. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SCOPE__READ_ONLY_EXTS` | `[]` | Optional | `<set as needed>` | Configuration value for profiles default scope read only exts. |
+| `CLOUD_DOG__PROFILES__DEFAULT__AUDIT__LOG_PATH` | `${FILE_MCP_AUDIT_LOG}` | Optional | `${FILE_MCP_AUDIT_LOG}` | Configuration value for profiles default audit log path. |
+| `CLOUD_DOG__PROFILES__DEFAULT__AUDIT__INCLUDE_CONTENT_HASHES` | `true` | Optional | `true` | Configuration value for profiles default audit include content hashes. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SNAPSHOTS__ENABLED` | `false` | Optional | `false` | Toggle for profiles default snapshots. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SNAPSHOTS__MODE` | `none` | Optional | `none` | Configuration value for profiles default snapshots mode. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SNAPSHOTS__DIR` | `${FILE_MCP_SNAPSHOT_DIR}` | Optional | `./data/service.dat` | Configuration value for profiles default snapshots dir. |
+| `CLOUD_DOG__PROFILES__DEFAULT__SNAPSHOTS__RETENTION_DAYS` | `30` | Optional | `30` | Configuration value for profiles default snapshots retention days. |
+| `CLOUD_DOG__PROFILES__DEFAULT__VALIDATION__DEFAULT_MODE` | `warn` | Optional | `warn` | Configuration value for profiles default validation default mode. |
+| `CLOUD_DOG__PROFILES__DEFAULT__CONVERSION__ENABLED` | `false` | Optional | `false` | Toggle for profiles default conversion. |
+| `CLOUD_DOG__PROFILES__DEFAULT__CONVERSION__BACKENDS` | `[]` | Optional | `<set as needed>` | Configuration value for profiles default conversion backends. |
+| `CLOUD_DOG__PROFILES__DEFAULT__CONVERSION__MAX_INPUT_MB` | `25` | Optional | `25` | Configuration value for profiles default conversion max input mb. |
+| `CLOUD_DOG__PROFILES__DEFAULT__OBSERVABILITY__ENABLED` | `true` | Optional | `true` | Toggle for profiles default observability. |
+| `CLOUD_DOG__PROFILES__DEFAULT__OBSERVABILITY__LOG_PATH` | `${FILE_MCP_SERVER_LOG}` | Optional | `${FILE_MCP_SERVER_LOG}` | Configuration value for profiles default observability log path. |
+| `CLOUD_DOG__PROFILES__DEFAULT__OBSERVABILITY__LEVEL` | `INFO` | Optional | `INFO` | Configuration value for profiles default observability level. |
+| `CLOUD_DOG__PROFILES__DEFAULT__LIMITS__SEARCH_MAX_RESULTS` | `250` | Optional | `250` | Configuration value for profiles default limits search max results. |
+| `CLOUD_DOG__PROFILES__DEFAULT__LIMITS__SEARCH_MAX_FILE_MB` | `5` | Optional | `5` | Configuration value for profiles default limits search max file mb. |
+| `CLOUD_DOG__PROFILES__DEFAULT__LIMITS__SEARCH_TIMEOUT_S` | `30` | Optional | `30` | Configuration value for profiles default limits search timeout s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__LIMITS__STORAGE_TIMEOUT_S` | `30` | Optional | `30` | Configuration value for profiles default limits storage timeout s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__LIMITS__CONVERSION_TIMEOUT_S` | `60` | Optional | `60` | Configuration value for profiles default limits conversion timeout s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__ENABLED` | `${FILE_MCP_JOBS_ENABLED:true}` | Optional | `${FILE_MCP_JOBS_ENABLED:true}` | Toggle for profiles default jobs. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__BACKEND` | `${FILE_MCP_JOBS_BACKEND:sql}` | Optional | `${FILE_MCP_JOBS_BACKEND:sql}` | Configuration value for profiles default jobs backend. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__QUEUE_NAME` | `${FILE_MCP_JOBS_QUEUE:file-mcp}` | Optional | `${FILE_MCP_JOBS_QUEUE:file-mcp}` | Configuration value for profiles default jobs queue name. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__PAYLOAD_MAX_BYTES` | `${FILE_MCP_JOBS_PAYLOAD_MAX_BYTES:65536}` | Optional | `${FILE_MCP_JOBS_PAYLOAD_MAX_BYTES:65536}` | Configuration value for profiles default jobs payload max bytes. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__SQL_URL` | `${FILE_MCP_JOBS_SQL_URL:sqlite:///database/file_mcp.db}` | Deployment dependent | `${FILE_MCP_JOBS_SQL_URL:sqlite:///database/file_mcp.db}` | Endpoint or connection URL for profiles default jobs sql. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__REDIS_URL` | `${FILE_MCP_JOBS_REDIS_URL:disabled}` | Deployment dependent | `${FILE_MCP_JOBS_REDIS_URL:disabled}` | Endpoint or connection URL for profiles default jobs redis. |
+| `CLOUD_DOG__PROFILES__DEFAULT__JOBS__REDIS_KEY_PREFIX` | `${FILE_MCP_JOBS_REDIS_KEY_PREFIX:file_mcp_jobs}` | Optional | `${FILE_MCP_JOBS_REDIS_KEY_PREFIX:file_mcp_jobs}` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__ENABLED` | `true` | Optional | `true` | Toggle for profiles default endpoint health. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__CHECK_ON_STARTUP` | `true` | Optional | `true` | Configuration value for profiles default endpoint health check on startup. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__CHECK_ALL_CONFIGURED_BACKENDS` | `true` | Optional | `true` | Configuration value for profiles default endpoint health check all configured backends. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__MAX_RETRIES` | `3` | Optional | `3` | Configuration value for profiles default endpoint health max retries. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__RETRY_INTERVAL_S` | `2` | Optional | `2` | Configuration value for profiles default endpoint health retry interval s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__RETRY_WINDOW_S` | `30` | Optional | `30` | Configuration value for profiles default endpoint health retry window s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__MAX_FAILURES_BEFORE_RESTART` | `5` | Optional | `5` | Configuration value for profiles default endpoint health max failures before restart. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__RECOVER_AFTER_S` | `30` | Optional | `30` | Configuration value for profiles default endpoint health recover after s. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__RESTART_ON_THRESHOLD` | `false` | Optional | `false` | Configuration value for profiles default endpoint health restart on threshold. |
+| `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__RESTART_EXIT_CODE` | `75` | Optional | `75` | Configuration value for profiles default endpoint health restart exit code. |
 
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_S3_ENDPOINT` | S3 endpoint URL | empty | For S3 backend | `https://s3.example.com` |
-| `FILE_MCP_S3_BUCKET` | S3 bucket | empty | For S3 backend | `test` |
-| `FILE_MCP_S3_REGION` | S3 region | empty | For S3 backend | `us-east-1` |
-| `FILE_MCP_S3_ACCESS_KEY` | S3 access key | Vault fallback | For S3 backend | `${vault.dev.storage.s3.access_key_id}` |
-| `FILE_MCP_S3_SECRET_KEY` | S3 secret key | Vault fallback | For S3 backend | `${vault.dev.storage.s3.secret_access_key}` |
-| `FILE_MCP_S3_PREFIX` | Key prefix root | empty | No | `project-a/` |
+## `web_server`
 
-### 4.2 WebDAV
+| Variable | Default | Required | Example | Description |
+|----------|---------|----------|---------|-------------|
+| `CLOUD_DOG__WEB_SERVER__HOST` | `${CLOUD_DOG__WEB_SERVER__HOST:0.0.0.0}` | Optional | `0.0.0.0` | Host binding or upstream host for web server. |
+| `CLOUD_DOG__WEB_SERVER__PORT` | `${CLOUD_DOG__WEB_SERVER__PORT:8061}` | Optional | `8080` | Port for web server connections. |
+| `CLOUD_DOG__WEB_SERVER__ENABLED` | `${CLOUD_DOG__WEB_SERVER__ENABLED:true}` | Optional | `${CLOUD_DOG__WEB_SERVER__ENABLED:true}` | Toggle for web server. |
 
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_WEBDAV_BASE_URL` | WebDAV base URL | empty | For WebDAV backend | `https://webdav.example.com/remote.php/dav/files/user` |
-| `FILE_MCP_WEBDAV_USERNAME` | WebDAV username | Vault fallback | For WebDAV backend | `${vault.dev.storage.webdav.username}` |
-| `FILE_MCP_WEBDAV_PASSWORD` | WebDAV password | Vault fallback | For WebDAV backend | `${vault.dev.storage.webdav.password}` |
+## Vault Support
 
-### 4.3 FTP
-
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_FTP_HOST` | FTP host | `localhost` | For FTP backend | `${vault.dev.storage.ftp.host}` |
-| `FILE_MCP_FTP_PORT` | FTP port | `21` | For FTP backend | `${vault.dev.storage.ftp.port}` |
-| `FILE_MCP_FTP_USERNAME` | FTP username | Vault fallback | For FTP backend | `${vault.dev.storage.ftp.username}` |
-| `FILE_MCP_FTP_PASSWORD` | FTP password | Vault fallback | For FTP backend | `${vault.dev.storage.ftp.password}` |
-| `FILE_MCP_FTP_BASE_DIR` | FTP base directory | `/` | No | `/` |
-| `FILE_MCP_FTP_USE_TLS` | FTP TLS toggle | `false` | No | `false` |
-
-### 4.4 Google Drive
-
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `FILE_MCP_GDRIVE_CLIENT_ID` | OAuth client id | Vault fallback | For Google Drive backend | `${vault.dev.storage.google_drive.client_id}` |
-| `FILE_MCP_GDRIVE_CLIENT_SECRET` | OAuth client secret | Vault fallback | For Google Drive backend | `${vault.dev.storage.google_drive.client_secret}` |
-| `FILE_MCP_GDRIVE_USER_EMAIL` | Google account email | empty | No | `user@example.com` |
-| `FILE_MCP_GDRIVE_FOLDER_ID` | Target folder id | empty | Folder id or URL required | `abc123...` |
-| `FILE_MCP_GDRIVE_FOLDER_URL` | Target folder URL | empty | Folder id or URL required | `https://drive.google.com/drive/folders/...` |
-| `FILE_MCP_GDRIVE_REFRESH_TOKEN` | OAuth refresh token | empty | For live access | `<token>` |
-| `FILE_MCP_GDRIVE_ACCESS_TOKEN` | OAuth access token | empty | No (refresh path preferred) | `<token>` |
-| `FILE_MCP_GDRIVE_REDIRECT_URI` | OAuth redirect URI | `urn:ietf:wg:oauth:2.0:oob` | No | `https://filemcpserver0.cloud-dog.net/admin/google-drive/callback` |
-| `FILE_MCP_GDRIVE_TOKEN_URI` | OAuth token endpoint | `https://oauth2.googleapis.com/token` | No | `${vault.dev.storage.google_drive.token_uri}` |
-| `FILE_MCP_GDRIVE_AUTH_CODE` | One-time auth code | empty | Setup-time only | `<code>` |
-
-## 5. Database Variables
-
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `CLOUD_DOG__DB__URL` / `CLOUD_DOG_DB__URL` / `FILE_MCP_DB_URL` | Full DB URL override | none | Optional | `postgresql+psycopg://user:pass@host:5432/db` |
-| `CLOUD_DOG_DB__DIALECT` / `CLOUD_DOG__DB__DIALECT` | DB dialect | `sqlite` | No | `sqlite`, `mysql`, `postgresql` |
-| `CLOUD_DOG_DB__HOST` / `CLOUD_DOG__DB__HOST` | DB host | none | For MySQL/PostgreSQL | `${vault.dev.databases.filemcp_dev_postgresql.server}` |
-| `CLOUD_DOG_DB__PORT` / `CLOUD_DOG__DB__PORT` | DB port | none | For MySQL/PostgreSQL | `5432` |
-| `CLOUD_DOG_DB__USERNAME` / `CLOUD_DOG__DB__USERNAME` | DB username | none | For MySQL/PostgreSQL | `${vault.dev.databases.filemcp_dev_postgresql.username}` |
-| `CLOUD_DOG_DB__PASSWORD` / `CLOUD_DOG__DB__PASSWORD` | DB password | none | For MySQL/PostgreSQL | `${vault.dev.databases.filemcp_dev_postgresql.password}` |
-| `CLOUD_DOG_DB__DATABASE` / `CLOUD_DOG__DB__DATABASE` | DB name or SQLite file path | `./database/file_mcp.db` | Yes | `./database/file_mcp.db` |
-| `CLOUD_DOG_DB__PATH` / `CLOUD_DOG__DB__PATH` | DB path override | none | No | `./database/file_mcp.db` |
-| `CLOUD_DOG_DB__SCHEMA` / `CLOUD_DOG__DB__SCHEMA` | Schema name | none | No | `public` |
-
-## 6. Test-only and Harness Variables
-
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `TEST_ENV_TIER` | Tier marker (`QT`, `UT`, `ST`, `IT`, `AT`) | none | Yes in env files | `UT` |
-| `TEST_API_BASE_PATH` | Test API base path | `/app/v1` | Yes in env files | `/app/v1` |
-| `TEST_MCP_BASE_PATH` | Test MCP path | `/mcp` | Yes in env files | `/mcp` |
-| `TEST_WEB_BASE_PATH` | Test web base path | `/` | Yes in env files | `/` |
-| `TEST_A2A_BASE_PATH` | Test A2A base path | `/a2a` | Yes in env files | `/a2a` |
-| `TEST_API_KEY` | Preprod API key for AT harness | empty | Preprod AT only | `<api-key>` |
-| `TEST_A2A_API_KEY` | A2A test key | empty | A2A test flows | `12345678` |
-| `FILE_MCP_RUN_DOCKER_TESTS` | Enable docker integration tests | `0` | No | `1` |
-| `FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS` | Enable docker remote storage matrix | `0` | No | `1` |
-| `FILE_MCP_RUN_DOCKER_BRIDGE_TESTS` | Enable docker bridge tests | `0` | No | `1` |
-| `FILE_MCP_STRICT_REMOTE_TESTS` | Enable strict remote backend tests | `0` | No | `1` |
-| `FILE_MCP_RUN_REMOTE_MATRIX_TESTS` | Enable remote backend matrix | `0` | No | `1` |
-| `FILE_MCP_RUN_GOOGLE_LIVE_TESTS` | Enable live Google tests | `0` | No | `1` |
-| `FILE_MCP_RUN_GDRIVE_LIVE_TEST` | Enable live Google Drive IT | `0` | No | `1` |
-| `FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST` | Enable live OAuth AT | `0` | No | `1` |
-
-### Local docker controller envs
-
-| Variable | Description | Default | Required | Example |
-|---|---|---|---|---|
-| `LOCAL_DOCKER_SOURCE_ENV` | Source env file for local docker helper | none | Yes for helper | `tests/env-IT-local-docker` |
-| `LOCAL_DOCKER_COMPOSE_FILE` | Compose file path | `docker-compose.local.yml` | No | `docker-compose.local.yml` |
-| `LOCAL_DOCKER_PROJECT_NAME` | Compose project name | helper default | No | `file-mcp-local-docker` |
-| `LOCAL_DOCKER_SERVICES` | Service list | helper default | No | `file-mcp` |
-
-## 7. Vault Integration
-
-Load Vault credentials before IT/AT runs:
-
-```bash
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
-bash scripts/validate-vault.sh
-```
-
-Key runtime Vault variables:
-- `VAULT_ADDR`
-- `VAULT_TOKEN`
-- `VAULT_MOUNT_POINT`
-- `VAULT_CONFIG_PATH`
-
-## 8. Example Configurations
-
-### Local dev (SQLite, local backend)
-
-```bash
-./server_control.sh --env tests/env-UT serve
-```
-
-### Docker (remote backends + Vault)
-
-```bash
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
-./docker-build.sh registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
-docker compose -f docker-compose.local.yml --env-file tests/env-IT-local-docker up -d
-```
-
-### Preprod profile-chain validation
-
-```bash
-.venv/bin/python -m pytest tests/application --env tests/env-AT-preprod -q
-```
-
-## 9. Full Variable Index (tests/env-*)
-
-The following variables are present across committed tier env files and overlays:
-
-```text
-CLOUD_DOG_DB__DATABASE
-CLOUD_DOG_DB__DIALECT
-CLOUD_DOG_DB__HOST
-CLOUD_DOG_DB__PASSWORD
-CLOUD_DOG_DB__PORT
-CLOUD_DOG_DB__USERNAME
-CLOUD_DOG__DB__DATABASE
-CLOUD_DOG__DB__DIALECT
-FILE_MCP_API_KEY_PRIMARY
-FILE_MCP_API_KEY_SECONDARY
-FILE_MCP_AUDIT_LOG
-FILE_MCP_AUTH_HEADER_NAME
-FILE_MCP_AUTH_HEADER_SCHEME
-FILE_MCP_CONVERSION_MAX_INPUT_MB
-FILE_MCP_CONVERSION_TIMEOUT_S
-FILE_MCP_DOCKER_TEST_IMAGE
-FILE_MCP_FTP_BASE_DIR
-FILE_MCP_FTP_HOST
-FILE_MCP_FTP_PASSWORD
-FILE_MCP_FTP_PORT
-FILE_MCP_FTP_USERNAME
-FILE_MCP_FTP_USE_TLS
-FILE_MCP_GDRIVE_ACCESS_TOKEN
-FILE_MCP_GDRIVE_AUTH_CODE
-FILE_MCP_GDRIVE_CLIENT_ID
-FILE_MCP_GDRIVE_CLIENT_SECRET
-FILE_MCP_GDRIVE_FOLDER_ID
-FILE_MCP_GDRIVE_FOLDER_URL
-FILE_MCP_GDRIVE_REDIRECT_URI
-FILE_MCP_GDRIVE_REFRESH_TOKEN
-FILE_MCP_GDRIVE_TOKEN_URI
-FILE_MCP_GDRIVE_USER_EMAIL
-FILE_MCP_HTTP_BASE_PATH
-FILE_MCP_HTTP_EVENTS_PATH
-FILE_MCP_HTTP_HEALTH_PATH
-FILE_MCP_HTTP_HOST
-FILE_MCP_HTTP_MCP_PATH
-FILE_MCP_HTTP_PORT
-FILE_MCP_HTTP_STATELESS
-FILE_MCP_HTTP_TRANSPORT
-FILE_MCP_JOBS_BACKEND
-FILE_MCP_JOBS_ENABLED
-FILE_MCP_JOBS_PAYLOAD_MAX_BYTES
-FILE_MCP_JOBS_QUEUE
-FILE_MCP_JOBS_REDIS_KEY_PREFIX
-FILE_MCP_JOBS_REDIS_URL
-FILE_MCP_JOBS_SQL_URL
-FILE_MCP_PREPROD_KEY_FTP
-FILE_MCP_PREPROD_KEY_LOCAL
-FILE_MCP_PREPROD_KEY_S3
-FILE_MCP_PREPROD_KEY_WEBDAV
-FILE_MCP_PREPROD_PROFILE_FTP
-FILE_MCP_PREPROD_PROFILE_LOCAL
-FILE_MCP_PREPROD_PROFILE_S3
-FILE_MCP_PREPROD_PROFILE_WEBDAV
-FILE_MCP_PREPROD_URL
-FILE_MCP_ROOT
-FILE_MCP_RUN_DOCKER_BRIDGE_TESTS
-FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS
-FILE_MCP_RUN_DOCKER_TESTS
-FILE_MCP_RUN_GDRIVE_LIVE_TEST
-FILE_MCP_RUN_GOOGLE_LIVE_TESTS
-FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST
-FILE_MCP_RUN_PREPROD_AT
-FILE_MCP_RUN_REMOTE_MATRIX_TESTS
-FILE_MCP_S3_ACCESS_KEY
-FILE_MCP_S3_BUCKET
-FILE_MCP_S3_ENDPOINT
-FILE_MCP_S3_PREFIX
-FILE_MCP_S3_REGION
-FILE_MCP_S3_SECRET_KEY
-FILE_MCP_SEARCH_MAX_FILE_MB
-FILE_MCP_SEARCH_MAX_RESULTS
-FILE_MCP_SEARCH_TIMEOUT_S
-FILE_MCP_SERVER_ID
-FILE_MCP_SERVER_LOG
-FILE_MCP_SNAPSHOT_DIR
-FILE_MCP_SNAPSHOT_MAX_STORAGE_MB
-FILE_MCP_SNAPSHOT_RETENTION_COUNT
-FILE_MCP_SNAPSHOT_RETENTION_DAYS
-FILE_MCP_STORAGE_BACKEND
-FILE_MCP_STORAGE_TIMEOUT_S
-FILE_MCP_STORAGE_TLS_CA_BUNDLE
-FILE_MCP_STORAGE_TLS_INSECURE
-FILE_MCP_STRICT_REMOTE_TESTS
-FILE_MCP_WEBDAV_BASE_URL
-FILE_MCP_WEBDAV_PASSWORD
-FILE_MCP_WEBDAV_USERNAME
-LOCAL_DOCKER_COMPOSE_FILE
-LOCAL_DOCKER_PROJECT_NAME
-LOCAL_DOCKER_SERVICES
-LOCAL_DOCKER_SOURCE_ENV
-TEST_A2A_API_KEY
-TEST_A2A_BASE_PATH
-TEST_API_BASE_PATH
-TEST_API_KEY
-TEST_BASE_URL
-TEST_ENV_TIER
-TEST_MCP_BASE_PATH
-TEST_MCP_URL
-TEST_WEB_BASE_PATH
-```
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `VAULT_ADDR` | Vault server URL when using secret-backed config resolution. | `https://your-vault-server` |
+| `VAULT_TOKEN` | Token-based authentication for Vault when applicable. | `your-vault-token` |
+| `VAULT_MOUNT_POINT` | Secret mount used by your Vault deployment. | `secret` |
+| `VAULT_CONFIG_PATH` | Config path holding service settings. | `services/your-service` |

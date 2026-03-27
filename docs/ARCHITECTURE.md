@@ -1,5 +1,10 @@
 # File MCP Server — Architecture
 
+## W28A-421 Review Status
+- Reviewed for external/shareable publication during W28A-421.
+- Source basis: `defaults.yaml`, 1 server source files, 9 discovered routes/endpoints, and 65 MCP tools.
+- Internal-only absolute paths, environment-specific hosts, and private registries have been removed from this shareable document set.
+
 ## 1. Overview
 `file-mcp-server` provides file and document operations over MCP/HTTP transports with strong path scope controls, audit trails, and multi-backend storage support.
 
