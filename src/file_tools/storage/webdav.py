@@ -314,12 +314,19 @@ class WebDavStorage(StorageBackend):
     def delete_path(self, path: str, *, missing_ok: bool = False) -> None:
         """Delete path."""
         url = _join_url(self._base_url, path)
-        resp = self._request("DELETE", url)
-        if resp.status_code == 404 and missing_ok:
-            return
-        if resp.status_code == 404:
-            raise FileNotFoundError(path)
-        resp.raise_for_status()
+        attempts = self._move_retry_count + 1
+        for attempt in range(1, attempts + 1):
+            resp = self._request("DELETE", url)
+            if resp.status_code in (200, 202, 204):
+                return
+            if resp.status_code == 404 and missing_ok:
+                return
+            if resp.status_code == 404:
+                raise FileNotFoundError(path)
+            if self._is_transient_status(resp.status_code) and attempt < attempts:
+                time.sleep(self._move_retry_backoff_s * attempt)
+                continue
+            resp.raise_for_status()
 
     def stat(self, path: str) -> StorageStat | None:
         """Execute stat."""

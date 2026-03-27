@@ -37,6 +37,7 @@ from html import escape
 import inspect
 import json
 import mimetypes
+import secrets
 import sys
 import time
 import uuid
@@ -45,7 +46,7 @@ import re
 from os import getenv as read_env_var
 
 from fastmcp import FastMCP
-from cloud_dog_api_kit import create_app as create_api_kit_app  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_api_kit import create_app as create_api_kit_app, create_health_router  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_config.compiler.evaluator import (  # type: ignore[import-untyped]
     SafeExpressionError,
@@ -465,6 +466,11 @@ class HealthCheckMiddleware:
         self.mcp_path = _normalize_path(mcp_path, default="/mcp")
         self.a2a_auth_verifier = a2a_auth_verifier
         self.db_runtime = db_runtime
+        # Session store for cookie-based WebUI login.
+        self._sessions: dict[str, dict] = {}
+        self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"
+        self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or ""
+        self._cookie_name = "file_web_session"
         self.admin_identity_service = admin_identity_service
         self.jobs_runtime_provider = jobs_runtime_provider
         self.a2a_base_path = _normalize_path(
@@ -581,6 +587,83 @@ class HealthCheckMiddleware:
         ]
         return {"tools": tools}
 
+    def _get_session_from_cookie(self, headers: dict[str, str]) -> dict | None:
+        """Extract and validate session from cookie header."""
+        import time as _time
+        cookie_header = headers.get("cookie", "")
+        for part in cookie_header.split(";"):
+            part = part.strip()
+            if part.startswith(f"{self._cookie_name}="):
+                token = part[len(self._cookie_name) + 1:]
+                sess = self._sessions.get(token)
+                if sess and _time.time() - sess.get("_created", 0) < 3600:
+                    return sess
+                self._sessions.pop(token, None)
+        return None
+
+    async def _handle_auth_login(self, receive, send, headers: dict[str, str]) -> bool:
+        """Handle POST /auth/login — validate credentials, set session cookie."""
+        import time as _time
+        body = await self._read_http_body(receive)
+        try:
+            data = json.loads(body)
+        except Exception:
+            await self._send_bytes(send, status=400, body=b'{"detail":"Invalid JSON"}', content_type="application/json")
+            return True
+        username = str(data.get("username", "")).strip()
+        password = str(data.get("password", "")).strip()
+        if not username or not password:
+            await self._send_bytes(send, status=400, body=b'{"detail":"Username and password required"}', content_type="application/json")
+            return True
+        if username != self._admin_username or password != self._admin_password:
+            await self._send_bytes(send, status=401, body=b'{"detail":"Invalid credentials"}', content_type="application/json")
+            return True
+        token = secrets.token_urlsafe(32)
+        self._sessions[token] = {"user": username, "user_id": "1", "role": "admin", "_created": _time.time()}
+        resp_body = json.dumps({"user": {"id": "1", "displayName": username, "email": None, "roles": ["admin"], "permissions": ["*"]}}).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(resp_body)).encode()),
+                (b"set-cookie", f"{self._cookie_name}={token}; HttpOnly; SameSite=Lax; Max-Age=3600; Path=/".encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": resp_body})
+        return True
+
+    async def _handle_auth_me(self, send, headers: dict[str, str]) -> bool:
+        """Handle GET /auth/me — return current session user."""
+        sess = self._get_session_from_cookie(headers)
+        if not sess:
+            await self._send_bytes(send, status=401, body=b'{"detail":"Not authenticated"}', content_type="application/json")
+            return True
+        resp_body = json.dumps({"user": {"id": sess["user_id"], "displayName": sess["user"], "email": None, "roles": [sess["role"]], "permissions": ["*"]}}).encode("utf-8")
+        await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
+        return True
+
+    async def _handle_auth_logout(self, send, headers: dict[str, str]) -> bool:
+        """Handle POST /auth/logout — clear session."""
+        cookie_header = headers.get("cookie", "")
+        for part in cookie_header.split(";"):
+            part = part.strip()
+            if part.startswith(f"{self._cookie_name}="):
+                token = part[len(self._cookie_name) + 1:]
+                self._sessions.pop(token, None)
+        resp_body = b'{"ok":true}'
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(resp_body)).encode()),
+                (b"set-cookie", f"{self._cookie_name}=; HttpOnly; SameSite=Lax; Max-Age=0; Path=/".encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": resp_body})
+        return True
+
     async def _read_http_body(self, receive) -> bytes:
         """Handle read http body."""
         body = b""
@@ -673,6 +756,10 @@ class HealthCheckMiddleware:
             "/search",
             "/storage-profiles",
             "/audit-log",
+            "/admin-identity",
+            "/admin/identity",
+            "/admin/rbac",
+            "/google-drive-settings",
             "/settings",
         )
 
@@ -735,7 +822,7 @@ class HealthCheckMiddleware:
         env_name = env_name.strip() or "dev"
 
         api_base_url = str(read_env_var("FILE_MCP_UI_API_BASE_URL") or "").strip() or "/"
-        auth_mode = str(read_env_var("FILE_MCP_UI_AUTH_MODE") or "api_key").strip() or "api_key"
+        auth_mode = str(read_env_var("FILE_MCP_UI_AUTH_MODE") or "cookie").strip() or "cookie"
         if auth_mode not in {"api_key", "cookie", "oidc"}:
             auth_mode = "api_key"
 
@@ -761,12 +848,24 @@ class HealthCheckMiddleware:
         }
 
     async def _serve_runtime_config(self, send, *, method: str) -> None:
-        """Serve runtime configuration bootstrap JavaScript."""
+        """Serve runtime configuration bootstrap JavaScript.
+
+        Uses JavaScript expression for API_BASE_URL so the browser resolves
+        the correct protocol behind a reverse proxy (Traefik / HTTPS).
+        """
         payload = self._runtime_config_payload()
-        script = (
-            "window.__RUNTIME_CONFIG__ = "
-            f"{json.dumps(payload, separators=(',', ':'))};\n"
-        ).encode("utf-8")
+        lines = [
+            "const __origin = window.location.origin;",
+            "window.__RUNTIME_CONFIG__ = {",
+            f"  ENV: {json.dumps(payload.get('ENV', 'dev'))},",
+            "  API_BASE_URL: __origin,",
+            f"  AUTH_MODE: {json.dumps(payload.get('AUTH_MODE', 'api_key'))},",
+            f"  AUDIT_LOG_PATH: {json.dumps(payload.get('AUDIT_LOG_PATH', ''))},",
+            f"  DEFAULT_BROWSE_PATH: {json.dumps(payload.get('DEFAULT_BROWSE_PATH', 'src'))},",
+            f"  PROFILE_STORE_PATH: {json.dumps(payload.get('PROFILE_STORE_PATH', ''))},",
+            "};",
+        ]
+        script = ("\n".join(lines) + "\n").encode("utf-8")
         await send(
             {
                 "type": "http.response.start",
@@ -1520,6 +1619,18 @@ class HealthCheckMiddleware:
         path = str(scope.get("path") or "")
         method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
+
+        # Auth endpoints — handle before any other routing.
+        if scope.get("type") == "http":
+            if path == "/auth/login" and method == "POST":
+                await self._handle_auth_login(receive, send, headers)
+                return
+            if path == "/auth/me" and method == "GET":
+                await self._handle_auth_me(send, headers)
+                return
+            if path == "/auth/logout" and method == "POST":
+                await self._handle_auth_logout(send, headers)
+                return
 
         if scope.get("type") == "http" and method in {"GET", "HEAD"}:
             if path == "/runtime-config.js":

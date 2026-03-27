@@ -15,13 +15,13 @@ profiles:
         endpoint: "${FILE_MCP_S3_ENDPOINT}"
         bucket: "${FILE_MCP_S3_BUCKET}"
         region: "${FILE_MCP_S3_REGION}"
-        access_key: "${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY}"
-        secret_key: "${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY}"
+        access_key: "${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY || ''}"
+        secret_key: "${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY || ''}"
         prefix: "${FILE_MCP_S3_PREFIX}"
       webdav:
         base_url: "${FILE_MCP_WEBDAV_BASE_URL}"
-        username: "${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME}"
-        password: "${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD}"
+        username: "${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME || ''}"
+        password: "${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD || ''}"
         move_retry_count: "3"
         move_retry_backoff_s: "1.0"
         move_probe_timeout_s: "5"
@@ -29,8 +29,8 @@ profiles:
       ftp:
         host: "${FILE_MCP_FTP_HOST}"
         port: "${FILE_MCP_FTP_PORT}"
-        username: "${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME}"
-        password: "${vault.dev.storage.ftp.password || FILE_MCP_FTP_PASSWORD}"
+        username: "${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME || ''}"
+        password: "${vault.dev.storage.ftp.password || FILE_MCP_FTP_PASSWORD || ''}"
         base_dir: "${FILE_MCP_FTP_BASE_DIR}"
         use_tls: "${FILE_MCP_FTP_USE_TLS}"
       google_drive:
@@ -38,16 +38,16 @@ profiles:
         folder_id: "${FILE_MCP_GDRIVE_FOLDER_ID}"
         folder_url: "${FILE_MCP_GDRIVE_FOLDER_URL}"
         folder_url_example: "${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com/drive/folders/}"
-        client_id: "${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID}"
-        client_secret: "${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET}"
-        refresh_token: "${vault.dev.storage.google_drive.refresh_token || FILE_MCP_GDRIVE_REFRESH_TOKEN}"
-        access_token: "${vault.dev.storage.google_drive.access_token || FILE_MCP_GDRIVE_ACCESS_TOKEN}"
+        client_id: "${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID || ''}"
+        client_secret: "${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET || ''}"
+        refresh_token: "${vault.dev.storage.google_drive.refresh_token || FILE_MCP_GDRIVE_REFRESH_TOKEN || ''}"
+        access_token: "${vault.dev.storage.google_drive.access_token || FILE_MCP_GDRIVE_ACCESS_TOKEN || ''}"
         oauth_scope: "${FILE_MCP_GDRIVE_OAUTH_SCOPE:https://www.googleapis.com/auth/drive}"
         oauth_authorize_uri: "${FILE_MCP_GDRIVE_AUTHORIZE_URI:https://accounts.google.com/o/oauth2/v2/auth}"
         api_base_uri: "${FILE_MCP_GDRIVE_API_BASE_URI:https://www.googleapis.com/drive/v3}"
         upload_base_uri: "${FILE_MCP_GDRIVE_UPLOAD_BASE_URI:https://www.googleapis.com/upload/drive/v3}"
         redirect_uri: "${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}"
-        token_uri: "${vault.dev.storage.google_drive.token_uri || FILE_MCP_GDRIVE_TOKEN_URI}"
+        token_uri: "${vault.dev.storage.google_drive.token_uri || FILE_MCP_GDRIVE_TOKEN_URI || ''}"
     scope:
       roots:
         - "${FILE_MCP_ROOT}"
@@ -112,6 +112,27 @@ http:
   health_path: "${FILE_MCP_HTTP_HEALTH_PATH}"
   events_path: "${FILE_MCP_HTTP_EVENTS_PATH}"
   stateless_http: "${FILE_MCP_HTTP_STATELESS}"
+
+api_server:
+  host: "${CLOUD_DOG__API_SERVER__HOST:0.0.0.0}"
+  port: "${CLOUD_DOG__API_SERVER__PORT:8060}"
+  enabled: "${CLOUD_DOG__API_SERVER__ENABLED:true}"
+
+web_server:
+  host: "${CLOUD_DOG__WEB_SERVER__HOST:0.0.0.0}"
+  port: "${CLOUD_DOG__WEB_SERVER__PORT:8061}"
+  enabled: "${CLOUD_DOG__WEB_SERVER__ENABLED:true}"
+
+mcp_server:
+  host: "${CLOUD_DOG__MCP_SERVER__HOST:0.0.0.0}"
+  port: "${CLOUD_DOG__MCP_SERVER__PORT:8062}"
+  transport: "${CLOUD_DOG__MCP_SERVER__TRANSPORT:streamable-http}"
+  enabled: "${CLOUD_DOG__MCP_SERVER__ENABLED:true}"
+
+a2a_server:
+  host: "${CLOUD_DOG__A2A_SERVER__HOST:0.0.0.0}"
+  port: "${CLOUD_DOG__A2A_SERVER__PORT:8063}"
+  enabled: "${CLOUD_DOG__A2A_SERVER__ENABLED:true}"
 
 log:
   service_instance: "${FILE_MCP_SERVER_ID:file-mcp-local}"

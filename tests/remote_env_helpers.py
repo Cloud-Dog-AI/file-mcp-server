@@ -424,6 +424,7 @@ def merged_remote_env(
     merged: dict[str, str] = {}
     env_files: list[str] = []
     google_file_values: dict[str, str] = {}
+    file_backed_values: dict[str, str] = {}
 
     base_env = remote_base_env_path(repo_root)
     if base_env.exists():
@@ -441,6 +442,12 @@ def merged_remote_env(
             env_files.append(str(google_env))
             google_file_values = parse_env_file(google_env)
             merged.update(google_file_values)
+
+    file_backed_values = {
+        key: value
+        for key, value in merged.items()
+        if str(value).strip() and not _is_unresolved_env_value(str(value))
+    }
 
     # Resolve vault expressions through the standard package instead of raw text parsing.
     resolved = _resolve_vault_backed_remote_values(repo_root, env_files=env_files)
@@ -480,6 +487,38 @@ def merged_remote_env(
     os_env = dict(runtime_env)
     merged.update(os_env)
 
+    strict_file_mode = (
+        str(file_backed_values.get("FILE_MCP_STRICT_REMOTE_TESTS", "")).strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+    if strict_file_mode:
+        for key in (
+            "FILE_MCP_WEBDAV_BASE_URL",
+            "FILE_MCP_WEBDAV_USERNAME",
+            "FILE_MCP_WEBDAV_PASSWORD",
+            "FILE_MCP_FTP_HOST",
+            "FILE_MCP_FTP_PORT",
+            "FILE_MCP_FTP_USERNAME",
+            "FILE_MCP_FTP_PASSWORD",
+            "FILE_MCP_FTP_BASE_DIR",
+            "FILE_MCP_FTP_USE_TLS",
+            "FILE_MCP_S3_ENDPOINT",
+            "FILE_MCP_S3_BUCKET",
+            "FILE_MCP_S3_REGION",
+            "FILE_MCP_S3_ACCESS_KEY",
+            "FILE_MCP_S3_SECRET_KEY",
+            "FILE_MCP_S3_PREFIX",
+        ):
+            fallback = str(file_backed_values.get(key, "")).strip()
+            if fallback:
+                merged[key] = fallback
+
+    if include_google:
+        for key, value in profile_google_resolved.items():
+            resolved_value = str(value).strip()
+            if resolved_value:
+                merged[key] = resolved_value
+
     # If process env injected unresolved `${vault...}` placeholders (e.g. via --env),
     # keep concrete values resolved above.
     for source in (
@@ -487,10 +526,11 @@ def merged_remote_env(
         blob_resolved,
         profile_google_resolved,
         google_file_values,
+        file_backed_values,
     ):
         for key, value in source.items():
             current = merged.get(key)
-            if _is_unresolved_env_value(current):
+            if _is_unresolved_env_value(current) or not str(current or "").strip():
                 merged[key] = value
 
     return merged

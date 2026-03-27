@@ -50,6 +50,13 @@ class HttpServerConfig(BaseModel):
     stateless_http: Optional[bool | str] = None
 
 
+class ComponentServerConfig(BaseModel):
+    host: Optional[str] = None
+    port: Optional[int | str] = None
+    enabled: Optional[bool | str] = None
+    transport: Optional[str] = None
+
+
 class ScopeConfig(BaseModel):
     roots: List[str] = Field(default_factory=list)
     allow_globs: List[str] = Field(default_factory=list)
@@ -216,3 +223,7 @@ class ProfileConfig(BaseModel):
 class ServerConfig(BaseModel):
     profiles: Dict[str, ProfileConfig] = Field(default_factory=dict)
     http: HttpServerConfig = Field(default_factory=HttpServerConfig)
+    api_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)
+    web_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)
+    mcp_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)
+    a2a_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)

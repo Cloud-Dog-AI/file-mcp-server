@@ -15,6 +15,13 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
 SRC_DIR = PROJECT_ROOT / "src"
 
 
+def _has_web_server() -> bool:
+    """Return True when this project exposes a web server/runtime-config surface."""
+    legacy_web_root = PROJECT_ROOT / "src" / "servers" / "web"
+    file_mcp_web_runtime = PROJECT_ROOT / "src" / "file_mcp_server" / "server_runtime.py"
+    return legacy_web_root.exists() or file_mcp_web_runtime.exists()
+
+
 def _grep_count(pattern: str, exclude_pattern: str | None = None) -> list[str]:
     """Grep src/ for a pattern, return matching file:line entries."""
     cmd = f"grep -rn '{pattern}' {SRC_DIR} --include='*.py'"
@@ -125,20 +132,23 @@ class TestPackageCompliance:
     def test_ui_dist_exists(self):
         """PS-30: ui/dist/ must exist (SPA built and wired)."""
         ui_dist = PROJECT_ROOT / "ui" / "dist"
-        if not (PROJECT_ROOT / "src" / "servers" / "web").exists():
+        if not _has_web_server():
             pytest.skip("No web server - UI not applicable")
         assert ui_dist.exists(), "FAIL: ui/dist/ not found. SPA must be built."
 
     def test_runtime_config_endpoint(self):
         """PS-30: /runtime-config.js must be served by the web server."""
         web_files = list(SRC_DIR.rglob("*.py"))
-        has_runtime_config = any(
-            "runtime-config" in filepath.read_text()
-            or "runtime_config" in filepath.read_text()
-            for filepath in web_files
-            if filepath.stat().st_size < 100000
-        )
-        if not (PROJECT_ROOT / "src" / "servers" / "web").exists():
+        has_runtime_config = False
+        for filepath in web_files:
+            try:
+                content = filepath.read_text()
+            except Exception:
+                continue
+            if "runtime-config" in content or "runtime_config" in content:
+                has_runtime_config = True
+                break
+        if not _has_web_server():
             pytest.skip("No web server - runtime-config not applicable")
         assert has_runtime_config, "FAIL: No /runtime-config.js endpoint found in web server."
 

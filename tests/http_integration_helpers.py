@@ -90,6 +90,19 @@ def wait_for_health(url: str, timeout_s: float = 20.0) -> dict:
     raise RuntimeError(f"Health check timed out: {candidates}")
 
 
+def _load_env_file_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        raw = line.strip()
+        if not raw or raw.startswith("#") or "=" not in raw:
+            continue
+        key, value = raw.split("=", 1)
+        key = key.strip()
+        if key:
+            values[key] = value.strip()
+    return values
+
+
 def write_server_config(
     base_dir: Path,
     *,
@@ -120,6 +133,7 @@ def write_server_config(
     server_log = base_dir / "server.log"
     audit_log = base_dir / "audit.log.jsonl"
     snapshot_dir = base_dir / "snapshots"
+    sqlite_db = base_dir / "file_mcp.db"
 
     allow_globs = allow_globs or ["**/*"]
     deny_globs = deny_globs or []
@@ -266,6 +280,8 @@ http:
         f"FILE_MCP_SNAPSHOT_RETENTION_DAYS={snapshot_retention_days}",
         f"FILE_MCP_SNAPSHOT_RETENTION_COUNT={snapshot_retention_count if snapshot_retention_count is not None else -1}",
         f"FILE_MCP_SNAPSHOT_MAX_STORAGE_MB={snapshot_max_storage_mb if snapshot_max_storage_mb is not None else -1}",
+        "CLOUD_DOG__DB__DIALECT=sqlite",
+        f"CLOUD_DOG__DB__DATABASE={sqlite_db}",
     ]
     if extra_env_lines:
         env_lines.extend(extra_env_lines)
@@ -307,6 +323,7 @@ def running_server(
         for key, value in runtime_env.items()
         if not (key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"))
     }
+    env.update(_load_env_file_values(env_path))
     env["PYTHONPATH"] = "src"
     if extra_env:
         env.update(extra_env)

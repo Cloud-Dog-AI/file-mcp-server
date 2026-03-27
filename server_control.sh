@@ -24,14 +24,14 @@ cd "$SCRIPT_DIR"
 usage() {
   cat <<USAGE
 Usage:
-  ./server_control.sh --env <env-file> [--config <config.yaml>] [--defaults <defaults.yaml>] [--profile <name>] [--pidfile <pidfile>] <start|stop|status|restart|serve>
+  ./server_control.sh --env <env-file> [--config <config.yaml>] [--defaults <defaults.yaml>] [--profile <name>] [--pidfile <pidfile>] <start|stop|status|restart|serve> [all|api|web|mcp|a2a]
 
 Examples:
-  ./server_control.sh --env private/env-test start
-  ./server_control.sh --env private/env-test status
-  ./server_control.sh --env private/env-test stop
-  ./server_control.sh --env private/env-test restart
-  ./server_control.sh --env private/env-test serve
+  ./server_control.sh --env tests/env-IT start all
+  ./server_control.sh --env tests/env-IT status api
+  ./server_control.sh --env tests/env-IT stop all
+  ./server_control.sh --env tests/env-IT restart mcp
+  ./server_control.sh --env tests/env-IT serve api
 USAGE
 }
 
@@ -40,7 +40,10 @@ CONFIG_PATH="config.yaml"
 DEFAULTS_PATH="defaults.yaml"
 PROFILE="default"
 PIDFILE=".run/file-mcp-server.pid"
+PIDFILE_CUSTOM=0
 ACTION=""
+COMPONENT=""
+COMPONENT_ORDER=(api web mcp a2a)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -62,10 +65,23 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pidfile)
       PIDFILE="${2:-}"
+      PIDFILE_CUSTOM=1
       shift 2
       ;;
     start|stop|status|restart|serve)
+      if [[ -n "$ACTION" ]]; then
+        echo "ERROR: multiple actions provided ($ACTION, $1)." >&2
+        exit 2
+      fi
       ACTION="$1"
+      shift
+      ;;
+    all|api|web|mcp|a2a)
+      if [[ -n "$COMPONENT" ]]; then
+        echo "ERROR: multiple components provided ($COMPONENT, $1)." >&2
+        exit 2
+      fi
+      COMPONENT="$1"
       shift
       ;;
     -h|--help)
@@ -97,6 +113,15 @@ if [[ -z "$ACTION" ]]; then
   exit 2
 fi
 
+if [[ -z "$COMPONENT" ]]; then
+  COMPONENT="api"
+fi
+
+if [[ "$ACTION" == "serve" && "$COMPONENT" == "all" ]]; then
+  echo "ERROR: serve only supports one component (api|web|mcp|a2a)." >&2
+  exit 2
+fi
+
 PYTHON_BIN="python3"
 if [[ -x ".venv/bin/python" ]]; then
   PYTHON_BIN=".venv/bin/python"
@@ -107,18 +132,20 @@ COMMON_ARGS=(
   --env-path "$ENV_PATH"
   --config-path "$CONFIG_PATH"
   --defaults-path "$DEFAULTS_PATH"
-  --pidfile "$PIDFILE"
 )
 
 export PYTHONPATH="src${PYTHONPATH:+:$PYTHONPATH}"
 
 run_cmd() {
-  local clear_vault=1
+  local keep_vault=0
   if grep -Eq '^[[:space:]]*VAULT_[A-Z0-9_]*=' "$ENV_PATH"; then
-    clear_vault=0
+    keep_vault=1
+  fi
+  if grep -Eq '\$\{[[:space:]]*vault\.' "$ENV_PATH"; then
+    keep_vault=1
   fi
 
-  if [[ "$clear_vault" -eq 1 ]]; then
+  if [[ "$keep_vault" -eq 0 ]]; then
     env \
       VAULT_ADDR= \
       VAULT_TOKEN= \
@@ -132,22 +159,112 @@ run_cmd() {
   "$PYTHON_BIN" -m file_mcp_server "$@"
 }
 
+component_pidfile() {
+  local component="$1"
+  if [[ "$PIDFILE_CUSTOM" -eq 1 ]]; then
+    echo "$PIDFILE"
+    return
+  fi
+  case "$component" in
+    api) echo ".run/file-mcp-server.pid" ;;
+    web) echo ".run/file-mcp-server-web.pid" ;;
+    mcp) echo ".run/file-mcp-server-mcp.pid" ;;
+    a2a) echo ".run/file-mcp-server-a2a.pid" ;;
+    *)
+      echo "ERROR: unsupported component '$component'" >&2
+      exit 2
+      ;;
+  esac
+}
+
+start_component() {
+  local component="$1"
+  local force_flag="${2:-0}"
+  local pidfile
+  pidfile="$(component_pidfile "$component")"
+  local args=(
+    start
+    "${COMMON_ARGS[@]}"
+    --server-role "$component"
+    --pidfile "$pidfile"
+  )
+  if [[ "$force_flag" -eq 1 ]]; then
+    args+=(--force)
+  fi
+  run_cmd "${args[@]}"
+}
+
+stop_component() {
+  local component="$1"
+  local pidfile
+  pidfile="$(component_pidfile "$component")"
+  run_cmd stop --pidfile "$pidfile"
+}
+
+status_component() {
+  local component="$1"
+  local pidfile
+  pidfile="$(component_pidfile "$component")"
+  run_cmd status --pidfile "$pidfile"
+}
+
+restart_component() {
+  local component="$1"
+  stop_component "$component" || true
+  start_component "$component" 1
+}
+
 case "$ACTION" in
   start)
-    run_cmd start "${COMMON_ARGS[@]}"
+    if [[ "$COMPONENT" == "all" ]]; then
+      started=()
+      for item in "${COMPONENT_ORDER[@]}"; do
+        if start_component "$item"; then
+          started+=("$item")
+        else
+          for undo in "${started[@]}"; do
+            stop_component "$undo" || true
+          done
+          exit 1
+        fi
+      done
+    else
+      start_component "$COMPONENT"
+    fi
     ;;
   stop)
-    run_cmd stop --pidfile "$PIDFILE"
+    if [[ "$COMPONENT" == "all" ]]; then
+      for item in "${COMPONENT_ORDER[@]}"; do
+        stop_component "$item" || true
+      done
+    else
+      stop_component "$COMPONENT"
+    fi
     ;;
   status)
-    run_cmd status --pidfile "$PIDFILE"
+    if [[ "$COMPONENT" == "all" ]]; then
+      for item in "${COMPONENT_ORDER[@]}"; do
+        status_component "$item"
+      done
+    else
+      status_component "$COMPONENT"
+    fi
     ;;
   restart)
-    run_cmd stop --pidfile "$PIDFILE" || true
-    run_cmd start "${COMMON_ARGS[@]}" --force
+    if [[ "$COMPONENT" == "all" ]]; then
+      for item in "${COMPONENT_ORDER[@]}"; do
+        stop_component "$item" || true
+      done
+      for item in "${COMPONENT_ORDER[@]}"; do
+        start_component "$item" 1
+      done
+    else
+      restart_component "$COMPONENT"
+    fi
     ;;
   serve)
-    run_cmd serve "${COMMON_ARGS[@]}" --force-pidfile
+    pidfile="$(component_pidfile "$COMPONENT")"
+    run_cmd serve "${COMMON_ARGS[@]}" --server-role "$COMPONENT" --pidfile "$pidfile" --force-pidfile
     ;;
   *)
     echo "Unsupported action: $ACTION" >&2

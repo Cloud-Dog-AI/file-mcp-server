@@ -34,20 +34,82 @@ import sys
 import time
 from pathlib import Path
 from os import environ as runtime_env
+from typing import Optional
 
 import typer
 
 from file_tools.config.adapter import get_profile, load_config
+from file_tools.config.models import (
+    ComponentServerConfig,
+    HttpServerConfig,
+    ServerConfig,
+)
 from file_tools.logging_adapter import configure_logging_for_profile
 from file_mcp_server.lifecycle import start_pidfile, status_pidfile, stop_pidfile
 from file_mcp_server.server import run_fastmcp_http_server
 
 app = typer.Typer(help="file-mcp-server CLI.")
+SERVER_ROLES = ("api", "web", "mcp", "a2a")
 
 
 def _default_pidfile() -> Path:
     """Handle default pidfile."""
     return Path(".run") / "file-mcp-server.pid"
+
+
+def _normalise_server_role(server_role: str) -> str:
+    """Validate and normalise server role name."""
+    role = server_role.strip().lower()
+    if role not in SERVER_ROLES:
+        raise typer.BadParameter(
+            "Invalid --server-role value. Expected one of: api, web, mcp, a2a."
+        )
+    return role
+
+
+def _component_for_role(config: ServerConfig, role: str) -> ComponentServerConfig:
+    """Return component-level host/port config for a server role."""
+    if role == "api":
+        return config.api_server
+    if role == "web":
+        return config.web_server
+    if role == "mcp":
+        return config.mcp_server
+    return config.a2a_server
+
+
+def _to_bool(value: bool | str | None, *, default: bool) -> bool:
+    """Parse bool-like config values with a safe default."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _resolve_role_http_config(config: ServerConfig, role: str) -> HttpServerConfig:
+    """Build HTTP settings for a role by overlaying component host/port values."""
+    resolved = config.http.model_copy(deep=True)
+    component = _component_for_role(config, role)
+
+    host = str(component.host or "").strip()
+    if host:
+        resolved.host = host
+
+    if component.port not in (None, ""):
+        resolved.port = component.port
+
+    if role == "mcp":
+        transport = str(component.transport or "").strip()
+        if transport:
+            resolved.transport = transport
+
+    return resolved
 
 
 @app.command()
@@ -58,8 +120,12 @@ def serve(
     defaults_path: str | None = typer.Option(None, help="Path to defaults.yaml."),
     pidfile: Path = typer.Option(_default_pidfile(), help="Path to PID file."),
     force_pidfile: bool = typer.Option(False, help="Overwrite existing PID file."),
+    server_role: Optional[str] = typer.Option(
+        None, help="Server role: api|web|mcp|a2a. Omit for legacy single-server mode."
+    ),
 ) -> None:
     """Run the FastMCP HTTP/SSE server."""
+    resolved_role = _normalise_server_role(server_role) if server_role else None
     if env_path:
         runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = str(
             Path(env_path).expanduser().resolve()
@@ -83,6 +149,7 @@ def serve(
             (Path.cwd() / "defaults.yaml").resolve()
         )
     runtime_env["FILE_MCP_ACTIVE_PROFILE"] = profile
+    runtime_env["FILE_MCP_ACTIVE_SERVER_ROLE"] = resolved_role or "legacy"
 
     config = load_config(
         env_path=env_path,
@@ -92,6 +159,11 @@ def serve(
     runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
     profile_config = get_profile(config, name=profile)
     logger = configure_logging_for_profile(profile_config)
+    if resolved_role:
+        component = _component_for_role(config, resolved_role)
+        if not _to_bool(component.enabled, default=True):
+            typer.echo(f"server role '{resolved_role}' is disabled in config")
+            raise typer.Exit(1)
     current_pid = os.getpid()
 
     existing = status_pidfile(pidfile)
@@ -108,7 +180,11 @@ def serve(
             run_fastmcp_http_server(
                 default_profile_name=profile,
                 config=config,
-                http_config=config.http,
+                http_config=(
+                    _resolve_role_http_config(config, resolved_role)
+                    if resolved_role
+                    else config.http
+                ),
                 logger=logger,
             )
         )
@@ -125,8 +201,12 @@ def start(
     defaults_path: str | None = typer.Option(None, help="Path to defaults.yaml."),
     pidfile: Path = typer.Option(_default_pidfile(), help="Path to PID file."),
     force: bool = typer.Option(False, help="Overwrite existing PID file."),
+    server_role: Optional[str] = typer.Option(
+        None, help="Server role: api|web|mcp|a2a. Omit for legacy single-server mode."
+    ),
 ) -> None:
     """Start the server in a background process."""
+    resolved_role = _normalise_server_role(server_role) if server_role else None
     status = status_pidfile(pidfile)
     if status.running and not force:
         typer.echo(status.message)
@@ -143,6 +223,8 @@ def start(
         str(pidfile),
         "--force-pidfile",
     ]
+    if resolved_role:
+        cmd.extend(["--server-role", resolved_role])
     if env_path:
         cmd.extend(["--env-path", env_path])
     if config_path:
