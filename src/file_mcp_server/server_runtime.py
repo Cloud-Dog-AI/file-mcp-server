@@ -854,18 +854,21 @@ class HealthCheckMiddleware:
         the correct protocol behind a reverse proxy (Traefik / HTTPS).
         """
         payload = self._runtime_config_payload()
-        lines = [
+        runtime = {
+            "ENV": payload.get("ENV", "dev"),
+            "API_BASE_URL": "",
+            "AUTH_MODE": payload.get("AUTH_MODE", "api_key"),
+            "AUDIT_LOG_PATH": payload.get("AUDIT_LOG_PATH", ""),
+            "DEFAULT_BROWSE_PATH": payload.get("DEFAULT_BROWSE_PATH", "src"),
+            "PROFILE_STORE_PATH": payload.get("PROFILE_STORE_PATH", ""),
+        }
+        body = "\n".join([
             "const __origin = window.location.origin;",
-            "window.__RUNTIME_CONFIG__ = {",
-            f"  ENV: {json.dumps(payload.get('ENV', 'dev'))},",
-            "  API_BASE_URL: __origin,",
-            f"  AUTH_MODE: {json.dumps(payload.get('AUTH_MODE', 'api_key'))},",
-            f"  AUDIT_LOG_PATH: {json.dumps(payload.get('AUDIT_LOG_PATH', ''))},",
-            f"  DEFAULT_BROWSE_PATH: {json.dumps(payload.get('DEFAULT_BROWSE_PATH', 'src'))},",
-            f"  PROFILE_STORE_PATH: {json.dumps(payload.get('PROFILE_STORE_PATH', ''))},",
-            "};",
-        ]
-        script = ("\n".join(lines) + "\n").encode("utf-8")
+            f"window.__RUNTIME_CONFIG__ = {json.dumps(runtime)};",
+            'window.__RUNTIME_CONFIG__["API_BASE_URL"] = __origin;',
+            "",
+        ])
+        script = body.encode("utf-8")
         await send(
             {
                 "type": "http.response.start",
