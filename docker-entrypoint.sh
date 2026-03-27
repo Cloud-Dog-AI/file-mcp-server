@@ -143,6 +143,13 @@ case "${1:-serve}" in
     if [[ -n "${ENV_PATH}" ]]; then
       ARGS+=(--env-path "${ENV_PATH}")
     fi
+    # Start lightweight port proxies for standard 4-server port compatibility.
+    # The unified server listens on WEB_SERVER_PORT only; the proxies forward
+    # API_SERVER_PORT and MCP_SERVER_PORT to the unified server so that health
+    # checks on the standard ports succeed.
+    if [[ -f /app/scripts/port-proxy.py ]]; then
+      python3 /app/scripts/port-proxy.py &
+    fi
     exec python3 -m file_mcp_server serve "${ARGS[@]}"
     ;;
   start|stop|status|restart)
