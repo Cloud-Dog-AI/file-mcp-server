@@ -1,76 +1,102 @@
 # Build Instructions
 
 ## Project
-`file-mcp-server`
+`file-mcp-server` - file operations service with API, Web, MCP, and A2A surfaces.
 
 ## Prerequisites
-- Python `3.10+`
-- Node.js `20+` and npm `10+` for the SPA bundle
-- Docker `24+`
-- Access to `https://pypi.cloud-dog.net/simple/`
-- Vault bootstrap file: `/opt/iac/Development/cloud-dog-ai/env-vault`
+- Python 3.10+
+- Node.js 20+ and npm 10+ for the UI bundle
+- Docker with BuildKit support
 
-## Local Development Setup
+## Development Setup
 ```bash
-cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e ".[dev]" --index-url https://pypi.cloud-dog.net/simple/
-set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
+pip install -e ".[dev]"
+```
+
+If local platform packages are available from a package index instead of editable source checkouts:
+```bash
+PYPI_URL=https://packages.example.com/simple/
+pip install -e ".[dev]" --extra-index-url "$PYPI_URL"
+```
+
+## Local Configuration
+```bash
+cat > .env.local <<'ENV'
+CLOUD_DOG__API_SERVER__PORT=8060
+CLOUD_DOG__WEB_SERVER__PORT=8061
+CLOUD_DOG__MCP_SERVER__PORT=8062
+CLOUD_DOG__A2A_SERVER__PORT=8063
+FILE_MCP_HTTP_PORT=8062
+FILE_MCP_STORAGE_ROOT=./data/storage
+ENV
 ```
 
 ## Run Locally
 ```bash
-./server_control.sh --env tests/env-IT start all
-./server_control.sh --env tests/env-IT status all
-./server_control.sh --env tests/env-IT stop all
+./server_control.sh --env ./.env.local start all
+./server_control.sh --env ./.env.local status all
+./server_control.sh --env ./.env.local stop all
 ```
 
 ## Run Tests
 ```bash
-.venv/bin/python -m pytest tests/quality --env tests/env-QT -q
-.venv/bin/python -m pytest tests/unit --env tests/env-UT -q
-.venv/bin/python -m pytest tests/system --env tests/env-ST -q
-.venv/bin/python -m pytest tests/integration --env tests/env-IT -q
-.venv/bin/python -m pytest tests/application --env tests/env-AT -q
+.venv/bin/python -m pytest tests/quality --env ./.env.test -v
+.venv/bin/python -m pytest tests/unit --env ./.env.test -v
+.venv/bin/python -m pytest tests/system --env ./.env.test -v
+.venv/bin/python -m pytest tests/integration --env ./.env.test -v
+.venv/bin/python -m pytest tests/application --env ./.env.test -v
 ```
 
-Database overlays are available in `tests/env-DB-mysql` and `tests/env-DB-postgresql`.
-
-## Build and Stage the Web UI Bundle
+## Build
+### Python Package
 ```bash
-cd /opt/iac/Development/cloud-dog-ai/cloud-dog-ai-ui-monorepo
+python -m pip install build
+python -m build
+```
+
+### Build and Stage the UI Bundle
+```bash
+cd ../cloud-dog-ai-ui-monorepo
+npm install
 npm run build --workspace=apps/file-mcp
-
-cd /opt/iac/Development/cloud-dog-ai/file-mcp-server
-mkdir -p ui
-rm -rf ui/dist
-cp -r /opt/iac/Development/cloud-dog-ai/cloud-dog-ai-ui-monorepo/apps/file-mcp/dist ui/dist
+cd ../file-mcp-server
+mkdir -p ./ui
+rm -rf ./ui/dist
+cp -r ../cloud-dog-ai-ui-monorepo/apps/file-mcp/dist ./ui/dist
 ```
 
-## Docker Build
+### Docker Container
+The Docker build script can auto-discover editable platform packages from `.venv`, or you can provide them explicitly:
 ```bash
-./docker-build.sh registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+./docker-build.sh registry.example.com/team/file-mcp-server:latest
+```
+
+Explicit source and CA example:
+```bash
+CLOUD_DOG_SITE_PACKAGES=.venv/lib/python3.10/site-packages \
+CLOUD_DOG_CONFIG_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-config \
+CLOUD_DOG_LOGGING_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-logging \
+CLOUD_DOG_DB_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-db \
+CLOUD_DOG_JOBS_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-jobs \
+CUSTOM_CA_CERT=./certs/ca.pem \
+./docker-build.sh registry.example.com/team/file-mcp-server:latest
 ```
 
 ## Docker Push
 ```bash
-docker push registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest
+docker push registry.example.com/team/file-mcp-server:latest
 ```
 
-## Deploy to Preprod
+## Configuration
+Port and runtime configuration come from shell environment variables, the env file passed to `server_control.sh`, and `defaults.yaml`.
+
+## Vault Integration
 ```bash
-cd /opt/iac/cloud-dog-repo/terraform/server0.viewdeck.com/27\ MLAgents
-terraform apply -auto-approve
+export VAULT_ADDR=https://vault.example.com
+export VAULT_TOKEN=your-token
+export VAULT_MOUNT_POINT=your-mount
+export VAULT_CONFIG_PATH=your-path
 ```
-
-## Environment Files
-- `tests/env-QT`, `tests/env-UT`, `tests/env-ST`, `tests/env-IT`, `tests/env-AT`
-- local overlays: `tests/env-*-local-server`, `tests/env-*-local-docker`, `tests/env-local-docker-server`
-- database overlays: `tests/env-DB-mysql`, `tests/env-DB-postgresql`
-- defaults: `defaults.yaml`
-
-## Dependencies
-- Platform packages: `cloud_dog_api_kit`, `cloud_dog_config`, `cloud_dog_db`, `cloud_dog_idam`, `cloud_dog_jobs`
-- Storage/runtime packages: see `pyproject.toml` for the full list.
