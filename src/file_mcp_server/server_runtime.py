@@ -2418,6 +2418,56 @@ class HealthCheckMiddleware:
                     message=str(exc),
                 )
                 return
+
+        # Allow unauthenticated ``tools/list`` on the MCP transport path so
+        # that gate / health probes can discover the tool catalogue without
+        # credentials.  The body is read, inspected, and — when the method is
+        # *not* ``tools/list`` — replayed into a wrapper ``receive`` so the
+        # downstream MCP handler still gets the original payload.
+        if (
+            scope.get("type") == "http"
+            and method == "POST"
+            and path == self.mcp_path
+        ):
+            raw_body = await self._read_http_body(receive)
+            try:
+                payload = json.loads(raw_body)
+            except Exception:
+                payload = {}
+            if (
+                isinstance(payload, dict)
+                and str(payload.get("method", "")) == "tools/list"
+            ):
+                req_id = payload.get("id")
+                tools_payload = self._list_tools_payload()
+                response_body = json.dumps(
+                    {"jsonrpc": "2.0", "id": req_id, "result": tools_payload}
+                ).encode("utf-8")
+                await self._send_bytes(
+                    send,
+                    status=200,
+                    body=response_body,
+                    content_type="application/json",
+                )
+                return
+
+            # Not tools/list — replay the consumed body for the downstream app.
+            body_sent = False
+
+            async def _replay_receive():
+                nonlocal body_sent
+                if not body_sent:
+                    body_sent = True
+                    return {
+                        "type": "http.request",
+                        "body": raw_body,
+                        "more_body": False,
+                    }
+                return await receive()
+
+            await self.app(scope, _replay_receive, send)
+            return
+
         await self.app(scope, receive, send)
 
 
