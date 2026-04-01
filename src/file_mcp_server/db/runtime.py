@@ -155,6 +155,11 @@ def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntim
         )
         runner.upgrade("head")
 
+        # Ensure any new ORM tables (e.g. FileStorageProfile) exist even
+        # when no Alembic migration script has been generated yet.
+        from .models import PlatformBase as _ModelBase
+        _ModelBase.metadata.create_all(bind=engine, checkfirst=True)
+
         _RUNTIME = PlatformDatabaseRuntime(
             settings=settings,
             engine=engine,
