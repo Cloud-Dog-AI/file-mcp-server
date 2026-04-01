@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tests.config_helpers import build_profile
 from file_mcp_server.jobs_runtime import FileMcpJobsRuntime
 
@@ -76,33 +78,15 @@ profiles:
 
 def test_jobs_runtime_memory_lifecycle(tmp_path: Path) -> None:
     profile = _profile_with_jobs(tmp_path, backend="memory")
-    runtime = FileMcpJobsRuntime.from_profile(
-        profile,
-        profile_name="default",
-        fallback_sql_url=None,
-    )
-    assert runtime is not None
-    assert runtime.backend_name == "memory"
-    assert runtime.server_id == "ut-file-mcp-server-1"
-
-    job_id = runtime.submit_job(
-        job_type="file.convert",
-        payload={"path": str(tmp_path / "doc.txt"), "target_format": "md"},
-        session_id="sess-1",
-    )
-    assert runtime.mark_running(job_id) is True
-    assert runtime.mark_succeeded(job_id) is True
-
-    payload = runtime.get_job(job_id)
-    assert payload is not None
-    assert payload["job_id"] == job_id
-    assert payload["status"] == "succeeded"
-    assert payload["session_id"] == "sess-1"
-
-    listed = runtime.list_jobs(limit=10, status="succeeded")
-    assert listed
-    assert listed[0]["job_id"] == job_id
-    assert runtime.queue_status().get("succeeded", 0) >= 1
+    with pytest.raises(
+        ValueError,
+        match="In-memory queue backend is not supported in production",
+    ):
+        FileMcpJobsRuntime.from_profile(
+            profile,
+            profile_name="default",
+            fallback_sql_url=None,
+        )
 
 
 def test_jobs_runtime_sql_backend_uses_fallback_db_url(tmp_path: Path) -> None:

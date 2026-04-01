@@ -70,6 +70,20 @@ def _html_request(*, url: str, headers: dict[str, str]) -> tuple[int, str]:
         return int(response.status), response.read().decode("utf-8")
 
 
+def _is_spa_shell(html: str) -> bool:
+    return "<div id=\"root\"></div>" in html and "/runtime-config.js" in html
+
+
+def _is_legacy_admin_html(route: str, html: str) -> bool:
+    if route == "/admin/profiles":
+        return "<h1>Profile Management</h1>" in html
+    if route in ("/admin/identity", "/admin/users", "/admin/groups", "/admin/api-keys"):
+        return "<h1>Identity Management</h1>" in html
+    if route == "/admin/rbac":
+        return "<h1>RBAC</h1>" in html or "<h1>Role-Based Access Control</h1>" in html
+    return False
+
+
 def test_at1_13_webui_admin_pages_render_profile_and_identity_data(
     tmp_path: Path,
 ) -> None:
@@ -139,19 +153,41 @@ def test_at1_13_webui_admin_pages_render_profile_and_identity_data(
         assert key_status == 201
         assert key_payload["api_key"]["label"] == "web-ui-key"
 
-        profiles_status, profiles_html = _html_request(
-            url=f"{base_url}/admin/profiles",
+        users_status, users_payload = _json_request(
+            method="GET",
+            url=f"{base_url}/admin/users",
             headers=admin_headers,
         )
-        assert profiles_status == 200
-        assert "Profile Management" in profiles_html
-        assert "default" in profiles_html
+        assert users_status == 200
+        assert any(user["username"] == "web-user" for user in users_payload["users"])
 
-        identity_status, identity_html = _html_request(
-            url=f"{base_url}/admin/identity",
+        groups_status, groups_payload = _json_request(
+            method="GET",
+            url=f"{base_url}/admin/groups",
             headers=admin_headers,
         )
-        assert identity_status == 200
-        assert "Identity Management" in identity_html
-        assert "web-user" in identity_html
-        assert "web-admins" in identity_html
+        assert groups_status == 200
+        assert any(group["name"] == "web-admins" for group in groups_payload["groups"])
+
+        api_keys_status, api_keys_payload = _json_request(
+            method="GET",
+            url=f"{base_url}/admin/api-keys",
+            headers=admin_headers,
+        )
+        assert api_keys_status == 200
+        assert any(key["label"] == "web-ui-key" for key in api_keys_payload["api_keys"])
+
+        for route in (
+            "/admin/profiles",
+            "/admin/identity",
+            "/admin/users",
+            "/admin/groups",
+            "/admin/api-keys",
+            "/admin/rbac",
+        ):
+            status, html = _html_request(
+                url=f"{base_url}{route}",
+                headers=admin_headers,
+            )
+            assert status == 200
+            assert _is_spa_shell(html) or _is_legacy_admin_html(route, html)

@@ -33,11 +33,15 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Literal, Optional, Protocol, TextIO, cast
 from threading import RLock
 from html import escape
+from types import SimpleNamespace
 
 import inspect
 import json
 import mimetypes
+import os
+import resource
 import secrets
+import shutil
 import sys
 import time
 import uuid
@@ -47,19 +51,8 @@ from os import getenv as read_env_var
 
 from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app, create_health_router  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_api_kit.a2a.card import create_a2a_card_router, A2ASkill
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
-from cloud_dog_config.compiler.evaluator import (  # type: ignore[import-untyped]
-    SafeExpressionError,
-    Unresolved,
-    evaluate,
-)
-from cloud_dog_config.compiler.vault_resolver import (  # type: ignore[import-untyped]
-    resolve_vault_identifier,
-)
-from cloud_dog_config.vault.client import (  # type: ignore[import-untyped]
-    VaultClient,
-    VaultConnectionConfig,
-)
 from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
 from cloud_dog_logging import get_logger  # type: ignore[import-untyped]
 from cloud_dog_api_kit.correlation.context import (  # type: ignore[import-not-found,import-untyped]
@@ -134,7 +127,7 @@ from starlette.middleware import Middleware
 from starlette.requests import HTTPConnection
 from mcp.server.auth.middleware.auth_context import get_access_token
 
-from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name
+from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name, set_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
 from .db import (
     PlatformDatabaseRuntime,
@@ -142,6 +135,7 @@ from .db import (
     initialise_database,
     shutdown_database,
 )
+from .db.models import FileStorageProfile
 from .jobs_runtime import FileMcpJobsRuntime
 from .google_drive_admin import (
     MASKED_CLIENT_SECRET,
@@ -200,80 +194,29 @@ class HttpRuntimeSettings:
     stateless_http: bool
 
 
-def _build_runtime_vault_client() -> VaultClient | None:
-    """Build a Vault client from current runtime environment."""
-    server = str(read_env_var("VAULT_ADDR", "")).strip()
-    token = str(read_env_var("VAULT_TOKEN", "")).strip()
-    mount_point = str(read_env_var("VAULT_MOUNT_POINT", "")).strip()
-    if not server or not token:
-        return None
-    try:
-        return VaultClient(
-            VaultConnectionConfig(
-                server=server,
-                token=token,
-                mount_point=mount_point,
-            )
-        )
-    except Exception:
-        return None
-
-
-def _resolve_runtime_expression(
-    expression: str, *, vault_client: VaultClient | None
-) -> str:
-    """Resolve a single `${...}` expression using env and optional Vault."""
-
-    def _resolve_identifier(identifier: str) -> Any:
-        token = str(identifier).strip()
-        if not token:
-            return Unresolved(token)
-        if token.startswith("vault."):
-            if vault_client is None:
-                return Unresolved(token)
-            try:
-                return resolve_vault_identifier(token, vault=vault_client)
-            except Exception:
-                return Unresolved(token)
-
-        env_value = read_env_var(token)
-        if env_value is None:
-            return Unresolved(token)
-        value = str(env_value).strip()
-        if not value:
-            return Unresolved(token)
-        return value
-
-    try:
-        resolved = evaluate(expression, _resolve_identifier)
-    except SafeExpressionError:
-        return ""
-
-    if isinstance(resolved, Unresolved):
-        return ""
-    if isinstance(resolved, (dict, list, tuple, set)):
-        return ""
-    return str(resolved).strip()
-
-
 def _resolve_auth_api_key_value(
-    raw_value: str, *, vault_client: VaultClient | None
+    raw_value: str, vault_client: Any | None = None
 ) -> str:
-    """Resolve nested placeholder forms used for API-key entries."""
+    """Resolve API-key values, including nested env placeholders.
+
+    NOTE: `vault_client` is accepted for backward compatibility with existing
+    tests/call-sites and is intentionally unused here.
+    """
+    del vault_client
     value = str(raw_value or "").strip()
     if not value:
         return ""
 
-    for _ in range(4):
-        match = re.fullmatch(r"\$\{(.+)\}", value)
-        if not match:
+    for _ in range(8):
+        if not (value.startswith("${") and value.endswith("}")):
             break
-        resolved = _resolve_runtime_expression(
-            match.group(1).strip(), vault_client=vault_client
-        )
-        if not resolved or resolved == value:
-            break
-        value = resolved.strip()
+        key = value[2:-1].strip()
+        if not key:
+            return ""
+        resolved = str(read_env_var(key, "")).strip()
+        if not resolved:
+            return ""
+        value = resolved
 
     if "${" in value:
         return ""
@@ -284,13 +227,12 @@ def _build_profile_auth_map(
     config: ServerConfig,
 ) -> dict[str, tuple[list[str], str | None, str | None]]:
     """Build per-profile auth mapping with resolved API-key values."""
-    vault_client = _build_runtime_vault_client()
     profile_auth: dict[str, tuple[list[str], str | None, str | None]] = {}
     for name, profile in config.profiles.items():
         resolved_keys = [
             resolved
             for resolved in (
-                _resolve_auth_api_key_value(str(item), vault_client=vault_client)
+                _resolve_auth_api_key_value(str(item))
                 for item in profile.auth.api_keys
             )
             if resolved
@@ -313,6 +255,31 @@ def _build_response(
     else:
         payload["result"] = result
     return payload
+
+
+def _tool_input_schema(tool: ToolDefinition) -> dict[str, Any]:
+    """Return MCP-compatible input schema for a tool definition."""
+    model = tool.schema_def.input_model
+    if model is not None:
+        try:
+            schema = model.model_json_schema()
+            if isinstance(schema, dict):
+                return schema
+        except Exception:
+            pass
+    return {"type": "object", "properties": {}}
+
+
+def _tool_payload(tool: ToolDefinition) -> dict[str, Any]:
+    """Serialise a tool definition for tools/list responses."""
+    return {
+        "name": tool.meta.name,
+        "description": tool.meta.description,
+        "mutating": tool.meta.mutating,
+        "requires_validation": tool.meta.requires_validation,
+        "supports_dry_run": tool.meta.supports_dry_run,
+        "inputSchema": _tool_input_schema(tool),
+    }
 
 
 def _api_error_list_envelope(
@@ -388,16 +355,7 @@ class StdioServer:
 
         try:
             if method == "tools/list":
-                tools = [
-                    {
-                        "name": tool.meta.name,
-                        "description": tool.meta.description,
-                        "mutating": tool.meta.mutating,
-                        "requires_validation": tool.meta.requires_validation,
-                        "supports_dry_run": tool.meta.supports_dry_run,
-                    }
-                    for tool in self.registry.list_tools()
-                ]
+                tools = [_tool_payload(tool) for tool in self.registry.list_tools()]
                 return _build_response(request_id, result=tools)
             if method == "tools/call":
                 name = params.get("name")
@@ -498,6 +456,119 @@ class HealthCheckMiddleware:
         self.admin_apply_on_callback = _to_bool(
             read_env_var("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
         )
+
+        # --- A2A skill handlers (real file system logic) ---
+
+        def _a2a_read_file(text: str) -> str:
+            """Read a file. Text input is the file path."""
+            try:
+                from pathlib import Path as _Path
+                path = text.strip()
+                if not path:
+                    return "Error: no file path provided"
+                p = _Path(path).expanduser().resolve()
+                if not p.exists():
+                    return f"Error: file not found: {p}"
+                if not p.is_file():
+                    return f"Error: not a file: {p}"
+                content = p.read_text(encoding="utf-8", errors="replace")
+                if len(content) > 8000:
+                    return content[:8000] + f"\n... (truncated, total {len(content)} chars)"
+                return content
+            except Exception as exc:
+                return f"Error reading file: {exc}"
+
+        def _a2a_write_file(text: str) -> str:
+            """Write to a file. Text format: 'path:content'."""
+            try:
+                from pathlib import Path as _Path
+                sep_idx = text.find(":")
+                if sep_idx == -1:
+                    return "Error: expected format 'path:content'"
+                # Handle Windows drive letters like C:\path
+                if sep_idx == 1 and text[0].isalpha() and len(text) > 2 and text[2] in ("/", "\\"):
+                    sep_idx = text.find(":", 2)
+                    if sep_idx == -1:
+                        return "Error: expected format 'path:content'"
+                path = text[:sep_idx].strip()
+                content = text[sep_idx + 1:]
+                if not path:
+                    return "Error: no file path provided"
+                p = _Path(path).expanduser().resolve()
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(content, encoding="utf-8")
+                return f"Written {len(content)} chars to {p}"
+            except Exception as exc:
+                return f"Error writing file: {exc}"
+
+        def _a2a_list_dir(text: str) -> str:
+            """List directory contents. Text input is the directory path."""
+            try:
+                from pathlib import Path as _Path
+                path = text.strip() or "."
+                p = _Path(path).expanduser().resolve()
+                if not p.exists():
+                    return f"Error: path not found: {p}"
+                if not p.is_dir():
+                    return f"Error: not a directory: {p}"
+                entries = sorted(p.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
+                lines = []
+                for entry in entries[:100]:
+                    kind = "DIR " if entry.is_dir() else "FILE"
+                    lines.append(f"  {kind}  {entry.name}")
+                header = f"Directory: {p} ({len(list(p.iterdir()))} entries)"
+                return header + "\n" + "\n".join(lines)
+            except Exception as exc:
+                return f"Error listing directory: {exc}"
+
+        def _a2a_search_paths(text: str) -> str:
+            """Search for files. Text input is a glob or name pattern."""
+            try:
+                from pathlib import Path as _Path
+                import fnmatch
+                query = text.strip()
+                if not query:
+                    return "Error: no search query provided"
+                # If query contains path separator, use it as base + pattern
+                if "/" in query or "\\" in query:
+                    base = _Path(query).parent.expanduser().resolve()
+                    pattern = _Path(query).name
+                else:
+                    base = _Path(".").resolve()
+                    pattern = f"*{query}*"
+                if not base.exists():
+                    return f"Error: base path not found: {base}"
+                matches = []
+                for p in base.rglob(pattern):
+                    matches.append(str(p))
+                    if len(matches) >= 50:
+                        break
+                if not matches:
+                    return f"No files matching '{pattern}' in {base}"
+                return f"Found {len(matches)} matches:\n" + "\n".join(f"  {m}" for m in matches)
+            except Exception as exc:
+                return f"Error searching: {exc}"
+
+        # A2A agent card and task submission
+        self._a2a_skills = [
+            A2ASkill(id="write_file", name="Write File", description="Write content to a file", handler=_a2a_write_file),
+            A2ASkill(id="read_file", name="Read File", description="Read content from a file", handler=_a2a_read_file),
+            A2ASkill(id="search_paths", name="Search Paths", description="Search for files matching a pattern", handler=_a2a_search_paths),
+            A2ASkill(id="list_dir", name="List Dir", description="List directory contents", handler=_a2a_list_dir),
+        ]
+        self._a2a_card = {
+            "name": "file-mcp",
+            "description": "File MCP A2A server for file system operations",
+            "url": "",
+            "version": "1.0.0",
+            "capabilities": {"streaming": False, "pushNotifications": False},
+            "skills": [
+                {"id": s.id, "name": s.name, "description": s.description}
+                for s in self._a2a_skills
+            ],
+        }
+        self._a2a_skill_map = {s.id: s for s in self._a2a_skills}
+
         self.server_id = (
             str(read_env_var("FILE_MCP_SERVER_ID") or "").strip() or "file-mcp-local"
         )
@@ -508,6 +579,10 @@ class HealthCheckMiddleware:
         self.ui_base_path = _normalize_path(
             read_env_var("FILE_MCP_UI_BASE_PATH"), default="/ui"
         )
+        self._started_at = time.time()
+        self._cpu_last_wall = time.monotonic()
+        self._cpu_last_process = time.process_time()
+        self._service_metrics_cache: tuple[float, dict[str, Any]] | None = None
         configured_ui_dist = str(read_env_var("FILE_MCP_UI_DIST_PATH") or "").strip()
         if configured_ui_dist:
             self.ui_dist_path = Path(configured_ui_dist).expanduser().resolve()
@@ -515,6 +590,35 @@ class HealthCheckMiddleware:
             self.ui_dist_path = (
                 Path(__file__).resolve().parents[2] / "ui" / "dist"
             ).resolve()
+        self._status_roots = self._resolve_status_roots()
+        self._login_access_token = self._resolve_login_access_token()
+        self.web_mcp_path = "/webmcp"
+
+    def _resolve_login_access_token(self) -> str:
+        """Resolve the login bootstrap access token from active profile config."""
+        direct = _resolve_auth_api_key_value(
+            str(read_env_var("FILE_MCP_API_KEY_PRIMARY") or "").strip()
+        )
+        if direct:
+            return direct
+
+        defaults_path = str(read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
+        try:
+            cfg = load_config(
+                env_path=self.env_file,
+                config_path=self.active_config,
+                defaults_path=defaults_path or None,
+            )
+            profile = cfg.profiles.get(self.profile_name)
+            if profile is None:
+                return ""
+            for candidate in profile.auth.api_keys:
+                resolved = _resolve_auth_api_key_value(str(candidate))
+                if resolved:
+                    return resolved
+        except Exception:
+            return ""
+        return ""
 
     def _ready_path(self) -> str:
         """Handle ready path."""
@@ -570,21 +674,183 @@ class HealthCheckMiddleware:
             all_ok = False
         return ("ok" if all_ok else "degraded"), checks
 
+    def _resolve_status_roots(self) -> list[Path]:
+        """Resolve scope roots used to derive status service metrics."""
+        defaults_path = str(read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
+        try:
+            cfg = load_config(
+                env_path=self.env_file,
+                config_path=self.active_config,
+                defaults_path=defaults_path or None,
+            )
+            profile = cfg.profiles.get(self.profile_name)
+            if profile is None:
+                return []
+            roots: list[Path] = []
+            for raw_root in profile.scope.roots:
+                resolved = Path(str(raw_root)).expanduser()
+                if not resolved.is_absolute():
+                    resolved = (Path.cwd() / resolved).resolve()
+                roots.append(resolved)
+            return roots
+        except Exception:
+            return []
+
+    @staticmethod
+    def _read_total_memory_bytes() -> int | None:
+        """Read host total memory from /proc/meminfo when available."""
+        try:
+            for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+                if not line.startswith("MemTotal:"):
+                    continue
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                return int(parts[1]) * 1024
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def _read_rss_bytes() -> int | None:
+        """Read process RSS in bytes."""
+        try:
+            parts = Path("/proc/self/statm").read_text(encoding="utf-8").split()
+            if len(parts) >= 2:
+                pages = int(parts[1])
+                page_size = os.sysconf("SC_PAGE_SIZE")
+                return pages * page_size
+        except Exception:
+            pass
+        try:
+            rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            # Linux reports KiB, macOS reports bytes.
+            if rss <= 0:
+                return None
+            if rss < 1_000_000_000:
+                return int(rss * 1024)
+            return int(rss)
+        except Exception:
+            return None
+
+    def _sample_cpu_percent(self) -> float:
+        """Sample process CPU usage as a percentage."""
+        wall_now = time.monotonic()
+        proc_now = time.process_time()
+        wall_delta = wall_now - self._cpu_last_wall
+        proc_delta = proc_now - self._cpu_last_process
+        self._cpu_last_wall = wall_now
+        self._cpu_last_process = proc_now
+        if wall_delta <= 0:
+            return 0.0
+        cpu_count = max(1, os.cpu_count() or 1)
+        return max(0.0, min(100.0, (proc_delta / wall_delta) * (100.0 / cpu_count)))
+
+    def _read_disk_percent(self) -> float | None:
+        """Read disk utilisation percentage for the first configured scope root."""
+        roots = self._status_roots
+        probe_path: Path | None = None
+        for root in roots:
+            if root.exists():
+                probe_path = root
+                break
+        if probe_path is None:
+            probe_path = Path.cwd()
+        try:
+            usage = shutil.disk_usage(probe_path)
+            if usage.total <= 0:
+                return None
+            return (usage.used / usage.total) * 100.0
+        except Exception:
+            return None
+
+    @staticmethod
+    def _count_open_socket_fds() -> int:
+        """Approximate active connections by counting open socket file descriptors."""
+        try:
+            total = 0
+            for entry in Path("/proc/self/fd").iterdir():
+                try:
+                    target = os.readlink(entry)
+                except OSError:
+                    continue
+                if target.startswith("socket:["):
+                    total += 1
+            return total
+        except Exception:
+            return 0
+
+    def _compute_service_metrics(self) -> dict[str, Any]:
+        """Compute file/profile service metrics for /status payload."""
+        now = time.monotonic()
+        cached = self._service_metrics_cache
+        if cached is not None and (now - cached[0]) < 15.0:
+            return cached[1]
+
+        roots = self._status_roots
+        max_files = _to_int(read_env_var("FILE_MCP_STATUS_MAX_FILES"), default=50_000)
+        file_count = 0
+        total_bytes = 0
+        for root in roots:
+            if file_count >= max_files:
+                break
+            if not root.exists():
+                continue
+            for current_root, _dirs, files in os.walk(root):
+                for filename in files:
+                    if file_count >= max_files:
+                        break
+                    candidate = Path(current_root) / filename
+                    try:
+                        stat = candidate.stat()
+                    except OSError:
+                        continue
+                    if not candidate.is_file():
+                        continue
+                    file_count += 1
+                    total_bytes += int(stat.st_size)
+                if file_count >= max_files:
+                    break
+
+        payload = {
+            "file_count": file_count,
+            "profile_count": len(self.profile_names) or 1,
+            "storage_used_mb": round(total_bytes / (1024 * 1024), 2),
+        }
+        self._service_metrics_cache = (now, payload)
+        return payload
+
+    def _status_payload(self) -> dict[str, Any]:
+        """Build /status payload with runtime resource metrics."""
+        uptime_seconds = int(max(0, time.time() - self._started_at))
+        rss_bytes = self._read_rss_bytes()
+        total_memory = self._read_total_memory_bytes()
+        memory_mb = (
+            round((rss_bytes or 0) / (1024 * 1024), 2) if rss_bytes is not None else None
+        )
+        memory_percent = (
+            round((rss_bytes / total_memory) * 100.0, 2)
+            if (rss_bytes is not None and total_memory and total_memory > 0)
+            else None
+        )
+        disk_percent = self._read_disk_percent()
+        return {
+            "uptime_seconds": uptime_seconds,
+            "uptime": uptime_seconds,
+            "memory_mb": memory_mb,
+            "memory_percent": memory_percent,
+            "cpu_percent": round(self._sample_cpu_percent(), 2),
+            "disk_percent": round(disk_percent, 2) if disk_percent is not None else None,
+            "active_connections": self._count_open_socket_fds(),
+            "service_metrics": self._compute_service_metrics(),
+        }
+
     def _list_tools_payload(self) -> dict[str, Any]:
         """Handle list tools payload."""
         if not callable(self.registry_provider):
             return {"tools": []}
         registry = self.registry_provider()
-        tools = [
-            {
-                "name": tool.meta.name,
-                "description": tool.meta.description,
-                "mutating": tool.meta.mutating,
-                "requires_validation": tool.meta.requires_validation,
-                "supports_dry_run": tool.meta.supports_dry_run,
-            }
-            for tool in registry.list_tools()
-        ]
+        tools = [_tool_payload(tool) for tool in registry.list_tools()]
         return {"tools": tools}
 
     def _get_session_from_cookie(self, headers: dict[str, str]) -> dict | None:
@@ -620,7 +886,19 @@ class HealthCheckMiddleware:
             return True
         token = secrets.token_urlsafe(32)
         self._sessions[token] = {"user": username, "user_id": "1", "role": "admin", "_created": _time.time()}
-        resp_body = json.dumps({"user": {"id": "1", "displayName": username, "email": None, "roles": ["admin"], "permissions": ["*"]}}).encode("utf-8")
+        response_payload = {
+            "user": {
+                "id": "1",
+                "displayName": username,
+                "email": None,
+                "roles": ["admin"],
+                "permissions": ["*"],
+            }
+        }
+        if self._login_access_token:
+            response_payload["access_token"] = self._login_access_token
+            response_payload["expires_in"] = 3600
+        resp_body = json.dumps(response_payload).encode("utf-8")
         await send({
             "type": "http.response.start",
             "status": 200,
@@ -756,10 +1034,17 @@ class HealthCheckMiddleware:
             "/search",
             "/storage-profiles",
             "/audit-log",
+            "/api-docs",
+            "/jobs",
             "/admin-identity",
             "/admin/identity",
+            "/admin/users",
+            "/admin/groups",
+            "/admin/api-keys",
             "/admin/rbac",
             "/google-drive-settings",
+            "/mcp-console",
+            "/a2a-console",
             "/settings",
         )
 
@@ -774,7 +1059,38 @@ class HealthCheckMiddleware:
                 path == f"{self.ui_base_path}/assets"
                 or path.startswith(f"{self.ui_base_path}/assets/")
             )
+        if self._is_ui_fallback_route(path):
+            return True
         return False
+
+    @staticmethod
+    def _is_ui_fallback_route(path: str) -> bool:
+        """Return True for non-API navigation paths that should fall back to SPA."""
+        if not path.startswith("/"):
+            return False
+        reserved_prefixes = (
+            "/api",
+            "/auth",
+            "/mcp",
+            "/a2a",
+            "/.well-known",
+            "/health",
+            "/status",
+            "/ready",
+            "/live",
+            "/runtime-config.js",
+            "/assets",
+            "/admin/profiles",
+            "/admin/google-drive",
+        )
+        for prefix in reserved_prefixes:
+            if path == prefix or path.startswith(f"{prefix}/"):
+                return False
+
+        last_segment = path.rsplit("/", 1)[-1]
+        if "." in last_segment:
+            return False
+        return True
 
     def _resolve_ui_asset_path(self, path: str) -> Path | None:
         """Resolve an asset path under ui/dist while preventing traversal."""
@@ -833,41 +1149,68 @@ class HealthCheckMiddleware:
         default_browse_path = (
             str(read_env_var("FILE_MCP_UI_DEFAULT_BROWSE_PATH") or "").strip() or "src"
         )
-        profile_store_path = (
-            str(read_env_var("FILE_MCP_UI_PROFILE_STORE_PATH") or "").strip()
-            or "working/ui-file-mcp/storage-profiles.json"
+        mcp_base_url = str(read_env_var("FILE_MCP_UI_MCP_BASE_URL") or "").strip() or "/mcp"
+        a2a_base_url = str(read_env_var("FILE_MCP_UI_A2A_BASE_URL") or "").strip() or "/a2a"
+        session_timeout = _to_int(
+            read_env_var("CLOUD_DOG_SESSION_TIMEOUT_MINUTES"), default=30
         )
+        app_version = str(read_env_var("FILE_MCP_VERSION") or "0.0.0").strip() or "0.0.0"
 
         return {
             "ENV": env_name,
             "API_BASE_URL": api_base_url,
+            "MCP_BASE_URL": mcp_base_url,
+            "A2A_BASE_URL": a2a_base_url,
             "AUTH_MODE": auth_mode,
+            "SESSION_TIMEOUT_MINUTES": str(session_timeout),
+            "APP_VERSION": app_version,
             "AUDIT_LOG_PATH": audit_log_path,
             "DEFAULT_BROWSE_PATH": default_browse_path,
-            "PROFILE_STORE_PATH": profile_store_path,
+            "PROFILE_API_PATH": "/admin/profiles",
         }
 
     async def _serve_runtime_config(self, send, *, method: str) -> None:
         """Serve runtime configuration bootstrap JavaScript.
 
-        Uses JavaScript expression for API_BASE_URL so the browser resolves
-        the correct protocol behind a reverse proxy (Traefik / HTTPS).
+        The script emits server-provided defaults while preserving any
+        previously injected runtime overrides (for example Playwright init
+        scripts in E2E tests).
         """
         payload = self._runtime_config_payload()
-        runtime = {
-            "ENV": payload.get("ENV", "dev"),
-            "API_BASE_URL": "",
-            "AUTH_MODE": payload.get("AUTH_MODE", "api_key"),
-            "AUDIT_LOG_PATH": payload.get("AUDIT_LOG_PATH", ""),
-            "DEFAULT_BROWSE_PATH": payload.get("DEFAULT_BROWSE_PATH", "src"),
-            "PROFILE_STORE_PATH": payload.get("PROFILE_STORE_PATH", ""),
-        }
-        body = "\n".join([
-            "const __origin = window.location.origin;",
-            f"window.__RUNTIME_CONFIG__ = {json.dumps(runtime)};",
-            'window.__RUNTIME_CONFIG__["API_BASE_URL"] = __origin;',
-            "",
-        ])
+        def _url_expr(value: str, *, fallback: str) -> str:
+            raw = value.strip()
+            if not raw:
+                raw = fallback
+            if raw == "/":
+                return "__origin"
+            if raw.startswith("/"):
+                return f"__origin + {json.dumps(raw)}"
+            return json.dumps(raw)
+
+        api_base_expr = _url_expr(
+            str(payload.get("API_BASE_URL", "")), fallback="/api"
+        )
+        mcp_base_expr = json.dumps(str(payload.get("MCP_BASE_URL", "/mcp")) or "/mcp")
+        a2a_base_expr = json.dumps(str(payload.get("A2A_BASE_URL", "/a2a")) or "/a2a")
+
+        body = (
+            "const __origin = window.location.origin;\n"
+            "window.__RUNTIME_CONFIG__ = Object.assign(\n"
+            "  {\n"
+            f'    "ENV": {json.dumps(payload.get("ENV", "dev"))},\n'
+            f'    "API_BASE_URL": {api_base_expr},\n'
+            f'    "MCP_BASE_URL": {mcp_base_expr},\n'
+            f'    "A2A_BASE_URL": {a2a_base_expr},\n'
+            f'    "AUTH_MODE": {json.dumps(payload.get("AUTH_MODE", "cookie"))},\n'
+            f'    "SESSION_TIMEOUT_MINUTES": {json.dumps(_to_int(payload.get("SESSION_TIMEOUT_MINUTES"), default=30))},\n'
+            f'    "APP_VERSION": {json.dumps(payload.get("APP_VERSION", "0.0.0"))},\n'
+            f'    "AUDIT_LOG_PATH": {json.dumps(payload.get("AUDIT_LOG_PATH", ""))},\n'
+            f'    "DEFAULT_BROWSE_PATH": {json.dumps(payload.get("DEFAULT_BROWSE_PATH", "src"))},\n'
+            f'    "PROFILE_API_PATH": {json.dumps(payload.get("PROFILE_API_PATH", "/admin/profiles"))}\n'
+            "  },\n"
+            "  window.__RUNTIME_CONFIG__ || {}\n"
+            ");\n"
+        )
         script = body.encode("utf-8")
         await send(
             {
@@ -936,6 +1279,16 @@ class HealthCheckMiddleware:
         """Resolve auth token for a request and return auth-info/profile."""
         verifier = self.a2a_auth_verifier
         if verifier is None:
+            session = self._get_session_from_cookie(headers)
+            if session is not None:
+                return (
+                    SimpleNamespace(
+                        subject=session.get("user_id", "1"),
+                        scopes=["*"],
+                        roles=[session.get("role", "admin")],
+                    ),
+                    self.profile_name,
+                )
             return (None, self.profile_name)
 
         conn = HTTPConnection(scope)
@@ -968,6 +1321,16 @@ class HealthCheckMiddleware:
         raw_header = headers.get(header_name, "")
         token = self._extract_auth_token(raw_header, header_scheme)
         if not token:
+            session = self._get_session_from_cookie(headers)
+            if session is not None:
+                return (
+                    SimpleNamespace(
+                        subject=session.get("user_id", "1"),
+                        scopes=["*"],
+                        roles=[session.get("role", "admin")],
+                    ),
+                    profile_name,
+                )
             return (None, profile_name)
 
         if hasattr(verifier, "verify_token_for_profile") and callable(
@@ -1378,16 +1741,23 @@ class HealthCheckMiddleware:
         }
 
     def _list_profile_payloads(self) -> list[dict[str, Any]]:
-        """Return all configured profiles from active config document."""
-        document = self._load_config_document()
-        profiles = document.get("profiles")
-        if not isinstance(profiles, dict):
+        """Return all configured profiles from the database."""
+        if self.db_runtime is None:
             return []
         payloads: list[dict[str, Any]] = []
-        for name, profile in sorted(profiles.items()):
-            if not isinstance(profile, dict):
-                continue
-            payloads.append(self._profile_payload(name=str(name), profile=profile))
+        with self.db_runtime.session_manager.session() as session:
+            rows = (
+                session.query(FileStorageProfile)
+                .filter_by(is_active=True)
+                .order_by(FileStorageProfile.name)
+                .all()
+            )
+            for row in rows:
+                try:
+                    config = json.loads(row.config_json) if row.config_json else {}
+                except Exception:
+                    config = {}
+                payloads.append(self._profile_payload(name=row.name, profile=config))
         return payloads
 
     def _render_profiles_admin_html(self) -> str:
@@ -1635,6 +2005,51 @@ class HealthCheckMiddleware:
                 await self._handle_auth_logout(send, headers)
                 return
 
+        # A2A agent card
+        if scope.get("type") == "http" and method == "GET" and path == "/.well-known/agent.json":
+            body = json.dumps(self._a2a_card).encode("utf-8")
+            await self._send_bytes(send, status=200, body=body, content_type="application/json")
+            return
+
+        # A2A task submission
+        if scope.get("type") == "http" and method == "POST" and path in ("/a2a/tasks", "/tasks"):
+            body_chunks = []
+            while True:
+                message = await receive()
+                body_chunks.append(message.get("body", b""))
+                if not message.get("more_body", False):
+                    break
+            raw_body = b"".join(body_chunks)
+            try:
+                task_body = json.loads(raw_body) if raw_body else {}
+            except json.JSONDecodeError:
+                task_body = {}
+            from uuid import uuid4 as _uuid4
+            task_id = task_body.get("id", str(_uuid4()))
+            skill_id = task_body.get("skill_id", "")
+            if skill_id == "health":
+                resp = {"id": task_id, "status": "completed", "output": {"type": "text", "text": "file-mcp is healthy"}}
+            elif skill_id in self._a2a_skill_map:
+                skill = self._a2a_skill_map[skill_id]
+                input_data = task_body.get("input", {})
+                input_text = input_data.get("text", "") if isinstance(input_data, dict) else str(input_data)
+                if skill.handler is not None:
+                    try:
+                        result = skill.handler(input_text)
+                        import asyncio as _asyncio
+                        if _asyncio.iscoroutine(result):
+                            result = await result
+                        resp = {"id": task_id, "status": "completed", "output": {"type": "text", "text": str(result)}}
+                    except Exception as _exc:
+                        resp = {"id": task_id, "status": "failed", "error": str(_exc)}
+                else:
+                    resp = {"id": task_id, "status": "completed", "output": {"type": "text", "text": f"Skill '{skill_id}' acknowledged (no handler configured)"}}
+            else:
+                resp = {"id": task_id, "status": "failed", "error": f"Unknown skill: {skill_id}. Available: {list(self._a2a_skill_map.keys())}"}
+            body = json.dumps(resp).encode("utf-8")
+            await self._send_bytes(send, status=200, body=body, content_type="application/json")
+            return
+
         if scope.get("type") == "http" and method in {"GET", "HEAD"}:
             if path == "/runtime-config.js":
                 await self._serve_runtime_config(send, method=method)
@@ -1646,10 +2061,29 @@ class HealthCheckMiddleware:
                 return
 
             if self._is_ui_route(path):
-                await self._serve_spa_index(send, method=method)
-                return
+                admin_api_get_candidates = (
+                    path == "/admin/users"
+                    or path.startswith("/admin/users/")
+                    or path == "/admin/groups"
+                    or path.startswith("/admin/groups/")
+                    or path == "/admin/api-keys"
+                    or path.startswith("/admin/api-keys/")
+                    or path == "/admin/profiles"
+                    or path.startswith("/admin/profiles/")
+                )
+                # Keep browser navigations on SPA routes while allowing API clients
+                # (fetch/curl with non-HTML Accept) to hit JSON admin endpoints.
+                if admin_api_get_candidates and "text/html" not in accept:
+                    pass
+                else:
+                    await self._serve_spa_index(send, method=method)
+                    return
 
         health_paths = {self.health_path}
+        status_paths = {"/status"}
+        health_base = self.health_path.rsplit("/", 1)[0] if "/" in self.health_path else ""
+        if health_base:
+            status_paths.add(f"{health_base}/status")
         ready_paths = {self._ready_path()}
         live_paths = {self._live_path()}
         if self.enable_legacy_api_alias:
@@ -1659,6 +2093,13 @@ class HealthCheckMiddleware:
             legacy_root_health = self._legacy_root_alias(self.health_path)
             legacy_root_ready = self._legacy_root_alias(self._ready_path())
             legacy_root_live = self._legacy_root_alias(self._live_path())
+            for status_path in tuple(status_paths):
+                legacy_status = self._legacy_api_alias(status_path)
+                legacy_root_status = self._legacy_root_alias(status_path)
+                if legacy_status:
+                    status_paths.add(legacy_status)
+                if legacy_root_status:
+                    status_paths.add(legacy_root_status)
             if legacy_health:
                 health_paths.add(legacy_health)
             if legacy_ready:
@@ -1674,6 +2115,13 @@ class HealthCheckMiddleware:
 
         is_admin_route = path.startswith("/admin/")
         if await self._handle_jobs_api(scope=scope, headers=headers, path=path, send=send):
+            return
+        if (
+            scope.get("type") == "http"
+            and method == "GET"
+            and path in status_paths
+        ):
+            await self._send_json(send, status=200, payload=self._status_payload())
             return
         if (
             scope.get("type") == "http"
@@ -1710,6 +2158,17 @@ class HealthCheckMiddleware:
             scope.get("type") == "http"
             and method == "GET"
             and scope.get("path") == f"{self.mcp_path.rstrip('/')}/tools"
+        ):
+            payload = self._list_tools_payload()
+            body = json.dumps(payload).encode("utf-8")
+            await self._send_bytes(
+                send, status=200, body=body, content_type="application/json"
+            )
+            return
+        if (
+            scope.get("type") == "http"
+            and method == "GET"
+            and scope.get("path") == f"{self.web_mcp_path.rstrip('/')}/tools"
         ):
             payload = self._list_tools_payload()
             body = json.dumps(payload).encode("utf-8")
@@ -1871,29 +2330,31 @@ class HealthCheckMiddleware:
                             raise AdminIdentityError(
                                 "VALIDATION_ERROR", "profile name is required"
                             )
-                        document = self._load_config_document()
-                        profiles = document.setdefault("profiles", {})
-                        if profile_name in profiles:
+                        if self.db_runtime is None:
                             raise AdminIdentityError(
-                                "CONFLICT",
-                                f"profile already exists: {profile_name}",
-                                status=409,
+                                "INTERNAL_ERROR", "database unavailable", status=500
                             )
+                        with self.db_runtime.session_manager.session() as session:
+                            existing = (
+                                session.query(FileStorageProfile)
+                                .filter_by(name=profile_name, is_active=True)
+                                .first()
+                            )
+                            if existing is not None:
+                                raise AdminIdentityError(
+                                    "CONFLICT",
+                                    f"profile already exists: {profile_name}",
+                                    status=409,
+                                )
                         profile_body = payload.get("profile")
                         if isinstance(profile_body, dict):
                             profile = self._deep_copy_jsonish(profile_body)
                         else:
-                            template = profiles.get(self.profile_name)
-                            if not isinstance(template, dict) and profiles:
-                                template = next(iter(profiles.values()))
-                            if isinstance(template, dict):
-                                profile = self._deep_copy_jsonish(template)
-                            else:
-                                profile = {
-                                    "auth": {"api_keys": []},
-                                    "storage": {"backend": "local"},
-                                    "scope": {"roots": []},
-                                }
+                            profile = {
+                                "auth": {"api_keys": []},
+                                "storage": {"backend": "local"},
+                                "scope": {"roots": []},
+                            }
                             root = str(payload.get("root") or "").strip()
                             if root:
                                 scope_cfg = profile.setdefault("scope", {})
@@ -1910,8 +2371,21 @@ class HealthCheckMiddleware:
                             if api_keys:
                                 auth_cfg = profile.setdefault("auth", {})
                                 auth_cfg["api_keys"] = api_keys
-                        profiles[profile_name] = profile
-                        self._write_config_document(document)
+                        backend_value = "local"
+                        if isinstance(profile.get("storage"), dict):
+                            backend_value = str(profile["storage"].get("backend") or "local")
+                        display_name = str(payload.get("display_name") or profile_name).strip()
+                        new_row = FileStorageProfile(
+                            id=f"prof_{uuid.uuid4().hex[:12]}",
+                            name=profile_name,
+                            display_name=display_name,
+                            backend=backend_value,
+                            config_json=json.dumps(profile),
+                            is_active=True,
+                        )
+                        with self.db_runtime.session_manager.session() as session:
+                            session.add(new_row)
+                            session.commit()
                         reload_result = None
                         if callable(self.reload_callback):
                             reload_result = self.reload_callback()
@@ -1932,15 +2406,26 @@ class HealthCheckMiddleware:
 
                     if len(segments) == 3:
                         profile_name = segments[2]
-                        document = self._load_config_document()
-                        profiles = document.setdefault("profiles", {})
-                        profile = profiles.get(profile_name)
-                        if not isinstance(profile, dict):
+                        if self.db_runtime is None:
                             raise AdminIdentityError(
-                                "NOT_FOUND",
-                                f"unknown profile: {profile_name}",
-                                status=404,
+                                "INTERNAL_ERROR", "database unavailable", status=500
                             )
+                        with self.db_runtime.session_manager.session() as session:
+                            row = (
+                                session.query(FileStorageProfile)
+                                .filter_by(name=profile_name, is_active=True)
+                                .first()
+                            )
+                            if row is None:
+                                raise AdminIdentityError(
+                                    "NOT_FOUND",
+                                    f"unknown profile: {profile_name}",
+                                    status=404,
+                                )
+                            try:
+                                profile = json.loads(row.config_json) if row.config_json else {}
+                            except Exception:
+                                profile = {}
 
                         if method == "GET":
                             await self._send_json(
@@ -1979,8 +2464,27 @@ class HealthCheckMiddleware:
                                     if str(item).strip()
                                 ]
                                 candidate.setdefault("auth", {})["api_keys"] = api_keys
-                            profiles[profile_name] = candidate
-                            self._write_config_document(document)
+                            backend_value = "local"
+                            if isinstance(candidate.get("storage"), dict):
+                                backend_value = str(candidate["storage"].get("backend") or "local")
+                            display_name = str(payload.get("display_name") or "").strip()
+                            with self.db_runtime.session_manager.session() as session:
+                                row = (
+                                    session.query(FileStorageProfile)
+                                    .filter_by(name=profile_name, is_active=True)
+                                    .first()
+                                )
+                                if row is None:
+                                    raise AdminIdentityError(
+                                        "NOT_FOUND",
+                                        f"unknown profile: {profile_name}",
+                                        status=404,
+                                    )
+                                row.config_json = json.dumps(candidate)
+                                row.backend = backend_value
+                                if display_name:
+                                    row.display_name = display_name
+                                session.commit()
                             reload_result = None
                             if callable(self.reload_callback):
                                 reload_result = self.reload_callback()
@@ -2004,8 +2508,20 @@ class HealthCheckMiddleware:
                                     "VALIDATION_ERROR",
                                     "cannot delete active profile",
                                 )
-                            del profiles[profile_name]
-                            self._write_config_document(document)
+                            with self.db_runtime.session_manager.session() as session:
+                                row = (
+                                    session.query(FileStorageProfile)
+                                    .filter_by(name=profile_name, is_active=True)
+                                    .first()
+                                )
+                                if row is None:
+                                    raise AdminIdentityError(
+                                        "NOT_FOUND",
+                                        f"unknown profile: {profile_name}",
+                                        status=404,
+                                    )
+                                row.is_active = False
+                                session.commit()
                             reload_result = None
                             if callable(self.reload_callback):
                                 reload_result = self.reload_callback()
@@ -2468,6 +2984,129 @@ class HealthCheckMiddleware:
             await self.app(scope, _replay_receive, send)
             return
 
+        if (
+            scope.get("type") == "http"
+            and method == "POST"
+            and path == self.web_mcp_path
+        ):
+            session = self._get_session_from_cookie(headers)
+            if session is None:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return
+
+            raw_body = await self._read_http_body(receive)
+            try:
+                payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+            except Exception:
+                await self._send_api_error(
+                    send,
+                    status=400,
+                    code="VALIDATION_ERROR",
+                    message="Invalid JSON body",
+                )
+                return
+
+            if not isinstance(payload, dict):
+                await self._send_api_error(
+                    send,
+                    status=400,
+                    code="VALIDATION_ERROR",
+                    message="JSON body must be an object",
+                )
+                return
+
+            request_id = payload.get("id")
+            rpc_method = str(payload.get("method") or "").strip()
+            rpc_params = payload.get("params")
+            if rpc_params is None:
+                rpc_params = {}
+            if not isinstance(rpc_params, dict):
+                rpc_params = {}
+
+            try:
+                if rpc_method == "tools/list":
+                    response_body = json.dumps(
+                        _build_response(request_id, result=self._list_tools_payload())
+                    ).encode("utf-8")
+                    await self._send_bytes(
+                        send,
+                        status=200,
+                        body=response_body,
+                        content_type="application/json",
+                    )
+                    return
+
+                if rpc_method == "tools/call":
+                    tool_name = str(rpc_params.get("name") or "").strip()
+                    tool_args = rpc_params.get("arguments")
+                    if not isinstance(tool_args, dict):
+                        tool_args = {}
+                    if not tool_name:
+                        response_body = json.dumps(
+                            _build_response(
+                                request_id,
+                                error=JsonRpcError(-32600, "Missing tool name"),
+                            )
+                        ).encode("utf-8")
+                        await self._send_bytes(
+                            send,
+                            status=200,
+                            body=response_body,
+                            content_type="application/json",
+                        )
+                        return
+
+                    if not callable(self.registry_provider):
+                        raise RuntimeError("Tool registry unavailable")
+                    registry = self.registry_provider()
+                    tool = registry.get(tool_name)
+                    result = tool.handler(**tool_args)
+                    response_body = json.dumps(
+                        _build_response(request_id, result=result)
+                    ).encode("utf-8")
+                    await self._send_bytes(
+                        send,
+                        status=200,
+                        body=response_body,
+                        content_type="application/json",
+                    )
+                    return
+
+                response_body = json.dumps(
+                    _build_response(
+                        request_id,
+                        error=JsonRpcError(-32601, f"Unknown method: {rpc_method}"),
+                    )
+                ).encode("utf-8")
+                await self._send_bytes(
+                    send,
+                    status=200,
+                    body=response_body,
+                    content_type="application/json",
+                )
+                return
+            except Exception as exc:
+                response_body = json.dumps(
+                    _build_response(
+                        request_id,
+                        error=JsonRpcError(-32000, str(exc)),
+                    )
+                ).encode("utf-8")
+                await self._send_bytes(
+                    send,
+                    status=200,
+                    body=response_body,
+                    content_type="application/json",
+                )
+                return
+
+            return
+
         await self.app(scope, receive, send)
 
 
@@ -2566,6 +3205,22 @@ class RequestContextMiddleware:
         client_ip = (
             str(client[0]) if isinstance(client, tuple) and len(client) > 0 else None
         )
+        # Extract profile from header or query parameter and set in context.
+        # This allows the auth verifier to resolve the correct profile even
+        # when called through FastMCP's single-token verify_token() path.
+        profile_header = headers.get("x-file-mcp-profile", "")
+        query_string = scope.get("query_string", b"")
+        if isinstance(query_string, bytes):
+            query_string = query_string.decode("latin-1", errors="replace")
+        profile_query = ""
+        for pair in query_string.split("&"):
+            if pair.startswith("profile="):
+                profile_query = pair.split("=", 1)[1]
+                break
+        request_profile = profile_header or profile_query or ""
+        if request_profile:
+            set_request_profile_name(request_profile)
+
         session_token = _REQUEST_SESSION_ID.set(session_id)
         client_ip_token = _REQUEST_CLIENT_IP.set(client_ip)
         set_api_kit_request_id(request_id)
@@ -3413,10 +4068,31 @@ def build_tool_registry(
     def list_path(path: str, recursive: bool = False) -> Dict[str, Any]:
         """List path."""
         resolved = _resolve_path(policy, path, operation="read")
-        entries = [
-            entry.path for entry in backend.list_dir(resolved, recursive=recursive)
-        ]
-        return {"path": str(resolved), "entries": entries}
+        listed_entries = backend.list_dir(resolved, recursive=recursive)
+        entries = [entry.path for entry in listed_entries]
+        entry_details: list[dict[str, Any]] = []
+        for entry in listed_entries:
+            detail: dict[str, Any] = {
+                "path": entry.path,
+                "is_dir": bool(entry.is_dir),
+                "size": None,
+                "modified_at": None,
+                "created_at": None,
+            }
+            if backend.backend_name == "local":
+                try:
+                    stat_result = Path(entry.path).stat()
+                    detail["size"] = int(stat_result.st_size)
+                    detail["modified_at"] = time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(stat_result.st_mtime)
+                    )
+                    detail["created_at"] = time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(stat_result.st_ctime)
+                    )
+                except OSError:
+                    pass
+            entry_details.append(detail)
+        return {"path": str(resolved), "entries": entries, "entry_details": entry_details}
 
     def search_path_names(
         query: str,
@@ -3425,6 +4101,8 @@ def build_tool_registry(
         max_results: int | None = None,
         max_file_mb: int | None = None,
         max_depth: int | None = None,
+        modified_after: str | None = None,
+        modified_before: str | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
         """Search path names."""
@@ -3448,6 +4126,8 @@ def build_tool_registry(
                     regex=regex,
                     max_file_mb=effective_max_mb,
                     max_depth=max_depth,
+                    modified_after=modified_after,
+                    modified_before=modified_before,
                 )
             filtered: list[str] = []
             for path_obj in matches:
@@ -3534,6 +4214,8 @@ def build_tool_registry(
         encoding: str = "utf-8",
         max_file_mb: int | None = None,
         max_depth: int | None = None,
+        modified_after: str | None = None,
+        modified_before: str | None = None,
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
         """Search text content."""
@@ -3559,6 +4241,8 @@ def build_tool_registry(
                     max_results=None,
                     max_file_mb=effective_max_mb,
                     max_depth=max_depth,
+                    modified_after=modified_after,
+                    modified_before=modified_before,
                 )
             filtered_matches = []
             for match in matches:
@@ -5400,9 +6084,23 @@ def build_fastmcp_server(
         if not resolved_keys:
             raise ValueError(f"No API keys configured for profile '{name}'")
 
+    admin_api_keys: list[str] = []
+    primary_admin_key = _resolve_auth_api_key_value(
+        str(read_env_var("FILE_MCP_API_KEY_PRIMARY") or "").strip()
+    )
+    if primary_admin_key:
+        admin_api_keys.append(primary_admin_key)
+    extra_admin_keys = str(read_env_var("FILE_MCP_ADMIN_API_KEYS") or "").strip()
+    if extra_admin_keys:
+        for candidate in extra_admin_keys.split(","):
+            resolved = _resolve_auth_api_key_value(candidate)
+            if resolved and resolved not in admin_api_keys:
+                admin_api_keys.append(resolved)
+
     auth = MultiProfileApiKeyTokenVerifier(
         profile_auth,
         default_profile=default_profile_name,
+        admin_api_keys=admin_api_keys,
         dynamic_key_resolver=(
             (
                 lambda token, profile_name: admin_identity_service.resolve_dynamic_api_key(
@@ -5485,6 +6183,17 @@ def build_fastmcp_server(
             profiles_holder.clear()
             profiles_holder.update(cfg.profiles)
             registry_by_profile.clear()
+        # Refresh the auth verifier so dynamically created profiles are
+        # routable via header/query-param/path profile selection.
+        if hasattr(auth, "refresh_profiles") and callable(auth.refresh_profiles):
+            refreshed_profile_auth = _build_profile_auth_map(cfg)
+            if logger:
+                logger.warning(
+                    "Refreshing auth verifier profiles",
+                    profile_count=len(refreshed_profile_auth),
+                    profile_names=sorted(refreshed_profile_auth.keys())[:8],
+                )
+            auth.refresh_profiles(refreshed_profile_auth)
         for name, profile in cfg.profiles.items():
             ENDPOINT_HEALTH_MANAGER.run_startup_checks(
                 profile_name=name, profile=profile, logger=logger
@@ -5545,6 +6254,63 @@ async def run_fastmcp_http_server(
         session_manager=db_runtime.session_manager,
         logger=logger,
     )
+
+    # --- Phase 4b: Seed default profile into DB on first startup ---
+    with db_runtime.session_manager.session() as _seed_session:
+        _db_profile_count = _seed_session.query(FileStorageProfile).filter_by(is_active=True).count()
+        if _db_profile_count == 0:
+            for _cfg_name, _cfg_profile in config.profiles.items():
+                _cfg_dict = _cfg_profile.model_dump(mode="json")
+                _backend = str(_cfg_profile.storage.backend) if _cfg_profile.storage else "local"
+                _seed_row = FileStorageProfile(
+                    id=f"prof_{uuid.uuid4().hex[:12]}",
+                    name=_cfg_name,
+                    display_name=_cfg_name,
+                    backend=_backend,
+                    config_json=json.dumps(_cfg_dict),
+                    is_active=True,
+                )
+                _seed_session.add(_seed_row)
+            _seed_session.commit()
+            if logger:
+                logger.info(
+                    "Seeded database with config profiles",
+                    profile_count=len(config.profiles),
+                    profile_names=sorted(config.profiles.keys()),
+                )
+
+    # --- Phase 4: Load DB profiles and merge (DB takes precedence) ---
+    with db_runtime.session_manager.session() as _load_session:
+        _db_rows = (
+            _load_session.query(FileStorageProfile)
+            .filter_by(is_active=True)
+            .all()
+        )
+        for _db_row in _db_rows:
+            try:
+                _db_cfg_dict = json.loads(_db_row.config_json) if _db_row.config_json else {}
+            except Exception:
+                _db_cfg_dict = {}
+            try:
+                _db_profile_cfg = ProfileConfig.model_validate(_db_cfg_dict)
+            except Exception:
+                if logger:
+                    logger.warning(
+                        "Skipping invalid DB profile config",
+                        profile_name=_db_row.name,
+                    )
+                continue
+            config.profiles[_db_row.name] = _db_profile_cfg
+
+    # Ensure the default profile exists after merge
+    if default_profile_name not in config.profiles:
+        if logger:
+            logger.error(
+                "Default profile not found after DB merge",
+                default_profile=default_profile_name,
+                available=sorted(config.profiles.keys()),
+            )
+
     db_sync_url = db_runtime.settings.to_sync_url()
     http = resolve_http_settings(http_config)
     for profile_name, profile in config.profiles.items():
@@ -5641,3 +6407,4 @@ async def run_fastmcp_http_server(
         if callable(jobs_runtime_close_all):
             jobs_runtime_close_all()
         shutdown_database()
+# W28A-565 cache bust 1775026097

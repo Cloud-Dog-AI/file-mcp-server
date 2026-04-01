@@ -5,7 +5,7 @@
 - Deployed: `https://file-mcp.your-domain.com`
 
 ## Authentication
-Use `Authorization: Bearer <your-api-key>` or `X-API-Key: <your-api-key>` on protected HTTP and MCP endpoints.
+Use `X-API-Key: <your-api-key>` on protected HTTP and MCP endpoints.
 
 ## Verification Basis
 - Source files reviewed: `src/file_mcp_server/server.py`
@@ -26,7 +26,7 @@ Use `Authorization: Bearer <your-api-key>` or `X-API-Key: <your-api-key>` on pro
 
 ## Example Request
 ```bash
-curl -H "Authorization: Bearer your-api-key" http://localhost:8083/health
+curl -H "X-API-Key: your-api-key" http://localhost:8083/health
 ```
 
 ## Example Response

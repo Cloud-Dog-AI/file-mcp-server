@@ -28,6 +28,7 @@ Recent Change History:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Iterator, List, Optional
 
@@ -42,6 +43,39 @@ class SearchMatch:
     path: Path
     line_no: Optional[int]
     line: Optional[str]
+
+
+def _parse_time_filter(value: str | None) -> float | None:
+    """Parse RFC3339/ISO8601 timestamp filters to UTC epoch seconds."""
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    normalized = cleaned[:-1] + "+00:00" if cleaned.endswith("Z") else cleaned
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed.timestamp()
+
+
+def _within_modified_window(
+    path: Path, *, modified_after_ts: float | None, modified_before_ts: float | None
+) -> bool:
+    """Return True when file mtime is within the optional exclusive window."""
+    if modified_after_ts is None and modified_before_ts is None:
+        return True
+    try:
+        modified_ts = path.stat().st_mtime
+    except OSError:
+        return False
+    if modified_after_ts is not None and modified_ts <= modified_after_ts:
+        return False
+    if modified_before_ts is not None and modified_ts >= modified_before_ts:
+        return False
+    return True
 
 
 def _iter_files(
@@ -79,12 +113,28 @@ def search_paths(
     regex: bool = False,
     max_file_mb: int | None = None,
     max_depth: int | None = None,
+    modified_after: str | None = None,
+    modified_before: str | None = None,
 ) -> List[Path]:
     """Search paths."""
     pattern = re.compile(query) if regex else None
+    modified_after_ts = _parse_time_filter(modified_after)
+    modified_before_ts = _parse_time_filter(modified_before)
+    if (
+        modified_after_ts is not None
+        and modified_before_ts is not None
+        and modified_after_ts >= modified_before_ts
+    ):
+        return []
     matches: List[Path] = []
     for path in _iter_files(roots, max_depth=max_depth):
         if glob and not path.match(glob):
+            continue
+        if not _within_modified_window(
+            path,
+            modified_after_ts=modified_after_ts,
+            modified_before_ts=modified_before_ts,
+        ):
             continue
         try:
             if max_file_mb is not None and exceeds_max_file_size(path, max_file_mb):
@@ -109,12 +159,28 @@ def search_content(
     max_results: int | None = None,
     max_file_mb: int | None = None,
     max_depth: int | None = None,
+    modified_after: str | None = None,
+    modified_before: str | None = None,
 ) -> List[SearchMatch]:
     """Search content."""
     pattern = re.compile(query) if regex else None
+    modified_after_ts = _parse_time_filter(modified_after)
+    modified_before_ts = _parse_time_filter(modified_before)
+    if (
+        modified_after_ts is not None
+        and modified_before_ts is not None
+        and modified_after_ts >= modified_before_ts
+    ):
+        return []
     results: List[SearchMatch] = []
     for path in _iter_files(roots, max_depth=max_depth):
         if glob and not path.match(glob):
+            continue
+        if not _within_modified_window(
+            path,
+            modified_after_ts=modified_after_ts,
+            modified_before_ts=modified_before_ts,
+        ):
             continue
         try:
             if max_file_mb is not None and exceeds_max_file_size(path, max_file_mb):

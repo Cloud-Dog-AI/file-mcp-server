@@ -37,6 +37,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
+from tests.integration._docker_source_images import ensure_cloud_dog_source_images
 
 def _pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -296,6 +297,11 @@ def docker_image() -> str:
     if _docker_image_exists(repo_root, prebuilt_tag):
         return prebuilt_tag
 
+    ensure_cloud_dog_source_images(
+        repo_root=repo_root,
+        docker_cmd=_docker_cmd,
+        run_cmd=lambda cmd, cwd, check: _run(cmd, cwd=cwd, check=check),
+    )
     tag = "cloud-dog/file-mcp-server:test"
     _run(_docker_cmd("build", "--network=host", "-t", tag, "."), cwd=repo_root)
     return tag

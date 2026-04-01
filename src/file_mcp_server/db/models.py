@@ -80,6 +80,23 @@ class FileAdminGroupMember(PlatformBase, TimestampMixin):
     )
 
 
+class FileStorageProfile(PlatformBase, TimestampMixin):
+    """Storage profile — single source of truth for profile configuration.
+
+    Replaces both the YAML config.yaml and the flat storage-profiles.json.
+    Each row holds the full ProfileConfig as serialised JSON in config_json.
+    """
+
+    __tablename__ = "file_storage_profiles"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="local")
+    config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
 class FileAdminApiKey(PlatformBase, TimestampMixin):
     """API-key records used for dynamic auth and admin key management."""
 

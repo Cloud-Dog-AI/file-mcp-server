@@ -4,7 +4,7 @@
 Primary transport: Streamable HTTP at `/mcp` unless the service documents an alternative mode in its runtime configuration.
 
 ## Authentication
-Use `Authorization: Bearer <your-api-key>` or `X-API-Key: <your-api-key>` on protected HTTP and MCP endpoints.
+Use `X-API-Key: <your-api-key>` on protected HTTP and MCP endpoints.
 
 ## Verification Basis
 - Source files reviewed: `src/file_mcp_server/server.py`

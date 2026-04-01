@@ -193,3 +193,22 @@ def test_multi_profile_verifier_rejects_wrong_profile_key() -> None:
     )
     result = asyncio.run(backend.authenticate(conn))
     assert result is None
+
+
+def test_multi_profile_verifier_admin_api_key_gets_admin_scope() -> None:
+    verifier = MultiProfileApiKeyTokenVerifier(
+        {
+            "default": (["key-default"], "Authorization", "Bearer"),
+            "ftp": (["key-ftp"], "Authorization", "Bearer"),
+        },
+        default_profile="default",
+        admin_api_keys=["key-default"],
+    )
+
+    token = asyncio.run(
+        verifier.verify_token_for_profile("key-default", "default")
+    )
+    assert token is not None
+    assert token.claims.get("role") == "admin"
+    assert "*" in set(token.scopes)
+    assert "profile:default" in set(token.scopes)

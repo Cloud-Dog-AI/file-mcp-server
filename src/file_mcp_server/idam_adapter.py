@@ -436,6 +436,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         profile_auth: Mapping[str, tuple[Iterable[str], str | None, str | None]],
         *,
         default_profile: str,
+        admin_api_keys: Iterable[str] | None = None,
         profile_header_name: str = "x-file-mcp-profile",
         profile_query_name: str = "profile",
         dynamic_key_resolver: Callable[[str, str], Any | None] | None = None,
@@ -456,6 +457,9 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         self._dynamic_key_resolver = dynamic_key_resolver
         self._logger = logger
         self._audit_emitter = audit_emitter
+        self._admin_api_keys = {
+            str(item).strip() for item in (admin_api_keys or []) if str(item).strip()
+        }
         role_permissions: dict[str, set[str]] = {"admin": {"*"}}
         self._profiles: dict[str, _ProfileAuthState] = {}
 
@@ -479,8 +483,16 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
             else:
                 final_header_scheme = normalised_header_scheme
 
+            key_role_mapping = {}
+            for key in api_keys:
+                text_key = str(key).strip()
+                if not text_key:
+                    continue
+                key_role_mapping[text_key] = (
+                    "admin" if text_key in self._admin_api_keys else role_name
+                )
             provider = APIKeyOnlyProvider(
-                key_role_mapping={key: role_name for key in api_keys if key},
+                key_role_mapping=key_role_mapping,
                 default_role=role_name,
             )
             registry = ProviderRegistry()
@@ -492,6 +504,64 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
                 role_name=role_name,
             )
 
+        self._rbac_engine = RBACEngine(role_permissions=role_permissions)
+
+    def refresh_profiles(
+        self,
+        profile_auth: Mapping[str, tuple[Iterable[str], str | None, str | None]],
+    ) -> None:
+        """Rebuild internal profile auth state after dynamic config reload.
+
+        Called when profiles are added/removed via the admin API and the
+        service reloads its configuration.  Updates the verifier's profile
+        map and RBAC engine so that newly created profiles are routable
+        via header / query-param / path selection.
+        """
+        role_permissions: dict[str, set[str]] = {"admin": {"*"}}
+        new_profiles: dict[str, _ProfileAuthState] = {}
+
+        for profile_name, (
+            api_keys,
+            header_name,
+            header_scheme,
+        ) in profile_auth.items():
+            role_name = f"profile:{profile_name}:role"
+            role_permissions[role_name] = {f"profile:{profile_name}"}
+            normalised_header_name = self._normalise_optional_text(header_name)
+            normalised_header_scheme = self._normalise_optional_text(header_scheme)
+            final_header_name = (
+                (normalised_header_name or "authorization").strip().lower()
+            )
+            if (
+                normalised_header_scheme is None
+                and final_header_name == "authorization"
+            ):
+                final_header_scheme: str | None = "Bearer"
+            else:
+                final_header_scheme = normalised_header_scheme
+
+            key_role_mapping = {}
+            for key in api_keys:
+                text_key = str(key).strip()
+                if not text_key:
+                    continue
+                key_role_mapping[text_key] = (
+                    "admin" if text_key in self._admin_api_keys else role_name
+                )
+            provider = APIKeyOnlyProvider(
+                key_role_mapping=key_role_mapping,
+                default_role=role_name,
+            )
+            registry = ProviderRegistry()
+            registry.register(provider, priority=10)
+            new_profiles[profile_name] = _ProfileAuthState(
+                registry=registry,
+                header_name=final_header_name,
+                header_scheme=final_header_scheme,
+                role_name=role_name,
+            )
+
+        self._profiles = new_profiles
         self._rbac_engine = RBACEngine(role_permissions=role_permissions)
 
     def _resolve_profile_from_path(self, path: str) -> str | None:
@@ -613,7 +683,21 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
             if callable(self._dynamic_key_resolver):
                 try:
                     dynamic_payload = self._dynamic_key_resolver(token, profile_name)
-                except Exception:  # pragma: no cover - defensive safety
+                    if self._logger and token.startswith("fka_"):
+                        self._logger.warning(
+                            "Dynamic key resolver result",
+                            profile=profile_name,
+                            payload_type=type(dynamic_payload).__name__ if dynamic_payload else "None",
+                            payload_is_none=dynamic_payload is None,
+                        )
+                except Exception as dynamic_exc:
+                    if self._logger:
+                        self._logger.warning(
+                            "Dynamic key resolver error",
+                            profile=profile_name,
+                            error=str(dynamic_exc),
+                            error_type=type(dynamic_exc).__name__,
+                        )
                     dynamic_payload = None
 
             if dynamic_payload is None:
@@ -690,9 +774,13 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
 
         user = result.user
         role = str(user.role or state.role_name)
+        is_admin_role = role.strip().lower() == "admin"
         self._rbac_engine.assign_role_to_user(user.user_id, role)
         required_permission = f"profile:{profile_name}"
-        if not self._rbac_engine.has_permission(user.user_id, required_permission):
+        if (
+            not is_admin_role
+            and not self._rbac_engine.has_permission(user.user_id, required_permission)
+        ):
             self._emit_audit(
                 action="authorise",
                 outcome="failure",
@@ -706,6 +794,9 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
             return None
 
         permissions = set(self._rbac_engine.get_effective_permissions(user.user_id))
+        if is_admin_role:
+            permissions.add("*")
+            permissions.add(required_permission)
         scopes = list(self.required_scopes or [])
         for permission in sorted(permissions):
             if permission not in scopes:
@@ -739,9 +830,15 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin, TokenVerifier):
         )
 
     async def verify_access_token(self, token: str) -> AccessToken | None:
-        # Fallback for interfaces that do not pass request context.
-        """Execute verify token."""
-        return await self.verify_token_for_profile(token, self.default_profile)
+        """Execute verify token using profile from request context.
+
+        When called by FastMCP (which does not pass request context
+        directly), the profile is read from the context variable set
+        by RequestContextMiddleware.  Falls back to default_profile
+        when the context variable is unset.
+        """
+        profile_name = get_request_profile_name(self.default_profile) or self.default_profile
+        return await self.verify_token_for_profile(token, profile_name)
 
     # Preserve TokenVerifier compatibility while avoiding bespoke verifier definition patterns.
     verify_token = verify_access_token

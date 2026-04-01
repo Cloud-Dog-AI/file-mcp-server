@@ -39,7 +39,7 @@ from .base import (
     StorageBackend,
     StorageEntry,
     StorageStat,
-    is_unresolved_placeholder,
+    ensure_no_unresolved_placeholder,
 )
 
 
@@ -116,28 +116,16 @@ class S3Storage(StorageBackend):
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
         """Initialise the instance state."""
         cfg = storage.s3
+        ensure_no_unresolved_placeholder(cfg.endpoint, field_name="s3.endpoint")
+        ensure_no_unresolved_placeholder(cfg.bucket, field_name="s3.bucket")
+        ensure_no_unresolved_placeholder(cfg.access_key, field_name="s3.access_key")
+        ensure_no_unresolved_placeholder(cfg.secret_key, field_name="s3.secret_key")
         if not cfg.endpoint:
             raise ValueError("S3 storage requires s3.endpoint")
         if not cfg.bucket:
             raise ValueError("S3 storage requires s3.bucket")
         if not cfg.access_key or not cfg.secret_key:
             raise ValueError("S3 storage requires s3.access_key and s3.secret_key")
-        if is_unresolved_placeholder(cfg.endpoint):
-            raise ValueError(
-                "S3 storage requires resolved s3.endpoint (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.bucket):
-            raise ValueError(
-                "S3 storage requires resolved s3.bucket (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.access_key):
-            raise ValueError(
-                "S3 storage requires resolved s3.access_key (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.secret_key):
-            raise ValueError(
-                "S3 storage requires resolved s3.secret_key (placeholder found)"
-            )
         self._endpoint = cfg.endpoint.rstrip("/")
         self._bucket = cfg.bucket
         self._region = (cfg.region or "us-east-1").strip() or "us-east-1"

@@ -34,7 +34,7 @@ from .base import (
     StorageBackend,
     StorageEntry,
     StorageStat,
-    is_unresolved_placeholder,
+    ensure_no_unresolved_placeholder,
 )
 
 
@@ -86,20 +86,11 @@ class FtpStorage(StorageBackend):
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
         """Initialise the instance state."""
         cfg = storage.ftp
+        ensure_no_unresolved_placeholder(cfg.host, field_name="ftp.host")
+        ensure_no_unresolved_placeholder(cfg.username, field_name="ftp.username")
+        ensure_no_unresolved_placeholder(cfg.password, field_name="ftp.password")
         if not cfg.host:
             raise ValueError("FTP storage requires ftp.host")
-        if is_unresolved_placeholder(cfg.host):
-            raise ValueError(
-                "FTP storage requires resolved ftp.host (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.username):
-            raise ValueError(
-                "FTP storage requires resolved ftp.username (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.password):
-            raise ValueError(
-                "FTP storage requires resolved ftp.password (placeholder found)"
-            )
         self._host = cfg.host
         self._port = _to_int(cfg.port, 21)
         self._user = cfg.username or ""

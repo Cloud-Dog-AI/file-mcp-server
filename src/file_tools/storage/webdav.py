@@ -39,7 +39,7 @@ from .base import (
     StorageBackend,
     StorageEntry,
     StorageStat,
-    is_unresolved_placeholder,
+    ensure_no_unresolved_placeholder,
 )
 
 _DEFAULT_MOVE_RETRY_STATUSES = {408, 409, 423, 425, 429, 500, 502, 503, 504}
@@ -191,20 +191,17 @@ class WebDavStorage(StorageBackend):
 
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
         """Initialise the instance state."""
+        ensure_no_unresolved_placeholder(
+            storage.webdav.base_url, field_name="webdav.base_url"
+        )
+        ensure_no_unresolved_placeholder(
+            storage.webdav.username, field_name="webdav.username"
+        )
+        ensure_no_unresolved_placeholder(
+            storage.webdav.password, field_name="webdav.password"
+        )
         if not storage.webdav.base_url:
             raise ValueError("WebDAV storage requires webdav.base_url")
-        if is_unresolved_placeholder(storage.webdav.base_url):
-            raise ValueError(
-                "WebDAV storage requires resolved webdav.base_url (placeholder found)"
-            )
-        if is_unresolved_placeholder(storage.webdav.username):
-            raise ValueError(
-                "WebDAV storage requires resolved webdav.username (placeholder found)"
-            )
-        if is_unresolved_placeholder(storage.webdav.password):
-            raise ValueError(
-                "WebDAV storage requires resolved webdav.password (placeholder found)"
-            )
         self._base_url = storage.webdav.base_url.rstrip("/")
         self._auth = basic_auth(
             storage.webdav.username or "", storage.webdav.password or ""

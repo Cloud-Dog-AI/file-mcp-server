@@ -2,7 +2,7 @@ profiles:
   default:
     auth:
       api_keys:
-      - "${FILE_MCP_API_KEY_PRIMARY}"
+      - ${FILE_MCP_API_KEY_PRIMARY}
       header_name: ${FILE_MCP_AUTH_HEADER_NAME}
       header_scheme: ${FILE_MCP_AUTH_HEADER_SCHEME}
     storage:
@@ -11,23 +11,27 @@ profiles:
         insecure_skip_verify: ${FILE_MCP_STORAGE_TLS_INSECURE}
         ca_bundle_path: ${FILE_MCP_STORAGE_TLS_CA_BUNDLE}
       s3:
-        endpoint: ${FILE_MCP_S3_ENDPOINT}
+        endpoint: ${vault.dev.storage.s3.endpoint || FILE_MCP_S3_ENDPOINT || ''}
         bucket: ${FILE_MCP_S3_BUCKET}
-        region: ${FILE_MCP_S3_REGION}
-        access_key: ${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY || ''}
-        secret_key: ${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY || ''}
+        region: ${vault.dev.storage.s3.region || FILE_MCP_S3_REGION || 'us-east-1'}
+        access_key: ${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY
+          || ''}
+        secret_key: ${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY
+          || ''}
         prefix: ${FILE_MCP_S3_PREFIX}
       webdav:
-        base_url: ${FILE_MCP_WEBDAV_BASE_URL}
-        username: ${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME || ''}
-        password: ${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD || ''}
+        base_url: ${vault.dev.storage.webdav.url || FILE_MCP_WEBDAV_BASE_URL || ''}
+        username: ${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME
+          || ''}
+        password: ${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD
+          || ''}
         move_retry_count: '3'
         move_retry_backoff_s: '1.0'
         move_probe_timeout_s: '5'
         move_retry_statuses: 423,502,503,504
       ftp:
-        host: ${FILE_MCP_FTP_HOST}
-        port: ${FILE_MCP_FTP_PORT}
+        host: ${vault.dev.storage.ftp.host || FILE_MCP_FTP_HOST || ''}
+        port: ${vault.dev.storage.ftp.port || FILE_MCP_FTP_PORT || '21'}
         username: ${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME || ''}
         password: ${vault.dev.storage.ftp.password || FILE_MCP_FTP_PASSWORD || ''}
         base_dir: ${FILE_MCP_FTP_BASE_DIR}
@@ -37,16 +41,21 @@ profiles:
         folder_id: ${FILE_MCP_GDRIVE_FOLDER_ID}
         folder_url: ${FILE_MCP_GDRIVE_FOLDER_URL}
         folder_url_example: ${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com/drive/folders/}
-        client_id: ${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID || ''}
-        client_secret: ${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET || ''}
-        refresh_token: ${vault.dev.storage.google_drive.refresh_token || FILE_MCP_GDRIVE_REFRESH_TOKEN || ''}
-        access_token: ${vault.dev.storage.google_drive.access_token || FILE_MCP_GDRIVE_ACCESS_TOKEN || ''}
+        client_id: ${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID
+          || ''}
+        client_secret: ${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET
+          || ''}
+        refresh_token: ${vault.dev.storage.google_drive.refresh_token || FILE_MCP_GDRIVE_REFRESH_TOKEN
+          || ''}
+        access_token: ${vault.dev.storage.google_drive.access_token || FILE_MCP_GDRIVE_ACCESS_TOKEN
+          || ''}
         oauth_scope: ${FILE_MCP_GDRIVE_OAUTH_SCOPE:https://www.googleapis.com/auth/drive}
         oauth_authorize_uri: ${FILE_MCP_GDRIVE_AUTHORIZE_URI:https://accounts.google.com/o/oauth2/v2/auth}
         api_base_uri: ${FILE_MCP_GDRIVE_API_BASE_URI:https://www.googleapis.com/drive/v3}
         upload_base_uri: ${FILE_MCP_GDRIVE_UPLOAD_BASE_URI:https://www.googleapis.com/upload/drive/v3}
         redirect_uri: ${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}
-        token_uri: ${vault.dev.storage.google_drive.token_uri || FILE_MCP_GDRIVE_TOKEN_URI || ''}
+        token_uri: ${vault.dev.storage.google_drive.token_uri || FILE_MCP_GDRIVE_TOKEN_URI
+          || ''}
     scope:
       roots:
       - ${FILE_MCP_ROOT}

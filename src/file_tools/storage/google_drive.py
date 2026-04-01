@@ -38,7 +38,7 @@ from .base import (
     StorageBackend,
     StorageEntry,
     StorageStat,
-    is_unresolved_placeholder,
+    ensure_no_unresolved_placeholder,
 )
 
 
@@ -103,8 +103,35 @@ class GoogleDriveStorage(StorageBackend):
     def __init__(self, storage: StorageConfig, *, timeout_s: int | None = None) -> None:
         """Initialise the instance state."""
         cfg = storage.google_drive
+        ensure_no_unresolved_placeholder(
+            cfg.folder_id, field_name="google_drive.folder_id"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.folder_url, field_name="google_drive.folder_url"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.client_id, field_name="google_drive.client_id"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.client_secret, field_name="google_drive.client_secret"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.refresh_token, field_name="google_drive.refresh_token"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.access_token, field_name="google_drive.access_token"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.token_uri, field_name="google_drive.token_uri"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.api_base_uri, field_name="google_drive.api_base_uri"
+        )
+        ensure_no_unresolved_placeholder(
+            cfg.upload_base_uri, field_name="google_drive.upload_base_uri"
+        )
         folder_id = _extract_folder_id(cfg.folder_id, cfg.folder_url)
-        if not folder_id or is_unresolved_placeholder(folder_id):
+        if not folder_id:
             raise ValueError(
                 "Google Drive storage requires google_drive.folder_id or google_drive.folder_url"
             )
@@ -112,25 +139,9 @@ class GoogleDriveStorage(StorageBackend):
             raise ValueError(
                 "Google Drive storage requires google_drive.client_id and google_drive.client_secret"
             )
-        if is_unresolved_placeholder(cfg.client_id):
-            raise ValueError(
-                "Google Drive storage requires resolved google_drive.client_id (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.client_secret):
-            raise ValueError(
-                "Google Drive storage requires resolved google_drive.client_secret (placeholder found)"
-            )
         if not (cfg.refresh_token or cfg.access_token):
             raise ValueError(
                 "Google Drive storage requires google_drive.refresh_token or google_drive.access_token"
-            )
-        if is_unresolved_placeholder(cfg.refresh_token):
-            raise ValueError(
-                "Google Drive storage requires resolved google_drive.refresh_token (placeholder found)"
-            )
-        if is_unresolved_placeholder(cfg.access_token):
-            raise ValueError(
-                "Google Drive storage requires resolved google_drive.access_token (placeholder found)"
             )
 
         self._folder_id = folder_id

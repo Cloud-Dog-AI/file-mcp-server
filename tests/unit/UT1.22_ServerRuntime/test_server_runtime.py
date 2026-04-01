@@ -18,6 +18,7 @@ from tests.env_runtime import runtime_env
 
 import asyncio
 import json
+import re
 
 from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
@@ -290,6 +291,53 @@ def test_health_middleware_returns_ok() -> None:
     body = json.loads(sent[1]["body"].decode("utf-8"))
     assert status == 200
     assert body["status"] == "ok"
+
+
+def test_health_middleware_returns_status_metrics() -> None:
+    sent = []
+
+    async def fake_app(
+        scope, receive, send
+    ) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    async def _run() -> None:
+        scope = {"type": "http", "method": "GET", "path": "/status"}
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 200
+    body = json.loads(sent[1]["body"].decode("utf-8"))
+    assert set(body.keys()) >= {
+        "uptime_seconds",
+        "uptime",
+        "memory_mb",
+        "memory_percent",
+        "cpu_percent",
+        "disk_percent",
+        "active_connections",
+        "service_metrics",
+    }
+    assert set(body["service_metrics"].keys()) >= {
+        "file_count",
+        "profile_count",
+        "storage_used_mb",
+    }
 
 
 def test_a2a_health_is_public_without_auth() -> None:
@@ -678,8 +726,10 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
     sent = []
     previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
     previous_profiles = runtime_env.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
+    previous_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
     runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,s3,webdav,ftp,google_drive"
+    runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
 
     async def fake_app(
         scope, receive, send
@@ -727,6 +777,10 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
             runtime_env.pop("FILE_MCP_ACTIVE_PROFILE_NAMES", None)
         else:
             runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = previous_profiles
+        if previous_token is None:
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = previous_token
 
 
 def test_runtime_config_endpoint_returns_dynamic_script() -> None:
@@ -763,8 +817,10 @@ def test_runtime_config_endpoint_returns_dynamic_script() -> None:
         sent = _run_middleware_request(middleware, path="/runtime-config.js")
         assert sent[0]["status"] == 200
         body = sent[1]["body"].decode("utf-8")
-        assert body.startswith("window.__RUNTIME_CONFIG__ = ")
-        payload = json.loads(body.split("=", 1)[1].strip().rstrip(";"))
+        assert "window.__RUNTIME_CONFIG__ = Object.assign(" in body
+        match = re.search(r"Object\.assign\(\s*(\{.*\})\s*,", body, re.DOTALL)
+        assert match is not None
+        payload = json.loads(match.group(1))
         assert payload["ENV"] == "preprod"
         assert payload["API_BASE_URL"] == "https://api.filemcp.example"
         assert payload["AUTH_MODE"] == "api_key"
@@ -801,10 +857,56 @@ def test_ui_routes_serve_spa_index_from_configured_dist(tmp_path) -> None:
     )
 
     try:
-        for route in ("/ui", "/ui/dashboard", "/dashboard"):
-            sent = _run_middleware_request(middleware, path=route)
+        for route in (
+            "/ui",
+            "/ui/dashboard",
+            "/dashboard",
+            "/unknown-route-that-does-not-exist",
+            "/jobs",
+            "/api-docs",
+            "/admin/users",
+            "/admin/groups",
+            "/admin/api-keys",
+            "/mcp-console",
+            "/a2a-console",
+        ):
+            sent = _run_middleware_request(
+                middleware, path=route, headers=[(b"accept", b"text/html")]
+            )
             assert sent[0]["status"] == 200
             assert b"file-mcp-ui-shell" in sent[1]["body"]
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
+
+
+def test_non_ui_api_paths_do_not_fallback_to_spa(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        sent = _run_middleware_request(middleware, path="/api/unknown")
+        assert sent[0]["status"] == 404
+        assert sent[1]["body"] == b"not-found"
     finally:
         if prev_ui_dist is None:
             runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
@@ -848,7 +950,9 @@ def test_ui_assets_are_served_from_dist(tmp_path) -> None:
 def test_health_middleware_serves_google_drive_admin_page() -> None:
     sent = []
     previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    previous_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
 
     async def fake_app(
         scope, receive, send
@@ -889,12 +993,18 @@ def test_health_middleware_serves_google_drive_admin_page() -> None:
             runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
             runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = previous
+        if previous_token is None:
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = previous_token
 
 
 def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
     sent = []
     previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    previous_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
 
     async def fake_app(
         scope, receive, send
@@ -941,6 +1051,10 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
             runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
             runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = previous
+        if previous_token is None:
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = previous_token
 
 
 def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
@@ -950,8 +1064,10 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
     prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
     prev_profiles = runtime_env.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
     prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    prev_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
     runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,google_drive"
+    runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         (
@@ -1028,6 +1144,10 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
             runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
             runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+        if prev_token is None:
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
 
 
 def test_health_middleware_google_drive_start_reuses_masked_secret(
@@ -1038,8 +1158,10 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
     prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
     prev_profiles = runtime_env.get("FILE_MCP_ACTIVE_PROFILE_NAMES")
     prev_config = runtime_env.get("FILE_MCP_ACTIVE_CONFIG_PATH")
+    prev_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
     runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = "default,google_drive"
+    runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         (
@@ -1122,6 +1244,10 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
             runtime_env.pop("FILE_MCP_ACTIVE_CONFIG_PATH", None)
         else:
             runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = prev_config
+        if prev_token is None:
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
 
 
 def test_health_middleware_reload_requires_admin_gate() -> None:
@@ -1233,7 +1359,9 @@ def test_health_middleware_reload_enforces_token_and_returns_json() -> None:
 def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
     sent = []
     prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
+    prev_token = runtime_env.get("FILE_MCP_ADMIN_UI_TOKEN")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "true"
+    runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
     monkeypatch.setattr(
         "file_mcp_server.server.complete_oauth_callback",
         lambda **kwargs: _FakeBindResult(),
@@ -1286,3 +1414,7 @@ def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
             runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)
         else:
             runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
+        if prev_token is None:
+            runtime_env.pop("FILE_MCP_ADMIN_UI_TOKEN", None)
+        else:
+            runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token

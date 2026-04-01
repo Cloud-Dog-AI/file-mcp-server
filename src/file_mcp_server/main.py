@@ -52,6 +52,32 @@ app = typer.Typer(help="file-mcp-server CLI.")
 SERVER_ROLES = ("api", "web", "mcp", "a2a")
 
 
+def _seed_process_env_from_file(env_path: str | None) -> None:
+    """Load env-file key/value pairs into process env without overriding existing values."""
+    if not env_path:
+        return
+    path = Path(env_path).expanduser().resolve()
+    if not path.is_file():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        runtime_env.setdefault(key, value)
+
+
 def _default_pidfile() -> Path:
     """Handle default pidfile."""
     return Path(".run") / "file-mcp-server.pid"
@@ -126,6 +152,7 @@ def serve(
 ) -> None:
     """Run the FastMCP HTTP/SSE server."""
     resolved_role = _normalise_server_role(server_role) if server_role else None
+    _seed_process_env_from_file(env_path)
     if env_path:
         runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = str(
             Path(env_path).expanduser().resolve()
