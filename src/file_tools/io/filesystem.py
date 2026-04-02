@@ -23,11 +23,11 @@ Description: File tools module for io filesystem.py.
 from __future__ import annotations
 
 import os
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Iterable, List
 
+from cloud_dog_storage import path_utils
 from filelock import FileLock
 
 
@@ -64,7 +64,7 @@ def atomic_write(path: Path, data: bytes, *, overwrite: bool = True) -> None:
             tmp.write(data)
             tmp.flush()
             os.fsync(tmp.fileno())
-            temp_path = Path(tmp.name)
+            temp_path = path_utils.as_path(tmp.name)
         os.replace(temp_path, path)
 
 
@@ -87,13 +87,13 @@ def copy_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
     ensure_parent(dst)
     if dst.exists() and overwrite:
         dst.unlink()
-    shutil.copy2(src, dst)
+    path_utils.copy_with_metadata(str(src), str(dst))
 
 
 def _remove_existing_target(path: Path) -> None:
     """Handle remove existing target."""
     if path.is_dir() and not path.is_symlink():
-        shutil.rmtree(path)
+        path_utils.rmtree(str(path))
         return
     path.unlink()
 
@@ -105,7 +105,7 @@ def move_path(src: Path, dst: Path, *, overwrite: bool = False) -> None:
     ensure_parent(dst)
     if dst.exists() and overwrite:
         _remove_existing_target(dst)
-    shutil.move(str(src), str(dst))
+    path_utils.move(str(src), str(dst))
 
 
 def move_file(src: Path, dst: Path, *, overwrite: bool = False) -> None:
@@ -128,7 +128,7 @@ def chmod_path(path: Path, mode: int, *, recursive: bool = False) -> None:
     os.chmod(path, mode)
     if recursive and path.is_dir():
         for dirpath, dirnames, filenames in os.walk(path):
-            current = Path(dirpath)
+            current = path_utils.as_path(dirpath)
             for name in dirnames:
                 os.chmod(current / name, mode)
             for name in filenames:
