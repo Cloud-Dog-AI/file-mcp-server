@@ -27,6 +27,13 @@ from pathlib import Path
 
 import shutil
 
+from cloud_dog_storage.backends.local import LocalStorage
+
+
+def _snapshot_storage(base_dir: Path) -> LocalStorage:
+    """Build a LocalStorage instance rooted at *base_dir*."""
+    return LocalStorage(root_path=base_dir, min_free_bytes=0)
+
 
 def snapshot_path(base_dir: Path, source: Path) -> Path:
     """Execute snapshot path."""
@@ -36,7 +43,12 @@ def snapshot_path(base_dir: Path, source: Path) -> Path:
 
 
 def create_snapshot(base_dir: Path, source: Path) -> Path:
-    """Create snapshot."""
+    """Create snapshot.
+
+    N/A — uses shutil.copy2 to preserve source file metadata (timestamps,
+    permissions) when copying from an arbitrary source path into the snapshot
+    tree.  LocalStorage.write_bytes cannot replicate copy2 semantics.
+    """
     target = snapshot_path(base_dir, source)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
@@ -55,15 +67,23 @@ def snapshot_path_for_logical(base_dir: Path, logical_path: str) -> Path:
 
 
 def create_snapshot_bytes(base_dir: Path, logical_path: str, data: bytes) -> Path:
-    """Create snapshot bytes."""
-    target = snapshot_path_for_logical(base_dir, logical_path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
-    return target
+    """Create snapshot bytes via LocalStorage."""
+    storage = _snapshot_storage(base_dir)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    relative = logical_path.lstrip("/")
+    storage_key = f"{timestamp}/{relative}"
+    storage.write_bytes(storage_key, data)
+    return base_dir / timestamp / relative
 
 
 def _snapshot_dirs(base_dir: Path) -> list[Path]:
-    """Handle snapshot dirs."""
+    """Handle snapshot dirs.
+
+    N/A — iterates timestamp-named directories and parses their names.
+    LocalStorage.list_dir returns StorageEntry objects without exposing the
+    underlying Path needed by the pruning logic, so direct Path iteration is
+    retained.
+    """
     if not base_dir.exists():
         return []
     entries: list[tuple[datetime, Path]] = []
@@ -82,7 +102,11 @@ def _snapshot_dirs(base_dir: Path) -> list[Path]:
 
 
 def _dir_size_bytes(path: Path) -> int:
-    """Handle dir size bytes."""
+    """Handle dir size bytes.
+
+    N/A — computes aggregate byte size via os.stat; LocalStorage has no
+    equivalent size-aggregation method.
+    """
     total = 0
     for item in path.rglob("*"):
         if item.is_file():
@@ -104,6 +128,7 @@ def prune_snapshots(
     if not entries:
         return 0
 
+    storage = _snapshot_storage(base_dir)
     now = datetime.now(timezone.utc)
     removed = 0
 
@@ -116,7 +141,7 @@ def prune_snapshots(
             except ValueError:
                 continue
             if (now - stamp).days > retention_days:
-                shutil.rmtree(entry, ignore_errors=True)
+                storage.delete_path(entry.name, missing_ok=True)
                 entries.remove(entry)
                 removed += 1
 
@@ -126,7 +151,7 @@ def prune_snapshots(
         and len(entries) > retention_count
     ):
         for entry in entries[retention_count:]:
-            shutil.rmtree(entry, ignore_errors=True)
+            storage.delete_path(entry.name, missing_ok=True)
             removed += 1
         entries = entries[:retention_count]
 
@@ -137,7 +162,7 @@ def prune_snapshots(
         while total_bytes > max_bytes and idx >= 0:
             entry = entries[idx]
             size = _dir_size_bytes(entry)
-            shutil.rmtree(entry, ignore_errors=True)
+            storage.delete_path(entry.name, missing_ok=True)
             removed += 1
             total_bytes -= size
             idx -= 1
