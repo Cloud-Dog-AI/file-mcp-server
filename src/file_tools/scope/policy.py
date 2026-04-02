@@ -23,9 +23,9 @@ Description: File tools module for scope policy.py.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
 from typing import Iterable, List
-import posixpath
+
+from cloud_dog_storage import path_utils
 
 
 @dataclass(frozen=True)
@@ -45,57 +45,60 @@ class ScopePolicy:
         read_only_exts: Iterable[str] | None = None,
     ) -> None:
         """Initialise the instance state."""
-        self.roots = [Path(root).resolve() for root in roots]
+        self.roots = [path_utils.resolve_path(root) for root in roots]
         self.allow_globs = list(allow_globs or ["**/*"])
         self.deny_globs = list(deny_globs or [])
         self.allowed_exts = [ext.lower() for ext in (allowed_exts or [])]
         self.read_only_exts = [ext.lower() for ext in (read_only_exts or [])]
 
-    def normalize(self, path: str | Path) -> Path:
+    def normalize(self, path: str) -> str:
         """Execute normalize."""
-        return Path(path).resolve()
+        return path_utils.resolve_path(str(path))
 
-    def _is_within_roots(self, path: Path) -> bool:
+    def _is_within_roots(self, path: str) -> bool:
         """Handle is within roots."""
         if not self.roots:
             return False
         for root in self.roots:
-            try:
-                if path.is_relative_to(root):
-                    return True
-            except AttributeError:
-                try:
-                    path.relative_to(root)
-                except ValueError:
-                    continue
+            if path_utils.is_relative_to(path, root):
                 return True
         return False
 
-    def _relative_to_root(self, path: Path) -> Path:
+    def _relative_to_root(self, path: str) -> str:
         """Handle relative to root."""
         for root in self.roots:
             try:
-                return path.relative_to(root)
+                return path_utils.relative_to(path, root)
             except ValueError:
                 continue
         return path
 
     @staticmethod
-    def _matches_globs(path: Path, globs: List[str]) -> bool:
+    def _matches_root_glob(path: str, pattern: str) -> bool:
+        """Allow recursive allow-globs to match the scoped root itself."""
+        posix = path_utils.to_posix(path) if path else ""
+        if posix not in {".", ""}:
+            return False
+        normalized = pattern.strip().lstrip("./").rstrip("/")
+        return normalized in {"*", "**", "**/*"}
+
+    @staticmethod
+    def _matches_globs(path: str, globs: List[str]) -> bool:
         """Handle matches globs."""
         if not globs:
             return False
-        rel_posix = PurePosixPath(path.as_posix())
         for pattern in globs:
-            if rel_posix.match(pattern):
+            if ScopePolicy._matches_root_glob(path, pattern):
                 return True
-            if pattern.startswith("**/") and rel_posix.match(pattern[3:]):
+            if path_utils.match_glob(path, pattern):
+                return True
+            if pattern.startswith("**/") and path_utils.match_glob(path, pattern[3:]):
                 return True
         return False
 
-    def check(self, path: str | Path, *, operation: str = "read") -> ScopeDecision:
+    def check(self, path: str, *, operation: str = "read") -> ScopeDecision:
         """Execute check."""
-        resolved = self.normalize(path)
+        resolved = self.normalize(str(path))
         if not self._is_within_roots(resolved):
             return ScopeDecision(False, "outside_roots")
 
@@ -105,7 +108,7 @@ class ScopePolicy:
         if self.allow_globs and not self._matches_globs(rel_path, self.allow_globs):
             return ScopeDecision(False, "not_in_allowlist")
 
-        ext = resolved.suffix.lower()
+        ext = path_utils.suffix(resolved).lower()
         if self.allowed_exts and ext not in self.allowed_exts:
             return ScopeDecision(False, "extension_not_allowed")
 
@@ -115,9 +118,9 @@ class ScopePolicy:
 
         return ScopeDecision(True, "allowed")
 
-    def require(self, path: str | Path, *, operation: str = "read") -> None:
+    def require(self, path: str, *, operation: str = "read") -> None:
         """Execute require."""
-        decision = self.check(path, operation=operation)
+        decision = self.check(str(path), operation=operation)
         if not decision.allowed:
             raise PermissionError(f"Scope denied: {decision.reason}")
 
@@ -140,53 +143,56 @@ class PosixScopePolicy:
         read_only_exts: Iterable[str] | None = None,
     ) -> None:
         """Initialise the instance state."""
-        self.roots = [PurePosixPath(str(root) if root else "/") for root in roots]
+        self.roots = [path_utils.posix_path(str(root) if root else "/") for root in roots]
         self.allow_globs = list(allow_globs or ["**/*"])
         self.deny_globs = list(deny_globs or [])
         self.allowed_exts = [ext.lower() for ext in (allowed_exts or [])]
         self.read_only_exts = [ext.lower() for ext in (read_only_exts or [])]
 
     @staticmethod
-    def normalize(path: str) -> PurePosixPath:
+    def normalize(path: str) -> str:
         """Execute normalize."""
-        p = PurePosixPath(path if path else "/")
-        if not str(p).startswith("/"):
-            p = PurePosixPath("/") / p
-        # PurePosixPath doesn't resolve symlinks; we only normalize `..` parts.
-        return PurePosixPath(posixpath.normpath(str(p)))  # type: ignore[name-defined]
+        return path_utils.posix_path(path if path else "/")
 
-    def _is_within_roots(self, path: PurePosixPath) -> bool:
+    def _is_within_roots(self, path: str) -> bool:
         """Handle is within roots."""
         if not self.roots:
             return False
         for root in self.roots:
-            if str(root) == "/":
+            if root == "/":
                 return True
-            try:
-                path.relative_to(root)
+            if path_utils.is_relative_to(path, root):
                 return True
-            except ValueError:
-                continue
         return False
 
-    def _relative_to_root(self, path: PurePosixPath) -> PurePosixPath:
+    def _relative_to_root(self, path: str) -> str:
         """Handle relative to root."""
         for root in self.roots:
             try:
-                return path.relative_to(root)
+                return path_utils.relative_to(path, root)
             except ValueError:
                 continue
         return path
 
     @staticmethod
-    def _matches_globs(path: PurePosixPath, globs: List[str]) -> bool:
+    def _matches_root_glob(path: str, pattern: str) -> bool:
+        """Allow recursive allow-globs to match the scoped root itself."""
+        if path not in {".", "", "/"}:
+            return False
+        normalized = pattern.strip().lstrip("./").rstrip("/")
+        return normalized in {"*", "**", "**/*"}
+
+    @staticmethod
+    def _matches_globs(path: str, globs: List[str]) -> bool:
         """Handle matches globs."""
         if not globs:
             return False
         for pattern in globs:
-            if path.match(pattern):
+            if PosixScopePolicy._matches_root_glob(path, pattern):
                 return True
-            if pattern.startswith("**/") and path.match(pattern[3:]):
+            if path_utils.match_glob(path, pattern):
+                return True
+            if pattern.startswith("**/") and path_utils.match_glob(path, pattern[3:]):
                 return True
         return False
 
@@ -202,7 +208,7 @@ class PosixScopePolicy:
         if self.allow_globs and not self._matches_globs(rel_path, self.allow_globs):
             return ScopeDecision(False, "not_in_allowlist")
 
-        ext = resolved.suffix.lower()
+        ext = path_utils.suffix(resolved).lower()
         if self.allowed_exts and ext not in self.allowed_exts:
             return ScopeDecision(False, "extension_not_allowed")
 

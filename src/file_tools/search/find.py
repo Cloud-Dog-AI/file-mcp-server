@@ -35,6 +35,8 @@ from typing import Iterable, Iterator, List, Optional
 import re
 import os
 
+from cloud_dog_storage import path_utils
+
 from ..limits import exceeds_max_file_size
 
 
@@ -68,7 +70,7 @@ def _within_modified_window(
     if modified_after_ts is None and modified_before_ts is None:
         return True
     try:
-        modified_ts = path.stat().st_mtime
+        modified_ts = path_utils.file_stat(str(path)).st_mtime
     except OSError:
         return False
     if modified_after_ts is not None and modified_ts <= modified_after_ts:
@@ -86,23 +88,26 @@ def _iter_files(
 ) -> Iterator[Path]:
     """Handle iter files."""
     for root in roots:
-        resolved_root = root.resolve()
+        resolved_root = path_utils.resolve_path(str(root))
         if recursive:
             if max_depth is None:
-                yield from (path for path in resolved_root.rglob("*") if path.is_file())
+                for p_str in path_utils.rglob(resolved_root, "*"):
+                    if path_utils.is_file(p_str):
+                        yield path_utils.as_path(p_str)
                 continue
-            for current_root, _, files in os.walk(resolved_root):
-                current_path = Path(current_root)
+            for current_root, _, files in path_utils.walk(resolved_root):
                 try:
-                    depth = len(current_path.relative_to(resolved_root).parts)
+                    depth = len(path_utils.relative_parts(current_root, resolved_root))
                 except ValueError:
                     continue
                 if depth > max_depth:
                     continue
                 for file_name in files:
-                    yield current_path / file_name
+                    yield path_utils.as_path(path_utils.join(current_root, file_name))
         else:
-            yield from (path for path in resolved_root.iterdir() if path.is_file())
+            for child_str in path_utils.iter_dir(resolved_root):
+                if path_utils.is_file(child_str):
+                    yield path_utils.as_path(child_str)
 
 
 def search_paths(
@@ -128,7 +133,7 @@ def search_paths(
         return []
     matches: List[Path] = []
     for path in _iter_files(roots, max_depth=max_depth):
-        if glob and not path.match(glob):
+        if glob and not path_utils.match_glob(str(path), glob):
             continue
         if not _within_modified_window(
             path,
@@ -142,9 +147,9 @@ def search_paths(
         except OSError:
             continue
         if regex:
-            if pattern and pattern.search(path.as_posix()):
+            if pattern and pattern.search(path_utils.to_posix(str(path))):
                 matches.append(path)
-        elif query in path.as_posix():
+        elif query in path_utils.to_posix(str(path)):
             matches.append(path)
     return matches
 
@@ -174,7 +179,7 @@ def search_content(
         return []
     results: List[SearchMatch] = []
     for path in _iter_files(roots, max_depth=max_depth):
-        if glob and not path.match(glob):
+        if glob and not path_utils.match_glob(str(path), glob):
             continue
         if not _within_modified_window(
             path,
@@ -185,8 +190,8 @@ def search_content(
         try:
             if max_file_mb is not None and exceeds_max_file_size(path, max_file_mb):
                 continue
-            with path.open("r", encoding=encoding, errors="replace") as handle:
-                for line_no, line in enumerate(handle, start=1):
+            content = path_utils.read_text(str(path), encoding=encoding, errors="replace")
+            for line_no, line in enumerate(content.splitlines(keepends=True), start=1):
                     if regex:
                         if pattern and pattern.search(line):
                             results.append(

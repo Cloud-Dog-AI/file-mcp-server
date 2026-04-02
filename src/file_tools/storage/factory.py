@@ -17,39 +17,80 @@ file-mcp-server — file_tools/storage/factory.py
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
-Description: File tools module for storage factory.py.
+Description: Adapter between file-mcp ProfileConfig and cloud_dog_storage.
+
+Delegates to cloud_dog_storage.build_storage_backend (PS-85) after
+translating the service-specific ProfileConfig into a StorageConfig.
 """
 
 from __future__ import annotations
 
-from file_tools.config.models import ProfileConfig
+from cloud_dog_storage import StorageBackend
+from cloud_dog_storage import build_storage_backend as _platform_build
+from cloud_dog_storage.config.models import (
+    FtpConfig,
+    GoogleDriveConfig,
+    S3Config,
+    StorageConfig,
+    TlsConfig,
+    WebDavConfig,
+)
 
-from .base import StorageBackend
-from .local import LocalStorage
+from file_tools.config.models import ProfileConfig
 
 
 def build_storage_backend(profile: ProfileConfig) -> StorageBackend:
-    """Build storage backend."""
-    backend = (profile.storage.backend or "local").strip().lower()
-    timeout_s = profile.limits.storage_timeout_s
-    if backend in {"", "local", "filesystem", "fs"}:
-        return LocalStorage()
-    # Backends are added in dedicated modules (s3/webdav/ftp). Import lazily to
-    # avoid pulling optional deps at import time.
-    if backend == "s3":
-        from .s3 import S3Storage
+    """Build storage backend from a file-mcp ProfileConfig.
 
-        return S3Storage(profile.storage, timeout_s=timeout_s)
-    if backend == "webdav":
-        from .webdav import WebDavStorage
+    Translates the service-level config into a platform StorageConfig
+    and delegates to ``cloud_dog_storage.build_storage_backend``.
+    """
+    src = profile.storage
+    timeout = int(profile.limits.storage_timeout_s or 30)
+    backend_name = (src.backend or "local").strip().lower()
 
-        return WebDavStorage(profile.storage, timeout_s=timeout_s)
-    if backend == "ftp":
-        from .ftp import FtpStorage
+    # For local backend, file-mcp handles path scoping itself via
+    # scope.roots enforcement in the tool layer.  Pass "/" as root so
+    # the platform LocalStorage accepts absolute paths.
+    if backend_name in {"", "local", "filesystem", "fs"}:
+        root_path = "/"
+    else:
+        root_path = ""
 
-        return FtpStorage(profile.storage, timeout_s=timeout_s)
-    if backend in {"google_drive", "gdrive", "drive"}:
-        from .google_drive import GoogleDriveStorage
+    storage_cfg = StorageConfig(
+        backend=backend_name,
+        root_path=root_path,
+        timeout_s=timeout,
+        tls=TlsConfig(
+            insecure_skip_verify=bool(src.tls.insecure_skip_verify) if src.tls else False,
+            ca_bundle_path=str(src.tls.ca_bundle_path or "") if src.tls else "",
+        ),
+        s3=S3Config(
+            endpoint=str(src.s3.endpoint or "") if src.s3 else "",
+            bucket=str(src.s3.bucket or "") if src.s3 else "",
+            region=str(src.s3.region or "") if src.s3 else "",
+            access_key=str(src.s3.access_key or "") if src.s3 else "",
+            secret_key=str(src.s3.secret_key or "") if src.s3 else "",
+            prefix=str(src.s3.prefix or "") if src.s3 else "",
+        ),
+        webdav=WebDavConfig(
+            base_url=str(src.webdav.base_url or "") if src.webdav else "",
+            username=str(src.webdav.username or "") if src.webdav else "",
+            password=str(src.webdav.password or "") if src.webdav else "",
+        ),
+        ftp=FtpConfig(
+            host=str(src.ftp.host or "") if src.ftp else "",
+            port=int(src.ftp.port or 21) if src.ftp else 21,
+            username=str(src.ftp.username or "") if src.ftp else "",
+            password=str(src.ftp.password or "") if src.ftp else "",
+        ),
+        google_drive=GoogleDriveConfig(
+            client_id=str(src.google_drive.client_id or "") if src.google_drive else "",
+            client_secret=str(src.google_drive.client_secret or "") if src.google_drive else "",
+            refresh_token=str(src.google_drive.refresh_token or "") if src.google_drive else "",
+            access_token=str(src.google_drive.access_token or "") if src.google_drive else "",
+            token_uri=str(src.google_drive.token_uri or "") if src.google_drive else "",
+        ),
+    )
 
-        return GoogleDriveStorage(profile.storage, timeout_s=timeout_s)
-    raise ValueError(f"Unknown storage backend: {backend}")
+    return _platform_build(storage_cfg)

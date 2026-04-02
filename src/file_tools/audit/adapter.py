@@ -33,6 +33,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from cloud_dog_storage import path_utils
+
 from cloud_dog_logging.audit_logger import (  # type: ignore[import-untyped]
     AuditLogger as PlatformAuditLogger,
 )
@@ -62,6 +64,8 @@ class AuditEvent:
     session_id: Optional[str] = None
     client_ip: Optional[str] = None
     duration_ms: Optional[float] = None
+    actor_id: Optional[str] = None
+    actor_type: Optional[str] = None
     params: Dict[str, Any] = field(default_factory=dict)
     paths: Dict[str, str] = field(default_factory=dict)
     details: Dict[str, Any] = field(default_factory=dict)
@@ -88,7 +92,7 @@ class _CompatJsonlSink(AuditSink):
     def __init__(self, log_path: Path) -> None:
         """Initialise the instance state."""
         self._log_path = log_path
-        self._log_path.parent.mkdir(parents=True, exist_ok=True)
+        path_utils.mkdir(str(self._log_path.parent))
 
     def emit(self, event: PlatformAuditEvent) -> None:
         """Execute emit."""
@@ -117,8 +121,12 @@ class _CompatJsonlSink(AuditSink):
                 "details": legacy_details,
             }
         )
-        with self._log_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        from cloud_dog_storage.backends.local import LocalStorage as _AuditLocalStorage
+        _audit_storage = _AuditLocalStorage(root_path=self._log_path.parent, min_free_bytes=0)
+        _audit_storage.append_text(
+            self._log_path.name,
+            json.dumps(payload, ensure_ascii=False) + "\n",
+        )
 
     def flush(self) -> None:
         """Execute flush."""
@@ -163,7 +171,10 @@ class AuditLogger:
         platform_event = PlatformAuditEvent(
             timestamp=event.timestamp,
             event_type="tool_call",
-            actor=Actor(type="service", id=event.profile or self._service_name),
+            actor=Actor(
+                type=event.actor_type or "service",
+                id=event.actor_id or event.profile or self._service_name,
+            ),
             action=event.action,
             outcome=_to_outcome(event.outcome or event.status),
             correlation_id=get_correlation_id(),
@@ -197,6 +208,8 @@ def build_event(
     session_id: Optional[str] = None,
     client_ip: Optional[str] = None,
     duration_ms: Optional[float] = None,
+    actor_id: Optional[str] = None,
+    actor_type: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
     paths: Optional[Dict[str, str]] = None,
     details: Optional[Dict[str, Any]] = None,
@@ -211,6 +224,8 @@ def build_event(
         session_id=session_id,
         client_ip=client_ip,
         duration_ms=duration_ms,
+        actor_id=actor_id,
+        actor_type=actor_type,
         params=params or {},
         paths=paths or {},
         details=details or {},

@@ -25,8 +25,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-import shutil
-
+from cloud_dog_storage import path_utils
 from cloud_dog_storage.backends.local import LocalStorage
 
 
@@ -38,20 +37,14 @@ def _snapshot_storage(base_dir: Path) -> LocalStorage:
 def snapshot_path(base_dir: Path, source: Path) -> Path:
     """Execute snapshot path."""
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    relative = source.as_posix().lstrip("/")
+    relative = path_utils.to_posix(str(source)).lstrip("/")
     return base_dir / timestamp / relative
 
 
 def create_snapshot(base_dir: Path, source: Path) -> Path:
-    """Create snapshot.
-
-    N/A — uses shutil.copy2 to preserve source file metadata (timestamps,
-    permissions) when copying from an arbitrary source path into the snapshot
-    tree.  LocalStorage.write_bytes cannot replicate copy2 semantics.
-    """
+    """Create snapshot preserving source file metadata via cloud_dog_storage."""
     target = snapshot_path(base_dir, source)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, target)
+    path_utils.copy_with_metadata(str(source), str(target))
     return target
 
 
@@ -77,41 +70,32 @@ def create_snapshot_bytes(base_dir: Path, logical_path: str, data: bytes) -> Pat
 
 
 def _snapshot_dirs(base_dir: Path) -> list[Path]:
-    """Handle snapshot dirs.
-
-    N/A — iterates timestamp-named directories and parses their names.
-    LocalStorage.list_dir returns StorageEntry objects without exposing the
-    underlying Path needed by the pruning logic, so direct Path iteration is
-    retained.
-    """
-    if not base_dir.exists():
+    """Handle snapshot dirs via cloud_dog_storage path_utils."""
+    if not path_utils.exists(str(base_dir)):
         return []
     entries: list[tuple[datetime, Path]] = []
-    for entry in base_dir.iterdir():
-        if not entry.is_dir():
+    for child_str in path_utils.iter_dir(str(base_dir)):
+        if not path_utils.is_dir(child_str):
             continue
+        child_name = path_utils.name(child_str)
         try:
-            stamp = datetime.strptime(entry.name, "%Y%m%dT%H%M%SZ").replace(
+            stamp = datetime.strptime(child_name, "%Y%m%dT%H%M%SZ").replace(
                 tzinfo=timezone.utc
             )
         except ValueError:
             continue
-        entries.append((stamp, entry))
+        entries.append((stamp, path_utils.as_path(child_str)))
     entries.sort(key=lambda item: item[0], reverse=True)
     return [entry for _, entry in entries]
 
 
 def _dir_size_bytes(path: Path) -> int:
-    """Handle dir size bytes.
-
-    N/A — computes aggregate byte size via os.stat; LocalStorage has no
-    equivalent size-aggregation method.
-    """
+    """Compute aggregate byte size via cloud_dog_storage path_utils."""
     total = 0
-    for item in path.rglob("*"):
-        if item.is_file():
+    for file_str in path_utils.rglob(str(path), "*"):
+        if path_utils.is_file(file_str):
             try:
-                total += item.stat().st_size
+                total += path_utils.file_stat(file_str).st_size
             except OSError:
                 continue
     return total

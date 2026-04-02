@@ -36,6 +36,8 @@ from pathlib import Path
 from os import environ as runtime_env
 from typing import Optional
 
+from cloud_dog_storage import path_utils
+
 import typer
 
 from file_tools.config.adapter import get_profile, load_config
@@ -56,11 +58,11 @@ def _seed_process_env_from_file(env_path: str | None) -> None:
     """Load env-file key/value pairs into process env without overriding existing values."""
     if not env_path:
         return
-    path = Path(env_path).expanduser().resolve()
-    if not path.is_file():
+    resolved = path_utils.resolve_path(env_path)
+    if not path_utils.is_file(resolved):
         return
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    for raw_line in path_utils.read_text(resolved).splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -80,7 +82,7 @@ def _seed_process_env_from_file(env_path: str | None) -> None:
 
 def _default_pidfile() -> Path:
     """Handle default pidfile."""
-    return Path(".run") / "file-mcp-server.pid"
+    return path_utils.as_path(path_utils.join(".run", "file-mcp-server.pid"))
 
 
 def _normalise_server_role(server_role: str) -> str:
@@ -154,26 +156,20 @@ def serve(
     resolved_role = _normalise_server_role(server_role) if server_role else None
     _seed_process_env_from_file(env_path)
     if env_path:
-        runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = str(
-            Path(env_path).expanduser().resolve()
-        )
+        runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = path_utils.resolve_path(env_path)
     else:
         runtime_env["FILE_MCP_ACTIVE_ENV_PATH"] = ""
     if config_path:
-        runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
-            Path(config_path).expanduser().resolve()
-        )
+        runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = path_utils.resolve_path(config_path)
     else:
-        runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = str(
-            (Path.cwd() / "config.yaml").resolve()
+        runtime_env["FILE_MCP_ACTIVE_CONFIG_PATH"] = path_utils.resolve_path(
+            path_utils.join(path_utils.cwd(), "config.yaml")
         )
     if defaults_path:
-        runtime_env["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
-            Path(defaults_path).expanduser().resolve()
-        )
+        runtime_env["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = path_utils.resolve_path(defaults_path)
     else:
-        runtime_env["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = str(
-            (Path.cwd() / "defaults.yaml").resolve()
+        runtime_env["FILE_MCP_ACTIVE_DEFAULTS_PATH"] = path_utils.resolve_path(
+            path_utils.join(path_utils.cwd(), "defaults.yaml")
         )
     runtime_env["FILE_MCP_ACTIVE_PROFILE"] = profile
     runtime_env["FILE_MCP_ACTIVE_SERVER_ROLE"] = resolved_role or "legacy"

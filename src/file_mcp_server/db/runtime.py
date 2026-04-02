@@ -31,6 +31,8 @@ from typing import Any
 from sqlalchemy import Engine
 from sqlalchemy.engine import make_url
 
+from cloud_dog_storage import path_utils
+
 from cloud_dog_db import (
     DatabaseSettings,
     MigrationRunner,
@@ -55,9 +57,9 @@ _RUNTIME: PlatformDatabaseRuntime | None = None
 
 def _project_root() -> Path:
     """Handle project root."""
-    current = Path(__file__).resolve()
+    current = path_utils.as_path(path_utils.resolve_path(__file__))
     for candidate in current.parents:
-        if (candidate / "pyproject.toml").exists():
+        if path_utils.exists(str(candidate / "pyproject.toml")):
             return candidate
     return current.parents[4]
 
@@ -122,15 +124,17 @@ def _sqlite_path(settings: DatabaseSettings) -> Path | None:
         return None
     if not url.database or url.database == ":memory:":
         return None
-    path = Path(url.database)
-    if not path.is_absolute():
-        path = _project_root() / path
+    path_str = url.database
+    if not path_utils.is_absolute(path_str):
+        path = _project_root() / path_str
+    else:
+        path = path_utils.as_path(path_str)
     return path
 
 
 def _migration_script_location() -> str:
     """Handle migration script location."""
-    return str((_project_root() / "database" / "migrations" / "cloud_dog_db").resolve())
+    return path_utils.resolve_path(str(_project_root() / "database" / "migrations" / "cloud_dog_db"))
 
 
 def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntime:
@@ -143,7 +147,7 @@ def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntim
         settings = _settings_from_env()
         sqlite_path = _sqlite_path(settings)
         if sqlite_path is not None:
-            sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+            path_utils.mkdir(str(sqlite_path.parent))
 
         engine = build_sync_engine(settings)
         session_manager = SyncSessionManager(engine)

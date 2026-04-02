@@ -27,6 +27,8 @@ from typing import Iterable
 
 import os
 
+from cloud_dog_storage import path_utils
+
 
 def is_posix_path(path: str | Path) -> bool:
     """Return whether posix path."""
@@ -42,31 +44,26 @@ def is_posix_path(path: str | Path) -> bool:
 
 def normalize_path(path: str | Path) -> Path:
     """Normalise path."""
-    return Path(path).expanduser().resolve()
+    return path_utils.as_path(path_utils.resolve_path(str(path)))
 
 
 def to_posix(path: str | Path) -> str:
     """Execute to posix."""
-    return Path(path).as_posix()
+    return path_utils.to_posix(str(path))
 
 
 def safe_join(root: Path, *parts: str) -> Path:
     """Execute safe join."""
-    candidate = root.joinpath(*parts).resolve()
-    try:
-        if not candidate.is_relative_to(root.resolve()):
-            raise ValueError("Path escapes root")
-    except AttributeError:
-        try:
-            candidate.relative_to(root.resolve())
-        except ValueError as exc:
-            raise ValueError("Path escapes root") from exc
-    return candidate
+    candidate_str = path_utils.resolve_path(str(root.joinpath(*parts)))
+    root_str = path_utils.resolve_path(str(root))
+    if not path_utils.is_relative_to(candidate_str, root_str):
+        raise ValueError("Path escapes root")
+    return path_utils.as_path(candidate_str)
 
 
 def require_relative(path: Path) -> None:
     """Execute require relative."""
-    if path.is_absolute():
+    if path_utils.is_absolute(str(path)):
         raise ValueError("Path must be relative")
 
 

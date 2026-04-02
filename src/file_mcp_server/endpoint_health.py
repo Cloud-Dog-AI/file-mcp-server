@@ -24,11 +24,12 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 import socket
 import threading
 import time
 from typing import Any, Protocol
+
+from cloud_dog_storage import path_utils
 
 from file_tools.adapters import ConnectionError, HTTPError, Timeout
 
@@ -109,7 +110,7 @@ class EndpointHealthManager:
         """Handle probe backend."""
         if backend.backend_name == "local":
             for root in profile.scope.roots:
-                Path(root).resolve(strict=True)
+                path_utils.resolve_strict(root)
             return
         # For remote/object endpoints, a lightweight directory listing/stat is enough
         # to verify connectivity/auth without mutating data.

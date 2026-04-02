@@ -22,10 +22,9 @@ Description: File tools module for diff meld.py.
 
 from __future__ import annotations
 
-from pathlib import Path
 from shutil import which
 from subprocess import Popen
-from typing import Tuple
+from typing import Tuple, Union
 
 
 def meld_available() -> bool:
@@ -33,7 +32,7 @@ def meld_available() -> bool:
     return which("meld") is not None
 
 
-def launch_meld(path_a: Path, path_b: Path) -> Tuple[bool, str]:
+def launch_meld(path_a: Union[str, object], path_b: Union[str, object]) -> Tuple[bool, str]:
     """Execute launch meld."""
     if not meld_available():
         return False, "meld not available"

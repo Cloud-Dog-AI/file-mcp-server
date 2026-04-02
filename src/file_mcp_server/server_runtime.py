@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from contextvars import ContextVar
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Literal, Optional, Protocol, TextIO, cast
 from threading import RLock
@@ -41,13 +42,14 @@ import mimetypes
 import os
 import resource
 import secrets
-import shutil
 import sys
 import time
 import uuid
 from urllib.parse import parse_qs
 import re
 from os import getenv as read_env_var
+
+from cloud_dog_storage import path_utils
 
 from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app, create_health_router  # type: ignore[import-not-found,import-untyped]
@@ -243,6 +245,45 @@ def _build_profile_auth_map(
             profile.auth.header_scheme,
         )
     return profile_auth
+
+
+def _deleted_profile_name(name: str) -> str:
+    """Build a unique tombstone name for soft-deleted profile rows."""
+    base = str(name).strip() or "profile"
+    suffix = f"__deleted_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    max_base_length = max(1, 128 - len(suffix))
+    return f"{base[:max_base_length]}{suffix}"
+
+
+def _merge_active_db_profiles_into_config(
+    config: ServerConfig,
+    *,
+    db_runtime: PlatformDatabaseRuntime | None,
+    logger: LogLike | None = None,
+) -> ServerConfig:
+    """Merge active DB profiles into config with DB rows taking precedence."""
+    if db_runtime is None:
+        return config
+
+    with db_runtime.session_manager.session() as session:
+        rows = session.query(FileStorageProfile).filter_by(is_active=True).all()
+
+    for row in rows:
+        try:
+            raw_config = json.loads(row.config_json) if row.config_json else {}
+        except Exception:
+            raw_config = {}
+        try:
+            profile_config = ProfileConfig.model_validate(raw_config)
+        except Exception:
+            if logger:
+                logger.warning(
+                    "Skipping invalid DB profile config",
+                    profile_name=row.name,
+                )
+            continue
+        config.profiles[row.name] = profile_config
+    return config
 
 
 def _build_response(
@@ -462,16 +503,15 @@ class HealthCheckMiddleware:
         def _a2a_read_file(text: str) -> str:
             """Read a file. Text input is the file path."""
             try:
-                from pathlib import Path as _Path
                 path = text.strip()
                 if not path:
                     return "Error: no file path provided"
-                p = _Path(path).expanduser().resolve()
-                if not p.exists():
+                p = path_utils.resolve_path(path)
+                if not path_utils.exists(p):
                     return f"Error: file not found: {p}"
-                if not p.is_file():
+                if not path_utils.is_file(p):
                     return f"Error: not a file: {p}"
-                content = p.read_text(encoding="utf-8", errors="replace")
+                content = path_utils.read_text(p, errors="replace")
                 if len(content) > 8000:
                     return content[:8000] + f"\n... (truncated, total {len(content)} chars)"
                 return content
@@ -481,7 +521,6 @@ class HealthCheckMiddleware:
         def _a2a_write_file(text: str) -> str:
             """Write to a file. Text format: 'path:content'."""
             try:
-                from pathlib import Path as _Path
                 sep_idx = text.find(":")
                 if sep_idx == -1:
                     return "Error: expected format 'path:content'"
@@ -494,9 +533,9 @@ class HealthCheckMiddleware:
                 content = text[sep_idx + 1:]
                 if not path:
                     return "Error: no file path provided"
-                p = _Path(path).expanduser().resolve()
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(content, encoding="utf-8")
+                p = path_utils.resolve_path(path)
+                path_utils.mkdir(path_utils.parent(p))
+                path_utils.write_text(p, content)
                 return f"Written {len(content)} chars to {p}"
             except Exception as exc:
                 return f"Error writing file: {exc}"
@@ -504,19 +543,19 @@ class HealthCheckMiddleware:
         def _a2a_list_dir(text: str) -> str:
             """List directory contents. Text input is the directory path."""
             try:
-                from pathlib import Path as _Path
                 path = text.strip() or "."
-                p = _Path(path).expanduser().resolve()
-                if not p.exists():
+                p = path_utils.resolve_path(path)
+                if not path_utils.exists(p):
                     return f"Error: path not found: {p}"
-                if not p.is_dir():
+                if not path_utils.is_dir(p):
                     return f"Error: not a directory: {p}"
-                entries = sorted(p.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
+                children = path_utils.iter_dir(p)
+                entries = sorted(children, key=lambda e: (not path_utils.is_dir(e), path_utils.name(e).lower()))
                 lines = []
                 for entry in entries[:100]:
-                    kind = "DIR " if entry.is_dir() else "FILE"
-                    lines.append(f"  {kind}  {entry.name}")
-                header = f"Directory: {p} ({len(list(p.iterdir()))} entries)"
+                    kind = "DIR " if path_utils.is_dir(entry) else "FILE"
+                    lines.append(f"  {kind}  {path_utils.name(entry)}")
+                header = f"Directory: {p} ({len(children)} entries)"
                 return header + "\n" + "\n".join(lines)
             except Exception as exc:
                 return f"Error listing directory: {exc}"
@@ -524,25 +563,19 @@ class HealthCheckMiddleware:
         def _a2a_search_paths(text: str) -> str:
             """Search for files. Text input is a glob or name pattern."""
             try:
-                from pathlib import Path as _Path
-                import fnmatch
                 query = text.strip()
                 if not query:
                     return "Error: no search query provided"
                 # If query contains path separator, use it as base + pattern
                 if "/" in query or "\\" in query:
-                    base = _Path(query).parent.expanduser().resolve()
-                    pattern = _Path(query).name
+                    base = path_utils.resolve_path(path_utils.parent(query))
+                    pattern = path_utils.name(query)
                 else:
-                    base = _Path(".").resolve()
+                    base = path_utils.resolve_path(".")
                     pattern = f"*{query}*"
-                if not base.exists():
+                if not path_utils.exists(base):
                     return f"Error: base path not found: {base}"
-                matches = []
-                for p in base.rglob(pattern):
-                    matches.append(str(p))
-                    if len(matches) >= 50:
-                        break
+                matches = path_utils.rglob(base, pattern)[:50]
                 if not matches:
                     return f"No files matching '{pattern}' in {base}"
                 return f"Found {len(matches)} matches:\n" + "\n".join(f"  {m}" for m in matches)
@@ -585,11 +618,9 @@ class HealthCheckMiddleware:
         self._service_metrics_cache: tuple[float, dict[str, Any]] | None = None
         configured_ui_dist = str(read_env_var("FILE_MCP_UI_DIST_PATH") or "").strip()
         if configured_ui_dist:
-            self.ui_dist_path = Path(configured_ui_dist).expanduser().resolve()
+            self.ui_dist_path = path_utils.as_path(path_utils.resolve_path(configured_ui_dist))
         else:
-            self.ui_dist_path = (
-                Path(__file__).resolve().parents[2] / "ui" / "dist"
-            ).resolve()
+            self.ui_dist_path = path_utils.as_path(path_utils.resolve_path(__file__)).parents[2] / "ui" / "dist"
         self._status_roots = self._resolve_status_roots()
         self._login_access_token = self._resolve_login_access_token()
         self.web_mcp_path = "/webmcp"
@@ -688,10 +719,12 @@ class HealthCheckMiddleware:
                 return []
             roots: list[Path] = []
             for raw_root in profile.scope.roots:
-                resolved = Path(str(raw_root)).expanduser()
-                if not resolved.is_absolute():
-                    resolved = (Path.cwd() / resolved).resolve()
-                roots.append(resolved)
+                expanded = path_utils.expand_user(str(raw_root))
+                if not path_utils.is_absolute(expanded):
+                    expanded = path_utils.resolve_path(
+                        path_utils.join(path_utils.cwd(), expanded)
+                    )
+                roots.append(path_utils.as_path(expanded))
             return roots
         except Exception:
             return []
@@ -700,7 +733,7 @@ class HealthCheckMiddleware:
     def _read_total_memory_bytes() -> int | None:
         """Read host total memory from /proc/meminfo when available."""
         try:
-            for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            for line in path_utils.read_text("/proc/meminfo").splitlines():
                 if not line.startswith("MemTotal:"):
                     continue
                 parts = line.split()
@@ -715,7 +748,7 @@ class HealthCheckMiddleware:
     def _read_rss_bytes() -> int | None:
         """Read process RSS in bytes."""
         try:
-            parts = Path("/proc/self/statm").read_text(encoding="utf-8").split()
+            parts = path_utils.read_text("/proc/self/statm").split()
             if len(parts) >= 2:
                 pages = int(parts[1])
                 page_size = os.sysconf("SC_PAGE_SIZE")
@@ -749,18 +782,18 @@ class HealthCheckMiddleware:
     def _read_disk_percent(self) -> float | None:
         """Read disk utilisation percentage for the first configured scope root."""
         roots = self._status_roots
-        probe_path: Path | None = None
+        probe_path_str: str | None = None
         for root in roots:
-            if root.exists():
-                probe_path = root
+            if path_utils.exists(str(root)):
+                probe_path_str = str(root)
                 break
-        if probe_path is None:
-            probe_path = Path.cwd()
+        if probe_path_str is None:
+            probe_path_str = path_utils.cwd()
         try:
-            usage = shutil.disk_usage(probe_path)
-            if usage.total <= 0:
+            total, used, _free = path_utils.disk_usage(probe_path_str)
+            if total <= 0:
                 return None
-            return (usage.used / usage.total) * 100.0
+            return (used / total) * 100.0
         except Exception:
             return None
 
@@ -769,9 +802,9 @@ class HealthCheckMiddleware:
         """Approximate active connections by counting open socket file descriptors."""
         try:
             total = 0
-            for entry in Path("/proc/self/fd").iterdir():
+            for entry in path_utils.iter_dir("/proc/self/fd"):
                 try:
-                    target = os.readlink(entry)
+                    target = path_utils.read_link(entry)
                 except OSError:
                     continue
                 if target.startswith("socket:["):
@@ -794,18 +827,18 @@ class HealthCheckMiddleware:
         for root in roots:
             if file_count >= max_files:
                 break
-            if not root.exists():
+            if not path_utils.exists(str(root)):
                 continue
-            for current_root, _dirs, files in os.walk(root):
+            for current_root, _dirs, files in path_utils.walk(str(root)):
                 for filename in files:
                     if file_count >= max_files:
                         break
-                    candidate = Path(current_root) / filename
+                    candidate = path_utils.join(current_root, filename)
                     try:
-                        stat = candidate.stat()
+                        stat = path_utils.file_stat(candidate)
                     except OSError:
                         continue
-                    if not candidate.is_file():
+                    if not path_utils.is_file(candidate):
                         continue
                     file_count += 1
                     total_bytes += int(stat.st_size)
@@ -1102,19 +1135,17 @@ class HealthCheckMiddleware:
         if not relative_path:
             return None
 
-        candidate = (self.ui_dist_path / relative_path).resolve()
-        try:
-            candidate.relative_to(self.ui_dist_path)
-        except ValueError:
+        candidate_str = path_utils.resolve_path(str(self.ui_dist_path / relative_path))
+        if not path_utils.is_relative_to(candidate_str, str(self.ui_dist_path)):
             return None
-        if not candidate.is_file():
+        if not path_utils.is_file(candidate_str):
             return None
-        return candidate
+        return path_utils.as_path(candidate_str)
 
     async def _send_file(self, send, *, path: Path, method: str) -> None:
         """Send a file response for GET/HEAD requests."""
-        body = path.read_bytes()
-        content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        body = path_utils.read_bytes(str(path))
+        content_type = mimetypes.guess_type(path_utils.name(str(path)))[0] or "application/octet-stream"
         await send(
             {
                 "type": "http.response.start",
@@ -1149,6 +1180,10 @@ class HealthCheckMiddleware:
         default_browse_path = (
             str(read_env_var("FILE_MCP_UI_DEFAULT_BROWSE_PATH") or "").strip() or "src"
         )
+        profile_store_path = (
+            str(read_env_var("FILE_MCP_UI_PROFILE_STORE_PATH") or "").strip()
+            or "working/ui-file-mcp/storage-profiles.json"
+        )
         mcp_base_url = str(read_env_var("FILE_MCP_UI_MCP_BASE_URL") or "").strip() or "/mcp"
         a2a_base_url = str(read_env_var("FILE_MCP_UI_A2A_BASE_URL") or "").strip() or "/a2a"
         session_timeout = _to_int(
@@ -1166,6 +1201,7 @@ class HealthCheckMiddleware:
             "APP_VERSION": app_version,
             "AUDIT_LOG_PATH": audit_log_path,
             "DEFAULT_BROWSE_PATH": default_browse_path,
+            "PROFILE_STORE_PATH": profile_store_path,
             "PROFILE_API_PATH": "/admin/profiles",
         }
 
@@ -1206,6 +1242,7 @@ class HealthCheckMiddleware:
             f'    "APP_VERSION": {json.dumps(payload.get("APP_VERSION", "0.0.0"))},\n'
             f'    "AUDIT_LOG_PATH": {json.dumps(payload.get("AUDIT_LOG_PATH", ""))},\n'
             f'    "DEFAULT_BROWSE_PATH": {json.dumps(payload.get("DEFAULT_BROWSE_PATH", "src"))},\n'
+            f'    "PROFILE_STORE_PATH": {json.dumps(payload.get("PROFILE_STORE_PATH", ""))},\n'
             f'    "PROFILE_API_PATH": {json.dumps(payload.get("PROFILE_API_PATH", "/admin/profiles"))}\n'
             "  },\n"
             "  window.__RUNTIME_CONFIG__ || {}\n"
@@ -1233,7 +1270,7 @@ class HealthCheckMiddleware:
     async def _serve_spa_index(self, send, *, method: str) -> None:
         """Serve SPA entrypoint from ui/dist."""
         index_path = self._ui_index_path()
-        if not index_path.is_file():
+        if not path_utils.is_file(str(index_path)):
             await self._send_html(
                 send,
                 status=503,
@@ -1365,11 +1402,11 @@ class HealthCheckMiddleware:
 
     def _load_config_document(self) -> dict[str, Any]:
         """Load active config YAML as mutable dictionary."""
-        config_path = Path(self.active_config)
-        if not config_path.exists():
+        config_path_str = self.active_config
+        if not path_utils.exists(config_path_str):
             return {"profiles": {}}
         try:
-            parsed = load_yaml(str(config_path), missing_ok=True)
+            parsed = load_yaml(config_path_str, missing_ok=True)
         except Exception:
             return {"profiles": {}}
         if not isinstance(parsed, dict):
@@ -1380,11 +1417,11 @@ class HealthCheckMiddleware:
 
     def _write_config_document(self, document: dict[str, Any]) -> None:
         """Persist active config YAML document."""
-        config_path = Path(self.active_config)
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(
+        config_path_str = self.active_config
+        path_utils.mkdir(path_utils.parent(config_path_str))
+        path_utils.write_text(
+            config_path_str,
             safe_dump(document, sort_keys=False),
-            encoding="utf-8",
         )
 
     async def _is_a2a_authorized(
@@ -1479,11 +1516,11 @@ class HealthCheckMiddleware:
                 "token_uri": self._configured_value(drive.token_uri),
             }
         except Exception:
-            config_path = Path(self.active_config)
-            if not config_path.exists():
+            config_path_str = self.active_config
+            if not path_utils.exists(config_path_str):
                 return empty_values
             try:
-                parsed = load_yaml(str(config_path), missing_ok=True)
+                parsed = load_yaml(config_path_str, missing_ok=True)
                 profiles = parsed.get("profiles")
                 if not isinstance(profiles, dict):
                     return empty_values
@@ -1534,11 +1571,11 @@ class HealthCheckMiddleware:
 
     def _read_profile_metadata(self) -> dict[str, dict[str, Any]]:
         """Handle read profile metadata."""
-        config_path = Path(self.active_config)
-        if not config_path.exists():
+        config_path_str = self.active_config
+        if not path_utils.exists(config_path_str):
             return {}
         try:
-            parsed = load_yaml(str(config_path), missing_ok=True)
+            parsed = load_yaml(config_path_str, missing_ok=True)
         except Exception:
             return {}
         profiles = parsed.get("profiles")
@@ -2335,6 +2372,14 @@ class HealthCheckMiddleware:
                                 "INTERNAL_ERROR", "database unavailable", status=500
                             )
                         with self.db_runtime.session_manager.session() as session:
+                            stale_rows = (
+                                session.query(FileStorageProfile)
+                                .filter_by(name=profile_name, is_active=False)
+                                .all()
+                            )
+                            for stale_row in stale_rows:
+                                stale_row.name = _deleted_profile_name(profile_name)
+
                             existing = (
                                 session.query(FileStorageProfile)
                                 .filter_by(name=profile_name, is_active=True)
@@ -2346,6 +2391,8 @@ class HealthCheckMiddleware:
                                     f"profile already exists: {profile_name}",
                                     status=409,
                                 )
+                            if stale_rows:
+                                session.commit()
                         profile_body = payload.get("profile")
                         if isinstance(profile_body, dict):
                             profile = self._deep_copy_jsonish(profile_body)
@@ -2520,6 +2567,7 @@ class HealthCheckMiddleware:
                                         f"unknown profile: {profile_name}",
                                         status=404,
                                     )
+                                row.name = _deleted_profile_name(profile_name)
                                 row.is_active = False
                                 session.commit()
                             reload_result = None
@@ -2868,7 +2916,7 @@ class HealthCheckMiddleware:
                 result = callback_fn(
                     state=state,
                     code=code,
-                    config_path=Path(self.active_config),
+                    config_path=path_utils.as_path(path_utils.resolve_path(self.active_config)),
                 )
                 reload_message = "Restart server to apply updated config."
                 if self.admin_apply_on_callback and callable(self.reload_callback):
@@ -3343,7 +3391,7 @@ def _validate_text(
 
 def _infer_content_type(path: str | Path) -> str:
     """Handle infer content type."""
-    suffix = Path(path).suffix.lower() if isinstance(path, str) else path.suffix.lower()
+    suffix = path_utils.suffix(str(path)).lower()
     mapping = {
         ".json": "json",
         ".yaml": "yaml",
@@ -3366,7 +3414,7 @@ def _normalize_optional_path(value: str | None) -> Path | None:
     cleaned = value.strip()
     if not cleaned or "${" in cleaned:
         return None
-    return Path(cleaned)
+    return path_utils.as_path(path_utils.resolve_path(cleaned))
 
 
 def build_tool_registry(
@@ -3418,6 +3466,20 @@ def build_tool_registry(
             if value is None:
                 continue
             text = str(value).strip()
+            if text:
+                return text
+        claims = getattr(token, "claims", None)
+        if isinstance(claims, dict):
+            for key in ("user_id", "subject", "sub", "identity", "principal"):
+                value = claims.get(key)
+                if value is None:
+                    continue
+                text = str(value).strip()
+                if text:
+                    return text
+        client_id = getattr(token, "client_id", None)
+        if client_id is not None:
+            text = str(client_id).strip()
             if text:
                 return text
         return None
@@ -3497,6 +3559,8 @@ def build_tool_registry(
                 session_id=get_request_session_id(),
                 client_ip=get_request_client_ip(),
                 duration_ms=duration_ms,
+                actor_id=_request_user_id(),
+                actor_type="user",
                 params=params or {},
                 paths=paths or {},
                 details={
@@ -3511,10 +3575,9 @@ def build_tool_registry(
         if not snapshots_enabled or not snapshot_dir:
             return None
         if backend.backend_name == "local":
-            p = Path(resolved_path)
-            if not p.exists():
+            if not path_utils.exists(resolved_path):
                 return None
-            snapshot = create_snapshot(snapshot_dir, p)
+            snapshot = create_snapshot(snapshot_dir, path_utils.as_path(resolved_path))
         else:
             stat = backend.stat(resolved_path)
             if stat is None:
@@ -4081,7 +4144,7 @@ def build_tool_registry(
             }
             if backend.backend_name == "local":
                 try:
-                    stat_result = Path(entry.path).stat()
+                    stat_result = path_utils.file_stat(entry.path)
                     detail["size"] = int(stat_result.st_size)
                     detail["modified_at"] = time.strftime(
                         "%Y-%m-%dT%H:%M:%SZ", time.gmtime(stat_result.st_mtime)
@@ -4117,7 +4180,7 @@ def build_tool_registry(
         )
 
         if backend.backend_name == "local":
-            roots = [Path(root).resolve() for root in profile.scope.roots]
+            roots = [path_utils.as_path(path_utils.resolve_path(root)) for root in profile.scope.roots]
             with enforce_timeout(effective_timeout):
                 matches = search_paths(
                     query,
@@ -4133,7 +4196,7 @@ def build_tool_registry(
             for path_obj in matches:
                 try:
                     assert isinstance(policy, ScopePolicy)
-                    policy.require(path_obj.resolve(), operation="read")
+                    policy.require(path_utils.resolve_path(str(path_obj)), operation="read")
                     filtered.append(str(path_obj))
                     if (
                         effective_max_results is not None
@@ -4145,7 +4208,6 @@ def build_tool_registry(
             return {"matches": filtered}
 
         import re
-        from pathlib import PurePosixPath
 
         pattern = re.compile(query) if regex else None
         remote_roots: list[str] = [
@@ -4157,10 +4219,10 @@ def build_tool_registry(
             if max_depth is None:
                 return True
             try:
-                rel = PurePosixPath(candidate).relative_to(PurePosixPath(root))
+                rel_parts = path_utils.relative_parts(candidate, root)
             except Exception:
                 return False
-            return len(rel.parts) <= max_depth
+            return len(rel_parts) <= max_depth
 
         remote_filtered: list[str] = []
         timed_out = False
@@ -4170,7 +4232,7 @@ def build_tool_registry(
                 if (time.monotonic() - started) >= effective_timeout:
                     timed_out = True
                     break
-            if glob and not PurePosixPath(candidate).match(glob):
+            if glob and not path_utils.match_glob(candidate, glob):
                 continue
             if not any(_depth_ok(root, candidate) for root in remote_roots):
                 continue
@@ -4230,7 +4292,7 @@ def build_tool_registry(
         )
 
         if backend.backend_name == "local":
-            roots = [Path(root).resolve() for root in profile.scope.roots]
+            roots = [path_utils.as_path(path_utils.resolve_path(root)) for root in profile.scope.roots]
             with enforce_timeout(effective_timeout):
                 matches = search_content(
                     query,
@@ -4248,7 +4310,7 @@ def build_tool_registry(
             for match in matches:
                 try:
                     assert isinstance(policy, ScopePolicy)
-                    policy.require(match.path.resolve(), operation="read")
+                    policy.require(path_utils.resolve_path(str(match.path)), operation="read")
                     filtered_matches.append(match)
                     if (
                         effective_max_results is not None
@@ -4269,7 +4331,6 @@ def build_tool_registry(
             }
 
         import re
-        from pathlib import PurePosixPath
 
         regex_pattern = re.compile(query) if regex else None
         remote_roots: list[str] = [
@@ -4282,10 +4343,10 @@ def build_tool_registry(
             if max_depth is None:
                 return True
             try:
-                rel = PurePosixPath(candidate).relative_to(PurePosixPath(root))
+                rel_parts = path_utils.relative_parts(candidate, root)
             except Exception:
                 return False
-            return len(rel.parts) <= max_depth
+            return len(rel_parts) <= max_depth
 
         timed_out = False
         started = time.monotonic()
@@ -4294,7 +4355,7 @@ def build_tool_registry(
                 if (time.monotonic() - started) >= effective_timeout:
                     timed_out = True
                     break
-            if glob and not PurePosixPath(candidate).match(glob):
+            if glob and not path_utils.match_glob(candidate, glob):
                 continue
             if not any(_depth_ok(root, candidate) for root in remote_roots):
                 continue
@@ -4644,9 +4705,9 @@ def build_tool_registry(
                     ".html",
                     ".xml",
                 }
-                if Path(
+                if path_utils.suffix(
                     resolved
-                ).suffix.lower() not in text_like_exts or target_format not in {
+                ).lower() not in text_like_exts or target_format not in {
                     "txt",
                     "md",
                 }:
@@ -4688,9 +4749,9 @@ def build_tool_registry(
                 # Conversion backends operate on local filesystem paths. For remote storage,
                 # stage the input into a temporary file and optionally upload the output.
                 if storage_backend.backend_name == "local":
-                    input_path = Path(resolved)
+                    input_path = path_utils.as_path(resolved)
                     output_path_local = (
-                        Path(resolved_output) if resolved_output else None
+                        path_utils.as_path(resolved_output) if resolved_output else None
                     )
                     result = run_convert_file(
                         input_path,
@@ -4703,11 +4764,11 @@ def build_tool_registry(
                 else:
                     import tempfile
 
-                    suffix = Path(resolved).suffix or ""
+                    ext = path_utils.suffix(resolved) or ""
                     with tempfile.TemporaryDirectory() as td:
-                        in_path = Path(td) / f"input{suffix}"
-                        in_path.write_bytes(storage_backend.read_bytes(resolved))
-                        out_path = Path(td) / f"output.{target_format}"
+                        in_path = path_utils.as_path(path_utils.join(td, f"input{ext}"))
+                        path_utils.write_bytes(str(in_path), storage_backend.read_bytes(resolved))
+                        out_path = path_utils.as_path(path_utils.join(td, f"output.{target_format}"))
                         result = run_convert_file(
                             in_path,
                             target_format,
@@ -4719,7 +4780,7 @@ def build_tool_registry(
                         if resolved_output and result.output_path:
                             storage_backend.write_bytes(
                                 resolved_output,
-                                Path(result.output_path).read_bytes(),
+                                path_utils.read_bytes(str(result.output_path)),
                                 overwrite=True,
                             )
             payload: Dict[str, Any] = {
@@ -4744,7 +4805,7 @@ def build_tool_registry(
         except ConversionError as exc:
             # Deterministic built-in fallback for text-like sources when external backends are unavailable.
             text_like_exts = {".txt", ".md", ".json", ".yaml", ".yml", ".html", ".xml"}
-            if Path(resolved).suffix.lower() in text_like_exts and target_format in {
+            if path_utils.suffix(resolved).lower() in text_like_exts and target_format in {
                 "txt",
                 "md",
             }:
@@ -4787,7 +4848,7 @@ def build_tool_registry(
         resolved_b = _resolve_path(policy, path_b, operation="read")
         if backend.backend_name != "local":
             raise NotSupportedError("meld_files", backend=backend.backend_name)
-        ok, message = launch_meld(Path(resolved_a), Path(resolved_b))
+        ok, message = launch_meld(resolved_a, resolved_b)
         return {
             "ok": ok,
             "path_a": str(resolved_a),
@@ -5022,7 +5083,7 @@ def build_tool_registry(
                 },
             )
 
-        suffix = Path(resolved).suffix.lower()
+        suffix = path_utils.suffix(resolved).lower()
         content_type = (
             "markdown"
             if suffix == ".md"
@@ -6068,6 +6129,7 @@ def build_fastmcp_server(
     config: ServerConfig,
     http: HttpRuntimeSettings,
     *,
+    db_runtime: PlatformDatabaseRuntime | None = None,
     logger: LogLike | None = None,
     admin_identity_service: AdminIdentityService | None = None,
     jobs_runtime_factory: Callable[
@@ -6175,6 +6237,11 @@ def build_fastmcp_server(
         cfg = load_config(
             env_path=env_path, config_path=config_path, defaults_path=defaults_path
         )
+        cfg = _merge_active_db_profiles_into_config(
+            cfg,
+            db_runtime=db_runtime,
+            logger=logger,
+        )
         with registry_lock:
             for runtime in jobs_runtime_by_profile.values():
                 if runtime is not None:
@@ -6280,27 +6347,11 @@ async def run_fastmcp_http_server(
                 )
 
     # --- Phase 4: Load DB profiles and merge (DB takes precedence) ---
-    with db_runtime.session_manager.session() as _load_session:
-        _db_rows = (
-            _load_session.query(FileStorageProfile)
-            .filter_by(is_active=True)
-            .all()
-        )
-        for _db_row in _db_rows:
-            try:
-                _db_cfg_dict = json.loads(_db_row.config_json) if _db_row.config_json else {}
-            except Exception:
-                _db_cfg_dict = {}
-            try:
-                _db_profile_cfg = ProfileConfig.model_validate(_db_cfg_dict)
-            except Exception:
-                if logger:
-                    logger.warning(
-                        "Skipping invalid DB profile config",
-                        profile_name=_db_row.name,
-                    )
-                continue
-            config.profiles[_db_row.name] = _db_profile_cfg
+    config = _merge_active_db_profiles_into_config(
+        config,
+        db_runtime=db_runtime,
+        logger=logger,
+    )
 
     # Ensure the default profile exists after merge
     if default_profile_name not in config.profiles:
@@ -6334,6 +6385,7 @@ async def run_fastmcp_http_server(
         default_profile_name,
         config,
         http,
+        db_runtime=db_runtime,
         logger=logger,
         admin_identity_service=admin_identity_service,
         jobs_runtime_factory=(
