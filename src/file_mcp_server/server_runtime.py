@@ -2328,9 +2328,12 @@ class HealthCheckMiddleware:
             auth_info, selected_profile = await self._authenticate_request(
                 scope=scope, headers=headers
             )
+            # Also accept cookie-based web UI sessions for admin identity routes
+            cookie_session = self._get_session_from_cookie(headers)
+            cookie_admin = cookie_session is not None and cookie_session.get("role") == "admin"
             scopes = self._token_scopes(auth_info)
             token_admin = self._has_admin_scope(scopes)
-            is_authenticated = ui_admin or auth_info is not None
+            is_authenticated = ui_admin or cookie_admin or auth_info is not None
             if not is_authenticated:
                 await self._send_api_error(
                     send,
@@ -2339,7 +2342,7 @@ class HealthCheckMiddleware:
                     message="Unauthorised",
                 )
                 return
-            if method != "GET" and not (ui_admin or token_admin):
+            if method != "GET" and not (ui_admin or cookie_admin or token_admin):
                 await self._send_api_error(
                     send,
                     status=403,
