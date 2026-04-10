@@ -59,6 +59,29 @@ def test_audit_logger_writes(tmp_path: Path) -> None:
     assert "write_file" in content
 
 
+def test_audit_logger_uses_explicit_actor_identity(tmp_path: Path) -> None:
+    log_path = tmp_path / "audit.log"
+    snapshot_dir = tmp_path / "snapshots"
+    profile = _build_profile(tmp_path, log_path=log_path, snapshot_dir=snapshot_dir)
+    logger = AuditLogger(Path(profile.audit.log_path))
+    event = build_event(
+        tool="read",
+        action="read_file",
+        status="ok",
+        profile="default",
+        actor_id="user-123",
+        actor_type="user",
+        client_ip="127.0.0.1",
+    )
+
+    logger.write(event)
+
+    content = log_path.read_text(encoding="utf-8")
+    assert '"id": "user-123"' in content
+    assert '"type": "user"' in content
+    assert '"ip": "127.0.0.1"' in content
+
+
 def test_create_snapshot(tmp_path: Path) -> None:
     source = tmp_path / "source.txt"
     source.write_text("data")

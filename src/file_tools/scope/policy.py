@@ -53,7 +53,16 @@ class ScopePolicy:
 
     def normalize(self, path: str) -> str:
         """Execute normalize."""
-        return path_utils.resolve_path(str(path))
+        raw = str(path or "").strip()
+        if not raw or raw == ".":
+            if self.roots:
+                return self.roots[0]
+            return path_utils.resolve_path(".")
+        if path_utils.is_absolute(raw):
+            return path_utils.resolve_path(raw)
+        if self.roots:
+            return path_utils.resolve_path(path_utils.join(self.roots[0], raw))
+        return path_utils.resolve_path(raw)
 
     def _is_within_roots(self, path: str) -> bool:
         """Handle is within roots."""

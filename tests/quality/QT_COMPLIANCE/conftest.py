@@ -82,7 +82,7 @@ def allowlist() -> dict[str, object]:
         },
         # IDAM adapter exposes verify_token methods as integration point to cloud_dog_idam.
         "bespoke_auth_allowlist": {
-            "src/file_mcp_server/idam_adapter.py",
+            "src/file_mcp_server/auth.py",
             "src/file_mcp_server/server_runtime.py",
         },
         # Traceability is enforced without missing-test/missing-code waivers.

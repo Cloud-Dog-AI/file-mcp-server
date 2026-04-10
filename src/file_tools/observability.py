@@ -27,6 +27,8 @@ Recent Change History:
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 from cloud_dog_logging import (  # type: ignore[import-untyped]
@@ -48,6 +50,19 @@ def _clean_path(value: str | None) -> str | None:
     return cleaned
 
 
+def _apply_log_permissions(path_value: str | None, mode: int) -> None:
+    """Normalize created log file permissions for compliance checks."""
+    if not path_value:
+        return
+    try:
+        log_path = Path(path_value)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.touch(exist_ok=True)
+        log_path.chmod(mode)
+    except OSError:
+        return
+
+
 def _coerce_profile(
     config: ObservabilityConfig | ProfileConfig,
 ) -> tuple[ObservabilityConfig, str | None, str | None]:
@@ -67,22 +82,31 @@ def configure_operational_logger(
     name: str = "file_mcp_server",
     service_name: str = "file-mcp-server",
     server_id: str | None = None,
+    app_log_path: str | None = None,
+    environment: str | None = None,
 ) -> AppLogger:
     """Configure cloud_dog_logging from already-loaded profile settings."""
     observability, audit_path, profile_server_id = _coerce_profile(config)
-    app_path = _clean_path(observability.log_path)
+    app_path = _clean_path(app_log_path) or _clean_path(observability.log_path)
     enabled = observability.enabled is not False
     level = (observability.level or "INFO").strip().upper() or "INFO"
     resolved_server_id = (
         _clean_path(server_id) or profile_server_id or f"{service_name}-local"
     )
+    resolved_environment = (
+        _clean_path(environment)
+        or _clean_path(os.getenv("CLOUD_DOG_ENVIRONMENT"))
+        or "dev"
+    )
 
     payload: dict[str, Any] = {
         "service_name": service_name,
+        "environment": resolved_environment,
         "service_instance": resolved_server_id,
         "log": {
             "level": level,
             "format": "json",
+            "environment": resolved_environment,
             "service_instance": resolved_server_id,
             "app_log": app_path if enabled else None,
             "audit_log": audit_path,
@@ -91,4 +115,6 @@ def configure_operational_logger(
         },
     }
     setup_logging(payload)
+    if enabled:
+        _apply_log_permissions(app_path, 0o644)
     return get_logger(name)

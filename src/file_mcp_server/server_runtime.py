@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Literal, Optional, Protocol, TextIO, cast
+from typing import Any, Callable, Dict, Optional, Protocol, TextIO
 from threading import RLock
 from html import escape
 from types import SimpleNamespace
@@ -39,6 +39,7 @@ from types import SimpleNamespace
 import inspect
 import json
 import mimetypes
+import uvicorn
 import os
 import resource
 import secrets
@@ -51,9 +52,9 @@ from os import getenv as read_env_var
 
 from cloud_dog_storage import path_utils
 
-from fastmcp import FastMCP
 from cloud_dog_api_kit import create_app as create_api_kit_app, create_health_router  # type: ignore[import-not-found,import-untyped]
-from cloud_dog_api_kit.a2a.card import create_a2a_card_router, A2ASkill
+from cloud_dog_api_kit.a2a.card import A2ASkill
+from cloud_dog_api_kit.web.proxy import WebApiProxy
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
 from cloud_dog_logging import get_logger  # type: ignore[import-untyped]
@@ -125,11 +126,10 @@ from file_tools.convert import (
 from file_tools.limits import LimitError, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
 from file_tools.adapters.yaml_codec import safe_dump
-from starlette.middleware import Middleware
 from starlette.requests import HTTPConnection
 from mcp.server.auth.middleware.auth_context import get_access_token
 
-from .idam_adapter import MultiProfileApiKeyTokenVerifier, get_request_profile_name, set_request_profile_name
+from .auth import MultiProfileApiKeyTokenVerifier, get_request_profile_name, set_request_profile_name
 from .endpoint_health import ENDPOINT_HEALTH_MANAGER
 from .db import (
     PlatformDatabaseRuntime,
@@ -255,6 +255,78 @@ def _deleted_profile_name(name: str) -> str:
     return f"{base[:max_base_length]}{suffix}"
 
 
+def _profile_config_to_mapping(
+    profile: ProfileConfig | dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Convert a profile model into a JSON-serialisable mapping."""
+    if profile is None:
+        return {}
+    if isinstance(profile, dict):
+        return json.loads(json.dumps(profile))
+    try:
+        payload = profile.model_dump(mode="json", exclude_none=True)
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _normalise_profile_mapping(
+    profile: dict[str, Any] | None,
+    *,
+    fallback_profile: ProfileConfig | dict[str, Any] | None = None,
+    default_profile: ProfileConfig | dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Fill required auth fields from the profile/default fallback configuration."""
+    normalized = json.loads(json.dumps(profile if isinstance(profile, dict) else {}))
+    auth = normalized.get("auth")
+    if not isinstance(auth, dict):
+        auth = {}
+
+    fallback_auth_sources: list[dict[str, Any]] = []
+    for source in (fallback_profile, default_profile):
+        source_mapping = _profile_config_to_mapping(source)
+        source_auth = source_mapping.get("auth")
+        if isinstance(source_auth, dict):
+            fallback_auth_sources.append(source_auth)
+
+    api_keys = [str(item).strip() for item in (auth.get("api_keys") or []) if str(item).strip()]
+    if not api_keys:
+        for source_auth in fallback_auth_sources:
+            candidate_keys = [
+                str(item).strip()
+                for item in (source_auth.get("api_keys") or [])
+                if str(item).strip()
+            ]
+            if candidate_keys:
+                api_keys = candidate_keys
+                break
+
+    header_name = str(auth.get("header_name") or "").strip()
+    if not header_name:
+        for source_auth in fallback_auth_sources:
+            candidate = str(source_auth.get("header_name") or "").strip()
+            if candidate:
+                header_name = candidate
+                break
+
+    header_scheme = str(auth.get("header_scheme") or "").strip()
+    if not header_scheme:
+        for source_auth in fallback_auth_sources:
+            candidate = str(source_auth.get("header_scheme") or "").strip()
+            if candidate:
+                header_scheme = candidate
+                break
+
+    merged_auth = json.loads(json.dumps(auth))
+    merged_auth["api_keys"] = api_keys
+    if header_name:
+        merged_auth["header_name"] = header_name
+    if header_scheme:
+        merged_auth["header_scheme"] = header_scheme
+    normalized["auth"] = merged_auth
+    return normalized
+
+
 def _merge_active_db_profiles_into_config(
     config: ServerConfig,
     *,
@@ -267,22 +339,35 @@ def _merge_active_db_profiles_into_config(
 
     with db_runtime.session_manager.session() as session:
         rows = session.query(FileStorageProfile).filter_by(is_active=True).all()
+        updated_rows = False
+        default_profile = config.profiles.get("default")
 
-    for row in rows:
-        try:
-            raw_config = json.loads(row.config_json) if row.config_json else {}
-        except Exception:
-            raw_config = {}
-        try:
-            profile_config = ProfileConfig.model_validate(raw_config)
-        except Exception:
-            if logger:
-                logger.warning(
-                    "Skipping invalid DB profile config",
-                    profile_name=row.name,
-                )
-            continue
-        config.profiles[row.name] = profile_config
+        for row in rows:
+            try:
+                raw_config = json.loads(row.config_json) if row.config_json else {}
+            except Exception:
+                raw_config = {}
+            normalized_config = _normalise_profile_mapping(
+                raw_config,
+                fallback_profile=config.profiles.get(row.name),
+                default_profile=default_profile,
+            )
+            if normalized_config != raw_config:
+                row.config_json = json.dumps(normalized_config)
+                updated_rows = True
+            try:
+                profile_config = ProfileConfig.model_validate(normalized_config)
+            except Exception:
+                if logger:
+                    logger.warning(
+                        "Skipping invalid DB profile config",
+                        profile_name=row.name,
+                    )
+                continue
+            config.profiles[row.name] = profile_config
+
+        if updated_rows:
+            session.commit()
     return config
 
 
@@ -445,6 +530,7 @@ class HealthCheckMiddleware:
         health_path: str,
         profile_name: str,
         transport: str,
+        config: ServerConfig | None = None,
         reload_callback=None,
         registry_provider=None,
         mcp_path: str = "/mcp",
@@ -460,11 +546,16 @@ class HealthCheckMiddleware:
         self.health_path = health_path
         self.profile_name = profile_name
         self.transport = transport
+        self.config = config
         self.reload_callback = reload_callback
         self.registry_provider = registry_provider
         self.mcp_path = _normalize_path(mcp_path, default="/mcp")
         self.a2a_auth_verifier = a2a_auth_verifier
         self.db_runtime = db_runtime
+        self.server_role = (
+            str(read_env_var("FILE_MCP_ACTIVE_SERVER_ROLE") or "legacy").strip().lower()
+            or "legacy"
+        )
         # Session store for cookie-based WebUI login.
         self._sessions: dict[str, dict] = {}
         self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"
@@ -478,7 +569,7 @@ class HealthCheckMiddleware:
         self.a2a_health_path = _join_paths(self.a2a_base_path, "/health")
         self.logger = get_logger("file_mcp_server.admin")
         self.app_name = "file-mcp-server"
-        self.version = str(read_env_var("FILE_MCP_VERSION") or "0.0.0").strip() or "0.0.0"
+        self.version = str(read_env_var("FILE_MCP_VERSION") or "").strip() or self._read_pyproject_version() or "0.0.0"
         self.env_file = str(read_env_var("FILE_MCP_ACTIVE_ENV_PATH") or "") or None
         self.active_config = str(
             read_env_var("FILE_MCP_ACTIVE_CONFIG_PATH") or "config.yaml"
@@ -498,105 +589,103 @@ class HealthCheckMiddleware:
             read_env_var("FILE_MCP_ADMIN_APPLY_ON_CALLBACK"), default=True
         )
 
-        # --- A2A skill handlers (real file system logic) ---
+        # --- A2A skill handlers (W28A-742 — three catalogue skills) ---
 
-        def _a2a_read_file(text: str) -> str:
-            """Read a file. Text input is the file path."""
+        def _a2a_file_management(text: str) -> str:
+            """Dispatch MCP tools via JSON: {\"tool\":\"list_files\",\"arguments\":{}}."""
             try:
-                path = text.strip()
-                if not path:
-                    return "Error: no file path provided"
-                p = path_utils.resolve_path(path)
-                if not path_utils.exists(p):
-                    return f"Error: file not found: {p}"
-                if not path_utils.is_file(p):
-                    return f"Error: not a file: {p}"
-                content = path_utils.read_text(p, errors="replace")
-                if len(content) > 8000:
-                    return content[:8000] + f"\n... (truncated, total {len(content)} chars)"
-                return content
+                raw = text.strip()
+                if not raw:
+                    return (
+                        "Provide JSON: {\"tool\":\"TOOL_NAME\",\"arguments\":{...}} "
+                        "for any registered MCP tool (e.g. list_files, create_file)."
+                    )
+                payload = json.loads(raw) if raw.startswith("{") else {}
             except Exception as exc:
-                return f"Error reading file: {exc}"
-
-        def _a2a_write_file(text: str) -> str:
-            """Write to a file. Text format: 'path:content'."""
+                return f"Invalid JSON: {exc}"
+            if not isinstance(payload, dict):
+                return "Payload must be a JSON object"
+            tool = str(payload.get("tool") or "").strip()
+            args = payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {}
+            if not tool:
+                return "Missing \"tool\" in JSON payload"
+            if not callable(self.registry_provider):
+                return "Error: tool registry unavailable"
             try:
-                sep_idx = text.find(":")
-                if sep_idx == -1:
-                    return "Error: expected format 'path:content'"
-                # Handle Windows drive letters like C:\path
-                if sep_idx == 1 and text[0].isalpha() and len(text) > 2 and text[2] in ("/", "\\"):
-                    sep_idx = text.find(":", 2)
-                    if sep_idx == -1:
-                        return "Error: expected format 'path:content'"
-                path = text[:sep_idx].strip()
-                content = text[sep_idx + 1:]
-                if not path:
-                    return "Error: no file path provided"
-                p = path_utils.resolve_path(path)
-                path_utils.mkdir(path_utils.parent(p))
-                path_utils.write_text(p, content)
-                return f"Written {len(content)} chars to {p}"
+                reg = self.registry_provider()
+                result = reg.get(tool).handler(**args)
+                return json.dumps(result, default=str)[:24000]
             except Exception as exc:
-                return f"Error writing file: {exc}"
+                return f"Error: {exc}"
 
-        def _a2a_list_dir(text: str) -> str:
-            """List directory contents. Text input is the directory path."""
+        def _a2a_file_search(text: str) -> str:
+            """Run search_files — JSON {\"query\":\"...\",\"path\":\".\"} or plain query string."""
+            if not callable(self.registry_provider):
+                return "Error: tool registry unavailable"
             try:
-                path = text.strip() or "."
-                p = path_utils.resolve_path(path)
-                if not path_utils.exists(p):
-                    return f"Error: path not found: {p}"
-                if not path_utils.is_dir(p):
-                    return f"Error: not a directory: {p}"
-                children = path_utils.iter_dir(p)
-                entries = sorted(children, key=lambda e: (not path_utils.is_dir(e), path_utils.name(e).lower()))
-                lines = []
-                for entry in entries[:100]:
-                    kind = "DIR " if path_utils.is_dir(entry) else "FILE"
-                    lines.append(f"  {kind}  {path_utils.name(entry)}")
-                header = f"Directory: {p} ({len(children)} entries)"
-                return header + "\n" + "\n".join(lines)
-            except Exception as exc:
-                return f"Error listing directory: {exc}"
-
-        def _a2a_search_paths(text: str) -> str:
-            """Search for files. Text input is a glob or name pattern."""
-            try:
-                query = text.strip()
-                if not query:
-                    return "Error: no search query provided"
-                # If query contains path separator, use it as base + pattern
-                if "/" in query or "\\" in query:
-                    base = path_utils.resolve_path(path_utils.parent(query))
-                    pattern = path_utils.name(query)
+                raw = text.strip()
+                if raw.startswith("{"):
+                    payload = json.loads(raw)
+                    q = str(payload.get("query") or "")
                 else:
-                    base = path_utils.resolve_path(".")
-                    pattern = f"*{query}*"
-                if not path_utils.exists(base):
-                    return f"Error: base path not found: {base}"
-                matches = path_utils.rglob(base, pattern)[:50]
-                if not matches:
-                    return f"No files matching '{pattern}' in {base}"
-                return f"Found {len(matches)} matches:\n" + "\n".join(f"  {m}" for m in matches)
+                    q = raw
+                if not q:
+                    return "Missing search query"
+                reg = self.registry_provider()
+                result = reg.get("search_paths").handler(query=q)
+                return json.dumps(result, default=str)[:24000]
             except Exception as exc:
-                return f"Error searching: {exc}"
+                return f"Error: {exc}"
+
+        def _a2a_gdrive_sync(text: str) -> str:
+            """Google Drive tools — JSON {\"tool\":\"gdrive_list\",\"arguments\":{}}."""
+            try:
+                raw = text.strip()
+                payload = json.loads(raw) if raw.startswith("{") else {}
+            except Exception as exc:
+                return f"Invalid JSON: {exc}"
+            if not isinstance(payload, dict):
+                return "Payload must be JSON object"
+            tool = str(payload.get("tool") or "gdrive_list").strip()
+            args = payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {}
+            if not callable(self.registry_provider):
+                return "Error: tool registry unavailable"
+            try:
+                reg = self.registry_provider()
+                result = reg.get(tool).handler(**args)
+                return json.dumps(result, default=str)[:24000]
+            except Exception as exc:
+                return f"Error: {exc}"
 
         # A2A agent card and task submission
         self._a2a_skills = [
-            A2ASkill(id="write_file", name="Write File", description="Write content to a file", handler=_a2a_write_file),
-            A2ASkill(id="read_file", name="Read File", description="Read content from a file", handler=_a2a_read_file),
-            A2ASkill(id="search_paths", name="Search Paths", description="Search for files matching a pattern", handler=_a2a_search_paths),
-            A2ASkill(id="list_dir", name="List Dir", description="List directory contents", handler=_a2a_list_dir),
+            A2ASkill(
+                id="file-management",
+                name="file-management",
+                description="Create, read, update, delete files and directories",
+                handler=_a2a_file_management,
+            ),
+            A2ASkill(
+                id="file-search",
+                name="file-search",
+                description="Search for files by name, content, or metadata",
+                handler=_a2a_file_search,
+            ),
+            A2ASkill(
+                id="gdrive-sync",
+                name="gdrive-sync",
+                description="Upload/download files from Google Drive",
+                handler=_a2a_gdrive_sync,
+            ),
         ]
         self._a2a_card = {
             "name": "file-mcp",
-            "description": "File MCP A2A server for file system operations",
+            "description": "File management and Google Drive integration agent",
             "url": "",
             "version": "1.0.0",
             "capabilities": {"streaming": False, "pushNotifications": False},
             "skills": [
-                {"id": s.id, "name": s.name, "description": s.description}
+                {"name": s.name, "description": s.description}
                 for s in self._a2a_skills
             ],
         }
@@ -612,6 +701,7 @@ class HealthCheckMiddleware:
         self.ui_base_path = _normalize_path(
             read_env_var("FILE_MCP_UI_BASE_PATH"), default="/ui"
         )
+        self.api_proxy = self._build_web_api_proxy()
         self._started_at = time.time()
         self._cpu_last_wall = time.monotonic()
         self._cpu_last_process = time.process_time()
@@ -624,6 +714,23 @@ class HealthCheckMiddleware:
         self._status_roots = self._resolve_status_roots()
         self._login_access_token = self._resolve_login_access_token()
         self.web_mcp_path = "/webmcp"
+
+    @staticmethod
+    def _read_pyproject_version() -> str:
+        """Read version from pyproject.toml if available."""
+        try:
+            import tomllib
+        except ModuleNotFoundError:
+            try:
+                import tomli as tomllib  # type: ignore[no-redef]
+            except ModuleNotFoundError:
+                return ""
+        try:
+            pyproject = path_utils.as_path(path_utils.resolve_path(__file__)).parents[2] / "pyproject.toml"
+            data = tomllib.loads(path_utils.read_text(str(pyproject)))
+            return str(data.get("project", {}).get("version", ""))
+        except Exception:
+            return ""
 
     def _resolve_login_access_token(self) -> str:
         """Resolve the login bootstrap access token from active profile config."""
@@ -650,6 +757,171 @@ class HealthCheckMiddleware:
         except Exception:
             return ""
         return ""
+
+    def _build_web_api_proxy(self) -> WebApiProxy | None:
+        """Build the standard web→API proxy for the dedicated web role."""
+        if self.server_role != "web" or self.config is None:
+            return None
+        api_server = getattr(self.config, "api_server", None)
+        if api_server is None:
+            return None
+        api_host = str(getattr(api_server, "host", "") or "127.0.0.1").strip()
+        if api_host in {"", "0.0.0.0", "::"}:
+            api_host = "127.0.0.1"
+        api_port = _to_int(getattr(api_server, "port", None), default=8060)
+
+        class _ProxyConfigAdapter:
+            def __init__(self, values: dict[str, Any]) -> None:
+                self._values = values
+
+            def get(self, key: str, default: Any = None) -> Any:
+                return self._values.get(key, default)
+
+        return WebApiProxy.from_config(
+            _ProxyConfigAdapter(
+                {
+                    "web_server.api_base_url": f"http://{api_host}:{api_port}",
+                    "api_server.base_url": f"http://{api_host}:{api_port}",
+                    "api_server.api_key": "",
+                    "api_server.api_key_header": "X-API-Key",
+                    "web_server.verify_tls": True,
+                    "web_server.proxy_timeout": 180.0,
+                }
+            )
+        )
+
+    @staticmethod
+    def _proxy_candidate_headers(headers: dict[str, str]) -> dict[str, str]:
+        """Select inbound headers that must be forwarded to the API role."""
+        allowed = {
+            "accept",
+            "authorization",
+            "content-type",
+            "x-admin-token",
+            "x-file-mcp-profile",
+            "x-correlation-id",
+            "x-request-id",
+        }
+        return {name: value for name, value in headers.items() if name in allowed and value}
+
+    def _should_proxy_web_request(self, *, path: str, method: str, accept: str) -> bool:
+        """Return True when the dedicated web role should proxy to the API role."""
+        if self.api_proxy is None:
+            return False
+        if path in {self.health_path, "/health", "/status", self._ready_path(), self._live_path()}:
+            return False
+        if method in {"GET", "HEAD"} and path.startswith("/admin/"):
+            if "text/html" in accept and "application/json" not in accept:
+                return False
+        return (
+            path == "/api"
+            or path.startswith("/api/")
+            or path == self.mcp_path
+            or path.startswith(f"{self.mcp_path.rstrip('/')}/")
+            or path == self.web_mcp_path
+            or path.startswith(f"{self.web_mcp_path.rstrip('/')}/")
+            or path.startswith("/auth/")
+            or path.startswith("/admin/")
+            or path == "/api/v1/jobs"
+            or path.startswith("/api/v1/jobs/")
+            or path == "/v1/jobs"
+            or path.startswith("/v1/jobs/")
+        )
+
+    async def _send_proxy_response(self, send, *, status: int, data: Any, headers: dict[str, str]) -> None:
+        """Write a proxied API response back to the caller."""
+        lowered = {str(name).lower(): str(value) for name, value in headers.items()}
+        if isinstance(data, bytes):
+            body = data
+            content_type = lowered.get("content-type", "application/octet-stream")
+        elif isinstance(data, str):
+            body = data.encode("utf-8")
+            content_type = lowered.get("content-type", "text/plain; charset=utf-8")
+        else:
+            body = json.dumps(data if data is not None else {}).encode("utf-8")
+            content_type = lowered.get("content-type", "application/json")
+        response_headers = [
+            (b"content-type", content_type.encode("utf-8")),
+            (b"content-length", str(len(body)).encode("utf-8")),
+        ]
+        for header_name in ("set-cookie", "location", "cache-control"):
+            header_value = lowered.get(header_name, "")
+            if header_value:
+                response_headers.append(
+                    (header_name.encode("utf-8"), header_value.encode("utf-8"))
+                )
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": response_headers,
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+    async def _maybe_proxy_web_request(
+        self,
+        *,
+        scope: dict[str, Any],
+        receive,
+        send,
+        headers: dict[str, str],
+        path: str,
+        method: str,
+        accept: str,
+    ) -> bool:
+        """Proxy web-tier API/auth/MCP routes to the API role."""
+        if scope.get("type") != "http" or not self._should_proxy_web_request(
+            path=path, method=method, accept=accept
+        ):
+            return False
+
+        upstream_path = path
+        if upstream_path == "/api":
+            upstream_path = "/"
+        elif upstream_path.startswith("/api/"):
+            upstream_path = upstream_path[4:] or "/"
+
+        request_json: Any = None
+        if method not in {"GET", "HEAD"}:
+            raw_body = await self._read_http_body(receive)
+            if raw_body:
+                try:
+                    request_json = json.loads(raw_body.decode("utf-8"))
+                except Exception as exc:
+                    await self._send_api_error(
+                        send,
+                        status=400,
+                        code="VALIDATION_ERROR",
+                        message=f"invalid JSON body: {exc}",
+                    )
+                    return True
+
+        query_string = scope.get("query_string", b"")
+        params: dict[str, Any] | None = None
+        if query_string:
+            parsed_query = parse_qs(query_string.decode("utf-8"))
+            params = {
+                key: values[0] if len(values) == 1 else values
+                for key, values in parsed_query.items()
+            }
+
+        cookies = dict(HTTPConnection(scope).cookies)
+        response = await self.api_proxy.request(
+            method,
+            upstream_path,
+            json=request_json,
+            params=params,
+            headers=self._proxy_candidate_headers(headers),
+            cookies=cookies or None,
+        )
+        await self._send_proxy_response(
+            send,
+            status=response.status_code,
+            data=response.data if response.data is not None else {"error": response.error or "proxy error"},
+            headers=response.headers,
+        )
+        return True
 
     def _ready_path(self) -> str:
         """Handle ready path."""
@@ -878,6 +1150,21 @@ class HealthCheckMiddleware:
             "service_metrics": self._compute_service_metrics(),
         }
 
+    def _health_response_payload(self) -> dict[str, Any]:
+        """Build the JSON payload used by the health endpoint and settings UI."""
+        readiness, checks = self._dependency_checks()
+        return {
+            "status": "ok",
+            "checks": checks,
+            "version": self.version,
+            "service": "file-mcp-server",
+            "application": {"name": self.app_name},
+            "runtime": {"env_file": self.env_file},
+            "profile": self.profile_name,
+            "transport": self.transport,
+            "readiness": readiness,
+        }
+
     def _list_tools_payload(self) -> dict[str, Any]:
         """Handle list tools payload."""
         if not callable(self.registry_provider):
@@ -944,13 +1231,86 @@ class HealthCheckMiddleware:
         await send({"type": "http.response.body", "body": resp_body})
         return True
 
-    async def _handle_auth_me(self, send, headers: dict[str, str]) -> bool:
+    @staticmethod
+    def _token_roles(auth_info: Any | None) -> list[str]:
+        """Extract role names from token/auth metadata."""
+        if auth_info is None:
+            return []
+        roles: set[str] = set()
+        raw_roles = getattr(auth_info, "roles", None) or []
+        for value in raw_roles:
+            text = str(value).strip()
+            if text:
+                roles.add(text)
+        claims = getattr(auth_info, "claims", None)
+        if isinstance(claims, dict):
+            claim_roles = claims.get("roles")
+            if isinstance(claim_roles, list):
+                for value in claim_roles:
+                    text = str(value).strip()
+                    if text:
+                        roles.add(text)
+            claim_role = claims.get("role")
+            if claim_role is not None:
+                text = str(claim_role).strip()
+                if text:
+                    roles.add(text)
+        return sorted(roles)
+
+    def _auth_user_payload(self, auth_info: Any) -> dict[str, Any]:
+        """Build a stable /auth/me payload for bearer-authenticated sessions."""
+        claims = getattr(auth_info, "claims", None)
+        claim_map = claims if isinstance(claims, dict) else {}
+        permissions = sorted(self._token_scopes(auth_info))
+        raw_claim_permissions = claim_map.get("permissions")
+        if isinstance(raw_claim_permissions, list):
+            for value in raw_claim_permissions:
+                text = str(value).strip()
+                if text and text not in permissions:
+                    permissions.append(text)
+
+        user_id = ""
+        for attribute in ("subject", "sub", "identity", "principal", "user_id", "client_id"):
+            value = getattr(auth_info, attribute, None)
+            if value is None and claim_map:
+                value = claim_map.get(attribute)
+            text = str(value or "").strip()
+            if text:
+                user_id = text
+                break
+        if not user_id:
+            user_id = "api-key-user"
+
+        display_name = (
+            str(claim_map.get("display_name") or "").strip()
+            or str(claim_map.get("username") or "").strip()
+            or user_id
+        )
+        email = str(claim_map.get("email") or "").strip() or None
+        return {
+            "id": user_id,
+            "displayName": display_name,
+            "email": email,
+            "roles": self._token_roles(auth_info),
+            "permissions": permissions,
+        }
+
+    async def _handle_auth_me(self, send, headers: dict[str, str], scope: dict[str, Any]) -> bool:
         """Handle GET /auth/me — return current session user."""
         sess = self._get_session_from_cookie(headers)
-        if not sess:
+        if sess:
+            resp_body = json.dumps({"user": {"id": sess["user_id"], "displayName": sess["user"], "email": None, "roles": [sess["role"]], "permissions": ["*"]}}).encode("utf-8")
+            await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
+            return True
+
+        auth_info, _selected_profile = await self._authenticate_request(
+            scope=scope, headers=headers
+        )
+        if auth_info is None:
             await self._send_bytes(send, status=401, body=b'{"detail":"Not authenticated"}', content_type="application/json")
             return True
-        resp_body = json.dumps({"user": {"id": sess["user_id"], "displayName": sess["user"], "email": None, "roles": [sess["role"]], "permissions": ["*"]}}).encode("utf-8")
+
+        resp_body = json.dumps({"user": self._auth_user_payload(auth_info)}).encode("utf-8")
         await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
         return True
 
@@ -1068,7 +1428,6 @@ class HealthCheckMiddleware:
             "/storage-profiles",
             "/audit-log",
             "/api-docs",
-            "/jobs",
             "/admin-identity",
             "/admin/identity",
             "/admin/users",
@@ -1079,6 +1438,7 @@ class HealthCheckMiddleware:
             "/mcp-console",
             "/a2a-console",
             "/settings",
+            "/about",
         )
 
     def _is_ui_route(self, path: str) -> bool:
@@ -1109,6 +1469,7 @@ class HealthCheckMiddleware:
             "/.well-known",
             "/health",
             "/status",
+            "/openapi.json",
             "/ready",
             "/live",
             "/runtime-config.js",
@@ -1173,23 +1534,62 @@ class HealthCheckMiddleware:
         if auth_mode not in {"api_key", "cookie", "oidc"}:
             auth_mode = "api_key"
 
-        audit_log_path = (
-            str(read_env_var("FILE_MCP_UI_AUDIT_LOG_PATH") or "").strip()
-            or "working/test-env-st/audit.log.jsonl"
+        selected_profile_payload = None
+        for profile_payload in self._list_profile_payloads():
+            if str(profile_payload.get("name") or "") == self.profile_name:
+                selected_profile_payload = profile_payload
+                break
+        selected_profile_config = (
+            selected_profile_payload.get("profile")
+            if isinstance(selected_profile_payload, dict)
+            else {}
         )
-        default_browse_path = (
-            str(read_env_var("FILE_MCP_UI_DEFAULT_BROWSE_PATH") or "").strip() or "src"
-        )
+        scope_roots: list[str] = []
+        if isinstance(selected_profile_config, dict):
+            scope_cfg = selected_profile_config.get("scope")
+            if isinstance(scope_cfg, dict):
+                roots = scope_cfg.get("roots") or []
+                if isinstance(roots, list):
+                    scope_roots = [str(root or "").strip() for root in roots if str(root or "").strip()]
+
+        browse_path_raw = str(read_env_var("FILE_MCP_UI_DEFAULT_BROWSE_PATH") or "").strip()
+        default_browse_path = browse_path_raw
+        if not default_browse_path and scope_roots:
+            default_browse_path = "."
+        if not default_browse_path:
+            default_browse_path = "/workspace"
+
+        audit_log_path_raw = str(read_env_var("FILE_MCP_UI_AUDIT_LOG_PATH") or "").strip()
+        audit_log_path = audit_log_path_raw
+        audit_from_profile = False
+        if not audit_log_path and isinstance(selected_profile_config, dict):
+            audit_cfg = selected_profile_config.get("audit")
+            if isinstance(audit_cfg, dict):
+                audit_log_path = str(audit_cfg.get("log_path") or "").strip()
+                audit_from_profile = bool(audit_log_path)
+        if not audit_log_path:
+            audit_log_path = "/workspace/logs/audit.log.jsonl"
+        if audit_from_profile and scope_roots:
+            audit_log_path = _profile_ui_relative_path(audit_log_path, scope_roots)
+
         profile_store_path = (
             str(read_env_var("FILE_MCP_UI_PROFILE_STORE_PATH") or "").strip()
-            or "working/ui-file-mcp/storage-profiles.json"
+            or ""
         )
-        mcp_base_url = str(read_env_var("FILE_MCP_UI_MCP_BASE_URL") or "").strip() or "/mcp"
+        # In cookie auth mode the WebUI must call /webmcp (session-cookie auth).
+        # The standard /mcp endpoint requires a Bearer API key.
+        mcp_base_url_raw = str(read_env_var("FILE_MCP_UI_MCP_BASE_URL") or "").strip()
+        if mcp_base_url_raw:
+            mcp_base_url = mcp_base_url_raw
+        elif auth_mode == "cookie":
+            mcp_base_url = "/webmcp"
+        else:
+            mcp_base_url = "/mcp"
         a2a_base_url = str(read_env_var("FILE_MCP_UI_A2A_BASE_URL") or "").strip() or "/a2a"
         session_timeout = _to_int(
             read_env_var("CLOUD_DOG_SESSION_TIMEOUT_MINUTES"), default=30
         )
-        app_version = str(read_env_var("FILE_MCP_VERSION") or "0.0.0").strip() or "0.0.0"
+        app_version = str(read_env_var("FILE_MCP_VERSION") or "").strip() or self._read_pyproject_version() or "0.0.0"
 
         return {
             "ENV": env_name,
@@ -1203,6 +1603,114 @@ class HealthCheckMiddleware:
             "DEFAULT_BROWSE_PATH": default_browse_path,
             "PROFILE_STORE_PATH": profile_store_path,
             "PROFILE_API_PATH": "/admin/profiles",
+        }
+
+    def _selected_profile_payload(self) -> dict[str, Any] | None:
+        """Return the active profile payload, if present."""
+        for profile_payload in self._list_profile_payloads():
+            if str(profile_payload.get("name") or "") == self.profile_name:
+                return profile_payload
+        return None
+
+    def _admin_runtime_config_payload(self) -> dict[str, Any]:
+        """Return a read-only runtime snapshot for the settings UI."""
+        runtime_payload = self._runtime_config_payload()
+        selected_profile = self._selected_profile_payload()
+        return {
+            "service": {
+                "name": self.app_name,
+                "profile": self.profile_name,
+                "transport": self.transport,
+                "env_file": self.env_file,
+                "config_path": self.active_config,
+                "defaults_path": str(
+                    read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or ""
+                ).strip()
+                or None,
+                "api_base_url": str(runtime_payload.get("API_BASE_URL") or ""),
+                "mcp_base_url": str(runtime_payload.get("MCP_BASE_URL") or "/mcp"),
+                "a2a_base_url": str(runtime_payload.get("A2A_BASE_URL") or "/a2a"),
+                "auth_mode": str(runtime_payload.get("AUTH_MODE") or "api_key"),
+            },
+            "status": self._status_payload(),
+            "health": self._health_response_payload(),
+            "profiles": self._list_profile_payloads(),
+            "selected_profile": selected_profile,
+        }
+
+    def _openapi_payload(self) -> dict[str, Any]:
+        """Return a compact OpenAPI description for the Web UI docs page."""
+        return {
+            "openapi": "3.0.3",
+            "info": {
+                "title": "Cloud-Dog File MCP API",
+                "version": self.version,
+                "description": "Operational HTTP, admin, MCP, and A2A surface for file-mcp-server.",
+            },
+            "servers": [{"url": "/"}],
+            "paths": {
+                "/health": {
+                    "get": {
+                        "summary": "Health",
+                        "responses": {"200": {"description": "Health payload"}},
+                    }
+                },
+                "/status": {
+                    "get": {
+                        "summary": "Runtime status",
+                        "responses": {"200": {"description": "Status payload"}},
+                    }
+                },
+                "/auth/login": {
+                    "post": {
+                        "summary": "Cookie login",
+                        "responses": {"200": {"description": "Login success"}},
+                    }
+                },
+                "/auth/me": {
+                    "get": {
+                        "summary": "Current session user",
+                        "responses": {"200": {"description": "Authenticated user"}},
+                    }
+                },
+                "/auth/logout": {
+                    "post": {
+                        "summary": "Logout",
+                        "responses": {"200": {"description": "Logout success"}},
+                    }
+                },
+                "/admin/users": {
+                    "get": {"summary": "List admin users", "responses": {"200": {"description": "Users"}}},
+                    "post": {"summary": "Create admin user", "responses": {"201": {"description": "User created"}}},
+                },
+                "/admin/groups": {
+                    "get": {"summary": "List admin groups", "responses": {"200": {"description": "Groups"}}},
+                    "post": {"summary": "Create admin group", "responses": {"201": {"description": "Group created"}}},
+                },
+                "/admin/api-keys": {
+                    "get": {"summary": "List admin API keys", "responses": {"200": {"description": "API keys"}}},
+                    "post": {"summary": "Create admin API key", "responses": {"201": {"description": "API key created"}}},
+                },
+                "/admin/profiles": {
+                    "get": {"summary": "List storage profiles", "responses": {"200": {"description": "Profiles"}}},
+                    "post": {"summary": "Create storage profile", "responses": {"201": {"description": "Profile created"}}},
+                },
+                "/admin/runtime-config": {
+                    "get": {
+                        "summary": "Read-only runtime config snapshot",
+                        "responses": {"200": {"description": "Runtime config"}},
+                    }
+                },
+                "/admin/reload": {
+                    "post": {"summary": "Reload active configuration", "responses": {"200": {"description": "Reload result"}}},
+                },
+                "/mcp": {
+                    "post": {"summary": "JSON-RPC MCP endpoint", "responses": {"200": {"description": "MCP response"}}},
+                },
+                "/a2a/health": {
+                    "get": {"summary": "A2A health", "responses": {"200": {"description": "A2A status"}}},
+                },
+            },
         }
 
     async def _serve_runtime_config(self, send, *, method: str) -> None:
@@ -1399,6 +1907,10 @@ class HealthCheckMiddleware:
             or "role:admin" in scopes
             or "admin:*" in scopes
         )
+
+    def _has_google_drive_admin_scope(self, scopes: set[str]) -> bool:
+        """Return True when scopes grant Google Drive admin access."""
+        return self._has_admin_scope(scopes) or "admin:google_drive" in scopes
 
     def _load_config_document(self) -> dict[str, Any]:
         """Load active config YAML as mutable dictionary."""
@@ -1755,9 +2267,14 @@ class HealthCheckMiddleware:
 
     def _profile_payload(self, *, name: str, profile: dict[str, Any]) -> dict[str, Any]:
         """Normalise a profile entry for API/UI responses."""
-        storage = profile.get("storage") if isinstance(profile, dict) else {}
-        scope = profile.get("scope") if isinstance(profile, dict) else {}
-        auth = profile.get("auth") if isinstance(profile, dict) else {}
+        normalized_profile = _normalise_profile_mapping(
+            profile,
+            fallback_profile=(self.config.profiles.get(name) if self.config else None),
+            default_profile=(self.config.profiles.get("default") if self.config else None),
+        )
+        storage = normalized_profile.get("storage") if isinstance(normalized_profile, dict) else {}
+        scope = normalized_profile.get("scope") if isinstance(normalized_profile, dict) else {}
+        auth = normalized_profile.get("auth") if isinstance(normalized_profile, dict) else {}
         backend = (
             str((storage or {}).get("backend") or "unknown")
             if isinstance(storage, dict)
@@ -1774,7 +2291,7 @@ class HealthCheckMiddleware:
             "backend": backend,
             "roots": roots,
             "api_keys_count": len(api_keys),
-            "profile": profile,
+            "profile": normalized_profile,
         }
 
     def _list_profile_payloads(self) -> list[dict[str, Any]]:
@@ -1921,7 +2438,8 @@ class HealthCheckMiddleware:
         if scope.get("type") != "http":
             return False
         method = str(scope.get("method") or "").upper()
-        if not (path == "/api/v1/jobs" or path.startswith("/api/v1/jobs/")):
+        if not (path == "/api/v1/jobs" or path.startswith("/api/v1/jobs/")
+                or path == "/v1/jobs" or path.startswith("/v1/jobs/")):
             return False
 
         supplied_admin_token = headers.get("x-admin-token", "")
@@ -1958,7 +2476,7 @@ class HealthCheckMiddleware:
             return True
 
         query = parse_qs(scope.get("query_string", b"").decode("utf-8"))
-        if path == "/api/v1/jobs":
+        if path in ("/api/v1/jobs", "/v1/jobs"):
             limit = _to_int((query.get("limit") or [100])[0], default=100)
             status = str((query.get("status") or [""])[0]).strip() or None
             session_id = str((query.get("session_id") or [""])[0]).strip() or None
@@ -1981,7 +2499,7 @@ class HealthCheckMiddleware:
             )
             return True
 
-        if path == "/api/v1/jobs/queue/status":
+        if path in ("/api/v1/jobs/queue/status", "/v1/jobs/queue/status"):
             await self._send_json(
                 send,
                 status=200,
@@ -2030,13 +2548,24 @@ class HealthCheckMiddleware:
         method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
 
+        if await self._maybe_proxy_web_request(
+            scope=scope,
+            receive=receive,
+            send=send,
+            headers=headers,
+            path=path,
+            method=method,
+            accept=accept,
+        ):
+            return
+
         # Auth endpoints — handle before any other routing.
         if scope.get("type") == "http":
             if path == "/auth/login" and method == "POST":
                 await self._handle_auth_login(receive, send, headers)
                 return
             if path == "/auth/me" and method == "GET":
-                await self._handle_auth_me(send, headers)
+                await self._handle_auth_me(send, headers, scope)
                 return
             if path == "/auth/logout" and method == "POST":
                 await self._handle_auth_logout(send, headers)
@@ -2064,6 +2593,7 @@ class HealthCheckMiddleware:
             from uuid import uuid4 as _uuid4
             task_id = task_body.get("id", str(_uuid4()))
             skill_id = task_body.get("skill_id", "")
+            _a2a_t0 = time.monotonic()
             if skill_id == "health":
                 resp = {"id": task_id, "status": "completed", "output": {"type": "text", "text": "file-mcp is healthy"}}
             elif skill_id in self._a2a_skill_map:
@@ -2083,6 +2613,26 @@ class HealthCheckMiddleware:
                     resp = {"id": task_id, "status": "completed", "output": {"type": "text", "text": f"Skill '{skill_id}' acknowledged (no handler configured)"}}
             else:
                 resp = {"id": task_id, "status": "failed", "error": f"Unknown skill: {skill_id}. Available: {list(self._a2a_skill_map.keys())}"}
+            _a2a_duration_ms = round((time.monotonic() - _a2a_t0) * 1000, 2)
+            _a2a_input_data = task_body.get("input", {})
+            _a2a_input_text = (
+                _a2a_input_data.get("text", "")
+                if isinstance(_a2a_input_data, dict)
+                else str(_a2a_input_data)
+            )
+            self.logger.info(
+                "a2a_task_execution",
+                event_type="a2a_task",
+                action=f"execute:{skill_id}",
+                actor="a2a-caller",
+                target=skill_id,
+                outcome=resp.get("status", "unknown"),
+                correlation_id=task_id,
+                task_id=task_id,
+                skill_id=skill_id,
+                duration_ms=_a2a_duration_ms,
+                input_length=len(_a2a_input_text),
+            )
             body = json.dumps(resp).encode("utf-8")
             await self._send_bytes(send, status=200, body=body, content_type="application/json")
             return
@@ -2090,6 +2640,12 @@ class HealthCheckMiddleware:
         if scope.get("type") == "http" and method in {"GET", "HEAD"}:
             if path == "/runtime-config.js":
                 await self._serve_runtime_config(send, method=method)
+                return
+            if path == "/openapi.json":
+                body = json.dumps(self._openapi_payload(), ensure_ascii=True).encode("utf-8")
+                await self._send_bytes(
+                    send, status=200, body=body, content_type="application/json"
+                )
                 return
 
             asset_path = self._resolve_ui_asset_path(path)
@@ -2107,6 +2663,7 @@ class HealthCheckMiddleware:
                     or path.startswith("/admin/api-keys/")
                     or path == "/admin/profiles"
                     or path.startswith("/admin/profiles/")
+                    or path == "/admin/runtime-config"
                 )
                 # Keep browser navigations on SPA routes while allowing API clients
                 # (fetch/curl with non-HTML Accept) to hit JSON admin endpoints.
@@ -2165,20 +2722,7 @@ class HealthCheckMiddleware:
             and method == "GET"
             and path in health_paths
         ):
-            readiness, checks = self._dependency_checks()
-            body = json.dumps(
-                {
-                    "status": "ok",
-                    "checks": checks,
-                    "version": self.version,
-                    "service": "file-mcp-server",
-                    "application": {"name": self.app_name},
-                    "runtime": {"env_file": self.env_file},
-                    "profile": self.profile_name,
-                    "transport": self.transport,
-                    "readiness": readiness,
-                }
-            ).encode("utf-8")
+            body = json.dumps(self._health_response_payload()).encode("utf-8")
             await send(
                 {
                     "type": "http.response.start",
@@ -2271,6 +2815,7 @@ class HealthCheckMiddleware:
         profile_api_path = (
             path[len("/api") :] if is_profile_api_alias_route else path
         )
+        is_runtime_config_api_route = path == "/admin/runtime-config"
         is_profile_api_route = profile_api_path == "/admin/profiles" or profile_api_path.startswith(
             "/admin/profiles/"
         )
@@ -2284,15 +2829,19 @@ class HealthCheckMiddleware:
             or is_profiles_html_request
             or path.startswith("/admin/google-drive")
         )
+        requires_admin_ui_token_route = (
+            path == "/admin/identity" or is_profiles_html_request
+        )
         if scope.get("type") == "http" and is_admin_route:
-            if (
-                is_webui_admin_route or path == "/admin/reload"
-            ) and not self.admin_ui_enabled:
+            if is_webui_admin_route and not self.admin_ui_enabled:
                 await self._send_api_error(
                     send, status=404, code="NOT_FOUND", message="Not Found"
                 )
                 return
-            if (is_webui_admin_route or path == "/admin/reload") and self.admin_ui_token:
+            if (
+                requires_admin_ui_token_route
+                or (path == "/admin/reload" and self.admin_ui_enabled)
+            ) and self.admin_ui_token:
                 provided = headers.get("x-admin-token", "")
                 if provided != self.admin_ui_token:
                     await self._send_api_error(
@@ -2319,7 +2868,43 @@ class HealthCheckMiddleware:
             await self._send_html(send, status=200, html=self._render_identity_admin_html())
             return
 
-        if scope.get("type") == "http" and (is_identity_api_route or is_profile_api_route):
+        if scope.get("type") == "http" and path in {
+            "/admin/google-drive",
+            "/admin/google-drive/start",
+        }:
+            supplied_admin_token = headers.get("x-admin-token", "")
+            ui_admin = bool(
+                self.admin_ui_token and supplied_admin_token == self.admin_ui_token
+            )
+            auth_info, _selected_profile = await self._authenticate_request(
+                scope=scope, headers=headers
+            )
+            cookie_session = self._get_session_from_cookie(headers)
+            cookie_admin = (
+                cookie_session is not None and cookie_session.get("role") == "admin"
+            )
+            scopes = self._token_scopes(auth_info)
+            is_authenticated = ui_admin or cookie_session is not None or auth_info is not None
+            if not is_authenticated:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return
+            if not (ui_admin or cookie_admin or self._has_google_drive_admin_scope(scopes)):
+                await self._send_api_error(
+                    send,
+                    status=403,
+                    code="FORBIDDEN",
+                    message="Missing permission: admin:google_drive",
+                )
+                return
+
+        if scope.get("type") == "http" and (
+            is_identity_api_route or is_profile_api_route or is_runtime_config_api_route
+        ):
             method = str(scope.get("method") or "GET").upper()
             supplied_admin_token = headers.get("x-admin-token", "")
             ui_admin = bool(
@@ -2352,6 +2937,22 @@ class HealthCheckMiddleware:
                 return
 
             try:
+                if is_runtime_config_api_route:
+                    if method != "GET":
+                        await self._send_api_error(
+                            send,
+                            status=405,
+                            code="METHOD_NOT_ALLOWED",
+                            message=f"Unsupported method for {path}: {method}",
+                        )
+                        return
+                    await self._send_json(
+                        send,
+                        status=200,
+                        payload=self._admin_runtime_config_payload(),
+                    )
+                    return
+
                 segments = [segment for segment in profile_api_path.split("/") if segment]
 
                 if is_profile_api_route:
@@ -2421,6 +3022,10 @@ class HealthCheckMiddleware:
                             if api_keys:
                                 auth_cfg = profile.setdefault("auth", {})
                                 auth_cfg["api_keys"] = api_keys
+                        profile = _normalise_profile_mapping(
+                            profile,
+                            default_profile=(self.config.profiles.get("default") if self.config else None),
+                        )
                         backend_value = "local"
                         if isinstance(profile.get("storage"), dict):
                             backend_value = str(profile["storage"].get("backend") or "local")
@@ -2514,6 +3119,11 @@ class HealthCheckMiddleware:
                                     if str(item).strip()
                                 ]
                                 candidate.setdefault("auth", {})["api_keys"] = api_keys
+                            candidate = _normalise_profile_mapping(
+                                candidate,
+                                fallback_profile=(self.config.profiles.get(profile_name) if self.config else None),
+                                default_profile=(self.config.profiles.get("default") if self.config else None),
+                            )
                             backend_value = "local"
                             if isinstance(candidate.get("storage"), dict):
                                 backend_value = str(candidate["storage"].get("backend") or "local")
@@ -2873,6 +3483,13 @@ class HealthCheckMiddleware:
                     },
                 )
                 location = begin_oauth(data)
+                if "application/json" in headers.get("accept", "").lower():
+                    await self._send_json(
+                        send,
+                        status=200,
+                        payload={"ok": True, "location": location},
+                    )
+                    return
                 await self._send_redirect(send, location=location)
                 return
             except Exception as exc:
@@ -3418,6 +4035,34 @@ def _normalize_optional_path(value: str | None) -> Path | None:
     if not cleaned or "${" in cleaned:
         return None
     return path_utils.as_path(path_utils.resolve_path(cleaned))
+
+
+def _profile_ui_relative_path(path_value: str, scope_roots: list[str]) -> str:
+    """Return a profile-scoped UI path when the target sits under a scope root."""
+    candidate = str(path_value or "").strip()
+    if not candidate:
+        return ""
+
+    candidate_path = Path(candidate)
+    for root in scope_roots:
+        root_text = str(root or "").strip()
+        if not root_text:
+            continue
+        root_path = Path(root_text)
+        if candidate_path.is_absolute() != root_path.is_absolute():
+            continue
+        try:
+            relative = os.path.relpath(str(candidate_path), str(root_path))
+        except ValueError:
+            continue
+        if relative in {".", ""}:
+            return "."
+        if relative == ".." or relative.startswith(f"..{os.sep}"):
+            continue
+        relative = relative.replace("\\", "/")
+        return relative if relative.startswith("./") else f"./{relative}"
+
+    return candidate
 
 
 def build_tool_registry(
@@ -4190,6 +4835,7 @@ def build_tool_registry(
                     roots=roots,
                     glob=glob,
                     regex=regex,
+                    max_results=effective_max_results,
                     max_file_mb=effective_max_mb,
                     max_depth=max_depth,
                     modified_after=modified_after,
@@ -4303,7 +4949,7 @@ def build_tool_registry(
                     glob=glob,
                     regex=regex,
                     encoding=encoding,
-                    max_results=None,
+                    max_results=effective_max_results,
                     max_file_mb=effective_max_mb,
                     max_depth=max_depth,
                     modified_after=modified_after,
@@ -5950,15 +6596,14 @@ def _truncate_value(value: Any) -> Any:
     return value
 
 
-def register_tools_with_fastmcp(
-    server: FastMCP,
-    registry_provider,
+def create_profile_tool_handler(
+    registry_provider: Callable[[], ToolRegistry],
+    tool_name: str,
     *,
     default_profile_name: str,
     logger: LogLike | None = None,
-) -> None:
-    """Execute register tools with fastmcp."""
-    current_registry = registry_provider()
+) -> Callable[..., Any]:
+    """Build tool callable with logging, endpoint health, and audit writer hooks."""
 
     def _extract_paths_from_params(params: Dict[str, Any]) -> Dict[str, str]:
         """Handle extract paths from params."""
@@ -5970,164 +6615,154 @@ def register_tools_with_fastmcp(
                 extracted[key] = value
         return extracted
 
-    def build_wrapped_handler(tool_name: str):
-        """Build wrapped handler."""
-
-        def wrapped_handler(*args, **kwargs):
-            """Execute wrapped handler."""
-            started = time.perf_counter()
-            params = _truncate_value(kwargs)
-            paths = _extract_paths_from_params(kwargs)
-            profile_name = (
-                get_request_profile_name(default_profile_name) or default_profile_name
+    def wrapped_handler(*args, **kwargs):
+        """Execute wrapped handler."""
+        started = time.perf_counter()
+        params = _truncate_value(kwargs)
+        paths = _extract_paths_from_params(kwargs)
+        profile_name = (
+            get_request_profile_name(default_profile_name) or default_profile_name
+        )
+        registry = registry_provider()
+        current_def = registry.get(tool_name)
+        raw_tool_handler = current_def.handler
+        audit_writer = getattr(registry, "audit_writer", None)
+        endpoint_health_manager = getattr(registry, "endpoint_health_manager", None)
+        storage_backend_name = getattr(registry, "storage_backend_name", None)
+        profile_config = getattr(registry, "profile_config", None)
+        restart_on_threshold = (
+            _to_bool(
+                getattr(
+                    profile_config.endpoint_health, "restart_on_threshold", None
+                ),
+                default=False,
             )
-            registry = registry_provider()
-            current_def = registry.get(tool_name)
-            handler = current_def.handler
-            audit_writer = getattr(registry, "audit_writer", None)
-            endpoint_health_manager = getattr(registry, "endpoint_health_manager", None)
-            storage_backend_name = getattr(registry, "storage_backend_name", None)
-            profile_config = getattr(registry, "profile_config", None)
-            restart_on_threshold = (
-                _to_bool(
-                    getattr(
-                        profile_config.endpoint_health, "restart_on_threshold", None
-                    ),
-                    default=False,
-                )
-                if profile_config is not None
-                else False
+            if profile_config is not None
+            else False
+        )
+        restart_exit_code = (
+            _to_int(
+                getattr(profile_config.endpoint_health, "restart_exit_code", None),
+                default=75,
             )
-            restart_exit_code = (
-                _to_int(
-                    getattr(profile_config.endpoint_health, "restart_exit_code", None),
-                    default=75,
-                )
-                if profile_config is not None
-                else 75
+            if profile_config is not None
+            else 75
+        )
+        if (
+            endpoint_health_manager is not None
+            and storage_backend_name
+            and profile_config is not None
+            and tool_name != "backend_status"
+        ):
+            state = endpoint_health_manager.get_state(
+                profile_name, storage_backend_name
             )
-            if (
-                endpoint_health_manager is not None
-                and storage_backend_name
-                and profile_config is not None
-                and tool_name != "backend_status"
-            ):
-                state = endpoint_health_manager.get_state(
-                    profile_name, storage_backend_name
-                )
-                if state is not None and state.status != "healthy":
-                    state = (
-                        endpoint_health_manager.maybe_recover_backend(
-                            profile_name=profile_name,
-                            profile=profile_config,
-                            backend_name=storage_backend_name,
-                            logger=logger,
-                        )
-                        or state
+            if state is not None and state.status != "healthy":
+                state = (
+                    endpoint_health_manager.maybe_recover_backend(
+                        profile_name=profile_name,
+                        profile=profile_config,
+                        backend_name=storage_backend_name,
+                        logger=logger,
                     )
-                    if state.status != "healthy":
-                        message = (
-                            f"Backend unavailable: backend={storage_backend_name} "
-                            f"status={state.status} reason={state.reason} "
-                            f"requires_restart={state.requires_restart}"
+                    or state
+                )
+                if state.status != "healthy":
+                    message = (
+                        f"Backend unavailable: backend={storage_backend_name} "
+                        f"status={state.status} reason={state.reason} "
+                        f"requires_restart={state.requires_restart}"
+                    )
+                    if logger:
+                        logger.warning(
+                            message,
+                            backend=storage_backend_name,
+                            profile=profile_name,
                         )
+                    if state.requires_restart and restart_on_threshold:
                         if logger:
-                            logger.warning(
-                                message,
+                            logger.error(
+                                "Endpoint restart threshold reached",
                                 backend=storage_backend_name,
-                                profile=profile_name,
+                                restart_exit_code=restart_exit_code,
                             )
-                        if state.requires_restart and restart_on_threshold:
-                            if logger:
-                                logger.error(
-                                    "Endpoint restart threshold reached",
-                                    backend=storage_backend_name,
-                                    restart_exit_code=restart_exit_code,
-                                )
-                            raise SystemExit(restart_exit_code)
-                        raise RuntimeError(message)
+                        raise SystemExit(restart_exit_code)
+                    raise RuntimeError(message)
+        if logger:
+            logger.info(
+                "tool_call",
+                event="tool_call",
+                profile=profile_name,
+                tool=tool_name,
+                params=params,
+                correlation_id=get_correlation_id(),
+                session_id=get_request_session_id(),
+                client_ip=get_request_client_ip(),
+            )
+        try:
+            result = raw_tool_handler(*args, **kwargs)
+            elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
             if logger:
                 logger.info(
-                    "tool_call",
-                    event="tool_call",
+                    "tool_result",
+                    event="tool_result",
                     profile=profile_name,
                     tool=tool_name,
-                    params=params,
+                    outcome="ok",
+                    duration_ms=elapsed_ms,
                     correlation_id=get_correlation_id(),
                     session_id=get_request_session_id(),
                     client_ip=get_request_client_ip(),
                 )
-            try:
-                result = handler(*args, **kwargs)
-                elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
-                if logger:
-                    logger.info(
-                        "tool_result",
-                        event="tool_result",
-                        profile=profile_name,
-                        tool=tool_name,
-                        outcome="ok",
-                        duration_ms=elapsed_ms,
-                        correlation_id=get_correlation_id(),
-                        session_id=get_request_session_id(),
-                        client_ip=get_request_client_ip(),
-                    )
-                if audit_writer:
-                    audit_writer(
-                        tool_name=tool_name,
-                        action="tool_call",
-                        status="ok",
-                        outcome="ok",
-                        params=params if isinstance(params, dict) else {},
-                        duration_ms=elapsed_ms,
-                        paths=paths,
-                    )
-                return result
-            except Exception as exc:
-                elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
-                if logger:
-                    logger.info(
-                        "tool_result",
-                        event="tool_result",
-                        profile=profile_name,
-                        tool=tool_name,
-                        outcome="error",
-                        error=str(exc),
-                        duration_ms=elapsed_ms,
-                        correlation_id=get_correlation_id(),
-                        session_id=get_request_session_id(),
-                        client_ip=get_request_client_ip(),
-                    )
-                if audit_writer:
-                    audit_writer(
-                        tool_name=tool_name,
-                        action="tool_call",
-                        status="error",
-                        outcome="error",
-                        params=params if isinstance(params, dict) else {},
-                        duration_ms=elapsed_ms,
-                        paths=paths,
-                        details={"error": str(exc)},
-                    )
-                raise
+            if audit_writer:
+                audit_writer(
+                    tool_name=tool_name,
+                    action="tool_call",
+                    status="ok",
+                    outcome="ok",
+                    params=params if isinstance(params, dict) else {},
+                    duration_ms=elapsed_ms,
+                    paths=paths,
+                )
+            return result
+        except Exception as exc:
+            elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
+            if logger:
+                logger.info(
+                    "tool_result",
+                    event="tool_result",
+                    profile=profile_name,
+                    tool=tool_name,
+                    outcome="error",
+                    error=str(exc),
+                    duration_ms=elapsed_ms,
+                    correlation_id=get_correlation_id(),
+                    session_id=get_request_session_id(),
+                    client_ip=get_request_client_ip(),
+                )
+            if audit_writer:
+                audit_writer(
+                    tool_name=tool_name,
+                    action="tool_call",
+                    status="error",
+                    outcome="error",
+                    params=params if isinstance(params, dict) else {},
+                    duration_ms=elapsed_ms,
+                    paths=paths,
+                    details={"error": str(exc)},
+                )
+            raise
 
-        setattr(wrapped_handler, "__signature__", inspect.signature(handler))
-        wrapped_handler.__name__ = f"wrapped_{tool_name}"
-        wrapped_handler.__doc__ = f"Dynamic wrapper for tool {tool_name}"
-        wrapped_handler.__annotations__ = getattr(handler, "__annotations__", {})
-        wrapped_handler.__module__ = getattr(handler, "__module__", __name__)
-        return wrapped_handler
-
-    for definition in current_registry.list_tools():
-        handler = definition.handler
-        tool_name = definition.meta.name
-        wrapped_handler = build_wrapped_handler(tool_name)
-        server.tool(name=definition.meta.name, description=definition.meta.description)(
-            wrapped_handler
-        )
+    _sig_handler = registry_provider().get(tool_name).handler
+    setattr(wrapped_handler, "__signature__", inspect.signature(_sig_handler))
+    wrapped_handler.__name__ = f"wrapped_{tool_name}"
+    wrapped_handler.__doc__ = f"Dynamic wrapper for tool {tool_name}"
+    wrapped_handler.__annotations__ = getattr(_sig_handler, "__annotations__", {})
+    wrapped_handler.__module__ = getattr(_sig_handler, "__module__", __name__)
+    return wrapped_handler
 
 
-def build_fastmcp_server(
+def build_mcp_server(
     default_profile_name: str,
     config: ServerConfig,
     http: HttpRuntimeSettings,
@@ -6139,8 +6774,8 @@ def build_fastmcp_server(
         [ProfileConfig, str], FileMcpJobsRuntime | None
     ]
     | None = None,
-) -> FastMCP:
-    """Build fastmcp server."""
+) -> Any:
+    """Build MCP HTTP ASGI bundle (cloud_dog_api_kit transport; W28A-742)."""
     if default_profile_name not in config.profiles:
         raise ValueError(f"Unknown default profile: {default_profile_name}")
 
@@ -6180,10 +6815,6 @@ def build_fastmcp_server(
         logger=logger,
     )
 
-    server = FastMCP(
-        name=f"file-mcp-server:{default_profile_name}",
-        auth=auth,
-    )
     registry_lock = RLock()
     profiles_holder: dict[str, ProfileConfig] = dict(config.profiles)
     registry_by_profile: dict[str, ToolRegistry] = {}
@@ -6286,22 +6917,32 @@ def build_fastmcp_server(
                     runtime.close()
             jobs_runtime_by_profile.clear()
 
+    from .mcp_api_kit_layer import build_mcp_fastapi_application
+
+    def _profile_tool_factory(name: str) -> Callable[..., Any]:
+        return create_profile_tool_handler(
+            _registry_provider,
+            name,
+            default_profile_name=default_profile_name,
+            logger=logger,
+        )
+
+    mcp_app = build_mcp_fastapi_application(
+        _registry_provider,
+        auth,
+        profile_tool_factory=_profile_tool_factory,
+    )
+    server = SimpleNamespace()
     setattr(server, "_file_mcp_registry_provider", _registry_provider)
     setattr(server, "_file_mcp_reload_registry", _reload_registry)
     setattr(server, "_file_mcp_auth_verifier", auth)
     setattr(server, "_file_mcp_jobs_runtime_provider", _jobs_runtime_provider)
     setattr(server, "_file_mcp_jobs_runtime_close_all", _close_jobs_runtimes)
-
-    register_tools_with_fastmcp(
-        server,
-        _registry_provider,
-        default_profile_name=default_profile_name,
-        logger=logger,
-    )
+    setattr(server, "_file_mcp_asgi_app", mcp_app)
     return server
 
 
-async def run_fastmcp_http_server(
+async def run_mcp_http_server(
     *,
     default_profile_name: str,
     config: ServerConfig,
@@ -6309,7 +6950,7 @@ async def run_fastmcp_http_server(
     logger: LogLike | None = None,
 ) -> None:
     # Instantiate API-kit app config for PS-20 contract alignment and dependency verification.
-    """Execute run fastmcp http server."""
+    """Execute run MCP HTTP server."""
     create_api_kit_app(
         title="file-mcp-server",
         version="0.0.0",
@@ -6384,7 +7025,7 @@ async def run_fastmcp_http_server(
                             restart_exit_code=exit_code,
                         )
                     raise SystemExit(exit_code)
-    server = build_fastmcp_server(
+    server = build_mcp_server(
         default_profile_name,
         config,
         http,
@@ -6416,31 +7057,33 @@ async def run_fastmcp_http_server(
             env_path=env_path, config_path=config_path, defaults_path=defaults_path
         )
 
+    mcp_inner = getattr(server, "_file_mcp_asgi_app", None)
+    if mcp_inner is None:
+        raise RuntimeError("MCP ASGI application not built")
+    hc_app = HealthCheckMiddleware(
+        mcp_inner,
+        health_path=http.health_path,
+        profile_name=default_profile_name,
+        transport=http.transport,
+        config=config,
+        reload_callback=_reload_callback,
+        registry_provider=registry_provider,
+        mcp_path=http.mcp_path,
+        a2a_auth_verifier=auth_verifier,
+        db_runtime=db_runtime,
+        admin_identity_service=admin_identity_service,
+        jobs_runtime_provider=jobs_runtime_provider,
+        callback_host_fallback=http.host,
+    )
+    stream_app = StreamableHttpAcceptCompatibilityMiddleware(
+        hc_app,
+        mcp_path=http.mcp_path,
+    )
+    asgi_app = RequestContextMiddleware(stream_app)
     endpoint_path = http.events_path if http.transport == "sse" else http.mcp_path
-    middleware = [
-        Middleware(RequestContextMiddleware),
-        Middleware(
-            StreamableHttpAcceptCompatibilityMiddleware,
-            mcp_path=http.mcp_path,
-        ),
-        Middleware(
-            HealthCheckMiddleware,
-            health_path=http.health_path,
-            profile_name=default_profile_name,
-            transport=http.transport,
-            reload_callback=_reload_callback,
-            registry_provider=registry_provider,
-            mcp_path=http.mcp_path,
-            a2a_auth_verifier=auth_verifier,
-            db_runtime=db_runtime,
-            admin_identity_service=admin_identity_service,
-            jobs_runtime_provider=jobs_runtime_provider,
-            callback_host_fallback=http.host,
-        ),
-    ]
     if logger:
         logger.info(
-            "Starting FastMCP",
+            "Starting MCP HTTP (cloud_dog_api_kit)",
             transport=http.transport,
             host=http.host,
             port=http.port,
@@ -6449,15 +7092,14 @@ async def run_fastmcp_http_server(
         )
 
     try:
-        await server.run_http_async(
-            show_banner=False,
-            transport=cast(Literal["http", "streamable-http", "sse"], http.transport),
-            host=http.host,
-            port=http.port,
-            path=endpoint_path,
-            middleware=middleware,
-            stateless_http=http.stateless_http,
+        uvconfig = uvicorn.Config(
+            asgi_app,
+            host=str(http.host),
+            port=int(http.port),
+            log_level="info",
         )
+        uvserver = uvicorn.Server(uvconfig)
+        await uvserver.serve()
     finally:
         if callable(jobs_runtime_close_all):
             jobs_runtime_close_all()

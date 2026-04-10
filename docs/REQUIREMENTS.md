@@ -350,6 +350,42 @@ Reference: ARCHITECTURE.md § Storage Backend Management
 - `GET /a2a/health` with `Authorisation: Bearer 12345678` SHALL return `200` in strict local test mode.
 - A2A auth verification SHALL use the same API-key authority as MCP/API auth verification (no separate A2A key store).
 
+### FR1.47: Web UI Standards Merge (W28A-896)
+- [EXISTING] The frontend app `@cloud-dog/app-file-mcp` SHALL provide the routeable WebUI surfaces `/`, `/login`, `/file-browser`, `/search`, `/storage-profiles`, `/audit-log`, `/settings`, `/admin/users`, `/admin/groups`, `/admin/api-keys`, `/admin/rbac`, `/google-drive-settings`, `/jobs`, `/mcp-console`, `/a2a-console`, `/api-docs`, and `/about`.
+- [EXISTING] `/dashboard` SHALL redirect to `/`, `/admin-identity` SHALL redirect to `/admin/identity`, `/admin/identity` SHALL redirect to `/admin/users`, and unknown routes SHALL redirect to `/`.
+- [EXISTING] The app code SHALL retain the 16 primary page/view implementations used by the service: `DashboardPage`, `FileBrowserPage`, `SearchPage`, `StorageProfilesPage`, `AuditLogPage`, `SettingsPage`, `AdminIdentityPage`, `AdminUsersPage`, `AdminGroupsPage`, `AdminApiKeysPage`, `AdminRbacPage`, `GoogleDriveSettingsPage`, `JobsPage`, `McpConsolePage`, `A2aConsolePage`, and `ApiDocsPage`.
+- [NEW] `DashboardPage` SHALL align to PS-77 dashboard requirements: `/` as the CW-M1 landing page, `DashboardLayout`/shell structure, `ServiceStatusBar`, health widgets, metric cards, quick actions, recent-activity list, and no raw JSON on the dashboard surface.
+- [EXISTING] `FileBrowserPage` SHALL remain the primary tree/workspace surface for scoped file operations with navigation, upload/download, CRUD actions, selection, and an entries `DataTable`.
+- [NEW] `FileBrowserPage` SHALL align to the PS-77 Tree/workspace family and adopt governed tree/upload/editor surfaces where available, including PS-84 shared code/config viewers or editors for file-content and diff-centric interactions instead of raw bespoke text areas.
+- [EXISTING] `SearchPage` SHALL support filename, content, and regex/grep search and allow operators to open a selected result in file-browser context.
+- [NEW] `SearchPage` SHALL align to the SearchPanel standard: use `SearchPanel` with declarative filters, visible loading state, `Enter` execution, `Escape` clear behaviour, and governed results presentation.
+- [EXISTING] `StorageProfilesPage` SHALL provide profile list/create/edit/delete/test-connection workflows through `DataTable` and `EntityDialog`.
+- [NEW] `StorageProfilesPage` SHALL be treated as a PS-77 List/detail administrative surface with sortable columns, pagination, multi-select, bulk actions, and standard page-header action placement.
+- [EXISTING] `AuditLogPage` SHALL provide log refresh, filtering, pagination, export, and `DataTable`-based inspection of live audit entries.
+- [NEW] `AuditLogPage` SHALL remain a PS-77 List/detail operational page with governed filter, empty, loading, and export states and without bespoke tabular markup.
+- [EXISTING] `SettingsPage` SHALL expose service info, server/runtime paths, storage/backend, logging, service-specific config, and health status.
+- [NEW] `SettingsPage` SHALL align to PS-73, PS-81, and PS-84: nested config inspection SHALL use `JsonExplorer`, editable JSON/YAML surfaces SHALL use `CodeEditor`, secrets SHALL remain masked in inspect/edit/export modes, and `JsonBlock` SHALL be limited to simple shallow payloads.
+- [EXISTING] `AdminIdentityPage` SHALL remain the shared implementation surface behind the Users, Groups, and API Keys route pages.
+- [NEW] `AdminIdentityPage` SHALL only be used as an implementation helper; route-level admin pages SHALL remain one-entity-per-page in line with PS-77 CW-L1.
+- [EXISTING] `AdminUsersPage` SHALL provide a routed Users management surface backed by `DataTable` and `EntityDialog`.
+- [NEW] `AdminUsersPage` SHALL align to PS-71 Users requirements: required user columns, create/edit/disable/delete flows, bulk delete, status badges, and RBAC-aware action visibility.
+- [EXISTING] `AdminGroupsPage` SHALL provide a routed Groups management surface backed by `DataTable` and `EntityDialog`.
+- [NEW] `AdminGroupsPage` SHALL align to PS-71 Groups requirements: required columns, create/edit/delete flows, member-management workflow, bulk delete, role/status display, and RBAC-aware action visibility.
+- [EXISTING] `AdminApiKeysPage` SHALL provide a routed API Keys management surface backed by `DataTable` and `EntityDialog`.
+- [NEW] `AdminApiKeysPage` SHALL align to PS-71 API Key requirements: owner/scopes/status/expiry columns, create flow with one-time raw-key reveal and copy action, revoke/bulk-revoke workflows, and RBAC-aware action visibility.
+- [EXISTING] `AdminRbacPage` SHALL provide a routed RBAC inspection surface using the shared `@cloud-dog/ui` RBAC page pattern.
+- [NEW] `AdminRbacPage` SHALL align to PS-71 RBAC requirements: role definitions, user-role bindings, group-role bindings, effective-permissions inspection, and real bind/unbind actions where the backend exposes them.
+- [EXISTING] `GoogleDriveSettingsPage` SHALL provide the Google Drive OAuth/profile binding workflow for file-mcp storage profiles.
+- [NEW] `GoogleDriveSettingsPage` SHALL follow PS-77 viewer/editor layout requirements with governed page header, cards, status/error states, and service-specific configuration actions documented in this service requirements set.
+- [EXISTING] `JobsPage` SHALL provide a routed jobs surface with summary metrics, filters, `DataTable`, detail dialog, and job state actions backed by live service data.
+- [NEW] `JobsPage` SHALL continue to align to PS-76 column order, status mapping, row actions, bulk actions, metrics bar, detail dialog sections, and RBAC-aware behaviour.
+- [EXISTING] `McpConsolePage` SHALL use the shared `McpConsole` pattern against the live tool set and live execution endpoint.
+- [NEW] `McpConsolePage` SHALL align to PS-72 console requirements including auth-status display, schema-driven parameter templates, JSON response display, execution history, and governed loading/error states.
+- [EXISTING] `A2aConsolePage` SHALL use the shared `A2aConsole` pattern against the live A2A endpoint.
+- [NEW] `A2aConsolePage` SHALL align to PS-72 console requirements including auth-status display, task submission/status tracking, agent-card-linked context, and governed loading/error states.
+- [EXISTING] `ApiDocsPage` SHALL expose API, MCP, and A2A documentation through `ApiDocsPanel`, tabs, reference tables, and inline rendered documentation.
+- [NEW] `ApiDocsPage` SHALL align to PS-74: API tab first, live MCP tool reference via `DataTable`, live A2A skill reference from the agent card where available, inline document rendering, and project documentation sourced from real service docs where available.
+
 ---
 
 ## 5. Use Cases (UC)
@@ -493,3 +529,27 @@ Profile concept for this project: file storage profiles defining scope roots, st
 | CFG-11 | User, group, and API-key management SHALL be available via MCP, A2A, and WebUI with RBAC. |
 | CFG-12 | All CRUD operations SHALL be audit logged with user identity, action, timestamp, and outcome. |
 | CFG-13 | Only admin users SHALL be able to create, update, and delete file profiles and manage users or groups; read-only access SHALL be available to authorised non-admin users. |
+
+
+## W28A-883 PS-78 Cross-Platform File Handling Addendum
+
+### Verified current state
+
+- `file-mcp` is the strongest existing PS-78 reference for storage backends: local, S3, FTP, WebDAV, and Google Drive via `cloud_dog_storage`.
+- MCP already exposes `file_upload`, `file_download`, and base64-oriented file transfer tools.
+- The WebUI `FileBrowserPage` already supports file upload and download with a standard file input, plus storage-profile administration.
+
+### Required additions to satisfy PS-78
+
+- Add a standard REST file lifecycle contract so the service also exposes `/files/upload`, `/files/upload_base64`, `/files`, `/files/{id}`, `DELETE /files/{id}`, and `/files/{id}/download`.
+- Add A2A file transfer skills or task payloads for cross-agent use of file-mcp.
+- Define the delegated chat contract explicitly for services such as chat-client that depend on file-mcp for storage and file transfer.
+- Add URI-source intake coverage for `http://`, `https://`, `s3://`, `ftp://`, and `file://` where policy allows.
+
+### Required PS-78 test plan
+
+- API: upload, list, metadata, download, delete across backend types.
+- MCP: base64 upload/download, path-based file flows, and URI-source handling.
+- A2A: file transfer between agents using file-mcp as the file surface.
+- WebUI: upload, download, browse, delete, profile/backend switching.
+- Delegated chat integration: verify chat-client can upload to and download from file-mcp through the standard contract.

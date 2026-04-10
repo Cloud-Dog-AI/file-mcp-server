@@ -29,13 +29,39 @@ from __future__ import annotations
 
 from cloud_dog_logging import AppLogger  # type: ignore[import-untyped]
 
-from .config.models import ProfileConfig
+from .config.models import ProfileConfig, ServerConfig
 from .observability import configure_operational_logger
+
+
+_ROLE_LOG_KEYS = {
+    "api": "api_server_log",
+    "web": "web_server_log",
+    "mcp": "mcp_server_log",
+    "a2a": "a2a_server_log",
+}
+
+
+def _resolve_role_log_path(
+    config: ServerConfig | None, profile: ProfileConfig, role: str | None
+) -> str | None:
+    """Return the configured per-role log path when available."""
+    if config is not None and role:
+        key = _ROLE_LOG_KEYS.get(role.strip().lower())
+        if key:
+            value = getattr(config.log, key, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    value = profile.observability.log_path
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def configure_logging_for_profile(
     profile: ProfileConfig,
     *,
+    config: ServerConfig | None = None,
+    role: str | None = None,
     name: str = "file_mcp_server",
     service_name: str = "file-mcp-server",
 ) -> AppLogger:
@@ -45,4 +71,6 @@ def configure_logging_for_profile(
         name=name,
         service_name=service_name,
         server_id=profile.server_id,
+        app_log_path=_resolve_role_log_path(config, profile, role),
+        environment=config.log.environment if config is not None else None,
     )

@@ -57,6 +57,17 @@ class ComponentServerConfig(BaseModel):
     transport: Optional[str] = None
 
 
+class LogConfig(BaseModel):
+    service_instance: Optional[str] = None
+    environment: Optional[str] = None
+    app_log: Optional[str] = None
+    audit_log: Optional[str] = None
+    api_server_log: Optional[str] = None
+    web_server_log: Optional[str] = None
+    mcp_server_log: Optional[str] = None
+    a2a_server_log: Optional[str] = None
+
+
 class ScopeConfig(BaseModel):
     roots: List[str] = Field(default_factory=list)
     allow_globs: List[str] = Field(default_factory=list)
@@ -104,6 +115,27 @@ class LimitsConfig(BaseModel):
     conversion_timeout_s: Optional[int] = None
 
 
+class JobsRetryConfig(BaseModel):
+    max_attempts: Optional[int | str] = None
+    initial_delay_seconds: Optional[float | str] = None
+    max_delay_seconds: Optional[float | str] = None
+
+
+class JobsTimeoutConfig(BaseModel):
+    run_timeout_ms: Optional[int | str] = None
+    claim_timeout_ms: Optional[int | str] = None
+
+
+class JobsMaintenanceConfig(BaseModel):
+    claim_timeout_seconds: Optional[int | str] = None
+    max_age_seconds: Optional[int | str] = None
+
+
+class JobsDeadLetterConfig(BaseModel):
+    enabled: Optional[bool | str] = None
+    queue_name: Optional[str] = None
+
+
 class JobsConfig(BaseModel):
     enabled: Optional[bool | str] = None
     backend: Optional[str] = None
@@ -112,6 +144,10 @@ class JobsConfig(BaseModel):
     sql_url: Optional[str] = None
     redis_url: Optional[str] = None
     redis_key_prefix: Optional[str] = None
+    retry: Optional[JobsRetryConfig] = None
+    timeout: Optional[JobsTimeoutConfig] = None
+    maintenance: Optional[JobsMaintenanceConfig] = None
+    dead_letter: Optional[JobsDeadLetterConfig] = None
 
 
 class TlsConfig(BaseModel):
@@ -227,3 +263,4 @@ class ServerConfig(BaseModel):
     web_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)
     mcp_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)
     a2a_server: ComponentServerConfig = Field(default_factory=ComponentServerConfig)
+    log: LogConfig = Field(default_factory=LogConfig)

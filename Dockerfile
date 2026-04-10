@@ -38,11 +38,13 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
-# Install platform packages from Gitea PyPI, then remaining deps from REQUIREMENTS.
-ARG PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple
-RUN pip install --no-cache-dir \
+COPY vendor/wheels/ ./vendor/wheels/
+# Install platform packages from internal PyPI, then remaining deps from REQUIREMENTS.
+ARG PYPI_URL=https://pypi.cloud-dog.net/simple
+RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
+    pip install --no-cache-dir \
       --extra-index-url ${PYPI_URL} \
-      --trusted-host gitea.cloud-dog.net \
+      --trusted-host pypi.cloud-dog.net \
       --trusted-host pypi.org \
       --trusted-host files.pythonhosted.org \
       cloud-dog-config \
@@ -51,6 +53,7 @@ RUN pip install --no-cache-dir \
       cloud-dog-idam \
       cloud-dog-db \
       cloud-dog-jobs
+RUN if ls vendor/wheels/*.whl 1>/dev/null 2>&1; then pip install --no-cache-dir vendor/wheels/*.whl; fi
 RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'
@@ -117,12 +120,11 @@ RUN chmod +x /app/docker-entrypoint.sh /app/healthcheck.sh /app/server_control.s
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
 ENV FILE_MCP_HEALTH_HOST=127.0.0.1
-ENV FILE_MCP_HEALTH_PORT=8000
 ENV FILE_MCP_HEALTH_PATH=/health
 
-EXPOSE 8000
+EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
   CMD /app/healthcheck.sh
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

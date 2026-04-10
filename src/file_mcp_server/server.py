@@ -34,12 +34,12 @@ from .server_runtime import (
     RequestContextMiddleware,
     StdioServer,
     StreamableHttpAcceptCompatibilityMiddleware,
-    build_fastmcp_server,
+    build_mcp_server,
     build_tool_registry,
     complete_oauth_callback,
-    register_tools_with_fastmcp,
+    create_profile_tool_handler,
     resolve_http_settings,
-    run_fastmcp_http_server,
+    run_mcp_http_server,
 )
 
 __all__ = [
@@ -49,10 +49,10 @@ __all__ = [
     "RequestContextMiddleware",
     "StdioServer",
     "StreamableHttpAcceptCompatibilityMiddleware",
-    "build_fastmcp_server",
+    "build_mcp_server",
     "build_tool_registry",
     "complete_oauth_callback",
-    "register_tools_with_fastmcp",
+    "create_profile_tool_handler",
     "resolve_http_settings",
-    "run_fastmcp_http_server",
+    "run_mcp_http_server",
 ]

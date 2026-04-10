@@ -44,13 +44,18 @@ from cloud_dog_logging.audit_schema import (  # type: ignore[import-untyped]
     Target,
 )
 from cloud_dog_logging.correlation import get_correlation_id  # type: ignore[import-untyped]
+from cloud_dog_logging.correlation import (  # type: ignore[import-untyped]
+    set_environment,
+    set_service_instance,
+    set_service_name,
+)
 from cloud_dog_logging.presets import BUILTIN_PRESETS  # type: ignore[import-untyped]
 from cloud_dog_logging.redaction import RedactionEngine  # type: ignore[import-untyped]
 from cloud_dog_logging.sinks.base import AuditSink  # type: ignore[import-untyped]
 
 
 @dataclass
-class AuditEvent:
+class FileAuditEvent:
     """Legacy-compatible domain event shape for file-mcp audit emission."""
 
     tool: str
@@ -58,7 +63,7 @@ class AuditEvent:
     status: str
     outcome: str
     timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     )
     profile: Optional[str] = None
     session_id: Optional[str] = None
@@ -84,6 +89,16 @@ def _to_outcome(value: str) -> str:
 def _to_legacy_status(outcome: str) -> str:
     """Handle to legacy status."""
     return "ok" if outcome == "success" else "error"
+
+
+def _normalize_client_ip(value: str | None) -> str | None:
+    """Return a structured actor IP only when a real value is available."""
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned or cleaned.lower() == "unknown":
+        return None
+    return cleaned
 
 
 class _CompatJsonlSink(AuditSink):
@@ -141,7 +156,12 @@ class AuditLogger:
     """Compatibility audit logger that emits PS-40 events via cloud_dog_logging."""
 
     def __init__(
-        self, log_path: Path, *, service_name: str = "file-mcp-server"
+        self,
+        log_path: Path,
+        *,
+        service_name: str = "file-mcp-server",
+        service_instance: str = "file-mcp-local",
+        environment: str = "dev",
     ) -> None:
         """Initialise the instance state."""
         redaction = RedactionEngine(
@@ -149,14 +169,22 @@ class AuditLogger:
         )
         sink = _CompatJsonlSink(log_path)
         self._service_name = service_name
+        self._service_instance = service_instance
+        self._environment = environment
         self._logger = PlatformAuditLogger(
             redaction_engine=redaction,
             service_name=service_name,
             sink=sink,
         )
 
-    def write(self, event: AuditEvent) -> None:
+    def _bind_context(self) -> None:
+        set_service_name(self._service_name)
+        set_service_instance(self._service_instance)
+        set_environment(self._environment)
+
+    def write(self, event: FileAuditEvent) -> None:
         """Execute write."""
+        self._bind_context()
         detail_payload: Dict[str, Any] = {
             "tool": event.tool,
             "profile": event.profile,
@@ -174,11 +202,14 @@ class AuditLogger:
             actor=Actor(
                 type=event.actor_type or "service",
                 id=event.actor_id or event.profile or self._service_name,
+                ip=_normalize_client_ip(event.client_ip),
             ),
             action=event.action,
             outcome=_to_outcome(event.outcome or event.status),
             correlation_id=get_correlation_id(),
             service=self._service_name,
+            service_instance=self._service_instance,
+            environment=self._environment,
             target=Target(type="tool", id=event.tool),
             details=detail_payload,
             duration_ms=(
@@ -215,7 +246,7 @@ def build_event(
     details: Optional[Dict[str, Any]] = None,
 ) -> AuditEvent:
     """Build event."""
-    return AuditEvent(
+    return FileAuditEvent(
         tool=tool,
         action=action,
         status=status,
@@ -230,3 +261,6 @@ def build_event(
         paths=paths or {},
         details=details or {},
     )
+
+
+AuditEvent = FileAuditEvent

@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 from tests.config_helpers import build_profile
-from file_tools.scope import ScopePolicy
+from file_tools.scope import PosixScopePolicy, ScopePolicy
 
 
 def _build_profile(
@@ -179,3 +179,23 @@ def test_scope_denies_read_only_on_write(tmp_path: Path) -> None:
     decision = policy.check(root / "notes.md", operation="write")
     assert not decision.allowed
     assert decision.reason == "extension_read_only"
+
+
+def test_scope_allows_root_directory_for_recursive_glob(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    policy = ScopePolicy(roots=[str(root)], allow_globs=["**/*"])
+
+    decision = policy.check(root)
+
+    assert decision.allowed
+    assert decision.reason == "allowed"
+
+
+def test_posix_scope_allows_root_directory_for_recursive_glob() -> None:
+    policy = PosixScopePolicy(roots=["/workspace"], allow_globs=["**/*"])
+
+    decision = policy.check("/workspace")
+
+    assert decision.allowed
+    assert decision.reason == "allowed"

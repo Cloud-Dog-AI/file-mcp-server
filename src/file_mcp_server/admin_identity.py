@@ -63,6 +63,24 @@ class DynamicApiKeyPrincipal:
     profile_name: str
 
 
+def _allows_profile_permission(
+    permissions: set[str], profile_name: str
+) -> bool:
+    """Return True when permissions cover the selected profile."""
+    return bool(
+        {
+            "*",
+            "profile:read",
+            "profile:write",
+            "profile:*",
+            f"profile:{profile_name}",
+            f"profile:{profile_name}:read",
+            f"profile:{profile_name}:write",
+        }
+        & permissions
+    )
+
+
 class AdminIdentityService:
     """Persistent CRUD service backed by cloud_dog_db session manager."""
 
@@ -568,10 +586,32 @@ class AdminIdentityService:
                 .one_or_none()
             )
             if record is None:
+                # Diagnostic: check total key count to distinguish
+                # "empty table" from "hash mismatch".
+                total_keys = session.query(FileAdminApiKey).count()
+                active_keys = (
+                    session.query(FileAdminApiKey)
+                    .filter(FileAdminApiKey.is_active.is_(True))
+                    .count()
+                )
+                if self.logger:
+                    self.logger.warning(
+                        "dynamic_key_lookup_miss",
+                        profile=profile_name,
+                        hash_prefix=candidate_hash[:12],
+                        total_keys=total_keys,
+                        active_keys=active_keys,
+                    )
                 return None
             if record.revoked_at is not None:
                 return None
             if record.profile_name and record.profile_name != profile_name:
+                if self.logger:
+                    self.logger.warning(
+                        "dynamic_key_profile_mismatch",
+                        key_profile=record.profile_name,
+                        request_profile=profile_name,
+                    )
                 return None
 
             user = (
@@ -580,6 +620,13 @@ class AdminIdentityService:
                 .one_or_none()
             )
             if user is None or not bool(user.is_active):
+                if self.logger:
+                    self.logger.warning(
+                        "dynamic_key_user_invalid",
+                        user_id=record.user_id,
+                        user_found=user is not None,
+                        user_active=bool(user.is_active) if user else False,
+                    )
                 return None
 
             permissions = set(self._parse_json_list(record.scopes_json))
@@ -598,7 +645,13 @@ class AdminIdentityService:
                     permissions.update(self._parse_json_list(group.roles_json))
 
             role = "admin" if ("*" in permissions or "admin" in permissions) else "viewer"
-            if f"profile:{profile_name}" not in permissions and "*" not in permissions:
+            if not _allows_profile_permission(permissions, profile_name):
+                if self.logger:
+                    self.logger.warning(
+                        "dynamic_key_permission_denied",
+                        profile=profile_name,
+                        permissions=sorted(permissions),
+                    )
                 return None
             if "admin" in permissions:
                 permissions.add("*")

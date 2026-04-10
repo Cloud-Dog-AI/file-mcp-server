@@ -12,25 +12,25 @@ profiles:
         insecure_skip_verify: "${FILE_MCP_STORAGE_TLS_INSECURE}"
         ca_bundle_path: "${FILE_MCP_STORAGE_TLS_CA_BUNDLE}"
       s3:
-        endpoint: "${vault.dev.storage.s3.endpoint || FILE_MCP_S3_ENDPOINT || ''}"
+        endpoint: ""
         bucket: "${FILE_MCP_S3_BUCKET}"
-        region: "${vault.dev.storage.s3.region || FILE_MCP_S3_REGION || 'us-east-1'}"
-        access_key: "${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KEY || ''}"
-        secret_key: "${vault.dev.storage.s3.secret_access_key || FILE_MCP_S3_SECRET_KEY || ''}"
+        region: ""
+        access_key: ""
+        secret_key: ""
         prefix: "${FILE_MCP_S3_PREFIX}"
       webdav:
-        base_url: "${vault.dev.storage.webdav.url || FILE_MCP_WEBDAV_BASE_URL || ''}"
-        username: "${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNAME || ''}"
-        password: "${vault.dev.storage.webdav.password || FILE_MCP_WEBDAV_PASSWORD || ''}"
+        base_url: ""
+        username: ""
+        password: ""
         move_retry_count: "3"
         move_retry_backoff_s: "1.0"
         move_probe_timeout_s: "5"
         move_retry_statuses: "423,502,503,504"
       ftp:
-        host: "${vault.dev.storage.ftp.host || FILE_MCP_FTP_HOST || ''}"
-        port: "${vault.dev.storage.ftp.port || FILE_MCP_FTP_PORT || '21'}"
-        username: "${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME || ''}"
-        password: "${vault.dev.storage.ftp.password || FILE_MCP_FTP_PASSWORD || ''}"
+        host: ""
+        port: "0"
+        username: ""
+        password: ""
         base_dir: "${FILE_MCP_FTP_BASE_DIR}"
         use_tls: "${FILE_MCP_FTP_USE_TLS}"
       google_drive:
@@ -38,16 +38,16 @@ profiles:
         folder_id: "${FILE_MCP_GDRIVE_FOLDER_ID}"
         folder_url: "${FILE_MCP_GDRIVE_FOLDER_URL}"
         folder_url_example: "${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com/drive/folders/}"
-        client_id: "${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE_CLIENT_ID || ''}"
-        client_secret: "${vault.dev.storage.google_drive.client_secret || FILE_MCP_GDRIVE_CLIENT_SECRET || ''}"
-        refresh_token: "${vault.dev.storage.google_drive.refresh_token || FILE_MCP_GDRIVE_REFRESH_TOKEN || ''}"
-        access_token: "${vault.dev.storage.google_drive.access_token || FILE_MCP_GDRIVE_ACCESS_TOKEN || ''}"
+        client_id: ""
+        client_secret: ""
+        refresh_token: ""
+        access_token: ""
         oauth_scope: "${FILE_MCP_GDRIVE_OAUTH_SCOPE:https://www.googleapis.com/auth/drive}"
         oauth_authorize_uri: "${FILE_MCP_GDRIVE_AUTHORIZE_URI:https://accounts.google.com/o/oauth2/v2/auth}"
         api_base_uri: "${FILE_MCP_GDRIVE_API_BASE_URI:https://www.googleapis.com/drive/v3}"
         upload_base_uri: "${FILE_MCP_GDRIVE_UPLOAD_BASE_URI:https://www.googleapis.com/upload/drive/v3}"
         redirect_uri: "${FILE_MCP_GDRIVE_REDIRECT_URI:urn:ietf:wg:oauth:2.0:oob}"
-        token_uri: "${vault.dev.storage.google_drive.token_uri || FILE_MCP_GDRIVE_TOKEN_URI || ''}"
+        token_uri: ""
     scope:
       roots:
         - "${FILE_MCP_ROOT}"
@@ -90,6 +90,19 @@ profiles:
       sql_url: "${FILE_MCP_JOBS_SQL_URL:sqlite:///database/file_mcp.db}"
       redis_url: "${FILE_MCP_JOBS_REDIS_URL:disabled}"
       redis_key_prefix: "${FILE_MCP_JOBS_REDIS_KEY_PREFIX:file_mcp_jobs}"
+      retry:
+        max_attempts: 3
+        initial_delay_seconds: 1.0
+        max_delay_seconds: 30.0
+      timeout:
+        run_timeout_ms: 300000
+        claim_timeout_ms: 60000
+      maintenance:
+        claim_timeout_seconds: 60
+        max_age_seconds: 86400
+      dead_letter:
+        enabled: true
+        queue_name: dead_letter
     endpoint_health:
       enabled: true
       check_on_startup: true
@@ -137,6 +150,10 @@ a2a_server:
 log:
   service_instance: "${FILE_MCP_SERVER_ID:file-mcp-local}"
   environment: "${CLOUD_DOG_ENVIRONMENT:dev}"
+  api_server_log: "logs/api_server.log"
+  web_server_log: "logs/web_server.log"
+  mcp_server_log: "logs/mcp_server.log"
+  a2a_server_log: "logs/a2a_server.log"
   audit_log: "logs/audit.log.jsonl"
   retention:
     hot_days: 14

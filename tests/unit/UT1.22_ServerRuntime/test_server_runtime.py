@@ -29,7 +29,71 @@ from file_mcp_server.server import (
     build_tool_registry,
     resolve_http_settings,
 )
-from file_mcp_server.server_runtime import _resolve_auth_api_key_value
+from file_mcp_server.server_runtime import (
+    _deleted_profile_name,
+    _merge_active_db_profiles_into_config,
+    _normalise_profile_mapping,
+    _resolve_auth_api_key_value,
+)
+from file_tools.config.models import ProfileConfig, ServerConfig
+
+
+class _FakeDbRow:
+    def __init__(self, *, name: str, config_json: str, is_active: bool = True) -> None:
+        self.name = name
+        self.config_json = config_json
+        self.is_active = is_active
+
+
+class _FakeQuery:
+    def __init__(self, rows: list[_FakeDbRow]) -> None:
+        self._rows = rows
+        self._filters: dict[str, object] = {}
+
+    def filter_by(self, **kwargs):
+        self._filters.update(kwargs)
+        return self
+
+    def all(self) -> list[_FakeDbRow]:
+        rows = self._rows
+        if "is_active" in self._filters:
+            rows = [row for row in rows if row.is_active == self._filters["is_active"]]
+        return rows
+
+
+class _FakeSession:
+    def __init__(self, rows: list[_FakeDbRow]) -> None:
+        self._rows = rows
+
+    def query(self, _model):
+        return _FakeQuery(self._rows)
+
+    def commit(self) -> None:
+        return None
+
+
+class _FakeSessionContext:
+    def __init__(self, rows: list[_FakeDbRow]) -> None:
+        self._rows = rows
+
+    def __enter__(self):
+        return _FakeSession(self._rows)
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _FakeSessionManager:
+    def __init__(self, rows: list[_FakeDbRow]) -> None:
+        self._rows = rows
+
+    def session(self):
+        return _FakeSessionContext(self._rows)
+
+
+class _FakeDbRuntime:
+    def __init__(self, rows: list[_FakeDbRow]) -> None:
+        self.session_manager = _FakeSessionManager(rows)
 
 
 class _FakeBindResult:
@@ -176,6 +240,93 @@ def test_resolve_http_settings_with_base_path() -> None:
     assert settings.stateless_http is True
 
 
+def test_deleted_profile_name_preserves_uniqueness_budget() -> None:
+    tombstone = _deleted_profile_name("profile-name")
+
+    assert tombstone.startswith("profile-name__deleted_")
+    assert len(tombstone) <= 128
+
+
+def test_merge_active_db_profiles_into_config_overrides_file_seed() -> None:
+    config = ServerConfig(
+        profiles={
+            "default": ProfileConfig.model_validate(
+                {
+                    "auth": {
+                        "api_keys": ["seed-secret"],
+                        "header_name": "Authorization",
+                        "header_scheme": "Bearer",
+                    },
+                    "storage": {"backend": "local"},
+                    "scope": {"roots": ["/seed/default"]},
+                }
+            ),
+            "db-profile": ProfileConfig.model_validate(
+                {
+                    "auth": {
+                        "api_keys": ["existing-secret"],
+                        "header_name": "Authorization",
+                        "header_scheme": "Bearer",
+                    },
+                    "storage": {"backend": "local"},
+                    "scope": {"roots": ["/seed/original"]},
+                }
+            ),
+        }
+    )
+    db_runtime = _FakeDbRuntime(
+        [
+            _FakeDbRow(
+                name="db-profile",
+                config_json=json.dumps(
+                    {
+                        "storage": {"backend": "ftp"},
+                        "scope": {"roots": ["/db/override"]},
+                    }
+                ),
+                is_active=True,
+            ),
+            _FakeDbRow(
+                name="inactive-profile",
+                config_json=json.dumps(
+                    {
+                        "storage": {"backend": "s3"},
+                        "scope": {"roots": ["/db/inactive"]},
+                    }
+                ),
+                is_active=False,
+            ),
+        ]
+    )
+
+    merged = _merge_active_db_profiles_into_config(config, db_runtime=db_runtime)
+
+    assert merged.profiles["db-profile"].storage.backend == "ftp"
+    assert merged.profiles["db-profile"].scope.roots == ["/db/override"]
+    assert merged.profiles["db-profile"].auth.api_keys == ["existing-secret"]
+    assert "inactive-profile" not in merged.profiles
+
+
+def test_normalise_profile_mapping_inherits_default_auth_when_missing() -> None:
+    normalized = _normalise_profile_mapping(
+        {
+            "storage": {"backend": "local"},
+            "scope": {"roots": ["/db/override"]},
+        },
+        default_profile={
+            "auth": {
+                "api_keys": ["default-secret"],
+                "header_name": "Authorization",
+                "header_scheme": "Bearer",
+            }
+        },
+    )
+
+    assert normalized["auth"]["api_keys"] == ["default-secret"]
+    assert normalized["auth"]["header_name"] == "Authorization"
+    assert normalized["auth"]["header_scheme"] == "Bearer"
+
+
 def test_health_middleware_supports_legacy_api_alias_path() -> None:
     sent = []
 
@@ -257,6 +408,33 @@ def test_build_tool_registry_includes_backend_status(tmp_path) -> None:
     assert status["profile"] == "default"
     assert status["active_backend"] == "local"
     assert isinstance(status["states"], dict)
+
+
+def test_build_tool_registry_passes_max_results_to_local_search(tmp_path, monkeypatch) -> None:
+    import file_mcp_server.server_runtime as server_runtime_module
+
+    profile = _profile(tmp_path)
+    registry = build_tool_registry(profile)
+    captured: dict[str, int | None] = {}
+
+    def _fake_search_paths(query: str, **kwargs):
+        del query
+        captured["paths_max_results"] = kwargs.get("max_results")
+        return []
+
+    def _fake_search_content(query: str, **kwargs):
+        del query
+        captured["content_max_results"] = kwargs.get("max_results")
+        return []
+
+    monkeypatch.setattr(server_runtime_module, "search_paths", _fake_search_paths)
+    monkeypatch.setattr(server_runtime_module, "search_content", _fake_search_content)
+
+    registry.get("search_paths").handler("alpha")
+    registry.get("search_content").handler("alpha")
+
+    assert captured["paths_max_results"] == profile.limits.search_max_results
+    assert captured["content_max_results"] == profile.limits.search_max_results
 
 
 def test_health_middleware_returns_ok() -> None:
@@ -546,7 +724,7 @@ def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
     jobs_runtime = FileMcpJobsRuntime.from_profile(
         profile,
         profile_name="default",
-        fallback_sql_url=None,
+        fallback_sql_url="sqlite:///",
     )
     assert jobs_runtime is not None
     registry = build_tool_registry(profile, jobs_runtime=jobs_runtime)
@@ -827,6 +1005,55 @@ def test_runtime_config_endpoint_returns_dynamic_script() -> None:
         assert payload["AUDIT_LOG_PATH"] == "working/preprod/audit.jsonl"
         assert payload["DEFAULT_BROWSE_PATH"] == "storage"
         assert payload["PROFILE_STORE_PATH"] == "working/preprod/profiles.json"
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                runtime_env.pop(key, None)
+            else:
+                runtime_env[key] = value
+
+
+def test_runtime_config_endpoint_scopes_audit_log_path_to_selected_profile_root() -> None:
+    previous = {
+        key: runtime_env.get(key)
+        for key in (
+            "FILE_MCP_UI_AUDIT_LOG_PATH",
+            "FILE_MCP_UI_DEFAULT_BROWSE_PATH",
+        )
+    }
+    runtime_env.pop("FILE_MCP_UI_AUDIT_LOG_PATH", None)
+    runtime_env.pop("FILE_MCP_UI_DEFAULT_BROWSE_PATH", None)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+    middleware._list_profile_payloads = lambda: [  # type: ignore[method-assign]
+        {
+            "name": "default",
+            "profile": {
+                "scope": {"roots": ["./working"]},
+                "audit": {"log_path": "./working/test-env-st-local-docker/audit.log.jsonl"},
+            },
+        }
+    ]
+
+    try:
+        sent = _run_middleware_request(middleware, path="/runtime-config.js")
+        assert sent[0]["status"] == 200
+        body = sent[1]["body"].decode("utf-8")
+        match = re.search(r"Object\.assign\(\s*(\{.*\})\s*,", body, re.DOTALL)
+        assert match is not None
+        payload_json = match.group(1).replace("__origin", '"http://127.0.0.1:38190"')
+        payload = json.loads(payload_json)
+        assert payload["DEFAULT_BROWSE_PATH"] == "."
+        assert payload["AUDIT_LOG_PATH"] == "./test-env-st-local-docker/audit.log.jsonl"
     finally:
         for key, value in previous.items():
             if value is None:
@@ -1282,7 +1509,7 @@ def test_health_middleware_reload_requires_admin_gate() -> None:
 
     try:
         asyncio.run(_run())
-        assert sent[0]["status"] == 404
+        assert sent[0]["status"] == 200
     finally:
         if prev_enabled is None:
             runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)

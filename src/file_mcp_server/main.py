@@ -41,6 +41,20 @@ from cloud_dog_storage import path_utils
 import typer
 
 from file_tools.config.adapter import get_profile, load_config
+# W28A-654: Patch cloud_dog_logging ContextVar defaults at module import time.
+try:
+    import contextvars as _ctxvars, os as _patch_os
+    from cloud_dog_logging import correlation as _cmod
+    _cmod._environment_var = _ctxvars.ContextVar(
+        "environment", default=_patch_os.environ.get("CLOUD_DOG_ENVIRONMENT", "dev"))
+    _cmod._service_name_var = _ctxvars.ContextVar(
+        "service_name", default="file-mcp-server")
+    _cmod._service_instance_var = _ctxvars.ContextVar(
+        "service_instance", default=_patch_os.environ.get("HOSTNAME", "file-local"))
+    del _ctxvars, _patch_os, _cmod
+except Exception:
+    pass
+
 from file_tools.config.models import (
     ComponentServerConfig,
     HttpServerConfig,
@@ -48,7 +62,7 @@ from file_tools.config.models import (
 )
 from file_tools.logging_adapter import configure_logging_for_profile
 from file_mcp_server.lifecycle import start_pidfile, status_pidfile, stop_pidfile
-from file_mcp_server.server import run_fastmcp_http_server
+from file_mcp_server.server import run_mcp_http_server
 
 app = typer.Typer(help="file-mcp-server CLI.")
 SERVER_ROLES = ("api", "web", "mcp", "a2a")
@@ -78,6 +92,25 @@ def _seed_process_env_from_file(env_path: str | None) -> None:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
             value = value[1:-1]
         runtime_env.setdefault(key, value)
+
+    # When a dedicated runtime env file is used without explicit DB settings,
+    # keep SQLite state inside that runtime directory instead of falling back
+    # to the repository-local default database.
+    db_keys = (
+        "CLOUD_DOG__DB__URL",
+        "CLOUD_DOG_DB__URL",
+        "FILE_MCP_DB_URL",
+        "CLOUD_DOG__DB__DATABASE",
+        "CLOUD_DOG_DB__DATABASE",
+        "CLOUD_DOG__DB__PATH",
+        "CLOUD_DOG_DB__PATH",
+    )
+    if not any(str(runtime_env.get(key, "")).strip() for key in db_keys):
+        runtime_dir = path_utils.as_path(resolved).parent
+        runtime_env.setdefault(
+            "CLOUD_DOG__DB__DATABASE",
+            str(runtime_dir / "database" / "file_mcp.db"),
+        )
 
 
 def _default_pidfile() -> Path:
@@ -152,7 +185,7 @@ def serve(
         None, help="Server role: api|web|mcp|a2a. Omit for legacy single-server mode."
     ),
 ) -> None:
-    """Run the FastMCP HTTP/SSE server."""
+    """Run the MCP HTTP/SSE server."""
     resolved_role = _normalise_server_role(server_role) if server_role else None
     _seed_process_env_from_file(env_path)
     if env_path:
@@ -181,7 +214,11 @@ def serve(
     )
     runtime_env["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
     profile_config = get_profile(config, name=profile)
-    logger = configure_logging_for_profile(profile_config)
+    logger = configure_logging_for_profile(
+        profile_config,
+        config=config,
+        role=resolved_role,
+    )
     if resolved_role:
         component = _component_for_role(config, resolved_role)
         if not _to_bool(component.enabled, default=True):
@@ -200,7 +237,7 @@ def serve(
     logger.info("Server process started", pid=current_pid)
     try:
         asyncio.run(
-            run_fastmcp_http_server(
+            run_mcp_http_server(
                 default_profile_name=profile,
                 config=config,
                 http_config=(

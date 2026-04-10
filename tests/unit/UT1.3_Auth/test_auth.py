@@ -19,15 +19,91 @@ import asyncio
 import pytest
 from starlette.requests import HTTPConnection
 
+from cloud_dog_idam import APIKeyOnlyProvider, ProviderRegistry, RBACEngine
+from cloud_dog_idam.api_keys.hashing import hash_api_key
+from cloud_dog_idam.domain.errors import AuthenticationError
+from cloud_dog_idam.domain.models import AuthRequest as IDAMAuthRequest
 from tests.config_helpers import build_profile
 from file_mcp_server.auth import (
-    ApiKeyAuth,
-    ApiKeyTokenVerifier,
-    AuthError,
+    AccessToken,
     HeaderTokenAuthBackend,
     MultiProfileApiKeyTokenVerifier,
     key_fingerprint,
 )
+
+
+# --- Test-only helpers replacing W28A-701-deleted bespoke classes ---
+
+class AuthError(ValueError):
+    """Test-only exception for auth failures."""
+
+
+class _AuthResult:
+    """Test-only auth result."""
+    def __init__(self, ok, key_fingerprint):
+        self.ok = ok
+        self.key_fingerprint = key_fingerprint
+
+
+class ApiKeyAuth:
+    """Test helper: stores API keys for test verification."""
+    def __init__(self, api_keys):
+        self._keys = [k for k in api_keys if k]
+        self._key_hashes = [hash_api_key(k) for k in self._keys]
+
+    def validate(self, api_key):
+        if not api_key:
+            raise AuthError("Missing API key")
+        if not self._keys:
+            raise AuthError("No API keys configured")
+        candidate = hash_api_key(api_key)
+        for stored_hash in self._key_hashes:
+            if candidate == stored_hash:
+                return _AuthResult(ok=True, key_fingerprint=f"sha256:{candidate[:12]}")
+        raise AuthError("Invalid API key")
+
+
+class ApiKeyTokenVerifier:
+    """Test helper: single-profile verifier wrapping cloud_dog_idam."""
+    def __init__(self, api_keys, *, header_name=None, header_scheme=None, **kwargs):
+        self.required_scopes = list(kwargs.pop("required_scopes", None) or [])
+        self._keys = [k for k in api_keys if k]
+        _hn = (header_name or "").strip()
+        if not _hn or "${" in _hn:
+            _hn = "authorization"
+        self.header_name = _hn.lower()
+        _hs = (header_scheme or "").strip() if header_scheme is not None else None
+        if _hs is not None and "${" in _hs:
+            _hs = None
+        if _hs is None and self.header_name == "authorization":
+            _hs = "Bearer"
+        self.header_scheme = _hs
+        provider = APIKeyOnlyProvider(key_role_mapping={k: "viewer" for k in self._keys})
+        self._registry = ProviderRegistry()
+        self._registry.register(provider, priority=10)
+        self._rbac = RBACEngine(role_permissions={"viewer": {"profile:default"}, "admin": {"*"}})
+
+    async def verify_access_token(self, token):
+        try:
+            result = await self._registry.authenticate(IDAMAuthRequest(auth_type="api_key_only", secret=token))
+        except AuthenticationError:
+            return None
+        user = result.user
+        self._rbac.assign_role_to_user(user.user_id, user.role or "viewer")
+        fingerprint = f"sha256:{hash_api_key(token)[:12]}"
+        return AccessToken(
+            token=fingerprint,
+            client_id=user.user_id,
+            scopes=list(self._rbac.get_effective_permissions(user.user_id)),
+            claims={"fingerprint": fingerprint, "role": user.role},
+        )
+
+    verify_token = verify_access_token
+
+    def get_middleware(self):
+        from starlette.middleware import Middleware
+        from starlette.middleware.authentication import AuthenticationMiddleware
+        return [Middleware(AuthenticationMiddleware, backend=HeaderTokenAuthBackend(self, header_name=self.header_name, header_scheme=self.header_scheme))]
 
 
 def _build_profile(tmp_path, *, primary: str, secondary: str) -> ApiKeyAuth:

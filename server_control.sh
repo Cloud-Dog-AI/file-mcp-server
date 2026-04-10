@@ -45,6 +45,19 @@ ACTION=""
 COMPONENT=""
 COMPONENT_ORDER=(api web mcp a2a)
 
+runtime_pid_suffix() {
+  local seed="${ENV_PATH}|${CONFIG_PATH}|${DEFAULTS_PATH}|${PROFILE}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s' "$seed" | sha256sum | cut -c1-12
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$seed" | shasum -a 256 | cut -c1-12
+    return
+  fi
+  printf '%s' "$seed" | cksum | awk '{print $1}'
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env)
@@ -127,6 +140,22 @@ if [[ -x ".venv/bin/python" ]]; then
   PYTHON_BIN=".venv/bin/python"
 fi
 
+interpreter_supports_runtime() {
+  local candidate="$1"
+  [[ -x "${candidate}" ]] || return 1
+  "${candidate}" - <<'PY' >/dev/null 2>&1
+import importlib.util
+
+required = ("cloud_dog_storage", "cloud_dog_storage.path_utils")
+missing = [name for name in required if importlib.util.find_spec(name) is None]
+raise SystemExit(0 if not missing else 1)
+PY
+}
+
+if ! interpreter_supports_runtime "${PYTHON_BIN}"; then
+  PYTHON_BIN="python3"
+fi
+
 COMMON_ARGS=(
   --profile "$PROFILE"
   --env-path "$ENV_PATH"
@@ -146,11 +175,13 @@ component_pidfile() {
     echo "$PIDFILE"
     return
   fi
+  local suffix
+  suffix="$(runtime_pid_suffix)"
   case "$component" in
-    api) echo ".run/file-mcp-server.pid" ;;
-    web) echo ".run/file-mcp-server-web.pid" ;;
-    mcp) echo ".run/file-mcp-server-mcp.pid" ;;
-    a2a) echo ".run/file-mcp-server-a2a.pid" ;;
+    api) echo ".run/file-mcp-server-${suffix}.pid" ;;
+    web) echo ".run/file-mcp-server-web-${suffix}.pid" ;;
+    mcp) echo ".run/file-mcp-server-mcp-${suffix}.pid" ;;
+    a2a) echo ".run/file-mcp-server-a2a-${suffix}.pid" ;;
     *)
       echo "ERROR: unsupported component '$component'" >&2
       exit 2

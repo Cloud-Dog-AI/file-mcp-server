@@ -53,7 +53,7 @@ export SSL_CERT_FILE="${SSL_CERT_FILE:-/etc/ssl/certs/ca-certificates.crt}"
 export CURL_CA_BUNDLE="${CURL_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}"
 
 PROFILE="${FILE_MCP_PROFILE:-default}"
-ENV_PATH="${FILE_MCP_ENV_PATH:-}"
+ENV_PATH="${FILE_MCP_ENV_PATH:-/app/env-docker-defaults}"
 CONFIG_PATH="${FILE_MCP_CONFIG_PATH:-/app/config.yaml}"
 DEFAULTS_PATH="${FILE_MCP_DEFAULTS_PATH:-/app/defaults.yaml}"
 PIDFILE="${FILE_MCP_PIDFILE:-/app/.run/file-mcp-server.pid}"

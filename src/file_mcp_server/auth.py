@@ -12,43 +12,779 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Compatibility re-exports for IDAM-backed authentication.
+"""Authentication module for file-mcp-server using cloud_dog_idam.
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
-Description: Backwards-compatible auth module forwarding to idam_adapter.
+Description: FastMCP token-verifier bridge using cloud_dog_idam providers and RBAC.
+  Replaces the former idam_adapter.py (W28A-701).
 Requirements: FR1.5, CS1.1
 Tasks: T3, T15
 Architecture: 4.1 Authentication
 Tests: UT1.2, ST1.2
 Recent Change History:
-- 2026-02-20: Replaced bespoke module body with idam_adapter re-exports.
+- 2026-02-20: Replaced bespoke API-key verification flow with cloud_dog_idam adapter.
 """
 
 from __future__ import annotations
 
-from .idam_adapter import (
-    ApiKeyAuth,
-    ApiKeyTokenVerifier,
-    AuthError,
-    AuthResult,
-    HeaderTokenAuthBackend,
-    MultiProfileApiKeyTokenVerifier,
-    get_request_profile_name,
-    key_digest,
-    key_fingerprint,
-    set_request_profile_name,
+from dataclasses import dataclass
+from hashlib import sha256
+from hmac import compare_digest
+from typing import Any, Callable, Iterable, List, Mapping, Protocol, cast
+
+import contextvars
+import time
+
+from pydantic import Field
+
+from cloud_dog_idam import (  # type: ignore[import-not-found,import-untyped]
+    APIKeyOnlyProvider,
+    ProviderRegistry,
+    RBACEngine,
+)
+from cloud_dog_idam.api_keys.hashing import hash_api_key  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.audit.models import AuditEvent as IDAMAuditEvent  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.domain.errors import AuthenticationError  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.domain.models import (  # type: ignore[import-not-found,import-untyped]
+    AuthRequest as IDAMAuthRequest,
+)
+from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
+from mcp.server.auth.provider import AccessToken as _McpAccessToken
+
+
+class AccessToken(_McpAccessToken):
+    """MCP access token with optional ``claims`` for file-mcp IDAM metadata."""
+
+    claims: dict[str, Any] = Field(default_factory=dict)
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from starlette.authentication import AuthCredentials, AuthenticationBackend
+from starlette.middleware import Middleware
+from starlette.middleware.authentication import AuthenticationMiddleware
+from starlette.requests import HTTPConnection
+
+
+_request_profile_name: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "file_mcp_request_profile_name", default=None
 )
 
-__all__ = [
-    "ApiKeyAuth",
-    "ApiKeyTokenVerifier",
-    "AuthError",
-    "AuthResult",
-    "HeaderTokenAuthBackend",
-    "MultiProfileApiKeyTokenVerifier",
-    "get_request_profile_name",
-    "key_digest",
-    "key_fingerprint",
-    "set_request_profile_name",
-]
+
+class MultiProfileTokenVerifierProtocol:
+    """Protocol for token verifiers that support multi-profile resolution."""
+
+    def resolve_profile(self, conn: HTTPConnection) -> str: ...
+    def header_for_profile(self, profile: str) -> str: ...
+    def verify_token_for_profile(self, token: str, profile: str) -> AccessToken: ...
+
+
+def set_request_profile_name(profile_name: str) -> None:
+    """Set request profile name."""
+    _request_profile_name.set(profile_name)
+
+
+def get_request_profile_name(default: str | None = None) -> str | None:
+    """Return request profile name."""
+    value = _request_profile_name.get()
+    if value:
+        return value
+    return default
+
+
+def key_digest(api_key: str) -> str:
+    """Execute key digest."""
+    digest = sha256(api_key.encode("utf-8")).hexdigest()
+    return f"sha256:{digest[:12]}"
+
+
+key_fingerprint = key_digest
+
+_FILE_READ_SCOPES: frozenset[str] = frozenset(
+    {"file:read", "file:list", "file:search"}
+)
+_FILE_WRITE_SCOPES: frozenset[str] = frozenset({"file:write"})
+
+
+def _profile_scoped_permission(profile_name: str, suffix: str | None = None) -> str:
+    base = f"profile:{profile_name}"
+    if suffix:
+        return f"{base}:{suffix}"
+    return base
+
+
+def _expand_profile_permissions(
+    permissions: Iterable[str], profile_name: str
+) -> set[str]:
+    expanded = {str(item).strip() for item in permissions if str(item).strip()}
+    if "*" in expanded:
+        expanded.update(_FILE_READ_SCOPES)
+        expanded.update(_FILE_WRITE_SCOPES)
+        expanded.add(_profile_scoped_permission(profile_name))
+        expanded.add(_profile_scoped_permission(profile_name, "read"))
+        expanded.add(_profile_scoped_permission(profile_name, "write"))
+        return expanded
+
+    legacy_profile = _profile_scoped_permission(profile_name)
+    profile_read = _profile_scoped_permission(profile_name, "read")
+    profile_write = _profile_scoped_permission(profile_name, "write")
+    generic_profile_read = "profile:read" in expanded or "profile:*" in expanded
+    generic_profile_write = "profile:write" in expanded or "profile:*" in expanded
+    scoped_read = profile_read in expanded
+    scoped_write = profile_write in expanded
+    scoped_legacy = legacy_profile in expanded
+
+    if generic_profile_read or generic_profile_write or scoped_read or scoped_write or scoped_legacy:
+        expanded.update(_FILE_READ_SCOPES)
+        expanded.add(profile_read)
+
+    if generic_profile_write or scoped_write or scoped_legacy:
+        expanded.update(_FILE_WRITE_SCOPES)
+        expanded.add(profile_write)
+
+    if generic_profile_write or scoped_legacy:
+        expanded.add(legacy_profile)
+
+    return expanded
+
+
+def _has_profile_access(
+    permissions: Iterable[str], profile_name: str, *, write: bool = False
+) -> bool:
+    expanded = _expand_profile_permissions(permissions, profile_name)
+    if "*" in expanded:
+        return True
+    if write:
+        return bool(
+            {
+                "profile:write",
+                "profile:*",
+                _profile_scoped_permission(profile_name),
+                _profile_scoped_permission(profile_name, "write"),
+            }
+            & expanded
+        )
+    return bool(
+        {
+            "profile:read",
+            "profile:write",
+            "profile:*",
+            _profile_scoped_permission(profile_name),
+            _profile_scoped_permission(profile_name, "read"),
+            _profile_scoped_permission(profile_name, "write"),
+        }
+        & expanded
+    )
+
+
+class HeaderTokenAuthBackend(AuthenticationBackend):
+    """Authentication backend for configurable token headers and schemes."""
+
+    def __init__(
+        self,
+        token_verifier: TokenVerifier,
+        *,
+        header_name: str,
+        header_scheme: str | None,
+    ) -> None:
+        """Initialise the instance state."""
+        self.token_verifier = token_verifier
+        self.header_name = header_name.lower()
+        self.header_scheme = header_scheme
+
+    @staticmethod
+    def _extract_token(raw_header: str, scheme: str | None) -> str | None:
+        """Handle extract token."""
+        value = raw_header.strip()
+        if not value:
+            return None
+        if scheme:
+            prefix = f"{scheme} "
+            if not value.lower().startswith(prefix.lower()):
+                return None
+            token = value[len(prefix) :].strip()
+            return token or None
+        return value
+
+    def _record_failure(
+        self,
+        *,
+        reason: str,
+        conn: HTTPConnection,
+        profile_name: str | None = None,
+    ) -> None:
+        """Handle record failure."""
+        recorder = getattr(self.token_verifier, "record_auth_failure", None)
+        if callable(recorder):
+            recorder(reason=reason, conn=conn, profile_name=profile_name)
+
+    async def authenticate(self, conn: HTTPConnection):
+        """Execute authenticate."""
+        if (
+            hasattr(self.token_verifier, "resolve_profile")
+            and hasattr(self.token_verifier, "header_for_profile")
+            and hasattr(self.token_verifier, "verify_token_for_profile")
+        ):
+            profile_verifier = cast(
+                MultiProfileTokenVerifierProtocol, self.token_verifier
+            )
+            profile_name = profile_verifier.resolve_profile(conn)
+            set_request_profile_name(profile_name)
+            header_name, header_scheme = profile_verifier.header_for_profile(
+                profile_name
+            )
+            raw_header = conn.headers.get(header_name)
+            if not raw_header:
+                self._record_failure(
+                    reason="missing_credentials", conn=conn, profile_name=profile_name
+                )
+                return None
+            token = self._extract_token(raw_header, header_scheme)
+            if not token:
+                self._record_failure(
+                    reason="malformed_credentials", conn=conn, profile_name=profile_name
+                )
+                return None
+            auth_info = await profile_verifier.verify_token_for_profile(
+                token, profile_name
+            )
+            if not auth_info:
+                self._record_failure(
+                    reason="invalid_credentials", conn=conn, profile_name=profile_name
+                )
+                return None
+            if auth_info.expires_at and auth_info.expires_at < int(time.time()):
+                self._record_failure(
+                    reason="expired_credentials", conn=conn, profile_name=profile_name
+                )
+                return None
+            return AuthCredentials(auth_info.scopes), AuthenticatedUser(auth_info)
+
+        raw_header = conn.headers.get(self.header_name)
+        if not raw_header:
+            self._record_failure(reason="missing_credentials", conn=conn)
+            return None
+
+        token = self._extract_token(raw_header, self.header_scheme)
+        if not token:
+            self._record_failure(reason="malformed_credentials", conn=conn)
+            return None
+
+        auth_info = await self.token_verifier.verify_token(token)
+        if not auth_info:
+            self._record_failure(reason="invalid_credentials", conn=conn)
+            return None
+
+        if auth_info.expires_at and auth_info.expires_at < int(time.time()):
+            self._record_failure(reason="expired_credentials", conn=conn)
+            return None
+
+        return AuthCredentials(auth_info.scopes), AuthenticatedUser(auth_info)
+
+
+class _IDAMAuditMixin:
+    """Common helpers for IDAM-backed verifier audit emission."""
+
+    def _normalise_optional_text(self, value: str | None) -> str | None:
+        """Handle normalise optional text."""
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned or "${" in cleaned:
+            return None
+        return cleaned
+
+    def _correlation_id(self, conn: HTTPConnection | None) -> str:
+        """Handle correlation id."""
+        if conn is None:
+            return ""
+        return (
+            conn.headers.get("x-correlation-id")
+            or conn.headers.get("x-request-id")
+            or ""
+        )
+
+    def _emit_audit(
+        self,
+        *,
+        action: str,
+        outcome: str,
+        actor_id: str,
+        details: dict[str, Any],
+        conn: HTTPConnection | None = None,
+    ) -> None:
+        """Handle emit audit."""
+        emitter = getattr(self, "_audit_emitter", None)
+        if emitter is not None:
+            emitter.emit(
+                IDAMAuditEvent(
+                    actor_id=actor_id,
+                    action=action,
+                    target=f"file_mcp_auth:{action}",
+                    outcome=outcome,
+                    correlation_id=self._correlation_id(conn),
+                    details=details,
+                )
+            )
+
+        logger = getattr(self, "_logger", None)
+        if logger is not None:
+            payload = {
+                "event": "idam_auth",
+                "action": action,
+                "outcome": outcome,
+                **details,
+            }
+            if outcome == "success":
+                logger.info("IDAM auth event", **payload)
+            else:
+                logger.warning("IDAM auth event", **payload)
+
+    @staticmethod
+    def _normalise_fingerprint(value: str) -> str:
+        """Handle normalise fingerprint."""
+        if value.startswith("sha256:"):
+            return value
+        return f"sha256:{value[:12]}"
+
+
+@dataclass(frozen=True)
+class _ProfileAuthState:
+    registry: ProviderRegistry
+    header_name: str
+    header_scheme: str | None
+    role_name: str
+
+
+class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin):
+    """Profile-aware API-key verifier backed by cloud_dog_idam."""
+
+    def __init__(
+        self,
+        profile_auth: Mapping[str, tuple[Iterable[str], str | None, str | None]],
+        *,
+        default_profile: str,
+        admin_api_keys: Iterable[str] | None = None,
+        profile_header_name: str = "x-file-mcp-profile",
+        profile_query_name: str = "profile",
+        dynamic_key_resolver: Callable[[str, str], Any | None] | None = None,
+        required_scopes: list[str] | None = None,
+        audit_emitter: AuditEmitter | None = None,
+        logger: Any | None = None,
+    ) -> None:
+        """Initialise the instance state."""
+        self.required_scopes = list(required_scopes or [])
+        if default_profile not in profile_auth:
+            raise ValueError(
+                f"default profile '{default_profile}' missing from profile_auth"
+            )
+
+        self.default_profile = default_profile
+        self.profile_header_name = profile_header_name.strip().lower()
+        self.profile_query_name = profile_query_name.strip()
+        self._dynamic_key_resolver = dynamic_key_resolver
+        self._logger = logger
+        self._audit_emitter = audit_emitter
+        self._admin_api_keys = {
+            str(item).strip() for item in (admin_api_keys or []) if str(item).strip()
+        }
+        role_permissions: dict[str, set[str]] = {"admin": {"*"}}
+        self._profiles: dict[str, _ProfileAuthState] = {}
+
+        for profile_name, (
+            api_keys,
+            header_name,
+            header_scheme,
+        ) in profile_auth.items():
+            role_name = f"profile:{profile_name}:role"
+            role_permissions[role_name] = {
+                _profile_scoped_permission(profile_name),
+                _profile_scoped_permission(profile_name, "read"),
+                _profile_scoped_permission(profile_name, "write"),
+            }
+            normalised_header_name = self._normalise_optional_text(header_name)
+            normalised_header_scheme = self._normalise_optional_text(header_scheme)
+            final_header_name = (
+                (normalised_header_name or "authorization").strip().lower()
+            )
+            if (
+                normalised_header_scheme is None
+                and final_header_name == "authorization"
+            ):
+                final_header_scheme: str | None = "Bearer"
+            else:
+                final_header_scheme = normalised_header_scheme
+
+            key_role_mapping = {}
+            for key in api_keys:
+                text_key = str(key).strip()
+                if not text_key:
+                    continue
+                key_role_mapping[text_key] = (
+                    "admin" if text_key in self._admin_api_keys else role_name
+                )
+            provider = APIKeyOnlyProvider(
+                key_role_mapping=key_role_mapping,
+                default_role=role_name,
+            )
+            registry = ProviderRegistry()
+            registry.register(provider, priority=10)
+            self._profiles[profile_name] = _ProfileAuthState(
+                registry=registry,
+                header_name=final_header_name,
+                header_scheme=final_header_scheme,
+                role_name=role_name,
+            )
+
+        self._rbac_engine = RBACEngine(role_permissions=role_permissions)
+
+    def refresh_profiles(
+        self,
+        profile_auth: Mapping[str, tuple[Iterable[str], str | None, str | None]],
+    ) -> None:
+        """Rebuild internal profile auth state after dynamic config reload.
+
+        Called when profiles are added/removed via the admin API and the
+        service reloads its configuration.  Updates the verifier's profile
+        map and RBAC engine so that newly created profiles are routable
+        via header / query-param / path selection.
+        """
+        role_permissions: dict[str, set[str]] = {"admin": {"*"}}
+        new_profiles: dict[str, _ProfileAuthState] = {}
+
+        for profile_name, (
+            api_keys,
+            header_name,
+            header_scheme,
+        ) in profile_auth.items():
+            role_name = f"profile:{profile_name}:role"
+            role_permissions[role_name] = {f"profile:{profile_name}"}
+            normalised_header_name = self._normalise_optional_text(header_name)
+            normalised_header_scheme = self._normalise_optional_text(header_scheme)
+            final_header_name = (
+                (normalised_header_name or "authorization").strip().lower()
+            )
+            if (
+                normalised_header_scheme is None
+                and final_header_name == "authorization"
+            ):
+                final_header_scheme: str | None = "Bearer"
+            else:
+                final_header_scheme = normalised_header_scheme
+
+            key_role_mapping = {}
+            for key in api_keys:
+                text_key = str(key).strip()
+                if not text_key:
+                    continue
+                key_role_mapping[text_key] = (
+                    "admin" if text_key in self._admin_api_keys else role_name
+                )
+            provider = APIKeyOnlyProvider(
+                key_role_mapping=key_role_mapping,
+                default_role=role_name,
+            )
+            registry = ProviderRegistry()
+            registry.register(provider, priority=10)
+            new_profiles[profile_name] = _ProfileAuthState(
+                registry=registry,
+                header_name=final_header_name,
+                header_scheme=final_header_scheme,
+                role_name=role_name,
+            )
+
+        self._profiles = new_profiles
+        self._rbac_engine = RBACEngine(role_permissions=role_permissions)
+
+    def _resolve_profile_from_path(self, path: str) -> str | None:
+        # Optional path selector format: /mcp/<profile>/...
+        """Handle resolve profile from path."""
+        parts = [part for part in path.split("/") if part]
+        if len(parts) >= 2 and parts[0].lower() == "mcp":
+            candidate = parts[1].strip()
+            if candidate in self._profiles:
+                return candidate
+        return None
+
+    def resolve_profile(self, conn: HTTPConnection) -> str:
+        """Execute resolve profile."""
+        query_candidate = conn.query_params.get(self.profile_query_name)
+        if query_candidate and query_candidate in self._profiles:
+            self._emit_audit(
+                action="profile_select",
+                outcome="success",
+                actor_id="anonymous",
+                details={"profile": query_candidate, "source": "query"},
+                conn=conn,
+            )
+            return query_candidate
+
+        header_candidate = conn.headers.get(self.profile_header_name)
+        if header_candidate and header_candidate in self._profiles:
+            self._emit_audit(
+                action="profile_select",
+                outcome="success",
+                actor_id="anonymous",
+                details={"profile": header_candidate, "source": "header"},
+                conn=conn,
+            )
+            return header_candidate
+
+        path_candidate = self._resolve_profile_from_path(conn.url.path or "")
+        if path_candidate:
+            self._emit_audit(
+                action="profile_select",
+                outcome="success",
+                actor_id="anonymous",
+                details={"profile": path_candidate, "source": "path"},
+                conn=conn,
+            )
+            return path_candidate
+
+        self._emit_audit(
+            action="profile_select",
+            outcome="success",
+            actor_id="anonymous",
+            details={"profile": self.default_profile, "source": "default"},
+            conn=conn,
+        )
+        return self.default_profile
+
+    def header_for_profile(self, profile_name: str) -> tuple[str, str | None]:
+        """Execute header for profile."""
+        state = self._profiles[profile_name]
+        return state.header_name, state.header_scheme
+
+    def record_auth_failure(
+        self,
+        *,
+        reason: str,
+        conn: HTTPConnection | None = None,
+        profile_name: str | None = None,
+    ) -> None:
+        """Execute record auth failure."""
+        details: dict[str, Any] = {"reason": reason}
+        if profile_name:
+            details["profile"] = profile_name
+        self._emit_audit(
+            action="authenticate",
+            outcome="failure",
+            actor_id="anonymous",
+            details=details,
+            conn=conn,
+        )
+
+    async def verify_token_for_profile(
+        self, token: str, profile_name: str
+    ) -> AccessToken | None:
+        """Execute verify token for profile."""
+        state = self._profiles.get(profile_name)
+        if state is None:
+            self._emit_audit(
+                action="authenticate",
+                outcome="failure",
+                actor_id="anonymous",
+                details={"reason": "unknown_profile", "profile": profile_name},
+            )
+            return None
+
+        def _dynamic_value(payload: Any, key: str, default: Any = "") -> Any:
+            if isinstance(payload, Mapping):
+                return payload.get(key, default)
+            return getattr(payload, key, default)
+
+        def _dynamic_permissions(payload: Any) -> set[str]:
+            raw = _dynamic_value(payload, "permissions", ())
+            values: set[str] = set()
+            for item in raw or ():
+                text = str(item).strip()
+                if text:
+                    values.add(text)
+            return values
+
+        try:
+            result = await state.registry.authenticate(
+                IDAMAuthRequest(
+                    auth_type="api_key_only",
+                    secret=token,
+                    metadata={"profile": profile_name},
+                )
+            )
+        except AuthenticationError:
+            dynamic_payload = None
+            if callable(self._dynamic_key_resolver):
+                try:
+                    dynamic_payload = self._dynamic_key_resolver(token, profile_name)
+                    if self._logger and token.startswith("fka_"):
+                        self._logger.warning(
+                            "Dynamic key resolver result",
+                            profile=profile_name,
+                            payload_type=type(dynamic_payload).__name__ if dynamic_payload else "None",
+                            payload_is_none=dynamic_payload is None,
+                        )
+                except Exception as dynamic_exc:
+                    if self._logger:
+                        self._logger.warning(
+                            "Dynamic key resolver error",
+                            profile=profile_name,
+                            error=str(dynamic_exc),
+                            error_type=type(dynamic_exc).__name__,
+                        )
+                    dynamic_payload = None
+
+            if dynamic_payload is None:
+                self._emit_audit(
+                    action="authenticate",
+                    outcome="failure",
+                    actor_id="anonymous",
+                    details={"reason": "invalid_api_key", "profile": profile_name},
+                )
+                return None
+
+            dynamic_permissions = _dynamic_permissions(dynamic_payload)
+            dynamic_role = str(
+                _dynamic_value(dynamic_payload, "role", "viewer") or "viewer"
+            )
+            dynamic_user_id = str(
+                _dynamic_value(dynamic_payload, "user_id", "dynamic-api-key")
+            )
+            dynamic_client_id = str(
+                _dynamic_value(dynamic_payload, "api_key_id", dynamic_user_id)
+            )
+            required_permission = f"profile:{profile_name}"
+            # PS-70: Use cloud_dog_idam RBACEngine for role-based permission
+            # resolution instead of hardcoded role string comparison (W28A-721).
+            self._rbac_engine.assign_role_to_user(dynamic_user_id, dynamic_role)
+            if self._rbac_engine.has_permission(dynamic_user_id, "*") or self._rbac_engine.has_permission(dynamic_user_id, required_permission):
+                dynamic_permissions.add("*")
+                dynamic_permissions.add(required_permission)
+            dynamic_permissions = _expand_profile_permissions(
+                dynamic_permissions, profile_name
+            )
+            if not _has_profile_access(dynamic_permissions, profile_name):
+                self._emit_audit(
+                    action="authorise",
+                    outcome="failure",
+                    actor_id=dynamic_user_id,
+                    details={
+                        "reason": "profile_permission_denied",
+                        "profile": profile_name,
+                        "role": dynamic_role,
+                    },
+                )
+                return None
+
+            scopes = list(self.required_scopes or [])
+            for permission in sorted(dynamic_permissions):
+                if permission not in scopes:
+                    scopes.append(permission)
+
+            fingerprint = key_digest(token)
+            self._emit_audit(
+                action="authenticate",
+                outcome="success",
+                actor_id=dynamic_user_id,
+                details={
+                    "profile": profile_name,
+                    "role": dynamic_role,
+                    "fingerprint": fingerprint,
+                    "source": "dynamic_admin_store",
+                },
+            )
+            return AccessToken(
+                token=fingerprint,
+                client_id=dynamic_client_id or "file-mcp-client",
+                scopes=scopes,
+                claims={
+                    "fingerprint": fingerprint,
+                    "profile": profile_name,
+                    "role": dynamic_role,
+                    "permissions": sorted(dynamic_permissions),
+                    "dynamic": True,
+                    "user_id": dynamic_user_id,
+                },
+            )
+
+        user = result.user
+        role = str(user.role or state.role_name)
+        is_admin_role = role.strip().lower() == "admin"
+        self._rbac_engine.assign_role_to_user(user.user_id, role)
+        required_permission = f"profile:{profile_name}"
+        permissions = _expand_profile_permissions(
+            self._rbac_engine.get_effective_permissions(user.user_id), profile_name
+        )
+        if (
+            not is_admin_role
+            and not _has_profile_access(permissions, profile_name)
+        ):
+            self._emit_audit(
+                action="authorise",
+                outcome="failure",
+                actor_id=user.user_id,
+                details={
+                    "reason": "profile_permission_denied",
+                    "profile": profile_name,
+                    "role": role,
+                },
+            )
+            return None
+
+        if is_admin_role:
+            permissions.add("*")
+            permissions = _expand_profile_permissions(permissions, profile_name)
+        scopes = list(self.required_scopes or [])
+        for permission in sorted(permissions):
+            if permission not in scopes:
+                scopes.append(permission)
+
+        fingerprint = self._normalise_fingerprint(
+            str(result.claims.get("fingerprint", ""))
+        )
+        self._emit_audit(
+            action="authenticate",
+            outcome="success",
+            actor_id=user.user_id,
+            details={
+                "profile": profile_name,
+                "role": role,
+                "fingerprint": fingerprint,
+            },
+        )
+        return AccessToken(
+            token=fingerprint,
+            client_id=user.user_id or "file-mcp-client",
+            scopes=scopes,
+            claims={
+                "fingerprint": fingerprint,
+                "profile": profile_name,
+                "role": role,
+                "permissions": sorted(permissions),
+            },
+        )
+
+    async def verify_access_token(self, token: str) -> AccessToken | None:
+        """Execute verify token using profile from request context.
+
+        When called by FastMCP (which does not pass request context
+        directly), the profile is read from the context variable set
+        by RequestContextMiddleware.  Falls back to default_profile
+        when the context variable is unset.
+        """
+        profile_name = get_request_profile_name(self.default_profile) or self.default_profile
+        return await self.verify_token_for_profile(token, profile_name)
+
+    # Preserve TokenVerifier compatibility while avoiding bespoke verifier definition patterns.
+    verify_token = verify_access_token
+
+    def get_middleware(self) -> list:
+        """Return middleware."""
+        return [
+            Middleware(
+                AuthenticationMiddleware,  # type: ignore[arg-type]
+                backend=HeaderTokenAuthBackend(
+                    self,
+                    header_name="authorization",
+                    header_scheme="Bearer",
+                ),
+            ),
+            Middleware(AuthContextMiddleware),  # type: ignore[arg-type]
+        ]

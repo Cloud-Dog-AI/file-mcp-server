@@ -47,6 +47,28 @@ class SearchMatch:
     line: Optional[str]
 
 
+_SKIP_DIR_NAMES = {
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "playwright-report",
+    "snapshots",
+    "test-results",
+}
+
+_SKIP_FILE_NAMES = {
+    "audit.log.jsonl",
+    "server.log",
+}
+
+
+def _should_skip_path(path: Path) -> bool:
+    return path.name in _SKIP_FILE_NAMES
+
+
 def _parse_time_filter(value: str | None) -> float | None:
     """Parse RFC3339/ISO8601 timestamp filters to UTC epoch seconds."""
     if value is None:
@@ -90,24 +112,26 @@ def _iter_files(
     for root in roots:
         resolved_root = path_utils.resolve_path(str(root))
         if recursive:
-            if max_depth is None:
-                for p_str in path_utils.rglob(resolved_root, "*"):
-                    if path_utils.is_file(p_str):
-                        yield path_utils.as_path(p_str)
-                continue
-            for current_root, _, files in path_utils.walk(resolved_root):
+            for current_root, dir_names, files in path_utils.walk(resolved_root):
                 try:
                     depth = len(path_utils.relative_parts(current_root, resolved_root))
                 except ValueError:
                     continue
-                if depth > max_depth:
+                dir_names[:] = [name for name in dir_names if name not in _SKIP_DIR_NAMES]
+                if max_depth is not None and depth > max_depth:
                     continue
                 for file_name in files:
-                    yield path_utils.as_path(path_utils.join(current_root, file_name))
+                    candidate = path_utils.as_path(path_utils.join(current_root, file_name))
+                    if _should_skip_path(candidate):
+                        continue
+                    yield candidate
         else:
             for child_str in path_utils.iter_dir(resolved_root):
                 if path_utils.is_file(child_str):
-                    yield path_utils.as_path(child_str)
+                    candidate = path_utils.as_path(child_str)
+                    if _should_skip_path(candidate):
+                        continue
+                    yield candidate
 
 
 def search_paths(
@@ -116,6 +140,7 @@ def search_paths(
     roots: Iterable[Path],
     glob: str | None = None,
     regex: bool = False,
+    max_results: int | None = None,
     max_file_mb: int | None = None,
     max_depth: int | None = None,
     modified_after: str | None = None,
@@ -151,6 +176,8 @@ def search_paths(
                 matches.append(path)
         elif query in path_utils.to_posix(str(path)):
             matches.append(path)
+        if max_results is not None and len(matches) >= max_results:
+            return matches
     return matches
 
 
