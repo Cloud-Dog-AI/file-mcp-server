@@ -40,3 +40,9 @@ src/sample-*
 src/search-target-*
 src/*.txt.lock
 src/*.txt.copy
+.git
+.venv
+node_modules
+data/
+__pycache__
+*.pyc

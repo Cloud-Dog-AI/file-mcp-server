@@ -1,32 +1,47 @@
 # file-mcp-server — Agent & Engineer Rules
 
-**Version:** 2.0
-**Date:** 2026-03-04
-**Parent:** `cloud-dog-ai-platform-standards/RULES.md` v1.5
+**Version:** 3.0
+**Date:** 2026-04-13
+**Extends:** `cloud-dog-ai-platform-standards/RULES.md` v2.3 (2026-03-31)
 
-> **⛔ BINDING CONTRACT:** This document extends the platform-wide rules.
-> Read the parent [Cloud-Dog AI Platform Common Rules](../cloud-dog-ai-platform-standards/RULES.md) **IN FULL** first.
-> ALL platform rules apply without exception. This file adds project-specific rules ONLY.
+> **PRIME DIRECTIVE — BINDING ON ALL AGENTS WORKING IN THIS REPOSITORY:**
+> I WILL NEVER: LIE, FUDGE, HACK, FALSIFY, STUB, FAKE, HIDE, PRETEND, SKIP, BYPASS, FABRICATE, SUBSTITUTE, INVENT.
+> IF I CANNOT GUARANTEE 100% COMPLIANCE, I WILL STOP AND SAY SO.
+> IF TESTS FAIL, I WILL REPORT FAILURES HONESTLY.
+> IF I DON'T KNOW, I WILL ASK, NOT GUESS.
+>
+> **§1.2 — The programme coordinator MUST independently verify ALL agent claims.**
+> Every claim requires: independent grep/command execution, cross-reference evidence against source,
+> spot-check fixes, reject on ANY discrepancy.
+
+## Mandatory Reading Before ANY Work
+1. Platform RULES.md — `cloud-dog-ai-platform-standards/RULES.md` (binding contract)
+2. AGENT-LESSONS.md — `cloud-dog-ai-platform-standards/AGENT-LESSONS.md` (cross-platform knowledge, PC1-PC25)
+3. This file — project-specific rules below
+4. AGENT-BOOTSTRAP-DIRECTIVE.md — `cloud-dog-ai-platform-standards/working/AGENT-BOOTSTRAP-DIRECTIVE.md` (platform orientation)
+
+## Relevant Platform Incidents
+- §1.1 Falsification incident — relevant to all file-mcp work and all evidence files
+- §1.3 Fabrication incident — relevant to all storage profiles, backend names, paths, URLs, ports, and report claims
+- §1.5 Production firewall incident — relevant to all Docker/Terraform deployment work for this service
 
 ---
 
 ## Section 1 — Platform Rules (Inherited)
 
-All rules from `cloud-dog-ai-platform-standards/RULES.md` v1.5 apply without exception:
+All rules from `cloud-dog-ai-platform-standards/RULES.md` v2.3 apply without exception:
 - **§ 1** Integrity and honesty (non-negotiable)
+- **§ 1.2** Coordinator verification mandate
+- **§ 1.3** Fabrication incident record
+- **§ 1.5** Production firewall incident protections
 - **§ 2** Configuration precedence: `os.environ → env file → config.yaml → defaults.yaml`
 - **§ 2.3** Credential management: Vault primary; `private/` only for credentials not yet in Vault
 - **§ 2.4** Zero hardcoded values (zero tolerance)
 - **§ 3** Server and process management (server_control.sh, Docker rules)
-- **§ 4** Code and change management (approval rules, code standards, UK English)
+- **§ 4** Code and change management
 - **§ 5** Testing rules (UT/ST/IT/AT hierarchy, real systems, forensic validation)
 - **§ 6** Documentation standards (REQUIREMENTS, ARCHITECTURE, TESTS, TASKS, etc.)
-- **§ 7** Repository structure
-- **§ 8** Operational controls (timeouts, stop controls, verification)
-- **§ 9** Security boundaries (project confinement, credential boundaries, network boundaries, scope discipline)
-- **§ 10** Infrastructure protection (Vault config read-only, Terraform read-only)
-- **§ 11** Vault path verification (never invent paths, query first)
-- **§ 12** Implementation truthfulness (never claim done without evidence)
+- **§ 8.8** Coordinator forensic verification of agent claims
 - **Mandatory Completion Warranty** required on every task completion
 
 ---
@@ -78,6 +93,22 @@ bash scripts/validate-vault.sh
 ```bash
 pip install -e ".[dev]" --index-url https://pypi.cloud-dog.net/simple/
 ```
+
+---
+
+## Section 4A — Verified Port Assignments
+
+Verified against [defaults.yaml](/opt/iac/Development/cloud-dog-ai/file-mcp-server/defaults.yaml):
+- API server: `8060`
+- Web server: `8061`
+- MCP server: `8062`
+- A2A server: `8063`
+
+## Section 4B — Platform Incident Relevance
+
+- **§1.1 Falsification** is directly relevant to file CRUD, RBAC denial proofs, and report claims.
+- **§1.3 Fabrication** is directly relevant to storage profile names, scope roots, backend identifiers, URLs, and port assignments.
+- **§1.5 Firewall** is directly relevant to any Docker/Terraform deployment or remote validation involving this service.
 
 ---
 

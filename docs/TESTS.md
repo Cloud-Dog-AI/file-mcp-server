@@ -100,6 +100,7 @@ The following test filenames are present in the repository and are included for 
 - `test_integrity_running.py`
 - `test_jobs_runtime.py`
 - `test_lifecycle.py`
+- `test_lifecycle_simulation.py`
 - `test_logging_compliance.py`
 - `test_observability.py`
 - `test_package_compliance.py`

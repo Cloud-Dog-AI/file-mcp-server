@@ -38,6 +38,11 @@ This reference is generated from `defaults.yaml`. Each key can be overridden by 
 |-----|---------|----------------------|-------------|
 | `log.service_instance` | `${FILE_MCP_SERVER_ID:file-mcp-local}` | `CLOUD_DOG__LOG__SERVICE_INSTANCE` | Configuration value for log service instance. |
 | `log.environment` | `${CLOUD_DOG_ENVIRONMENT:dev}` | `CLOUD_DOG__LOG__ENVIRONMENT` | Configuration value for log environment. |
+| `log.api_server_log` | `logs/api_server.log` | `CLOUD_DOG__LOG__API_SERVER_LOG` | Log file path for the API server role. |
+| `log.web_server_log` | `logs/web_server.log` | `CLOUD_DOG__LOG__WEB_SERVER_LOG` | Log file path for the web server role. |
+| `log.mcp_server_log` | `logs/mcp_server.log` | `CLOUD_DOG__LOG__MCP_SERVER_LOG` | Log file path for the MCP server role. |
+| `log.a2a_server_log` | `logs/a2a_server.log` | `CLOUD_DOG__LOG__A2A_SERVER_LOG` | Log file path for the A2A server role. |
+| `log.audit_log` | `logs/audit.log.jsonl` | `CLOUD_DOG__LOG__AUDIT_LOG` | Path for the structured audit log (JSONL). |
 | `log.retention.hot_days` | `14` | `CLOUD_DOG__LOG__RETENTION__HOT_DAYS` | Configuration value for log retention hot days. |
 | `log.retention.cold_days` | `60` | `CLOUD_DOG__LOG__RETENTION__COLD_DAYS` | Configuration value for log retention cold days. |
 | `log.retention.archive_format` | `gz` | `CLOUD_DOG__LOG__RETENTION__ARCHIVE_FORMAT` | Configuration value for log retention archive format. |
@@ -135,6 +140,15 @@ This reference is generated from `defaults.yaml`. Each key can be overridden by 
 | `profiles.default.jobs.sql_url` | `${FILE_MCP_JOBS_SQL_URL:sqlite:///database/file_mcp.db}` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__SQL_URL` | Endpoint or connection URL for profiles default jobs sql. |
 | `profiles.default.jobs.redis_url` | `${FILE_MCP_JOBS_REDIS_URL:disabled}` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__REDIS_URL` | Endpoint or connection URL for profiles default jobs redis. |
 | `profiles.default.jobs.redis_key_prefix` | `${FILE_MCP_JOBS_REDIS_KEY_PREFIX:file_mcp_jobs}` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__REDIS_KEY_PREFIX` | Credential or authentication setting for the related subsystem. |
+| `profiles.default.jobs.retry.max_attempts` | `3` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__RETRY__MAX_ATTEMPTS` | Maximum retry attempts for failed jobs. |
+| `profiles.default.jobs.retry.initial_delay_seconds` | `1.0` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__RETRY__INITIAL_DELAY_SECONDS` | Initial backoff delay between job retries. |
+| `profiles.default.jobs.retry.max_delay_seconds` | `30.0` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__RETRY__MAX_DELAY_SECONDS` | Maximum backoff delay between job retries. |
+| `profiles.default.jobs.timeout.run_timeout_ms` | `300000` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__TIMEOUT__RUN_TIMEOUT_MS` | Maximum runtime for a single job execution in milliseconds. |
+| `profiles.default.jobs.timeout.claim_timeout_ms` | `60000` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__TIMEOUT__CLAIM_TIMEOUT_MS` | Timeout for claiming a job from the queue in milliseconds. |
+| `profiles.default.jobs.maintenance.claim_timeout_seconds` | `60` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__MAINTENANCE__CLAIM_TIMEOUT_SECONDS` | Maintenance sweep claim timeout in seconds. |
+| `profiles.default.jobs.maintenance.max_age_seconds` | `86400` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__MAINTENANCE__MAX_AGE_SECONDS` | Maximum age before a job is eligible for maintenance cleanup. |
+| `profiles.default.jobs.dead_letter.enabled` | `true` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__DEAD_LETTER__ENABLED` | Toggle for dead letter queue. |
+| `profiles.default.jobs.dead_letter.queue_name` | `dead_letter` | `CLOUD_DOG__PROFILES__DEFAULT__JOBS__DEAD_LETTER__QUEUE_NAME` | Dead letter queue name for failed jobs. |
 | `profiles.default.endpoint_health.enabled` | `true` | `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__ENABLED` | Toggle for profiles default endpoint health. |
 | `profiles.default.endpoint_health.check_on_startup` | `true` | `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__CHECK_ON_STARTUP` | Configuration value for profiles default endpoint health check on startup. |
 | `profiles.default.endpoint_health.check_all_configured_backends` | `true` | `CLOUD_DOG__PROFILES__DEFAULT__ENDPOINT_HEALTH__CHECK_ALL_CONFIGURED_BACKENDS` | Configuration value for profiles default endpoint health check all configured backends. |
