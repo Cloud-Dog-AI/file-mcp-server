@@ -51,7 +51,8 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       cloud-dog-api-kit \
       cloud-dog-idam \
       cloud-dog-db \
-      cloud-dog-jobs
+      cloud-dog-jobs \
+      cloud-dog-storage
 RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'

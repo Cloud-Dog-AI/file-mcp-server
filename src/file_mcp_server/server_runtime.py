@@ -27,6 +27,7 @@ Recent Change History:
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -826,6 +827,10 @@ class HealthCheckMiddleware:
             or path.startswith("/api/v1/jobs/")
             or path == "/v1/jobs"
             or path.startswith("/v1/jobs/")
+            or path == "/api/v1/logs"
+            or path.startswith("/api/v1/logs/")
+            or path == "/v1/logs"
+            or path.startswith("/v1/logs/")
         )
 
     async def _send_proxy_response(self, send, *, status: int, data: Any, headers: dict[str, str]) -> None:
@@ -2425,6 +2430,150 @@ class HealthCheckMiddleware:
             return None
         return provider(profile_name)
 
+    def _resolve_log_file_candidates(
+        self,
+        *,
+        profile_name: str,
+        log_type: str,
+    ) -> list[Path]:
+        """Return candidate log files for the selected profile and surface."""
+        selected_type = str(log_type or "app").strip().lower() or "app"
+        candidates: list[Path] = []
+        seen: set[str] = set()
+
+        def _add_candidate(raw_path: str | None) -> None:
+            candidate = _normalize_optional_path(raw_path)
+            if candidate is None:
+                return
+            rendered = str(candidate)
+            if rendered in seen:
+                return
+            seen.add(rendered)
+            candidates.append(candidate)
+
+        profile = self.config.profiles.get(profile_name) if self.config else None
+        fallback_profile = self.config.profiles.get(self.profile_name) if self.config else None
+        log_config = getattr(self.config, "log", None)
+        role_key_map = {
+            "api": "api_server_log",
+            "web": "web_server_log",
+            "mcp": "mcp_server_log",
+            "a2a": "a2a_server_log",
+        }
+
+        if selected_type == "audit":
+            _add_candidate(getattr(log_config, "audit_log", None))
+            if profile is not None:
+                _add_candidate(getattr(profile.audit, "log_path", None))
+            if fallback_profile is not None:
+                _add_candidate(getattr(fallback_profile.audit, "log_path", None))
+            _add_candidate("/workspace/logs/audit.log.jsonl")
+            return candidates
+
+        if selected_type in role_key_map:
+            _add_candidate(getattr(log_config, role_key_map[selected_type], None))
+        elif self.server_role in role_key_map:
+            _add_candidate(getattr(log_config, role_key_map[self.server_role], None))
+
+        if selected_type in {"app", "application", "server", "logs"}:
+            _add_candidate(getattr(log_config, "app_log", None))
+        if profile is not None:
+            _add_candidate(getattr(profile.observability, "log_path", None))
+        if fallback_profile is not None:
+            _add_candidate(getattr(fallback_profile.observability, "log_path", None))
+        _add_candidate("/workspace/logs/server.log")
+        return candidates
+
+    @staticmethod
+    def _normalise_log_row(raw_line: str, *, log_type: str, source: str) -> dict[str, Any] | None:
+        """Convert a log line into the stable JSON shape used by the web UI."""
+        text = raw_line.strip()
+        if not text:
+            return None
+
+        payload: dict[str, Any] | None = None
+        try:
+            decoded = json.loads(text)
+        except json.JSONDecodeError:
+            decoded = None
+        if isinstance(decoded, dict):
+            payload = decoded
+
+        def _first_value(keys: tuple[str, ...]) -> str | None:
+            if not isinstance(payload, dict):
+                return None
+            for key in keys:
+                value = payload.get(key)
+                if value is None:
+                    continue
+                if isinstance(value, (dict, list)):
+                    return json.dumps(value, sort_keys=True)
+                rendered = str(value).strip()
+                if rendered:
+                    return rendered
+            return None
+
+        timestamp = _first_value(
+            ("timestamp", "@timestamp", "time", "ts", "created_at", "datetime")
+        )
+        if not timestamp:
+            match = re.search(r"\d{4}-\d{2}-\d{2}[T ][0-9:.+\-Z]+", text)
+            if match:
+                timestamp = match.group(0)
+
+        level = _first_value(("level", "severity", "levelname", "log_level", "lvl"))
+        if not level:
+            match = re.search(r"\b(DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|FATAL)\b", text)
+            if match:
+                level = match.group(1)
+
+        message = _first_value(("message", "msg", "event", "detail"))
+        if not message:
+            message = text
+        return {
+            "timestamp": timestamp,
+            "level": (level or "INFO").upper(),
+            "message": message,
+            "log_type": log_type,
+            "source": source,
+        }
+
+    def _read_normalised_log_rows(
+        self,
+        *,
+        profile_name: str,
+        log_type: str,
+        limit: int,
+    ) -> tuple[Path | None, list[dict[str, Any]]]:
+        """Read and normalise the newest log rows for the selected profile/surface."""
+        bounded_limit = max(1, min(limit, 500))
+        for candidate in self._resolve_log_file_candidates(
+            profile_name=profile_name,
+            log_type=log_type,
+        ):
+            try:
+                if not candidate.exists() or not candidate.is_file():
+                    continue
+                with candidate.open("r", encoding="utf-8", errors="replace") as handle:
+                    tail_lines = deque(handle, maxlen=bounded_limit)
+            except OSError:
+                continue
+
+            rows = [
+                row
+                for row in (
+                    self._normalise_log_row(
+                        line,
+                        log_type=log_type,
+                        source=str(candidate),
+                    )
+                    for line in tail_lines
+                )
+                if row is not None
+            ]
+            return candidate, rows
+        return None, []
+
     async def _handle_jobs_api(
         self,
         *,
@@ -2532,6 +2681,69 @@ class HealthCheckMiddleware:
             status=404,
             code="NOT_FOUND",
             message="Not Found",
+        )
+        return True
+
+    async def _handle_logs_api(
+        self,
+        *,
+        scope: dict[str, Any],
+        headers: dict[str, str],
+        path: str,
+        send,
+    ) -> bool:
+        """Handle read-only logs API routes."""
+        if scope.get("type") != "http":
+            return False
+        method = str(scope.get("method") or "").upper()
+        if path not in {"/api/v1/logs", "/v1/logs"}:
+            return False
+
+        supplied_admin_token = headers.get("x-admin-token", "")
+        ui_admin = bool(self.admin_ui_token and supplied_admin_token == self.admin_ui_token)
+        auth_info, selected_profile = await self._authenticate_request(
+            scope=scope,
+            headers=headers,
+        )
+        if not ui_admin and auth_info is None:
+            await self._send_api_error(
+                send,
+                status=401,
+                code="UNAUTHENTICATED",
+                message="Unauthorised",
+            )
+            return True
+
+        if method != "GET":
+            await self._send_api_error(
+                send,
+                status=405,
+                code="METHOD_NOT_ALLOWED",
+                message=f"Unsupported method for {path}: {method}",
+            )
+            return True
+
+        query = parse_qs(scope.get("query_string", b"").decode("utf-8"))
+        limit_value = (query.get("limit") or query.get("lines") or ["100"])[0]
+        limit = _to_int(limit_value, default=100)
+        log_type = str((query.get("type") or query.get("log_type") or ["app"])[0]).strip()
+        selected_type = log_type.lower() or "app"
+        log_path, rows = self._read_normalised_log_rows(
+            profile_name=selected_profile,
+            log_type=selected_type,
+            limit=limit,
+        )
+        await self._send_json(
+            send,
+            status=200,
+            payload={
+                "ok": True,
+                "profile": selected_profile,
+                "log_type": selected_type,
+                "log_path": str(log_path) if log_path is not None else None,
+                "count": len(rows),
+                "items": rows,
+            },
         )
         return True
 
@@ -2708,6 +2920,8 @@ class HealthCheckMiddleware:
 
         is_admin_route = path.startswith("/admin/")
         if await self._handle_jobs_api(scope=scope, headers=headers, path=path, send=send):
+            return
+        if await self._handle_logs_api(scope=scope, headers=headers, path=path, send=send):
             return
         if (
             scope.get("type") == "http"

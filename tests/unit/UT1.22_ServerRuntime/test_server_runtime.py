@@ -794,6 +794,133 @@ def test_web_proxy_preserves_api_prefix_for_jobs_routes() -> None:
     assert payload["proxied_path"] == "/api/v1/jobs"
 
 
+def test_health_middleware_logs_route_returns_structured_rows(tmp_path) -> None:
+    log_path = tmp_path / "logs" / "api.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-04-14T11:00:00Z",
+                        "level": "ERROR",
+                        "message": "older-row",
+                    }
+                ),
+                "2026-04-14T11:01:00Z INFO newest-row",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    previous_role = runtime_env.get("FILE_MCP_ACTIVE_SERVER_ROLE")
+    runtime_env["FILE_MCP_ACTIVE_SERVER_ROLE"] = "api"
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    config = ServerConfig(
+        profiles={
+            "default": ProfileConfig(
+                server_id="ut-file-mcp",
+                observability={"log_path": str(log_path)},
+            )
+        },
+        log={"api_server_log": str(log_path)},
+    )
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        config=config,
+        a2a_auth_verifier=verifier,
+    )
+
+    sent: list[dict] = []
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/logs",
+            "headers": [(b"authorization", b"Bearer 12345678")],
+            "query_string": b"lines=1",
+        }
+
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    try:
+        asyncio.run(_run())
+        assert sent[0]["status"] == 200
+        payload = json.loads(sent[1]["body"].decode("utf-8"))
+        assert payload["ok"] is True
+        assert payload["count"] == 1
+        assert payload["log_path"] == str(log_path)
+        assert payload["items"] == [
+            {
+                "timestamp": "2026-04-14T11:01:00Z",
+                "level": "INFO",
+                "message": "2026-04-14T11:01:00Z INFO newest-row",
+                "log_type": "app",
+                "source": str(log_path),
+            }
+        ]
+    finally:
+        if previous_role is None:
+            runtime_env.pop("FILE_MCP_ACTIVE_SERVER_ROLE", None)
+        else:
+            runtime_env["FILE_MCP_ACTIVE_SERVER_ROLE"] = previous_role
+
+
+def test_web_proxy_preserves_api_prefix_for_logs_routes() -> None:
+    proxy = _StubWebApiProxy()
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+    middleware.api_proxy = proxy
+
+    sent = _run_middleware_request(
+        middleware,
+        path="/api/v1/logs",
+        headers=[
+            (b"authorization", b"Bearer secret"),
+            (b"accept", b"application/json"),
+        ],
+    )
+
+    assert proxy.calls == [
+        {
+            "method": "GET",
+            "path": "/api/v1/logs",
+            "json": None,
+            "params": None,
+            "headers": {
+                "authorization": "Bearer secret",
+                "accept": "application/json",
+            },
+            "cookies": None,
+        }
+    ]
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["proxied_path"] == "/api/v1/logs"
 def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
     profile = _profile(tmp_path)
     jobs_runtime = FileMcpJobsRuntime.from_profile(
@@ -1248,6 +1375,36 @@ def test_legacy_v1_jobs_paths_do_not_fallback_to_spa(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 
 
+def test_legacy_v1_logs_paths_do_not_fallback_to_spa(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        sent = _run_middleware_request(middleware, path="/v1/logs")
+        assert sent[0]["status"] == 401
+        assert b"file-mcp-ui-shell" not in sent[1]["body"]
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 def test_ui_assets_are_served_from_dist(tmp_path) -> None:
     prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
     dist = tmp_path / "ui-dist"
