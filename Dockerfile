@@ -38,13 +38,12 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
-COPY vendor/wheels/ ./vendor/wheels/
-# Install platform packages from internal PyPI, then remaining deps from REQUIREMENTS.
-ARG PYPI_URL=https://pypi.cloud-dog.net/simple
+# Install platform packages from external Gitea PyPI, then remaining deps from REQUIREMENTS.
+ARG PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir \
       --extra-index-url ${PYPI_URL} \
-      --trusted-host pypi.cloud-dog.net \
+      --trusted-host gitea.cloud-dog.net \
       --trusted-host pypi.org \
       --trusted-host files.pythonhosted.org \
       cloud-dog-config \
@@ -53,7 +52,6 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       cloud-dog-idam \
       cloud-dog-db \
       cloud-dog-jobs
-RUN if ls vendor/wheels/*.whl 1>/dev/null 2>&1; then pip install --no-cache-dir vendor/wheels/*.whl; fi
 RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'

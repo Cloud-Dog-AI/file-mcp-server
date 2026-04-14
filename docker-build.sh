@@ -57,7 +57,7 @@ if [[ -n "${PYPI_USERNAME}" ]] && [[ -n "${PYPI_PASSWORD}" ]]; then
   cat > "${PIP_CONF}" << EOF
 [global]
 extra-index-url = https://${PYPI_USERNAME}:${PYPI_PASSWORD}@${PYPI_URL#https://}
-trusted-host = $(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'pypi.cloud-dog.net')")
+trusted-host = $(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'gitea.cloud-dog.net')")
                pypi.org
                files.pythonhosted.org
 EOF
@@ -66,7 +66,7 @@ else
   cat > "${PIP_CONF}" << EOF
 [global]
 extra-index-url = ${PYPI_URL}
-trusted-host = $(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'pypi.cloud-dog.net')")
+trusted-host = $(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'gitea.cloud-dog.net')")
                pypi.org
                files.pythonhosted.org
 EOF
