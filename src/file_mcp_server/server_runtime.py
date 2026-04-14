@@ -879,8 +879,6 @@ class HealthCheckMiddleware:
         upstream_path = path
         if upstream_path == "/api":
             upstream_path = "/"
-        elif upstream_path.startswith("/api/"):
-            upstream_path = upstream_path[4:] or "/"
 
         request_json: Any = None
         if method not in {"GET", "HEAD"}:
@@ -1463,6 +1461,7 @@ class HealthCheckMiddleware:
             return False
         reserved_prefixes = (
             "/api",
+            "/v1",
             "/auth",
             "/mcp",
             "/a2a",

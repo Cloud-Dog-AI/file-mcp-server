@@ -19,6 +19,7 @@ from tests.env_runtime import runtime_env
 import asyncio
 import json
 import re
+from types import SimpleNamespace
 
 from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
@@ -157,6 +158,38 @@ class _StubJobsRuntime:
 
     def get_job(self, job_id: str) -> dict | None:
         return self._jobs.get(job_id)
+
+
+class _StubWebApiProxy:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json=None,
+        params=None,
+        headers=None,
+        cookies=None,
+    ):
+        self.calls.append(
+            {
+                "method": method,
+                "path": path,
+                "json": json,
+                "params": params,
+                "headers": headers,
+                "cookies": cookies,
+            }
+        )
+        return SimpleNamespace(
+            status_code=200,
+            data={"ok": True, "proxied_path": path},
+            headers={"content-type": "application/json"},
+            error=None,
+        )
 
 
 def _profile(tmp_path):
@@ -719,6 +752,48 @@ def test_health_middleware_jobs_route_reads_single_job() -> None:
     assert payload["job"]["job_id"] == "job-1"
 
 
+def test_web_proxy_preserves_api_prefix_for_jobs_routes() -> None:
+    proxy = _StubWebApiProxy()
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+    middleware.api_proxy = proxy
+
+    sent = _run_middleware_request(
+        middleware,
+        path="/api/v1/jobs",
+        headers=[
+            (b"authorization", b"Bearer secret"),
+            (b"accept", b"application/json"),
+        ],
+    )
+
+    assert proxy.calls == [
+        {
+            "method": "GET",
+            "path": "/api/v1/jobs",
+            "json": None,
+            "params": None,
+            "headers": {
+                "authorization": "Bearer secret",
+                "accept": "application/json",
+            },
+            "cookies": None,
+        }
+    ]
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["proxied_path"] == "/api/v1/jobs"
+
+
 def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
     profile = _profile(tmp_path)
     jobs_runtime = FileMcpJobsRuntime.from_profile(
@@ -1134,6 +1209,38 @@ def test_non_ui_api_paths_do_not_fallback_to_spa(tmp_path) -> None:
         sent = _run_middleware_request(middleware, path="/api/unknown")
         assert sent[0]["status"] == 404
         assert sent[1]["body"] == b"not-found"
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
+
+
+def test_legacy_v1_jobs_paths_do_not_fallback_to_spa(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        sent = _run_middleware_request(middleware, path="/v1/jobs")
+        assert sent[0]["status"] == 401
+        assert b"file-mcp-ui-shell" not in sent[1]["body"]
     finally:
         if prev_ui_dist is None:
             runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
