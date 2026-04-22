@@ -22,7 +22,7 @@ Tasks: T18
 Architecture: 7.4 Observability
 Tests: ST1.6
 Recent Change History:
-- 2026-02-19: Replaced bespoke audit writer with cloud_dog_logging-backed adapter.
+- 2026-02-19: Replaced custom audit writer with cloud_dog_logging-backed adapter.
 """
 
 from __future__ import annotations

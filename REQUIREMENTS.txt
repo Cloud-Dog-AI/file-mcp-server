@@ -16,7 +16,7 @@ requests>=2.31,<3.0
 cloud_dog_config>=0.3.1
 hvac>=2.0
 cloud_dog_logging>=0.3.3
-cloud_dog_api_kit>=0.2.0
+cloud_dog_api_kit>=0.6.0
 cloud_dog_idam>=0.2.0
 cloud_dog_jobs>=0.3.0
 cloud_dog_db>=0.1.0
@@ -50,5 +50,6 @@ openpyxl>=3.1,<4.0
 # Testing / quality (dev)
 pytest>=8.2,<9.0
 pytest-cov>=5.0,<6.0
+playwright>=1.52,<2.0
 ruff>=0.5,<1.0
 mypy>=1.10,<2.0

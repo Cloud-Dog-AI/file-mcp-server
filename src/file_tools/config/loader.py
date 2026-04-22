@@ -22,7 +22,7 @@ Tasks: T18
 Architecture: 3.3 Example schema
 Tests: UT1.1
 Recent Change History:
-- 2026-02-19: Replaced bespoke loader with cloud_dog_config adapter shim.
+- 2026-02-19: Replaced custom loader with cloud_dog_config adapter shim.
 """
 
 from __future__ import annotations

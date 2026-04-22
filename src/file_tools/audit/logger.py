@@ -22,7 +22,7 @@ Tasks: T18
 Architecture: 7.4 Observability
 Tests: ST1.6
 Recent Change History:
-- 2026-02-19: Replaced bespoke audit implementation with adapter re-export.
+- 2026-02-19: Replaced custom audit implementation with adapter re-export.
 """
 
 from __future__ import annotations

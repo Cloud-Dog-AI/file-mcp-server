@@ -23,7 +23,7 @@ Tasks: T3, T15
 Architecture: 4.1 Authentication
 Tests: UT1.2, ST1.2
 Recent Change History:
-- 2026-02-20: Replaced bespoke API-key verification flow with cloud_dog_idam adapter.
+- 2026-02-20: Replaced custom API-key verification flow with cloud_dog_idam adapter.
 """
 
 from __future__ import annotations
@@ -772,7 +772,7 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin):
         profile_name = get_request_profile_name(self.default_profile) or self.default_profile
         return await self.verify_token_for_profile(token, profile_name)
 
-    # Preserve TokenVerifier compatibility while avoiding bespoke verifier definition patterns.
+    # Preserve TokenVerifier compatibility while avoiding custom verifier definition patterns.
     verify_token = verify_access_token
 
     def get_middleware(self) -> list:

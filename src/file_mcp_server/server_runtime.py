@@ -409,6 +409,49 @@ def _tool_payload(tool: ToolDefinition) -> dict[str, Any]:
     }
 
 
+def _mcp_initialize_payload(
+    *,
+    protocol_version: str,
+    server_name: str,
+    server_version: str,
+) -> dict[str, Any]:
+    """Build a minimal MCP initialize result for streamable clients."""
+    negotiated = str(protocol_version or "").strip() or "2025-11-25"
+    return {
+        "protocolVersion": negotiated,
+        "capabilities": {
+            "tools": {},
+            "resources": {},
+        },
+        "serverInfo": {
+            "name": server_name,
+            "version": server_version,
+        },
+    }
+
+
+def _mcp_tool_call_payload(result: Any) -> dict[str, Any]:
+    """Wrap a service tool result into an MCP-compatible CallTool payload."""
+    if isinstance(result, dict) and isinstance(result.get("content"), list):
+        return result
+    if isinstance(result, list) and all(
+        isinstance(item, dict) and "type" in item for item in result
+    ):
+        return {"content": result}
+
+    if isinstance(result, str):
+        content_text = result
+    else:
+        content_text = json.dumps(result, default=str)
+
+    payload: dict[str, Any] = {
+        "content": [{"type": "text", "text": content_text}],
+    }
+    if not isinstance(result, str):
+        payload["structuredContent"] = result
+    return payload
+
+
 def _api_error_list_envelope(
     *,
     code: str,
@@ -541,6 +584,8 @@ class HealthCheckMiddleware:
         jobs_runtime_provider: Callable[[str | None], FileMcpJobsRuntime | None]
         | None = None,
         callback_host_fallback: str = "",
+        web_sessions: dict[str, dict] | None = None,
+        cookie_name: str = "file_web_session",
     ) -> None:
         """Initialise the instance state."""
         self.app = app
@@ -558,10 +603,10 @@ class HealthCheckMiddleware:
             or "legacy"
         )
         # Session store for cookie-based WebUI login.
-        self._sessions: dict[str, dict] = {}
+        self._sessions = web_sessions if web_sessions is not None else {}
         self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"
         self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or ""
-        self._cookie_name = "file_web_session"
+        self._cookie_name = cookie_name
         self.admin_identity_service = admin_identity_service
         self.jobs_runtime_provider = jobs_runtime_provider
         self.a2a_base_path = _normalize_path(
@@ -884,6 +929,13 @@ class HealthCheckMiddleware:
         upstream_path = path
         if upstream_path == "/api":
             upstream_path = "/"
+        elif upstream_path.startswith("/api/") and not (
+            upstream_path == "/api/v1/jobs"
+            or upstream_path.startswith("/api/v1/jobs/")
+            or upstream_path == "/api/v1/logs"
+            or upstream_path.startswith("/api/v1/logs/")
+        ):
+            upstream_path = upstream_path[len("/api") :]
 
         request_json: Any = None
         if method not in {"GET", "HEAD"}:
@@ -1572,7 +1624,7 @@ class HealthCheckMiddleware:
                 audit_log_path = str(audit_cfg.get("log_path") or "").strip()
                 audit_from_profile = bool(audit_log_path)
         if not audit_log_path:
-            audit_log_path = "/workspace/logs/audit.log.jsonl"
+            audit_log_path = "/data/audit/audit.jsonl"
         if audit_from_profile and scope_roots:
             audit_log_path = _profile_ui_relative_path(audit_log_path, scope_roots)
 
@@ -2462,12 +2514,12 @@ class HealthCheckMiddleware:
         }
 
         if selected_type == "audit":
-            _add_candidate(getattr(log_config, "audit_log", None))
             if profile is not None:
                 _add_candidate(getattr(profile.audit, "log_path", None))
             if fallback_profile is not None:
                 _add_candidate(getattr(fallback_profile.audit, "log_path", None))
-            _add_candidate("/workspace/logs/audit.log.jsonl")
+            _add_candidate(getattr(log_config, "audit_log", None))
+            _add_candidate("/data/audit/audit.jsonl")
             return candidates
 
         if selected_type in role_key_map:
@@ -3089,6 +3141,7 @@ class HealthCheckMiddleware:
             ui_admin = bool(
                 self.admin_ui_token and supplied_admin_token == self.admin_ui_token
             )
+            legacy_open_access = self.admin_ui_enabled and not self.admin_ui_token
             auth_info, _selected_profile = await self._authenticate_request(
                 scope=scope, headers=headers
             )
@@ -3097,7 +3150,12 @@ class HealthCheckMiddleware:
                 cookie_session is not None and cookie_session.get("role") == "admin"
             )
             scopes = self._token_scopes(auth_info)
-            is_authenticated = ui_admin or cookie_session is not None or auth_info is not None
+            is_authenticated = (
+                legacy_open_access
+                or ui_admin
+                or cookie_session is not None
+                or auth_info is not None
+            )
             if not is_authenticated:
                 await self._send_api_error(
                     send,
@@ -3106,7 +3164,12 @@ class HealthCheckMiddleware:
                     message="Unauthorised",
                 )
                 return
-            if not (ui_admin or cookie_admin or self._has_google_drive_admin_scope(scopes)):
+            if not (
+                legacy_open_access
+                or ui_admin
+                or cookie_admin
+                or self._has_google_drive_admin_scope(scopes)
+            ):
                 await self._send_api_error(
                     send,
                     status=403,
@@ -3815,178 +3878,6 @@ class HealthCheckMiddleware:
                     message=str(exc),
                 )
                 return
-
-        # Allow unauthenticated ``tools/list`` on the MCP transport path so
-        # that gate / health probes can discover the tool catalogue without
-        # credentials.  The body is read, inspected, and — when the method is
-        # *not* ``tools/list`` — replayed into a wrapper ``receive`` so the
-        # downstream MCP handler still gets the original payload.
-        if (
-            scope.get("type") == "http"
-            and method == "POST"
-            and path == self.mcp_path
-        ):
-            raw_body = await self._read_http_body(receive)
-            try:
-                payload = json.loads(raw_body)
-            except Exception:
-                payload = {}
-            if (
-                isinstance(payload, dict)
-                and str(payload.get("method", "")) == "tools/list"
-            ):
-                req_id = payload.get("id")
-                tools_payload = self._list_tools_payload()
-                response_body = json.dumps(
-                    {"jsonrpc": "2.0", "id": req_id, "result": tools_payload}
-                ).encode("utf-8")
-                await self._send_bytes(
-                    send,
-                    status=200,
-                    body=response_body,
-                    content_type="application/json",
-                )
-                return
-
-            # Not tools/list — replay the consumed body for the downstream app.
-            body_sent = False
-
-            async def _replay_receive():
-                nonlocal body_sent
-                if not body_sent:
-                    body_sent = True
-                    return {
-                        "type": "http.request",
-                        "body": raw_body,
-                        "more_body": False,
-                    }
-                return await receive()
-
-            await self.app(scope, _replay_receive, send)
-            return
-
-        if (
-            scope.get("type") == "http"
-            and method == "POST"
-            and path == self.web_mcp_path
-        ):
-            session = self._get_session_from_cookie(headers)
-            if session is None:
-                await self._send_api_error(
-                    send,
-                    status=401,
-                    code="UNAUTHENTICATED",
-                    message="Unauthorised",
-                )
-                return
-
-            raw_body = await self._read_http_body(receive)
-            try:
-                payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
-            except Exception:
-                await self._send_api_error(
-                    send,
-                    status=400,
-                    code="VALIDATION_ERROR",
-                    message="Invalid JSON body",
-                )
-                return
-
-            if not isinstance(payload, dict):
-                await self._send_api_error(
-                    send,
-                    status=400,
-                    code="VALIDATION_ERROR",
-                    message="JSON body must be an object",
-                )
-                return
-
-            request_id = payload.get("id")
-            rpc_method = str(payload.get("method") or "").strip()
-            rpc_params = payload.get("params")
-            if rpc_params is None:
-                rpc_params = {}
-            if not isinstance(rpc_params, dict):
-                rpc_params = {}
-
-            try:
-                if rpc_method == "tools/list":
-                    response_body = json.dumps(
-                        _build_response(request_id, result=self._list_tools_payload())
-                    ).encode("utf-8")
-                    await self._send_bytes(
-                        send,
-                        status=200,
-                        body=response_body,
-                        content_type="application/json",
-                    )
-                    return
-
-                if rpc_method == "tools/call":
-                    tool_name = str(rpc_params.get("name") or "").strip()
-                    tool_args = rpc_params.get("arguments")
-                    if not isinstance(tool_args, dict):
-                        tool_args = {}
-                    if not tool_name:
-                        response_body = json.dumps(
-                            _build_response(
-                                request_id,
-                                error=JsonRpcError(-32600, "Missing tool name"),
-                            )
-                        ).encode("utf-8")
-                        await self._send_bytes(
-                            send,
-                            status=200,
-                            body=response_body,
-                            content_type="application/json",
-                        )
-                        return
-
-                    if not callable(self.registry_provider):
-                        raise RuntimeError("Tool registry unavailable")
-                    registry = self.registry_provider()
-                    tool = registry.get(tool_name)
-                    result = tool.handler(**tool_args)
-                    response_body = json.dumps(
-                        _build_response(request_id, result=result)
-                    ).encode("utf-8")
-                    await self._send_bytes(
-                        send,
-                        status=200,
-                        body=response_body,
-                        content_type="application/json",
-                    )
-                    return
-
-                response_body = json.dumps(
-                    _build_response(
-                        request_id,
-                        error=JsonRpcError(-32601, f"Unknown method: {rpc_method}"),
-                    )
-                ).encode("utf-8")
-                await self._send_bytes(
-                    send,
-                    status=200,
-                    body=response_body,
-                    content_type="application/json",
-                )
-                return
-            except Exception as exc:
-                response_body = json.dumps(
-                    _build_response(
-                        request_id,
-                        error=JsonRpcError(-32000, str(exc)),
-                    )
-                ).encode("utf-8")
-                await self._send_bytes(
-                    send,
-                    status=200,
-                    body=response_body,
-                    content_type="application/json",
-                )
-                return
-
-            return
 
         await self.app(scope, receive, send)
 
@@ -5048,7 +4939,9 @@ def build_tool_registry(
                     roots=roots,
                     glob=glob,
                     regex=regex,
-                    max_results=effective_max_results,
+                    # Apply result caps after scope-policy filtering so denied
+                    # matches do not consume the caller-visible quota.
+                    max_results=None,
                     max_file_mb=effective_max_mb,
                     max_depth=max_depth,
                     modified_after=modified_after,
@@ -5162,7 +5055,9 @@ def build_tool_registry(
                     glob=glob,
                     regex=regex,
                     encoding=encoding,
-                    max_results=effective_max_results,
+                    # Apply result caps after scope-policy filtering so denied
+                    # matches do not consume the caller-visible quota.
+                    max_results=None,
                     max_file_mb=effective_max_mb,
                     max_depth=max_depth,
                     modified_after=modified_after,
@@ -7144,6 +7039,8 @@ def build_mcp_server(
         _registry_provider,
         auth,
         profile_tool_factory=_profile_tool_factory,
+        web_session_store={},
+        web_cookie_name="file_web_session",
     )
     server = SimpleNamespace()
     setattr(server, "_file_mcp_registry_provider", _registry_provider)
@@ -7273,6 +7170,7 @@ async def run_mcp_http_server(
     mcp_inner = getattr(server, "_file_mcp_asgi_app", None)
     if mcp_inner is None:
         raise RuntimeError("MCP ASGI application not built")
+    shared_web_sessions = getattr(mcp_inner.state, "file_mcp_web_sessions", None)
     hc_app = HealthCheckMiddleware(
         mcp_inner,
         health_path=http.health_path,
@@ -7287,6 +7185,8 @@ async def run_mcp_http_server(
         admin_identity_service=admin_identity_service,
         jobs_runtime_provider=jobs_runtime_provider,
         callback_host_fallback=http.host,
+        web_sessions=shared_web_sessions,
+        cookie_name="file_web_session",
     )
     stream_app = StreamableHttpAcceptCompatibilityMiddleware(
         hc_app,
