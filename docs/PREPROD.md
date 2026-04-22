@@ -25,7 +25,7 @@ Section 2 documents the full preprod environment surface that differs from or ma
 | Setting(s) | Default / baseline | Preprod source | Preprod change? | Notes |
 |---|---|---|---|---|
 | `FILE_MCP_HTTP_*` | sourced from env-backed defaults | Terraform + `private/env-PREPROD` | Yes | Preprod uses streamable HTTP on `0.0.0.0:8080` with `/mcp`, `/health`, and `/events`. |
-| `FILE_MCP_ROOT`, `FILE_MCP_AUDIT_LOG`, `FILE_MCP_SERVER_LOG`, `FILE_MCP_SNAPSHOT_DIR` | repo-local defaults | Terraform + `private/env-PREPROD` | Yes | Container storage is rooted under `/workspace`. |
+| `FILE_MCP_ROOT`, `FILE_MCP_AUDIT_LOG`, `FILE_MCP_SERVER_LOG`, `FILE_MCP_SNAPSHOT_DIR` | repo-local defaults | Terraform + `private/env-PREPROD` | Yes | User-managed files live under `/workspace`; audit and snapshot artefacts are mounted outside that tree. |
 | `FILE_MCP_SERVER_ID`, `FILE_MCP_JOBS_*` | defaults-backed runtime identity and queue settings | Terraform + `private/env-PREPROD` | Yes | Preprod should use a stable server identifier and SQL/Redis jobs backend wiring. |
 | `FILE_MCP_ADMIN_UI_ENABLED`, `FILE_MCP_ENDPOINT_HEALTH_CHECK_ALL` | admin enabled, endpoint health enabled in defaults | Terraform + `private/env-PREPROD` | Yes | Preprod keeps admin UI on but limits expensive all-backend checks. |
 
@@ -51,7 +51,7 @@ Only settings that differ materially from defaults or that must be supplied for 
 | Override | Why preprod differs | Source of truth |
 |---|---|---|
 | Streamable HTTP on `8080` | Matches Traefik/public routing. | Terraform 60-container file |
-| `/workspace` storage and log paths | Container filesystem replaces repo-local paths. | Terraform 60-container file |
+| `/workspace` storage plus dedicated audit/log paths | Container filesystem replaces repo-local paths while keeping audit/snapshot artefacts outside the user workspace. | Terraform 60-container file |
 | Bearer API keys | Shared preprod service is protected. | Vault + Terraform |
 | Remote storage credentials (S3/WebDAV/FTP/GDrive) | Preprod needs real external storage integrations. | Vault + `private/env-PREPROD` |
 | CA bundle and Vault coordinates | Required for shared trust chain and config resolution. | Terraform + `private/env-PREPROD` |

@@ -293,10 +293,6 @@ def docker_image() -> str:
             raise RuntimeError(f"Requested docker test image not found: {requested}")
         return requested
 
-    prebuilt_tag = "cloud-dog/file-mcp-server:w5f"
-    if _docker_image_exists(repo_root, prebuilt_tag):
-        return prebuilt_tag
-
     ensure_cloud_dog_source_images(
         repo_root=repo_root,
         docker_cmd=_docker_cmd,
@@ -562,6 +558,17 @@ def test_container_multi_env_override_changes_root_and_api_key(
                     )
 
         asyncio.run(_flow())
+        _run(
+            _docker_cmd(
+                "exec",
+                container_name,
+                "sh",
+                "-lc",
+                "chmod -R a+rX /workspace/logs || true",
+            ),
+            cwd=repo_root,
+            check=False,
+        )
     finally:
         _rm_container(repo_root, container_name)
 
@@ -745,6 +752,17 @@ http:
                     )
 
         asyncio.run(_flow())
+        _run(
+            _docker_cmd(
+                "exec",
+                container_name,
+                "sh",
+                "-lc",
+                "chmod -R a+rX /workspace/logs || true",
+            ),
+            cwd=repo_root,
+            check=False,
+        )
     finally:
         _rm_container(repo_root, container_name)
 

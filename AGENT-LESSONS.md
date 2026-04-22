@@ -730,6 +730,175 @@ Rule:
 - When the platform instruction assumes a stronger RBAC model than the code actually implements, report the mismatch explicitly.
 - Never promote the intended model into a claim about the current implementation.
 
+## W28A-961 LESSONS — FILE MCP SWEEP, STACK RECOVERY, AND EVIDENCE CAPTURE
+
+### Code
+
+#### 1. `main.py` MUST NOT READ `CLOUD_DOG_ENVIRONMENT` OR `HOSTNAME` DIRECTLY
+
+The bespoke scan for this repo treats direct environment reads in `src/file_mcp_server/main.py` as non-compliant, even for harmless ContextVar defaults.
+
+Rule:
+
+- In `main.py`, use static defaults for correlation/logging bootstrap values.
+- For this repo, `environment="dev"` and `service_instance="file-local"` are acceptable static bootstrap defaults.
+
+#### 2. SERVICE CODE MUST USE `cloud_dog_logging.get_logger`, NOT RAW `logging`
+
+`src/file_mcp_server/mcp_tool_audit_shim.py` was still using `import logging` plus `logging.getLogger(...)`. The bespoke grep expects zero raw logging usage in service code under `src/file_mcp_server/`.
+
+Rule:
+
+- In service code, import `get_logger` from `cloud_dog_logging`.
+- If a module only needs a logger instance, do not use stdlib `logging` directly.
+
+#### 3. WEB PROXY REWRITE RULES MUST SPARE `/api/v1/jobs` AND `/api/v1/logs`
+
+The backend-served UI needed `/api/admin/*` and similar routes rewritten to the API role, but a broad rewrite would also break the existing jobs/logs surfaces that already expect their `/api/v1/...` prefix.
+
+Rule:
+
+- In `server_runtime.py`, treat `/api/v1/jobs` and `/api/v1/logs` as explicit exceptions when rewriting proxied API paths.
+- Verify admin CRUD and jobs/logs together after any proxy change.
+
+#### 4. API-KEY PLAYWRIGHT RUNS MUST FORCE `MCP_BASE_URL=/mcp`
+
+The file-mcp app’s `runtime-config.js` currently defaults to cookie-mode `MCP_BASE_URL=/webmcp`. In Playwright API-key mode, simply injecting `AUTH_MODE=api_key` is not enough; if `MCP_BASE_URL` is left untouched, sign-in probes hit `/webmcp` and fail with unauthorised errors.
+
+Rule:
+
+- In `apps/file-mcp/tests/fixtures.ts`, explicitly set `MCP_BASE_URL` to `/mcp` for API-key runs and `/webmcp` for cookie runs.
+- When API-key login suddenly fails in Playwright while raw curl to `/mcp` succeeds, check `runtime-config.js` inheritance first.
+
+#### 5. MCP JSON-RPC COMPATIBILITY FIXES NEED END-TO-END UI VERIFICATION, NOT JUST BACKEND TESTS
+
+The sweep included compatibility handling for MCP HTTP transport plus wrapped tool dispatch, but the practical proof was whether dashboard/settings/MCP-console/browser flows still worked through the backend-served UI.
+
+Rule:
+
+- After transport-layer changes, rerun UI flows that depend on `backend_status`, `tools/list`, `tools/call`, and admin runtime-config APIs.
+- Backend transport fixes are incomplete until the browser path is also proven.
+
+### Test Environment
+
+#### 1. THE CURRENT PASSING PLAYWRIGHT COMMAND FOR THIS SWEEP WAS NOT THE DEFAULT `webServer` PATH
+
+The most reliable current command was:
+
+- `E2E_USE_LOCAL_SERVER=0 E2E_BASE_URL=http://127.0.0.1:5186 npm run e2e`
+
+with a separately running preview on `5186` and native backend roles on `8060-8063`.
+
+Rule:
+
+- When validating current file-mcp UI behaviour locally, prefer the explicit external-server path over assuming Playwright `webServer` startup will be stable.
+- Record the exact passing invocation in repo docs/reports, not just `npm run e2e`.
+
+#### 2. FAILED PLAYWRIGHT ARTIFACTS CAN BE STALE OR CAN REFLECT A BROKEN LOCAL STACK, NOT A REAL UI REGRESSION
+
+During W28A-961, a stale failing run showed widespread auth, settings, metrics, and storage-profile breakage. The real issue was a mixed local runtime state, not four unrelated UI regressions.
+
+Rule:
+
+- Before editing selectors or assertions, verify the local stack health with direct `curl` against `/api/health`, `/api/status`, and `/api/admin/profiles`.
+- Treat clustered failures across unrelated pages as an environment signal first.
+
+#### 3. THE CURRENT VERIFIED SUITE COUNTS FOR THIS SWEEP WERE:
+
+- UT: `177 passed`
+- IT: `37 passed, 10 skipped`
+- AT: `25 passed, 1 skipped`
+- Playwright: `47 passed (2.1m)`
+
+Rule:
+
+- If a task asks for “current” evidence, rerun and replace stale counts instead of reusing earlier successful numbers.
+
+### Infrastructure
+
+#### 1. `server_control.sh --env tests/env-ST stop all` ONLY STOPS THE PIDFILES FOR THAT EXACT ENV HASH
+
+This repo’s lifecycle helper derives pidfiles from the env/config/defaults tuple. If an older generation is still running under a different env file, `stop all` for the current env will not touch it.
+
+Observed failure mode:
+
+- old `api`/`web` roles from `chat-client/tests/private/deps/file-at-assigned.env` stayed alive on `8060`/`8061`
+- new `mcp`/`a2a` roles started for `tests/env-ST`
+- the resulting mixed stack caused 404 `/health`, readonly DB behaviour, and misleading Playwright failures
+
+Rule:
+
+- When ports are occupied but current pidfiles show stale or missing processes, check for older env-hash pidfiles in `.run/`.
+- If necessary, stop the old generation through `server_control.sh` using its original env file and exact pidfile.
+
+#### 2. SQLITE CLEANUP MUST HAPPEN AFTER THE STACK IS STOPPED
+
+Removing `database/*.db` while a role still has the files open can leave `.nfs*` remnants and confuse later cleanup/read-only diagnosis.
+
+Rule:
+
+- Stop all file-mcp roles before deleting repo-local SQLite files.
+- After cleanup, verify both:
+  - no listeners on `8060-8063`
+  - no `database/*.db` or `.nfs*` files remaining
+
+#### 3. DOCKER PUSH EVIDENCE MUST INCLUDE THE FINAL DIGEST, NOT JUST “PUSHED”
+
+For this sweep, the useful evidence was the final immutable reference:
+
+- `registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest@sha256:27c97601f7b2ee602e59f2a6b203478b2aa556444b6333d16ef188ba6b4ca6f5`
+
+Rule:
+
+- When a task requires push evidence, capture and report the registry digest line explicitly.
+
+### Architecture
+
+#### 1. FILE-MCP LOCAL VALIDATION IS A FOUR-ROLE BACKEND PLUS A SEPARATE FRONTEND PREVIEW
+
+The local validation shape is not a single service:
+
+- `8060` API
+- `8061` Web
+- `8062` MCP
+- `8063` A2A
+- `5186` frontend preview
+
+Rule:
+
+- Debug backend-role issues and frontend preview issues separately.
+- A passing preview does not prove the backend role split is healthy, and healthy backend ports do not prove the preview is using the correct runtime config.
+
+#### 2. `/health` AND `/status` ARE NOT INTERCHANGEABLE DEBUG SIGNALS
+
+During the mixed-stack failure, `/api/status` still returned useful metrics while `/api/health` returned 404. That combination was a strong signal that the running role mix was wrong, not that the service was completely down.
+
+Rule:
+
+- Use `/health` to confirm the expected route surface is actually mounted.
+- Use `/status` to confirm runtime metrics/data shape.
+- If `/status` works but `/health` does not, suspect role/process mismatch before changing UI code.
+
+### Related Projects
+
+#### 1. `cloud-dog-ai-ui-monorepo/apps/file-mcp` AND `file-mcp-server/ui/dist` MUST BE TREATED AS ONE DELIVERY SURFACE
+
+The app is authored in the UI monorepo, but the actual backend-served UI comes from the copied bundle in `file-mcp-server/ui/dist`.
+
+Rule:
+
+- After fixing monorepo Playwright or page-contract issues, remember that backend-served validation still depends on the synced `ui/dist` bundle.
+- Do not claim the repo is fixed if only the monorepo source changed and the backend bundle is stale.
+
+#### 2. PLATFORM-STANDARD GREPS CAN BE NARROWER THAN THE FULL COMPLIANCE TESTS
+
+The requested bespoke greps for W28A-961 were fixed to zero matches in `main.py` and `mcp_tool_audit_shim.py`, but the broader QT bespoke scan can still surface unrelated findings elsewhere in the repo.
+
+Rule:
+
+- When closing a review item, distinguish “the specifically requested grep failures are fixed” from “the entire repo is now bespoke-clean”.
+- Report any broader remaining scan hits separately instead of silently conflating the scopes.
+
 ---
 
 ## Related Projects

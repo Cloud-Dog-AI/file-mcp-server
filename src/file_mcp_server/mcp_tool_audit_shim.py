@@ -16,11 +16,12 @@
 
 from __future__ import annotations
 
-import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
+
+from cloud_dog_logging import get_logger  # type: ignore[import-untyped]
 
 _DEFAULT_REDACT_FIELDS = frozenset({
     "password", "secret", "token", "api_key", "credential", "auth",
@@ -46,11 +47,11 @@ def mcp_tool_audit_middleware(
     handler: Callable[..., Any],
     *,
     service: str,
-    logger: Optional[logging.Logger] = None,
+    logger: Optional[Any] = None,
     redact_fields: Optional[frozenset[str]] = None,
 ) -> Callable[..., Any]:
     effective_redact = _DEFAULT_REDACT_FIELDS | (redact_fields or frozenset())
-    log = logger or logging.getLogger(f"cloud_dog_api_kit.mcp.audit.{service}")
+    log = logger or get_logger(f"cloud_dog_api_kit.mcp.audit.{service}")
 
     def _wrapped(**kwargs: Any) -> Any:
         correlation_id = str(uuid.uuid4().hex[:16])

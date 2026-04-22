@@ -19,7 +19,7 @@ pip install -e ".[dev]" --index-url https://pypi.cloud-dog.net/simple/
 
 Run:
 ```bash
-./server_control.sh --env tests/env-UT serve
+./server_control.sh --env tests/env-ST start all
 ```
 
 Test:
@@ -27,6 +27,12 @@ Test:
 .venv/bin/python -m pytest tests/quality --env tests/env-QT -q
 .venv/bin/python -m pytest tests/unit --env tests/env-UT -q
 ```
+
+Verified local default ports from [defaults.yaml](defaults.yaml):
+- API `8060`
+- Web `8061`
+- MCP `8062`
+- A2A `8063`
 
 ## Architecture Overview
 
@@ -41,13 +47,23 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | REST | Health/admin/runtime endpoints | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) |
 | MCP | Tool discovery and tool execution (`/mcp`) | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) |
 | A2A | `/a2a/health` auth contract in local runtime flows | [docs/API-REFERENCE.md](docs/API-REFERENCE.md) |
-| Web UI | SPA shell at `/ui` (bundle from `ui/dist`) and dynamic `/runtime-config.js` | [docs/BUILD.md](docs/BUILD.md) |
+| Web UI | SPA shell at `/` (routes include `/login`, `/search`, `/storage-profiles`) plus dynamic `/runtime-config.js` | [docs/BUILD.md](docs/BUILD.md) |
 
 ## Configuration
 
 Environment/configuration reference: [docs/ENV-REFERENCE.md](docs/ENV-REFERENCE.md)
 
 Build/deploy guidance: [docs/BUILD.md](docs/BUILD.md), [docs/DEPLOY.md](docs/DEPLOY.md)
+
+## Validation Snapshot
+
+Verified on `2026-04-16` during W28A-961:
+- Unit: `177 passed`
+- Integration: `37 passed, 10 skipped`
+- Application: `25 passed, 1 skipped`
+- Monorepo Playwright app suite: `47 passed (2.1m)`
+- Local container build: `./docker-build.sh test` → `Build OK: cloud-dog/file-mcp-server:test`
+- Registry push: `registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest@sha256:27c97601f7b2ee602e59f2a6b203478b2aa556444b6333d16ef188ba6b4ca6f5`
 
 ## Platform Packages
 

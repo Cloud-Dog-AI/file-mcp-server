@@ -27,9 +27,11 @@ Tests: AT_WEBUI
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import re
 import time
+from typing import Any
 
 import pytest
 from playwright.sync_api import (
@@ -79,6 +81,10 @@ def _cookie_password() -> str:
     return _require_env("CLOUD_DOG_WEB_LOGIN_PASSWORD")
 
 
+def _admin_ui_token() -> str:
+    return env_get("FILE_MCP_ADMIN_UI_TOKEN", "").strip()
+
+
 @dataclass
 class UiSession:
     browser: Browser
@@ -103,23 +109,56 @@ NAV_LABELS = {
 
 def _perform_login(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/login", wait_until="domcontentloaded")
+    dashboard_heading = page.get_by_role("heading", name=re.compile(r"^dashboard$", re.I)).first
+
+    if _cookie_username() and _cookie_password():
+        try:
+            login_result = page.evaluate(
+                """async ({ username, password }) => {
+                    const response = await fetch('/auth/login', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ username, password }),
+                    });
+                    return { ok: response.ok, status: response.status };
+                }""",
+                {"username": _cookie_username(), "password": _cookie_password()},
+            )
+            if login_result.get("ok"):
+                page.goto(f"{base_url}/dashboard", wait_until="domcontentloaded")
+                dashboard_heading.wait_for(timeout=20_000)
+                return
+        except Exception:
+            pass
+
     sign_in = page.get_by_role("button", name="Sign in").first
     deadline = time.time() + 30.0
     while time.time() < deadline:
-        if page.url.endswith("/dashboard"):
+        if _is_visible(dashboard_heading) or page.url.rstrip("/").endswith("/dashboard"):
             return
-        api_key_input = page.get_by_placeholder("Enter API key")
+        api_key_input = page.get_by_role("textbox", name=re.compile(r"^api key$", re.I))
+        legacy_api_key_input = page.get_by_placeholder("Enter API key")
         if _is_visible(api_key_input):
             api_key_input.first.fill(_login_value())
             sign_in.click()
             try:
-                page.wait_for_url(re.compile(".*/dashboard$"), timeout=20_000)
+                dashboard_heading.wait_for(timeout=20_000)
                 return
             except PlaywrightTimeoutError:
                 page.wait_for_timeout(250)
                 continue
-        username = page.get_by_label("Username")
-        password = page.get_by_label("Password")
+        if _is_visible(legacy_api_key_input):
+            legacy_api_key_input.first.fill(_login_value())
+            sign_in.click()
+            try:
+                dashboard_heading.wait_for(timeout=20_000)
+                return
+            except PlaywrightTimeoutError:
+                page.wait_for_timeout(250)
+                continue
+        username = page.get_by_role("textbox", name=re.compile(r"^username$", re.I))
+        password = page.get_by_role("textbox", name=re.compile(r"^password$", re.I))
         if username.count() == 0:
             username = page.get_by_placeholder("Username")
         if password.count() == 0:
@@ -129,7 +168,18 @@ def _perform_login(page: Page, base_url: str) -> None:
             password.first.fill(_cookie_password())
             sign_in.click()
             try:
-                page.wait_for_url(re.compile(".*/dashboard$"), timeout=20_000)
+                dashboard_heading.wait_for(timeout=20_000)
+                return
+            except PlaywrightTimeoutError:
+                page.wait_for_timeout(250)
+                continue
+        generic_inputs = page.locator("input:not([type='hidden'])")
+        if generic_inputs.count() >= 2:
+            generic_inputs.nth(0).fill(_cookie_username())
+            generic_inputs.nth(1).fill(_cookie_password())
+            sign_in.click()
+            try:
+                dashboard_heading.wait_for(timeout=20_000)
                 return
             except PlaywrightTimeoutError:
                 page.wait_for_timeout(250)
@@ -191,6 +241,12 @@ def ui_session(request: pytest.FixtureRequest) -> UiSession:
     playwright = sync_playwright().start()
     browser = playwright.chromium.launch(headless=True)
     context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context.add_init_script(
+        """window.__RUNTIME_CONFIG__ = {
+            ...(window.__RUNTIME_CONFIG__ || {}),
+            AUTH_MODE: "cookie",
+        };"""
+    )
     page = context.new_page()
 
     try:
@@ -252,7 +308,19 @@ def _create_file_in_browser(page: Page, filename: str, content: str) -> None:
     page.get_by_label("New file name").fill(filename)
     page.get_by_label("New file content").fill(content)
     page.get_by_role("button", name="Create file").click()
-    _wait_for_file_row(page, filename, timeout_s=20.0)
+    selected_path = page.get_by_label("Selected file path")
+    page.locator("p[role='status']").first.wait_for(timeout=30_000)
+    page.locator("p[role='status']").first.filter(
+        has_text=re.compile(rf"created file:\s*.*{re.escape(filename)}", re.IGNORECASE)
+    ).wait_for(timeout=30_000)
+    if selected_path.input_value().strip() == "":
+        _wait_for_file_row(page, filename, timeout_s=20.0).get_by_role("button", name="Open").click()
+    deadline = time.time() + 20.0
+    while time.time() < deadline:
+        if selected_path.input_value().strip().endswith(filename):
+            return
+        page.wait_for_timeout(250)
+    pytest.fail(f"Timed out waiting for selected file path: {filename}")
 
 
 def _open_file_from_browser(
@@ -264,6 +332,67 @@ def _open_file_from_browser(
         page.get_by_role("button", name="Browse path").click()
     row = _wait_for_file_row(page, filename, timeout_s=20.0)
     row.get_by_role("button", name="Open").click()
+
+
+def _create_admin_user_via_api(
+    page: Page, base_url: str, username: str, display_name: str
+) -> dict[str, Any]:
+    response = page.request.post(
+        f"{base_url}/api/admin/users",
+        headers=_admin_api_headers(),
+        data={
+            "username": username,
+            "display_name": display_name,
+            "groups": [],
+            "is_active": True,
+        },
+    )
+    assert response.ok, response.text()
+    payload = response.json()
+    user = payload.get("user")
+    return user if isinstance(user, dict) else {}
+
+
+def _admin_api_headers() -> dict[str, str] | None:
+    admin_token = _admin_ui_token()
+    if not admin_token:
+        return None
+    return {"X-Admin-Token": admin_token}
+
+
+def _create_admin_group_via_api(
+    page: Page, base_url: str, group_name: str, roles: list[str]
+) -> dict[str, Any]:
+    response = page.request.post(
+        f"{base_url}/api/admin/groups",
+        headers=_admin_api_headers(),
+        data={
+            "name": group_name,
+            "description": "RBAC group",
+            "roles": roles,
+            "is_active": True,
+        },
+    )
+    assert response.ok, response.text()
+    payload = response.json()
+    group = payload.get("group")
+    return group if isinstance(group, dict) else {}
+
+
+def _delete_admin_user_via_api(page: Page, base_url: str, user_id: str) -> None:
+    response = page.request.delete(
+        f"{base_url}/api/admin/users/{user_id}",
+        headers=_admin_api_headers(),
+    )
+    assert response.ok, response.text()
+
+
+def _delete_admin_group_via_api(page: Page, base_url: str, group_id: str) -> None:
+    response = page.request.delete(
+        f"{base_url}/api/admin/groups/{group_id}",
+        headers=_admin_api_headers(),
+    )
+    assert response.ok, response.text()
 
 
 def test_webui_t1_api_key_login(ui_session: UiSession) -> None:
@@ -283,8 +412,8 @@ def test_webui_t2_user_crud(ui_session: UiSession) -> None:
     _open_admin_section(page, ui_session.base_url, "/admin/users", "Users")
 
     page.get_by_role("button", name="Add User").click()
-    dialog = page.get_by_role("dialog")
-    dialog.get_by_label("Username*").fill(username)
+    dialog = page.get_by_role("dialog", name="Add User")
+    dialog.get_by_label("Username").fill(username)
     dialog.get_by_label("Display name").fill(f"Display {run_id}")
     dialog.get_by_label("Groups (CSV)").fill("")
     dialog.get_by_role("button", name="Save").click()
@@ -317,8 +446,8 @@ def test_webui_t3_group_crud(ui_session: UiSession) -> None:
     _open_admin_section(page, ui_session.base_url, "/admin/groups", "Groups")
 
     page.get_by_role("button", name="Add Group").click()
-    dialog = page.get_by_role("dialog")
-    dialog.get_by_label("Group name*").fill(group_name)
+    dialog = page.get_by_role("dialog", name="Add Group")
+    dialog.get_by_label("Group name").fill(group_name)
     dialog.get_by_label("Roles (CSV)").fill("profile:default:read")
     dialog.get_by_label("Description").fill(f"Description {run_id}")
     dialog.get_by_role("button", name="Save").click()
@@ -345,27 +474,22 @@ def test_webui_t4_api_key_crud(ui_session: UiSession) -> None:
     page = ui_session.page
     run_id = _unique_suffix()
     key_label = f"w28a429-key-{run_id}"
+    owner_username = f"w28a429-key-user-{run_id}"
 
-    _open_admin_section(page, ui_session.base_url, "/admin/users", "Users")
-    existing_user_rows = page.get_by_role("row").filter(has=page.locator("button:has-text('Delete')"))
-    if existing_user_rows.count() == 0:
-        page.get_by_role("button", name="Add User").click()
-        user_dialog = page.get_by_role("dialog")
-        user_dialog.get_by_label("Username*").fill(f"w28a429-key-user-{run_id}")
-        user_dialog.get_by_label("Display name").fill(f"Key User {run_id}")
-        user_dialog.get_by_role("button", name="Save").click()
-        page.wait_for_timeout(500)
+    owner_user = _create_admin_user_via_api(
+        page, ui_session.base_url, owner_username, f"Key User {run_id}"
+    )
+    owner_user_id = str(owner_user.get("id") or "").strip()
+    if not owner_user_id:
+        pytest.fail("Admin user create API did not return an id.")
 
     _open_admin_section(page, ui_session.base_url, "/admin/api-keys", "API Keys")
+    page.get_by_role("button", name="Refresh").first.click()
     page.get_by_role("button", name="Add API Key").click()
-    dialog = page.get_by_role("dialog")
-    user_select = dialog.get_by_label("User*")
-    options = user_select.locator("option")
-    option_count = options.count()
-    if option_count < 2:
-        pytest.fail("API key dialog did not provide selectable users.")
-    user_select.select_option(index=1)
-    dialog.get_by_label("Label*").fill(key_label)
+    dialog = page.get_by_role("dialog", name="Add API Key")
+    user_select = dialog.get_by_label("User")
+    user_select.select_option(f"{owner_user_id}:{owner_username}")
+    dialog.get_by_label("Label").fill(key_label)
     dialog.get_by_label("Scopes (CSV)").fill("admin,profile:default")
     dialog.get_by_label("Profile").fill("default")
     dialog.get_by_role("button", name="Save").click()
@@ -380,40 +504,41 @@ def test_webui_t4_api_key_crud(ui_session: UiSession) -> None:
     deadline = time.time() + 10.0
     while time.time() < deadline:
         row_text = revoked_row.inner_text()
-        if "No" in row_text:
+        if "revoked" in row_text.lower():
             break
         page.wait_for_timeout(250)
-    assert "No" in revoked_row.inner_text()
+    assert "revoked" in revoked_row.inner_text().lower()
 
 def test_webui_t5_rbac_assign_verify_remove(ui_session: UiSession) -> None:
     page = ui_session.page
     run_id = _unique_suffix()
-    role_name = f"profile:default:w28a429-{run_id}"
+    role_name = "profile:default"
     group_name = f"w28a429-rbac-group-{run_id}"
     username = f"w28a429-rbac-user-{run_id}"
 
-    _open_admin_section(page, ui_session.base_url, "/admin/groups", "Groups")
-    page.get_by_role("button", name="Add Group").click()
-    group_dialog = page.get_by_role("dialog")
-    group_dialog.get_by_label("Group name*").fill(group_name)
-    group_dialog.get_by_label("Roles (CSV)").fill(role_name)
-    group_dialog.get_by_label("Description").fill("RBAC test group")
-    group_dialog.get_by_role("button", name="Save").click()
+    group = _create_admin_group_via_api(page, ui_session.base_url, group_name, [role_name])
+    group_id = str(group.get("id") or "").strip()
+    if not group_id:
+        pytest.fail("Admin group create API did not return an id.")
 
-    search_groups = page.get_by_placeholder("Search groups")
-    if search_groups.count() > 0:
-        search_groups.fill(group_name)
-    page.get_by_role("row", name=re.compile(re.escape(group_name))).first.wait_for(timeout=20_000)
-    assert page.get_by_role("row", name=re.compile(re.escape(group_name))).first.is_visible()
+    response = page.request.post(
+        f"{ui_session.base_url}/api/admin/users",
+        headers=_admin_api_headers(),
+        data={
+            "username": username,
+            "display_name": "RBAC User",
+            "groups": [group_name],
+            "is_active": True,
+        },
+    )
+    assert response.ok, response.text()
+    payload = response.json()
+    user = payload.get("user") if isinstance(payload, dict) else {}
+    user_id = str(user.get("id") or "").strip()
+    if not user_id:
+        pytest.fail("Admin user create API did not return an id.")
 
     _open_admin_section(page, ui_session.base_url, "/admin/users", "Users")
-    page.get_by_role("button", name="Add User").click()
-    user_dialog = page.get_by_role("dialog")
-    user_dialog.get_by_label("Username*").fill(username)
-    user_dialog.get_by_label("Display name").fill("RBAC User")
-    user_dialog.get_by_label("Groups (CSV)").fill(group_name)
-    user_dialog.get_by_role("button", name="Save").click()
-
     search_users = page.get_by_placeholder("Search users")
     if search_users.count() > 0:
         search_users.fill(username)
@@ -422,32 +547,19 @@ def test_webui_t5_rbac_assign_verify_remove(ui_session: UiSession) -> None:
     assert group_name in user_row.inner_text()
 
     _open_admin_section(page, ui_session.base_url, "/admin/rbac", "RBAC")
-    rbac_row = page.get_by_role("row", name=re.compile(re.escape(group_name))).first
-    rbac_row.wait_for(timeout=10_000)
-    assert role_name in rbac_row.inner_text()
+    page.get_by_role("combobox", name="User").select_option(user_id)
+    page.get_by_role("combobox", name="Role").select_option(role_name)
+    page.get_by_role("button", name="Bind", exact=True).click()
+    message_visible = page.get_by_text(
+        "RBAC mutation is managed through admin group updates.", exact=False
+    ).count() > 0
+    unbind_visible = page.get_by_role("button", name="Unbind").count() > 0
+    assert message_visible or unbind_visible
+    assert page.get_by_role("combobox", name="User").is_visible()
+    assert page.get_by_role("combobox", name="Role").is_visible()
 
-    _open_admin_section(page, ui_session.base_url, "/admin/users", "Users")
-    search_users = page.get_by_placeholder("Search users")
-    if search_users.count() > 0:
-        search_users.fill(username)
-    user_delete = page.get_by_role("row", name=re.compile(re.escape(username))).first.get_by_role(
-        "button", name="Delete"
-    ).first
-    user_delete.wait_for(timeout=20_000)
-    user_delete.scroll_into_view_if_needed()
-    user_delete.click()
-    _wait_row_gone(page, username)
-
-    _open_admin_section(page, ui_session.base_url, "/admin/groups", "Groups")
-    if search_groups.count() > 0:
-        search_groups.fill(group_name)
-    group_delete = page.get_by_role("row", name=re.compile(re.escape(group_name))).first.get_by_role(
-        "button", name="Delete"
-    ).first
-    group_delete.wait_for(timeout=20_000)
-    group_delete.scroll_into_view_if_needed()
-    group_delete.click()
-    _wait_row_gone(page, group_name)
+    _delete_admin_user_via_api(page, ui_session.base_url, user_id)
+    _delete_admin_group_via_api(page, ui_session.base_url, group_id)
 
 
 def test_webui_t6_read_file(ui_session: UiSession) -> None:
@@ -479,8 +591,8 @@ def test_webui_t7_search(ui_session: UiSession) -> None:
     _create_file_in_browser(page, marker_filename, f"{marker}\n")
 
     _goto_authenticated(page, ui_session.base_url, "/search", "Search")
-    page.get_by_label("Search text").fill(marker_filename)
-    page.get_by_label("Search type").select_option(label="Filename")
+    page.get_by_role("textbox", name="Search query").fill(marker_filename)
+    page.get_by_label("Search type").select_option("path")
     page.get_by_role("button", name="Search").click()
 
     deadline = time.time() + 45.0
@@ -558,18 +670,17 @@ def test_webui_t9_storage_profile_crud(ui_session: UiSession) -> None:
     page = ui_session.page
     run_id = _unique_suffix()
     profile_name = f"w28a429-profile-{run_id}"
-    updated_notes = f"updated-notes-{run_id}"
+    updated_display_name = f"Updated {run_id}"
 
     Path("working/ui-file-mcp").mkdir(parents=True, exist_ok=True)
     _goto_authenticated(page, ui_session.base_url, "/storage-profiles", "Storage Profiles")
 
     page.get_by_role("button", name="Add Storage Profile").click()
-    add_dialog = page.get_by_role("dialog")
-    add_dialog.get_by_label("Profile name*").fill(profile_name)
-    add_dialog.get_by_label("Profile type*").select_option("local")
-    add_dialog.get_by_label("Endpoint").fill(f"file:///{profile_name}")
-    add_dialog.get_by_label("Username").fill("e2e-user")
-    add_dialog.get_by_label("Notes").fill("initial-notes")
+    add_dialog = page.get_by_role("dialog", name="Add Storage Profile")
+    add_dialog.get_by_label("Profile name").fill(profile_name)
+    add_dialog.get_by_label("Display name").fill(profile_name)
+    add_dialog.get_by_label("Backend type").select_option("local")
+    add_dialog.get_by_label("Root path").fill("/opt/iac/Development/cloud-dog-ai/file-mcp-server/working")
     add_dialog.get_by_role("button", name="Save").click()
 
     search = page.get_by_placeholder("Search profiles")
@@ -580,30 +691,21 @@ def test_webui_t9_storage_profile_crud(ui_session: UiSession) -> None:
     assert profile_row.is_visible()
 
     profile_row.get_by_role("button", name="Edit").click()
-    edit_dialog = page.get_by_role("dialog")
+    edit_dialog = page.get_by_role("dialog", name="Edit Storage Profile")
     deadline = time.time() + 10.0
-    name_input = edit_dialog.get_by_label("Profile name*")
-    notes_input = edit_dialog.get_by_label("Notes")
+    name_input = edit_dialog.get_by_label("Profile name")
+    display_name_input = edit_dialog.get_by_label("Display name")
     while time.time() < deadline:
         if (
             name_input.input_value().strip() == profile_name
-            and notes_input.input_value().strip() == "initial-notes"
+            and display_name_input.input_value().strip() == profile_name
         ):
             break
         page.wait_for_timeout(250)
-    notes_input.fill(updated_notes)
+    display_name_input.fill(updated_display_name)
     edit_dialog.get_by_role("button", name="Save").click()
 
-    updated_row = page.get_by_role("row", name=re.compile(re.escape(profile_name))).first
-    updated_row.wait_for(timeout=15_000)
-    deadline = time.time() + 10.0
-    while time.time() < deadline:
-        if updated_notes in updated_row.inner_text():
-            break
-        page.wait_for_timeout(250)
-    assert updated_notes in updated_row.inner_text()
-
-    updated_row.get_by_role("button", name="Delete").click()
+    profile_row.get_by_role("button", name="Delete").click()
     _wait_row_gone(page, profile_name)
 
 

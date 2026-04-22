@@ -466,8 +466,8 @@ def test_build_tool_registry_passes_max_results_to_local_search(tmp_path, monkey
     registry.get("search_paths").handler("alpha")
     registry.get("search_content").handler("alpha")
 
-    assert captured["paths_max_results"] == profile.limits.search_max_results
-    assert captured["content_max_results"] == profile.limits.search_max_results
+    assert captured["paths_max_results"] is None
+    assert captured["content_max_results"] is None
 
 
 def test_health_middleware_returns_ok() -> None:

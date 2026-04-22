@@ -93,7 +93,7 @@ REQUIREMENT_CODE_TRACEABILITY: dict[str, tuple[str, ...]] = {
     "FR1.7": ("src/file_tools/io/filesystem.py",),
     "FR1.8": ("src/file_tools/io/filesystem.py", "src/file_tools/audit/adapter.py"),
     "FR1.9": ("src/file_tools/search/find.py",),
-    "FR1.10": ("src/file_tools/io/encoding.py",),
+    "FR1.10": ("src/file_tools/io/__init__.py",),
     "FR1.11": ("src/file_tools/diff/diffgen.py",),
     "FR1.12": ("src/file_tools/diff/meld.py",),
     "FR1.13": (

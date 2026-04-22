@@ -14,7 +14,8 @@
 
 """Filesystem IO package (scaffold)."""
 
-from .encoding import b64_decode, b64_encode
+from cloud_dog_storage import decode_base64 as b64_decode
+from cloud_dog_storage import encode_base64 as b64_encode
 from .filesystem import (
     atomic_write,
     chmod_path,

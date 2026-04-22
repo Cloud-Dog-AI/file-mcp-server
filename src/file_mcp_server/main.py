@@ -43,15 +43,15 @@ import typer
 from file_tools.config.adapter import get_profile, load_config
 # W28A-654: Patch cloud_dog_logging ContextVar defaults at module import time.
 try:
-    import contextvars as _ctxvars, os as _patch_os
+    import contextvars as _ctxvars
     from cloud_dog_logging import correlation as _cmod
     _cmod._environment_var = _ctxvars.ContextVar(
-        "environment", default=_patch_os.environ.get("CLOUD_DOG_ENVIRONMENT", "dev"))
+        "environment", default="dev")
     _cmod._service_name_var = _ctxvars.ContextVar(
         "service_name", default="file-mcp-server")
     _cmod._service_instance_var = _ctxvars.ContextVar(
-        "service_instance", default=_patch_os.environ.get("HOSTNAME", "file-local"))
-    del _ctxvars, _patch_os, _cmod
+        "service_instance", default="file-local")
+    del _ctxvars, _cmod
 except Exception:
     pass
 

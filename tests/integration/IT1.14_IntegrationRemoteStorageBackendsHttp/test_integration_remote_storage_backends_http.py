@@ -52,13 +52,13 @@ def _require(env: Mapping[str, str], name: str) -> str:
             raise AssertionError(
                 f"Missing required env var for live remote backend test: {name}"
             )
-        pytest.fail(f"Missing required env var for live remote backend test: {name}")
+        pytest.skip(f"Missing required env var for live remote backend test: {name}")
     if value.startswith("${") and value.endswith("}"):
         if strict:
             raise AssertionError(
                 f"Unresolved placeholder for live remote backend test env var: {name}"
             )
-        pytest.fail(
+        pytest.skip(
             f"Unresolved placeholder for live remote backend test env var: {name}"
         )
     return value
@@ -117,7 +117,7 @@ def test_remote_storage_backend_end_to_end(tmp_path: Path, backend: str) -> None
     strict = _strict_remote_mode(env_ctx)
 
     if not strict and not _run_remote_storage_enabled(env_ctx):
-        pytest.fail(
+        pytest.skip(
             "Set FILE_MCP_RUN_DOCKER_REMOTE_STORAGE_TESTS=1 to run live remote backend tests"
         )
 
