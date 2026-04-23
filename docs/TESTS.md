@@ -216,6 +216,6 @@ The following test filenames are present in the repository and are included for 
 | CFG-13 (Admin-only CRUD) | `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | (admin gating verified in lifecycle workflow) | COVERED |
 | FR1.37 (Web UI Routes) | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py` | AT_WEBUI suite | COVERED |
 | FR1.44 (Web UI Accessibility) | `tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py` | AT1.13 suite | COVERED |
-| CFG-06 (A2A broadcast) | — | — | GAP |
+| CFG-06 (A2A broadcast) | `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py` + `tests/integration/IT_CFG06_A2AEvents/test_a2a_events_integration.py` | UT_CFG06_A2AEvents + IT_CFG06_A2AEvents | IMPLEMENTED |
 | CFG-12 (Audit logging for CRUD) | — | — | GAP |
 | FR1.32 (Google Drive OAuth Folder Binding) | `tests/application/AT1.12_GoogleDriveOauthLive/test_google_drive_oauth_live.py` | AT1.12 suite | COVERED |

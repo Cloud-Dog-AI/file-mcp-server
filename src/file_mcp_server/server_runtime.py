@@ -37,6 +37,7 @@ from threading import RLock
 from html import escape
 from types import SimpleNamespace
 
+import asyncio
 import inspect
 import json
 import mimetypes
@@ -55,6 +56,18 @@ from cloud_dog_storage import path_utils
 
 from cloud_dog_api_kit import create_app as create_api_kit_app, create_health_router  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_api_kit.a2a.card import A2ASkill
+from cloud_dog_api_kit.a2a.events import (  # W28A-1002-APPLY-A — CFG-06 platform primitive
+    ConfigChangeEvent,
+    InMemoryEventBroadcaster,
+)
+
+
+_CFG06_REDACT_KEYS = frozenset({"api_key", "secret", "token", "password", "access_token"})
+
+
+def _redact_secrets(payload: dict[str, Any]) -> dict[str, Any]:
+    """CFG-06: redact secret-like keys before broadcasting a change event."""
+    return {k: v for k, v in payload.items() if k not in _CFG06_REDACT_KEYS}
 from cloud_dog_api_kit.web.proxy import WebApiProxy
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
@@ -586,6 +599,7 @@ class HealthCheckMiddleware:
         callback_host_fallback: str = "",
         web_sessions: dict[str, dict] | None = None,
         cookie_name: str = "file_web_session",
+        config_event_broadcaster: Optional[InMemoryEventBroadcaster] = None,
     ) -> None:
         """Initialise the instance state."""
         self.app = app
@@ -609,6 +623,8 @@ class HealthCheckMiddleware:
         self._cookie_name = cookie_name
         self.admin_identity_service = admin_identity_service
         self.jobs_runtime_provider = jobs_runtime_provider
+        # W28A-1002-APPLY-A — CFG-06: A2A config-change broadcaster for admin CRUD.
+        self.config_event_broadcaster = config_event_broadcaster
         self.a2a_base_path = _normalize_path(
             read_env_var("TEST_A2A_BASE_PATH"), default="/a2a"
         )
@@ -1467,6 +1483,49 @@ class HealthCheckMiddleware:
             send, status=status, body=body, content_type="application/json"
         )
 
+    async def _publish_cfg_event(
+        self,
+        *,
+        resource: str,
+        action: str,
+        identifier: str,
+        actor: Optional[str] = None,
+        before: Optional[dict[str, Any]] = None,
+        after: Optional[dict[str, Any]] = None,
+    ) -> None:
+        """CFG-06: publish a config-change event via the platform broadcaster.
+
+        Best-effort: failures are logged but never raised, so the CRUD HTTP
+        response is never blocked by a broadcast issue.
+        """
+        broadcaster = self.config_event_broadcaster
+        if broadcaster is None:
+            return
+        try:
+            # Redact secrets so subscribers never see tokens.
+            safe_after = _redact_secrets(after) if isinstance(after, dict) else after
+            safe_before = _redact_secrets(before) if isinstance(before, dict) else before
+            await broadcaster.publish(
+                ConfigChangeEvent(
+                    service="file-mcp-server",
+                    resource=resource,
+                    action=action,
+                    identifier=str(identifier or ""),
+                    actor=actor,
+                    before=safe_before,
+                    after=safe_after,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            if self.logger is not None:
+                self.logger.warning(
+                    "Failed to publish config change event",
+                    resource=resource,
+                    action=action,
+                    identifier=identifier,
+                    error=str(exc),
+                )
+
     def _ui_index_path(self) -> Path:
         """Return the configured SPA index path."""
         return self.ui_dist_path / "index.html"
@@ -1522,6 +1581,7 @@ class HealthCheckMiddleware:
             "/auth",
             "/mcp",
             "/a2a",
+            "/events",  # W28A-1002-APPLY-A — CFG-06 A2A events (Traefik-stripped of /a2a prefix)
             "/.well-known",
             "/health",
             "/status",
@@ -3320,15 +3380,22 @@ class HealthCheckMiddleware:
                         reload_result = None
                         if callable(self.reload_callback):
                             reload_result = self.reload_callback()
+                        profile_payload = self._profile_payload(
+                            name=profile_name,
+                            profile=profile,
+                        )
+                        await self._publish_cfg_event(
+                            resource="profile",
+                            action="create",
+                            identifier=str(profile_name),
+                            after=dict(profile_payload) if isinstance(profile_payload, dict) else None,
+                        )
                         await self._send_json(
                             send,
                             status=201,
                             payload={
                                 "ok": True,
-                                "profile": self._profile_payload(
-                                    name=profile_name,
-                                    profile=profile,
-                                ),
+                                "profile": profile_payload,
                                 "reloaded": bool(reload_result),
                                 "reload": reload_result,
                             },
@@ -3424,15 +3491,22 @@ class HealthCheckMiddleware:
                             reload_result = None
                             if callable(self.reload_callback):
                                 reload_result = self.reload_callback()
+                            profile_payload_updated = self._profile_payload(
+                                name=profile_name,
+                                profile=candidate,
+                            )
+                            await self._publish_cfg_event(
+                                resource="profile",
+                                action="update",
+                                identifier=str(profile_name),
+                                after=dict(profile_payload_updated) if isinstance(profile_payload_updated, dict) else None,
+                            )
                             await self._send_json(
                                 send,
                                 status=200,
                                 payload={
                                     "ok": True,
-                                    "profile": self._profile_payload(
-                                        name=profile_name,
-                                        profile=candidate,
-                                    ),
+                                    "profile": profile_payload_updated,
                                     "reloaded": bool(reload_result),
                                     "reload": reload_result,
                                 },
@@ -3462,6 +3536,11 @@ class HealthCheckMiddleware:
                             reload_result = None
                             if callable(self.reload_callback):
                                 reload_result = self.reload_callback()
+                            await self._publish_cfg_event(
+                                resource="profile",
+                                action="delete",
+                                identifier=str(profile_name),
+                            )
                             await self._send_json(
                                 send,
                                 status=200,
@@ -3509,6 +3588,14 @@ class HealthCheckMiddleware:
                             is_active=bool(payload.get("is_active", True)),
                             groups=payload.get("groups") or [],
                         )
+                        await self._publish_cfg_event(
+                            resource="user",
+                            action="create",
+                            identifier=str(
+                                created.get("id") or created.get("user_id") or ""
+                            ),
+                            after=dict(created),
+                        )
                         await self._send_json(
                             send,
                             status=201,
@@ -3525,6 +3612,12 @@ class HealthCheckMiddleware:
                     if len(segments) == 3 and method in {"PUT", "PATCH"}:
                         payload = await self._read_json_body(receive)
                         updated = service.update_user(segments[2], data=payload)
+                        await self._publish_cfg_event(
+                            resource="user",
+                            action="update",
+                            identifier=str(segments[2]),
+                            after=dict(updated),
+                        )
                         await self._send_json(
                             send,
                             status=200,
@@ -3533,6 +3626,12 @@ class HealthCheckMiddleware:
                         return
                     if len(segments) == 3 and method == "DELETE":
                         deleted = service.delete_user(segments[2])
+                        await self._publish_cfg_event(
+                            resource="user",
+                            action="delete",
+                            identifier=str(segments[2]),
+                            before=dict(deleted) if isinstance(deleted, dict) else None,
+                        )
                         await self._send_json(
                             send,
                             status=200,
@@ -3556,6 +3655,14 @@ class HealthCheckMiddleware:
                             roles=payload.get("roles") or [],
                             is_active=bool(payload.get("is_active", True)),
                         )
+                        await self._publish_cfg_event(
+                            resource="group",
+                            action="create",
+                            identifier=str(
+                                created.get("id") or created.get("group_id") or ""
+                            ),
+                            after=dict(created),
+                        )
                         await self._send_json(
                             send,
                             status=201,
@@ -3575,6 +3682,12 @@ class HealthCheckMiddleware:
                     if len(segments) == 3 and method in {"PUT", "PATCH"}:
                         payload = await self._read_json_body(receive)
                         updated = service.update_group(segments[2], data=payload)
+                        await self._publish_cfg_event(
+                            resource="group",
+                            action="update",
+                            identifier=str(segments[2]),
+                            after=dict(updated),
+                        )
                         await self._send_json(
                             send,
                             status=200,
@@ -3583,6 +3696,12 @@ class HealthCheckMiddleware:
                         return
                     if len(segments) == 3 and method == "DELETE":
                         deleted = service.delete_group(segments[2])
+                        await self._publish_cfg_event(
+                            resource="group",
+                            action="delete",
+                            identifier=str(segments[2]),
+                            before=dict(deleted) if isinstance(deleted, dict) else None,
+                        )
                         await self._send_json(
                             send,
                             status=200,
@@ -3621,6 +3740,14 @@ class HealthCheckMiddleware:
                             scopes=payload.get("scopes") or [],
                             profile_name=str(payload.get("profile_name") or ""),
                         )
+                        await self._publish_cfg_event(
+                            resource="api_key",
+                            action="create",
+                            identifier=str(
+                                created.get("id") or created.get("api_key_id") or ""
+                            ),
+                            after=dict(created),
+                        )
                         await self._send_json(
                             send,
                             status=201,
@@ -3629,6 +3756,12 @@ class HealthCheckMiddleware:
                         return
                     if len(segments) == 4 and segments[3] == "revoke" and method == "POST":
                         revoked = service.revoke_api_key(segments[2])
+                        await self._publish_cfg_event(
+                            resource="api_key",
+                            action="revoke",
+                            identifier=str(segments[2]),
+                            before=dict(revoked) if isinstance(revoked, dict) else None,
+                        )
                         await self._send_json(
                             send,
                             status=200,
@@ -5929,29 +6062,47 @@ def build_tool_registry(
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {
-            "ok": True,
-            "user": admin_identity_service.create_user(
-                username=username,
-                display_name=display_name,
-                is_active=is_active,
-                groups=groups or [],
-            ),
-        }
+        user = admin_identity_service.create_user(
+            username=username,
+            display_name=display_name,
+            is_active=is_active,
+            groups=groups or [],
+        )
+        _publish_config_event(
+            resource="user",
+            action="create",
+            identifier=str(user.get("user_id") or user.get("id") or username),
+            after=dict(user),
+        )
+        return {"ok": True, "user": user}
 
     def admin_update_user(user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Update admin user."""
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {"ok": True, "user": admin_identity_service.update_user(user_id, data=data)}
+        user = admin_identity_service.update_user(user_id, data=data)
+        _publish_config_event(
+            resource="user",
+            action="update",
+            identifier=str(user_id),
+            after=dict(user),
+        )
+        return {"ok": True, "user": user}
 
     def admin_delete_user(user_id: str) -> Dict[str, Any]:
         """Delete admin user."""
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {"ok": True, "result": admin_identity_service.delete_user(user_id)}
+        result = admin_identity_service.delete_user(user_id)
+        _publish_config_event(
+            resource="user",
+            action="delete",
+            identifier=str(user_id),
+            before=dict(result) if isinstance(result, dict) else None,
+        )
+        return {"ok": True, "result": result}
 
     def admin_list_groups() -> Dict[str, Any]:
         """List admin groups."""
@@ -5970,29 +6121,47 @@ def build_tool_registry(
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {
-            "ok": True,
-            "group": admin_identity_service.create_group(
-                name=name,
-                description=description,
-                roles=roles or [],
-                is_active=is_active,
-            ),
-        }
+        group = admin_identity_service.create_group(
+            name=name,
+            description=description,
+            roles=roles or [],
+            is_active=is_active,
+        )
+        _publish_config_event(
+            resource="group",
+            action="create",
+            identifier=str(group.get("group_id") or group.get("id") or name),
+            after=dict(group),
+        )
+        return {"ok": True, "group": group}
 
     def admin_update_group(group_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Update admin group."""
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {"ok": True, "group": admin_identity_service.update_group(group_id, data=data)}
+        group = admin_identity_service.update_group(group_id, data=data)
+        _publish_config_event(
+            resource="group",
+            action="update",
+            identifier=str(group_id),
+            after=dict(group),
+        )
+        return {"ok": True, "group": group}
 
     def admin_delete_group(group_id: str) -> Dict[str, Any]:
         """Delete admin group."""
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {"ok": True, "result": admin_identity_service.delete_group(group_id)}
+        result = admin_identity_service.delete_group(group_id)
+        _publish_config_event(
+            resource="group",
+            action="delete",
+            identifier=str(group_id),
+            before=dict(result) if isinstance(result, dict) else None,
+        )
+        return {"ok": True, "result": result}
 
     def admin_list_api_keys(include_inactive: bool = False) -> Dict[str, Any]:
         """List admin API keys."""
@@ -6016,22 +6185,42 @@ def build_tool_registry(
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {
-            "ok": True,
-            "api_key": admin_identity_service.create_api_key(
-                user_id=user_id,
-                label=label,
-                scopes=scopes or [],
-                profile_name=profile_name,
-            ),
+        api_key = admin_identity_service.create_api_key(
+            user_id=user_id,
+            label=label,
+            scopes=scopes or [],
+            profile_name=profile_name,
+        )
+        # Redact raw token material from the event before fan-out.
+        api_key_event_payload = {
+            k: v for k, v in dict(api_key).items() if k not in {"api_key", "secret", "token"}
         }
+        _publish_config_event(
+            resource="api_key",
+            action="create",
+            identifier=str(api_key.get("api_key_id") or api_key.get("id") or label),
+            after=api_key_event_payload,
+        )
+        return {"ok": True, "api_key": api_key}
 
     def admin_revoke_api_key(api_key_id: str) -> Dict[str, Any]:
         """Revoke admin API key."""
         _assert_admin_for_admin_tool()
         if admin_identity_service is None:
             raise RuntimeError("admin identity service unavailable")
-        return {"ok": True, "api_key": admin_identity_service.revoke_api_key(api_key_id)}
+        api_key = admin_identity_service.revoke_api_key(api_key_id)
+        api_key_event_payload = (
+            {k: v for k, v in dict(api_key).items() if k not in {"api_key", "secret", "token"}}
+            if isinstance(api_key, dict)
+            else None
+        )
+        _publish_config_event(
+            resource="api_key",
+            action="revoke",
+            identifier=str(api_key_id),
+            before=api_key_event_payload,
+        )
+        return {"ok": True, "api_key": api_key}
 
     tools = ToolRegistry()
     tools.register(
@@ -6928,6 +7117,63 @@ def build_mcp_server(
     registry_by_profile: dict[str, ToolRegistry] = {}
     jobs_runtime_by_profile: dict[str, FileMcpJobsRuntime | None] = {}
 
+    # --- W28A-1002-APPLY-A — CFG-06 A2A config-change event broadcaster ---
+    # Shared platform primitive from cloud_dog_api_kit.a2a.events. Admin CRUD
+    # closures call ``_publish_config_event`` after successful mutation so
+    # downstream subscribers can track user/group/api_key/profile changes via
+    # the ``/a2a/events`` SSE stream and ``/a2a/events/history`` endpoint
+    # mounted by ``build_mcp_fastapi_application``.
+    config_event_broadcaster = InMemoryEventBroadcaster()
+
+    def _publish_config_event(
+        *,
+        resource: str,
+        action: str,
+        identifier: str,
+        actor: Optional[str] = None,
+        before: Optional[dict[str, Any]] = None,
+        after: Optional[dict[str, Any]] = None,
+        outcome: str = "success",
+    ) -> None:
+        """Publish a ConfigChangeEvent for an admin-CRUD operation.
+
+        Synchronous wrapper: the broadcaster is async, so we schedule the
+        publish on a running event loop when one is available; otherwise
+        spin up ``asyncio.run`` for the duration of the publish call. In
+        practice the MCP admin tools are dispatched from the HTTP server's
+        event loop, so the running-loop path is the hot path.
+        """
+        try:
+            event = ConfigChangeEvent(
+                service="file-mcp-server",
+                resource=resource,
+                action=action,
+                identifier=str(identifier or ""),
+                actor=actor,
+                before=before,
+                after=after,
+                outcome=outcome,
+            )
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                # Hot path: schedule on the running loop without blocking.
+                loop.create_task(config_event_broadcaster.publish(event))
+            else:
+                # Fallback (sync tool dispatched outside an event loop).
+                asyncio.run(config_event_broadcaster.publish(event))
+        except Exception as exc:  # noqa: BLE001 — publication must never break the CRUD op
+            if logger is not None:
+                logger.warning(
+                    "Failed to publish config change event",
+                    resource=resource,
+                    action=action,
+                    identifier=identifier,
+                    error=str(exc),
+                )
+
     def _jobs_runtime_provider(
         profile_name: str | None = None,
     ) -> FileMcpJobsRuntime | None:
@@ -7041,6 +7287,7 @@ def build_mcp_server(
         profile_tool_factory=_profile_tool_factory,
         web_session_store={},
         web_cookie_name="file_web_session",
+        config_event_broadcaster=config_event_broadcaster,
     )
     server = SimpleNamespace()
     setattr(server, "_file_mcp_registry_provider", _registry_provider)
@@ -7049,6 +7296,8 @@ def build_mcp_server(
     setattr(server, "_file_mcp_jobs_runtime_provider", _jobs_runtime_provider)
     setattr(server, "_file_mcp_jobs_runtime_close_all", _close_jobs_runtimes)
     setattr(server, "_file_mcp_asgi_app", mcp_app)
+    # W28A-1002-APPLY-A — expose broadcaster for tests + external publishers.
+    setattr(server, "_file_mcp_config_event_broadcaster", config_event_broadcaster)
     return server
 
 
@@ -7171,6 +7420,11 @@ async def run_mcp_http_server(
     if mcp_inner is None:
         raise RuntimeError("MCP ASGI application not built")
     shared_web_sessions = getattr(mcp_inner.state, "file_mcp_web_sessions", None)
+    # W28A-1002-APPLY-A — CFG-06: share the broadcaster between MCP tool CRUD
+    # and the HTTP /admin/* CRUD endpoints handled by HealthCheckMiddleware.
+    shared_event_broadcaster = getattr(
+        server, "_file_mcp_config_event_broadcaster", None
+    )
     hc_app = HealthCheckMiddleware(
         mcp_inner,
         health_path=http.health_path,
@@ -7187,6 +7441,7 @@ async def run_mcp_http_server(
         callback_host_fallback=http.host,
         web_sessions=shared_web_sessions,
         cookie_name="file_web_session",
+        config_event_broadcaster=shared_event_broadcaster,
     )
     stream_app = StreamableHttpAcceptCompatibilityMiddleware(
         hc_app,

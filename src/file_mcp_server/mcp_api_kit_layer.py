@@ -24,6 +24,10 @@ from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from starlette.authentication import AuthCredentials
 from starlette.responses import JSONResponse
 
+from cloud_dog_api_kit.a2a.events import (  # W28A-1002-APPLY-A — CFG-06 primitive
+    EventBroadcaster,
+    create_a2a_events_router,
+)
 from cloud_dog_api_kit.envelopes import error_envelope
 from cloud_dog_api_kit.errors import UnauthenticatedError, UnauthorisedError
 from cloud_dog_api_kit.errors.handler import register_error_handlers
@@ -311,8 +315,17 @@ def build_mcp_fastapi_application(
     profile_tool_factory: Callable[[str], Callable[..., Any]],
     web_session_store: dict[str, dict[str, Any]] | None = None,
     web_cookie_name: str = "file_web_session",
+    config_event_broadcaster: EventBroadcaster | None = None,
 ) -> FastAPI:
-    """FastAPI ASGI app: MCP JSON-RPC + api_kit transport + IDAM middleware."""
+    """FastAPI ASGI app: MCP JSON-RPC + api_kit transport + IDAM middleware.
+
+    Args:
+        config_event_broadcaster: CFG-06 A2A change-event broadcaster.
+            When provided, ``GET /a2a/events`` (SSE) and ``GET /a2a/events/history``
+            (JSON) are registered via ``create_a2a_events_router`` from
+            ``cloud_dog_api_kit.a2a.events``. The broadcaster is also made
+            available on ``app.state.config_event_broadcaster`` for tests.
+    """
     session_store = web_session_store if web_session_store is not None else {}
     seed = registry_provider()
     contracts = build_tool_contracts(
@@ -323,6 +336,9 @@ def build_mcp_fastapi_application(
     )
     app = FastAPI(title="file-mcp-server-mcp", version="1.0.0", docs_url=None, redoc_url=None)
     app.state.file_mcp_web_sessions = session_store
+    if config_event_broadcaster is not None:
+        # W28A-1002-APPLY-A — CFG-06: expose broadcaster + register SSE/history routes.
+        app.state.config_event_broadcaster = config_event_broadcaster
     register_error_handlers(app)
     app.add_middleware(
         WebMcpCookieAuthMiddleware,
@@ -350,6 +366,30 @@ def build_mcp_fastapi_application(
         request_context_hook=_request_context_hook,
         alternate_endpoints=[{"path": "/webmcp", "auth": "cookie", "name": "web"}],
     )
+
+    if config_event_broadcaster is not None:
+        # W28A-1002-APPLY-A — CFG-06: mount at BOTH paths to cover:
+        # (a) native servers / tests (external == internal path)
+        #     → ``/a2a/events`` + ``/a2a/events/history`` reachable directly;
+        # (b) preprod via Traefik which strips the ``/a2a`` prefix (see
+        #     terraform filemcpserver_containers.tf.json middleware
+        #     ``filemcpserver0_a2a_strip``)
+        #     → external ``/a2a/events{,/history}`` forwards as internal
+        #     ``/events{,/history}``.
+        # Both sets of routes share the same broadcaster instance; fan-out
+        # is unified.
+        app.include_router(
+            create_a2a_events_router(
+                config_event_broadcaster,
+                base_path="/a2a/events",
+            )
+        )
+        app.include_router(
+            create_a2a_events_router(
+                config_event_broadcaster,
+                base_path="/events",
+            )
+        )
 
     # PS-50: Per-tool RBAC enforcement via cloud_dog_idam.
     _TOOL_PERMISSION_MAP = {

@@ -48,7 +48,7 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       --trusted-host files.pythonhosted.org \
       cloud-dog-config \
       cloud-dog-logging \
-      cloud-dog-api-kit==0.8.1 \
+      cloud-dog-api-kit==0.10.0 \
       cloud-dog-idam \
       cloud-dog-db \
       cloud-dog-jobs \
