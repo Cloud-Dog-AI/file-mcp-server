@@ -625,9 +625,18 @@ class HealthCheckMiddleware:
         self.jobs_runtime_provider = jobs_runtime_provider
         # W28A-1002-APPLY-A — CFG-06: A2A config-change broadcaster for admin CRUD.
         self.config_event_broadcaster = config_event_broadcaster
-        self.a2a_base_path = _normalize_path(
-            read_env_var("TEST_A2A_BASE_PATH"), default="/a2a"
-        )
+        # PS-92 (W28A-970h-V2): prefer TEST_A2A_BASE_PATH (legacy test override),
+        # then configured `a2a_server.base_path`, then canonical default. Distinct
+        # from top-level `http.base_path` (transport listener base).
+        _test_a2a_override = read_env_var("TEST_A2A_BASE_PATH")
+        if _test_a2a_override:
+            _a2a_config_base = _test_a2a_override
+        else:
+            _config_a2a = None
+            if config is not None:
+                _config_a2a = getattr(config.a2a_server, "base_path", None)
+            _a2a_config_base = _config_a2a or "/a2a"
+        self.a2a_base_path = _normalize_path(_a2a_config_base, default="/a2a")
         self.a2a_health_path = _join_paths(self.a2a_base_path, "/health")
         self.logger = get_logger("file_mcp_server.admin")
         self.app_name = "file-mcp-server"
@@ -7281,6 +7290,15 @@ def build_mcp_server(
             logger=logger,
         )
 
+    # PS-92 (W28A-970h-V2): read MCP + A2A base paths from config, fall back to
+    # platform canonical defaults. `http.base_path` is a distinct transport-layer
+    # concern and is NOT consulted here.
+    _mcp_base_path = str(
+        getattr(config.mcp_server, "base_path", None) or "/mcp"
+    ).strip() or "/mcp"
+    _a2a_base_path = str(
+        getattr(config.a2a_server, "base_path", None) or "/a2a"
+    ).strip() or "/a2a"
     mcp_app = build_mcp_fastapi_application(
         _registry_provider,
         auth,
@@ -7288,6 +7306,8 @@ def build_mcp_server(
         web_session_store={},
         web_cookie_name="file_web_session",
         config_event_broadcaster=config_event_broadcaster,
+        mcp_base_path=_mcp_base_path,
+        a2a_base_path=_a2a_base_path,
     )
     server = SimpleNamespace()
     setattr(server, "_file_mcp_registry_provider", _registry_provider)

@@ -126,26 +126,34 @@ http:
   events_path: "${FILE_MCP_HTTP_EVENTS_PATH}"
   stateless_http: "${FILE_MCP_HTTP_STATELESS}"
 
+# PS-92 server base_path (route prefix). The top-level `http.base_path` above is
+# a distinct concern (MCP HTTP transport listener base — outbound HTTP connector
+# target / transport root) and MUST NOT be conflated with the PS-92 per-server
+# route prefixes below. Do not touch `http.base_path` when editing PS-92 keys.
 api_server:
   host: "${CLOUD_DOG__API_SERVER__HOST:0.0.0.0}"
   port: "${CLOUD_DOG__API_SERVER__PORT:8060}"
   enabled: "${CLOUD_DOG__API_SERVER__ENABLED:true}"
+  base_path: "/api/v1"  # PS-92 canonical API base path; legacy /app/v1 remains in code as hardcoded compat (W28A-970h-V2). Override via env CLOUD_DOG__API_SERVER__BASE_PATH (cloud_dog_config standard precedence).
 
 web_server:
   host: "${CLOUD_DOG__WEB_SERVER__HOST:0.0.0.0}"
   port: "${CLOUD_DOG__WEB_SERVER__PORT:8061}"
   enabled: "${CLOUD_DOG__WEB_SERVER__ENABLED:true}"
+  base_path: ""  # PS-92 canonical Web base path; empty for SPA/static catch-all. Override via env CLOUD_DOG__WEB_SERVER__BASE_PATH.
 
 mcp_server:
   host: "${CLOUD_DOG__MCP_SERVER__HOST:0.0.0.0}"
   port: "${CLOUD_DOG__MCP_SERVER__PORT:8062}"
   transport: "${CLOUD_DOG__MCP_SERVER__TRANSPORT:streamable-http}"
   enabled: "${CLOUD_DOG__MCP_SERVER__ENABLED:true}"
+  base_path: "/mcp"  # PS-92 canonical MCP base path. Override via env CLOUD_DOG__MCP_SERVER__BASE_PATH.
 
 a2a_server:
   host: "${CLOUD_DOG__A2A_SERVER__HOST:0.0.0.0}"
   port: "${CLOUD_DOG__A2A_SERVER__PORT:8063}"
   enabled: "${CLOUD_DOG__A2A_SERVER__ENABLED:true}"
+  base_path: "/a2a"  # PS-92 canonical A2A base path. Override via env CLOUD_DOG__A2A_SERVER__BASE_PATH.
 
 log:
   service_instance: "${FILE_MCP_SERVER_ID:file-mcp-local}"

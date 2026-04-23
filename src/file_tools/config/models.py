@@ -55,6 +55,9 @@ class ComponentServerConfig(BaseModel):
     port: Optional[int | str] = None
     enabled: Optional[bool | str] = None
     transport: Optional[str] = None
+    # PS-92 (W28A-970h-V2): per-server route prefix. Distinct from top-level
+    # `http.base_path` which is the MCP HTTP transport listener base.
+    base_path: Optional[str] = None
 
 
 class LogConfig(BaseModel):

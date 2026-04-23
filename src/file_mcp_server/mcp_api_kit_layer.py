@@ -316,15 +316,24 @@ def build_mcp_fastapi_application(
     web_session_store: dict[str, dict[str, Any]] | None = None,
     web_cookie_name: str = "file_web_session",
     config_event_broadcaster: EventBroadcaster | None = None,
+    mcp_base_path: str = "/mcp",
+    a2a_base_path: str = "/a2a",
 ) -> FastAPI:
     """FastAPI ASGI app: MCP JSON-RPC + api_kit transport + IDAM middleware.
 
     Args:
         config_event_broadcaster: CFG-06 A2A change-event broadcaster.
-            When provided, ``GET /a2a/events`` (SSE) and ``GET /a2a/events/history``
-            (JSON) are registered via ``create_a2a_events_router`` from
-            ``cloud_dog_api_kit.a2a.events``. The broadcaster is also made
-            available on ``app.state.config_event_broadcaster`` for tests.
+            When provided, ``GET {a2a_base_path}/events`` (SSE) and
+            ``GET {a2a_base_path}/events/history`` (JSON) are registered via
+            ``create_a2a_events_router`` from ``cloud_dog_api_kit.a2a.events``.
+            The broadcaster is also made available on
+            ``app.state.config_event_broadcaster`` for tests.
+        mcp_base_path: PS-92 canonical MCP server route prefix (default ``/mcp``).
+            Drives the ``{mcp_base_path}/tools`` mount.
+        a2a_base_path: PS-92 canonical A2A server route prefix (default ``/a2a``).
+            Drives the ``{a2a_base_path}/events{,/history}`` mount. The secondary
+            ``/events`` mount is an intentional Traefik-stripped alias and remains
+            hardcoded (see comment below).
     """
     session_store = web_session_store if web_session_store is not None else {}
     seed = registry_provider()
@@ -358,7 +367,9 @@ def build_mcp_fastapi_application(
             "transport_path": str(request.url.path),
         }
 
-    register_tool_router(app, contracts, base_path="/mcp/tools")
+    # PS-92 (W28A-970h-V2): tools mounted under configured MCP base_path.
+    _mcp_tools_base = f"{mcp_base_path.rstrip('/')}/tools" if mcp_base_path else "/tools"
+    register_tool_router(app, contracts, base_path=_mcp_tools_base)
     register_mcp_routes(
         app,
         contracts,
@@ -370,18 +381,25 @@ def build_mcp_fastapi_application(
     if config_event_broadcaster is not None:
         # W28A-1002-APPLY-A — CFG-06: mount at BOTH paths to cover:
         # (a) native servers / tests (external == internal path)
-        #     → ``/a2a/events`` + ``/a2a/events/history`` reachable directly;
+        #     → ``{a2a_base_path}/events`` + ``{a2a_base_path}/events/history``
+        #     reachable directly;
         # (b) preprod via Traefik which strips the ``/a2a`` prefix (see
         #     terraform filemcpserver_containers.tf.json middleware
         #     ``filemcpserver0_a2a_strip``)
-        #     → external ``/a2a/events{,/history}`` forwards as internal
-        #     ``/events{,/history}``.
+        #     → external ``{a2a_base_path}/events{,/history}`` forwards as
+        #     internal ``/events{,/history}``. The Traefik-stripped alias
+        #     remains hardcoded as ``/events`` because it is NOT configurable
+        #     per PS-92 (it tracks Traefik middleware behaviour, not a
+        #     service-level route prefix).
         # Both sets of routes share the same broadcaster instance; fan-out
         # is unified.
+        _a2a_events_base = (
+            f"{a2a_base_path.rstrip('/')}/events" if a2a_base_path else "/events"
+        )
         app.include_router(
             create_a2a_events_router(
                 config_event_broadcaster,
-                base_path="/a2a/events",
+                base_path=_a2a_events_base,
             )
         )
         app.include_router(
