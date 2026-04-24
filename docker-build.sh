@@ -38,6 +38,8 @@ raw = os.environ.get("VAULT_JSON_PAYLOAD", "{}")
 payload = json.loads(raw).get("data", {}).get("data", {})
 if isinstance(payload.get("json"), dict):
     dev = payload["json"].get("dev", {})
+elif isinstance(payload.get("json"), str):
+    dev = json.loads(payload["json"]).get("dev", {})
 elif isinstance(payload.get("content"), str):
     dev = json.loads(payload["content"]).get("dev", {})
 else:
