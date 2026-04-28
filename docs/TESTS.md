@@ -24,7 +24,7 @@ Deterministic file operations, structured edits, conversion, validation, and sto
 - Integration: `.venv/bin/python -m pytest tests/integration --env tests/env-IT -q` → `37 passed, 10 skipped in 136.52s`
 - Application: `.venv/bin/python -m pytest tests/application --env tests/env-AT -q --timeout=600` → `25 passed, 1 skipped in 148.16s`
 - Monorepo Playwright app suite: `cloud-dog-ai-ui-monorepo/apps/file-mcp npm run e2e` with `E2E_USE_LOCAL_SERVER=0 E2E_BASE_URL=http://127.0.0.1:5186` → `47 passed (2.1m)`
-- Registry push: `docker push registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest` → `sha256:27c97601f7b2ee602e59f2a6b203478b2aa556444b6333d16ef188ba6b4ca6f5`
+- Registry push: `docker push <internal-registry>:443/cloud-dog/file-mcp-server:latest` → `sha256:27c97601f7b2ee602e59f2a6b203478b2aa556444b6333d16ef188ba6b4ca6f5`
 - PC28 bespoke grep evidence:
   - `grep -RInE 'os\.(getenv|environ)' src/file_mcp_server/main.py` → `0 matches: main.py direct env access`
   - `grep -RInE '^import logging$|logging\.(getLogger|basicConfig)\(' src/file_mcp_server/mcp_tool_audit_shim.py` → `0 matches: mcp_tool_audit_shim raw logging`
@@ -32,8 +32,8 @@ Deterministic file operations, structured edits, conversion, validation, and sto
 - Cleanup: `./server_control.sh --env tests/env-ST stop all` followed by `rm -f database/*.db` → no listeners on `8060-8063` and no remaining `database/*.db`
 - Local Docker build: `./docker-build.sh test` → `Build OK: cloud-dog/file-mcp-server:test`
 - Preprod probes:
-  - `curl -sS -D - https://filemcpserver0.cloud-dog.net/health` → `HTTP/1.1 200 OK`
-  - `curl -sS -D - https://filemcpserver0.cloud-dog.net/status` → `HTTP/1.1 200 OK`
+  - `curl -sS -D - https://filemcpserver0.example.com/health` → `HTTP/1.1 200 OK`
+  - `curl -sS -D - https://filemcpserver0.example.com/status` → `HTTP/1.1 200 OK`
 
 ## Standard Commands
 ```bash

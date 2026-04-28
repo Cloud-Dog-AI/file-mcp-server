@@ -14,7 +14,7 @@ Install:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e ".[dev]" --index-url https://pypi.cloud-dog.net/simple/
+pip install -e ".[dev]" --index-url https://<internal-pypi>/simple/
 ```
 
 Run:
@@ -63,7 +63,7 @@ Verified on `2026-04-16` during W28A-961:
 - Application: `25 passed, 1 skipped`
 - Monorepo Playwright app suite: `47 passed (2.1m)`
 - Local container build: `./docker-build.sh test` → `Build OK: cloud-dog/file-mcp-server:test`
-- Registry push: `registry.cloud-dog.net:443/cloud-dog/file-mcp-server:latest@sha256:27c97601f7b2ee602e59f2a6b203478b2aa556444b6333d16ef188ba6b4ca6f5`
+- Registry push: `<internal-registry>:443/cloud-dog/file-mcp-server:latest@sha256:27c97601f7b2ee602e59f2a6b203478b2aa556444b6333d16ef188ba6b4ca6f5`
 
 ## Platform Packages
 

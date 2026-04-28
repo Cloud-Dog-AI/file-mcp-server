@@ -28,7 +28,7 @@ def test_s3_rejects_unresolved_placeholder_credentials() -> None:
         {
             "backend": "s3",
             "s3": {
-                "endpoint": "https://storage.cloud-dog.net",
+                "endpoint": "https://storage.example.com",
                 "bucket": "test",
                 "access_key": "${vault.dev.storage.s3.access_key_id}",
                 "secret_key": "${vault.dev.storage.s3.secret_access_key}",
@@ -44,7 +44,7 @@ def test_webdav_rejects_unresolved_placeholder_credentials() -> None:
         {
             "backend": "webdav",
             "webdav": {
-                "base_url": "https://files.cloud-dog.net/remote.php/dav/files/gary/temp",
+                "base_url": "https://files.example.com/remote.php/dav/files/user/temp",
                 "username": "${vault.dev.storage.webdav.username}",
                 "password": "${vault.dev.storage.webdav.password}",
             },
@@ -59,7 +59,7 @@ def test_ftp_rejects_unresolved_placeholder_credentials() -> None:
         {
             "backend": "ftp",
             "ftp": {
-                "host": "ftp.cloud-dog.net",
+                "host": "ftp.example.com",
                 "username": "${vault.dev.storage.ftp.username}",
                 "password": "${vault.dev.storage.ftp.password}",
             },

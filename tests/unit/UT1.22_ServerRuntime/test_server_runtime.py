@@ -1516,7 +1516,7 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
             "method": "GET",
             "path": "/admin/google-drive",
             "headers": [
-                (b"host", b"filemcpserver0.cloud-dog.net"),
+                (b"host", b"filemcpserver0.example.com"),
                 (b"x-forwarded-proto", b"https"),
             ],
             "scheme": "http",
@@ -1535,7 +1535,7 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
         assert sent[0]["status"] == 200
         body = sent[1]["body"].decode("utf-8")
         assert (
-            "https://filemcpserver0.cloud-dog.net/admin/google-drive/callback" in body
+            "https://filemcpserver0.example.com/admin/google-drive/callback" in body
         )
     finally:
         if previous is None:
