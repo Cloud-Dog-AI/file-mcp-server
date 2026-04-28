@@ -39,11 +39,11 @@ RUN set -eux; \
 
 COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
 # Install platform packages from internal PyPI per §3.2.0, then remaining deps from REQUIREMENTS.
-ARG PYPI_URL=https://<internal-pypi>/simple
+ARG PYPI_URL=https://pypi.cloud-dog.net/simple
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir \
       --extra-index-url ${PYPI_URL} \
-      --trusted-host <internal-pypi> \
+      --trusted-host pypi.cloud-dog.net \
       --trusted-host pypi.org \
       --trusted-host files.pythonhosted.org \
       cloud-dog-config \
