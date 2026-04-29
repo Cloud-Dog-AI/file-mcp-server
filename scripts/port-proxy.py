@@ -7,6 +7,7 @@ import http.server
 import os
 import sys
 import threading
+import urllib.error
 import urllib.request
 
 MAIN_PORT = int(os.environ.get("CLOUD_DOG__WEB_SERVER__PORT", "8080"))
@@ -23,6 +24,21 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         self._proxy()
 
+    def do_DELETE(self):
+        self._proxy()
+
+    def do_PUT(self):
+        self._proxy()
+
+    def _forward_response(self, resp):
+        """Forward an HTTP response (success or error) to the client."""
+        self.send_response(resp.status)
+        for key, value in resp.getheaders():
+            if key.lower() not in ("transfer-encoding",):
+                self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(resp.read())
+
     def _proxy(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
@@ -35,13 +51,12 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             for key, value in self.headers.items():
                 if key.lower() not in ("host", "content-length"):
                     req.add_header(key, value)
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                self.send_response(resp.status)
-                for key, value in resp.getheaders():
-                    if key.lower() not in ("transfer-encoding",):
-                        self.send_header(key, value)
-                self.end_headers()
-                self.wfile.write(resp.read())
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    self._forward_response(resp)
+            except urllib.error.HTTPError as err:
+                # Forward non-2xx responses faithfully instead of returning 502.
+                self._forward_response(err)
         except Exception:
             self.send_response(502)
             self.end_headers()

@@ -376,6 +376,8 @@ def build_mcp_fastapi_application(
         transport_modes=["streamable_http", "http_jsonrpc", "legacy_sse"],
         request_context_hook=_request_context_hook,
         alternate_endpoints=[{"path": "/webmcp", "auth": "cookie", "name": "web"}],
+        session_termination_mode="204_idempotent",
+        error_response_mode="jsonrpc_200",
     )
 
     if config_event_broadcaster is not None:
