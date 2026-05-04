@@ -10,7 +10,7 @@ set -euo pipefail
 VERSION="${1:-latest}"
 CONTAINER="file-mcp-server"
 FOLDER="cloud-dog"
-REGISTRY="registry.cloud-dog.net:443:443"
+REGISTRY="registry.cloud-dog.net:443"
 PIP_CONF=".pip.conf.build"
 CA_BUNDLE_FILE=".ca-bundle.build"
 
