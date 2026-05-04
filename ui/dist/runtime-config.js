@@ -20,6 +20,8 @@ window.__RUNTIME_CONFIG__ = {
   AUTH_MODE: "api_key",
   SESSION_TIMEOUT_MINUTES: 30,
   APP_VERSION: "",
+  PRODUCT_NAME: "Cloud-Dog File MCP",
+  PRODUCT_DESCRIPTION: "Language-neutral filesystem and document-manipulation tools for automation and agent workflows; exposes tools over an MCP/JSON-RPC-style boundary.",
   AUDIT_LOG_PATH: "working/test-env-st/audit.log.jsonl",
   DEFAULT_BROWSE_PATH: "src",
   PROFILE_STORE_PATH: "working/ui-file-mcp/storage-profiles.json",
