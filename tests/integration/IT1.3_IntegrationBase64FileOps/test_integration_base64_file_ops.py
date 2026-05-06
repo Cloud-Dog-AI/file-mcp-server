@@ -30,6 +30,21 @@ from tests.http_integration_helpers import (
 )
 
 
+def _extract_payload(result):
+    """Extract payload dict from a fastmcp CallToolResult."""
+    text = "\n".join(item.text for item in result.content if hasattr(item, "text"))
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        pass
+    structured = getattr(result, "structured_content", None) or getattr(
+        result, "structuredContent", None
+    )
+    if isinstance(structured, dict):
+        return structured
+    return text
+
+
 def test_base64_file_roundtrip_over_http(tmp_path: Path) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
@@ -61,22 +76,14 @@ def test_base64_file_roundtrip_over_http(tmp_path: Path) -> None:
                 )
             ) as client:
                 enc = await client.call_tool("b64_encode_file", {"path": str(src)})
-                enc_payload = json.loads(
-                    "\n".join(
-                        item.text for item in enc.content if hasattr(item, "text")
-                    )
-                )
+                enc_payload = _extract_payload(enc)
                 assert enc_payload["ok"] is True
                 data = enc_payload["data"]
 
                 dec = await client.call_tool(
                     "b64_decode_to_file", {"path": str(dst), "data": data}
                 )
-                dec_payload = json.loads(
-                    "\n".join(
-                        item.text for item in dec.content if hasattr(item, "text")
-                    )
-                )
+                dec_payload = _extract_payload(dec)
                 assert dec_payload["ok"] is True
 
         asyncio.run(_flow())

@@ -33,6 +33,20 @@ from tests.http_integration_helpers import (
 )
 
 
+def _extract_payload(result) -> dict:
+    """Extract payload dict from a fastmcp 3.x CallToolResult."""
+    data = getattr(result, "data", None)
+    if isinstance(data, dict):
+        return data
+    structured = getattr(result, "structured_content", None) or getattr(
+        result, "structuredContent", None
+    )
+    if isinstance(structured, dict):
+        return structured
+    text = "\n".join(item.text for item in result.content if hasattr(item, "text"))
+    return json.loads(text)
+
+
 def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
@@ -79,20 +93,9 @@ def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> N
                         "target_format": "md",
                         "backend": "nonexistent-backend",
                     },
+                    raise_on_error=False,
                 )
-                selected_payload = json.loads(
-                    "\n".join(
-                        item.text for item in selected.content if hasattr(item, "text")
-                    )
-                )
-                mismatched_payload = json.loads(
-                    "\n".join(
-                        item.text
-                        for item in mismatched.content
-                        if hasattr(item, "text")
-                    )
-                )
-                return selected_payload, mismatched_payload
+                return _extract_payload(selected), _extract_payload(mismatched)
 
         selected_payload, mismatched_payload = asyncio.run(_calls())
         assert selected_payload["ok"] is True
@@ -161,13 +164,7 @@ def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> 
                             "backend": "pandoc",
                         },
                     )
-                    return json.loads(
-                        "\n".join(
-                            item.text
-                            for item in result.content
-                            if hasattr(item, "text")
-                        )
-                    )
+                    return _extract_payload(result)
 
             payload = asyncio.run(_call())
             assert payload["ok"] is True
@@ -234,13 +231,7 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
                             "backend": "libreoffice",
                         },
                     )
-                    return json.loads(
-                        "\n".join(
-                            item.text
-                            for item in result.content
-                            if hasattr(item, "text")
-                        )
-                    )
+                    return _extract_payload(result)
 
             payload = asyncio.run(_call())
             assert payload["ok"] is True
@@ -292,26 +283,14 @@ def test_conversion_explicit_backend_unavailable_and_unsupported_codes(
                         "target_format": "txt",
                         "backend": "libreoffice",
                     },
+                    raise_on_error=False,
                 )
                 unsupported = await client.call_tool(
                     "convert_file",
                     {"path": str(text_src), "target_format": "md", "backend": "pdf"},
+                    raise_on_error=False,
                 )
-                unavailable_payload = json.loads(
-                    "\n".join(
-                        item.text
-                        for item in unavailable.content
-                        if hasattr(item, "text")
-                    )
-                )
-                unsupported_payload = json.loads(
-                    "\n".join(
-                        item.text
-                        for item in unsupported.content
-                        if hasattr(item, "text")
-                    )
-                )
-                return unavailable_payload, unsupported_payload
+                return _extract_payload(unavailable), _extract_payload(unsupported)
 
         unavailable_payload, unsupported_payload = asyncio.run(_calls())
         assert unavailable_payload["ok"] is False

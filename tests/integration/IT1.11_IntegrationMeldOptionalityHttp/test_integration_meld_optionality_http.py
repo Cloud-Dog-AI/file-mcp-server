@@ -65,12 +65,15 @@ def test_meld_optional_unavailable_returns_warning(tmp_path: Path) -> None:
                 result = await client.call_tool(
                     "meld_files",
                     {"path_a": str(left), "path_b": str(right)},
+                    raise_on_error=False,
                 )
-                return json.loads(
-                    "\n".join(
-                        item.text for item in result.content if hasattr(item, "text")
-                    )
+                data = getattr(result, "data", None)
+                if isinstance(data, dict):
+                    return data
+                text = "\n".join(
+                    item.text for item in result.content if hasattr(item, "text")
                 )
+                return json.loads(text)
 
         payload = asyncio.run(_call())
         assert payload["ok"] is False

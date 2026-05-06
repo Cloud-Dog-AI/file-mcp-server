@@ -63,13 +63,12 @@ profiles:
 
 
 def test_operational_logger_writes_file(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path,
 ) -> None:
     profile, log_path = _build_profile(tmp_path, enabled=True, name="ops")
-    monkeypatch.setenv("CLOUD_DOG_ENVIRONMENT", "test")
 
     logger = configure_operational_logger(
-        profile.observability, name="test_observability_write"
+        profile.observability, name="test_observability_write", environment="test"
     )
     logger.info("hello")
 

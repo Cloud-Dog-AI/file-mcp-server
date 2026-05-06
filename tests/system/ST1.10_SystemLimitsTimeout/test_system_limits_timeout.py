@@ -68,6 +68,7 @@ def test_limits_timeout_path_for_conversion(tmp_path: Path) -> None:
                         "timeout_s": 1,
                         "simulate_delay_s": 2.0,
                     },
+                    raise_on_error=False,
                 )
                 return json.loads(
                     "\n".join(

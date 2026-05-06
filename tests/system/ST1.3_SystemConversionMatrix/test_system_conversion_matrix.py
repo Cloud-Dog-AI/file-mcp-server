@@ -73,6 +73,7 @@ def test_conversion_response_matrix_fields(tmp_path: Path) -> None:
                 failure = await client.call_tool(
                     "convert_file",
                     {"path": str(bad_input), "target_format": "txt"},
+                    raise_on_error=False,
                 )
                 success_payload = json.loads(
                     "\n".join(

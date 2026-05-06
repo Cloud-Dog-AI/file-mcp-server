@@ -65,10 +65,12 @@ def test_error_contract_for_expected_operational_failures(tmp_path: Path) -> Non
                 large_result = await client.call_tool(
                     "convert_file",
                     {"path": str(too_large), "target_format": "txt"},
+                    raise_on_error=False,
                 )
                 unsupported_result = await client.call_tool(
                     "convert_file",
                     {"path": str(unsupported), "target_format": "txt"},
+                    raise_on_error=False,
                 )
                 large_payload = json.loads(
                     "\n".join(

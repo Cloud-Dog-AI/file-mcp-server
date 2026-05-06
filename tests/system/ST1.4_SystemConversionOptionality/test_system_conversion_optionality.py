@@ -62,6 +62,7 @@ def test_conversion_missing_backend_returns_warning(tmp_path: Path) -> None:
                 result = await client.call_tool(
                     "convert_file",
                     {"path": str(source), "target_format": "txt"},
+                    raise_on_error=False,
                 )
                 text_blocks = [
                     item.text for item in result.content if hasattr(item, "text")

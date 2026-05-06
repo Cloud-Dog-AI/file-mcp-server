@@ -32,11 +32,12 @@ from tests.http_integration_helpers import (
 
 
 def _decode_result(result):
-    structured = getattr(result, "structuredContent", None)
-    if structured not in (None, {}):
-        return structured
+    # Extract text from content blocks first (works with both old and new fastmcp)
     text = "\n".join(item.text for item in result.content if hasattr(item, "text"))
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return text
 
 
 def test_filesystem_path_tools_cover_files_dirs_and_utf8(tmp_path: Path) -> None:

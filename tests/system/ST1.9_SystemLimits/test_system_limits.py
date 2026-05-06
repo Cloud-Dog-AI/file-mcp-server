@@ -70,6 +70,7 @@ def test_limits_search_and_conversion_size(tmp_path: Path) -> None:
                 convert_result = await client.call_tool(
                     "convert_file",
                     {"path": str(large), "target_format": "txt"},
+                    raise_on_error=False,
                 )
                 search_payload = json.loads(
                     "\n".join(

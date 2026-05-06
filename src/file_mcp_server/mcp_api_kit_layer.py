@@ -223,16 +223,21 @@ def _make_dynamic_tool_handler(
     )
 
     def _mcp_tool_result_payload(result: Any) -> dict[str, Any]:
-        """Normalise service tool results to a full MCP CallToolResult payload."""
+        """Normalise service tool results to a full MCP CallToolResult payload.
+
+        When the result is a dict with an 'ok' field it is a structured tool
+        envelope (e.g. ``{"ok": True, "data": "..."}``).  Serialise the full
+        dict as JSON text so that MCP clients parsing ``content[0].text``
+        receive the complete envelope rather than an extracted sub-field.
+
+        For non-dict results (e.g. a plain string from ``read_file``), the
+        value is placed directly in text content without JSON encoding so
+        that consumers can use it verbatim.
+        """
         if isinstance(result, dict) and isinstance(result.get("content"), list):
             payload = dict(result)
             if "structuredContent" not in payload:
-                if result.get("data") is not None:
-                    payload["structuredContent"] = result.get("data")
-                elif result.get("result") is not None:
-                    payload["structuredContent"] = result.get("result")
-                else:
-                    payload["structuredContent"] = {"value": result}
+                payload["structuredContent"] = result
             return payload
 
         if isinstance(result, list) and all(
@@ -241,27 +246,28 @@ def _make_dynamic_tool_handler(
             return {"content": result, "structuredContent": {"value": result}}
 
         is_error = False
-        data: Any = result
         if isinstance(result, dict):
             if result.get("ok") is False:
                 is_error = True
-            if result.get("data") is not None:
-                data = result.get("data")
-            elif result.get("result") is not None:
-                data = result.get("result")
             elif result.get("error") is not None:
                 is_error = True
-                data = result.get("error")
+            # Serialise the full dict as JSON text to preserve the envelope.
+            text = json.dumps(result, default=str, ensure_ascii=True)
+            return {
+                "content": [{"type": "text", "text": text}],
+                "structuredContent": result,
+                "isError": is_error,
+            }
 
-        if isinstance(data, str):
-            text = data
+        # Non-dict results: place value directly in text content.
+        if isinstance(result, str):
+            text = result
         else:
-            text = json.dumps(data, default=str, ensure_ascii=True)
-        structured = data if isinstance(data, dict) else {"value": data}
+            text = json.dumps(result, default=str, ensure_ascii=True)
         return {
             "content": [{"type": "text", "text": text}],
-            "structuredContent": structured,
-            "isError": is_error,
+            "structuredContent": {"value": result},
+            "isError": False,
         }
 
     async def _handler(payload: dict[str, Any], request: Request) -> Any:
