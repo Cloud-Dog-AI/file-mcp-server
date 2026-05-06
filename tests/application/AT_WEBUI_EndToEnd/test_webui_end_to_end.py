@@ -245,6 +245,7 @@ def ui_session(request: pytest.FixtureRequest) -> UiSession:
         """window.__RUNTIME_CONFIG__ = {
             ...(window.__RUNTIME_CONFIG__ || {}),
             AUTH_MODE: "cookie",
+            MCP_BASE_URL: "/webmcp",
         };"""
     )
     page = context.new_page()

@@ -935,6 +935,16 @@ E2E_API_KEY=FileMCP-local-5678
 
 NOTE: file-mcp does NOT use `E2E_WEB_PASSWORD=OrangeRiverTable` -- that pattern is for services with username/password login (db-mcp, notification-agent, etc.). file-mcp is API-key-only auth.
 
+### W28A-92: COOKIE-MODE PLAYWRIGHT MUST ALSO OVERRIDE MCP_BASE_URL (2026-05-06)
+
+The Playwright `ui_session` fixture injects `AUTH_MODE: "cookie"` via `context.add_init_script`. But the server dynamically generates `runtime-config.js` at `/runtime-config.js` with `MCP_BASE_URL: "/mcp"` (derived from `FILE_MCP_UI_AUTH_MODE=api_key` in env-AT). The AppState `mcpPath` derivation checks `cfg.MCP_BASE_URL.startsWith("/")` and if true, uses it directly without consulting `authMode`. This means even when the test overrides to cookie mode, MCP calls go to `/mcp` (Bearer-only) instead of `/webmcp` (cookie-session), causing "Authentication required for MCP tool calls" on all File Browser tool operations.
+
+**Fix:** the init script must set `MCP_BASE_URL: "/webmcp"` alongside `AUTH_MODE: "cookie"`.
+
+Rule:
+- When overriding AUTH_MODE in Playwright, ALWAYS also override MCP_BASE_URL to match.
+- The server-generated `/runtime-config.js` (not the static `ui/dist/runtime-config.js`) is what the browser actually loads.
+
 ### cloud_dog_idam
 
 - `hash_api_key` uses SHA-256.
