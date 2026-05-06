@@ -917,6 +917,24 @@ Rule:
 - Job compliance scanner: `/opt/iac/Development/cloud-dog-ai/cloud-dog-ai-platform-standards/tests/job-compliance/job_compliance_check/scanner.py`
 - Platform logging package: `/opt/iac/Development/cloud-dog-ai/cloud-dog-ai-platform-standards/packages/backend/platform-logging/cloud_dog_logging`
 
+### Preprod PW testing — file-mcp uses API key auth, NOT password (2026-05-06)
+
+**Origin:** PW rerun 2026-05-06 (run1 + run2). file-mcp uses API key authentication, not username/password. The fixture `signIn` at `tests/fixtures.ts:51` defaults to API key `"secret"` which is the LOCAL dev key. Preprod expects `FileMCP-local-5678`. Without setting `E2E_API_KEY`, all 45 auth-gated tests fail with "Invalid or unauthorised API key".
+
+**CRITICAL:** Three test files (`audit-log.spec.ts`, `ui-review2.spec.ts`) have their OWN `apiBaseUrl` variable that reads `E2E_API_BASE_URL` with a default of `http://127.0.0.1:5186/api`. Setting `E2E_BASE_URL` alone is NOT enough for these tests -- `E2E_API_BASE_URL` must ALSO be set for tests that make direct API calls (not via Playwright browser context).
+
+**Required preprod env vars (all four are mandatory for 53/53):**
+```bash
+E2E_BASE_URL=https://filemcpserver0.cloud-dog.net
+E2E_API_BASE_URL=https://filemcpserver0.cloud-dog.net/api
+E2E_USE_LOCAL_SERVER=0
+E2E_API_KEY=FileMCP-local-5678
+```
+
+**Verified result:** 53 passed, 0 failed, 0 skipped (2026-05-06 run2).
+
+NOTE: file-mcp does NOT use `E2E_WEB_PASSWORD=OrangeRiverTable` -- that pattern is for services with username/password login (db-mcp, notification-agent, etc.). file-mcp is API-key-only auth.
+
 ### cloud_dog_idam
 
 - `hash_api_key` uses SHA-256.

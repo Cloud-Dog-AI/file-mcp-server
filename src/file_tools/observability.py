@@ -27,7 +27,6 @@ Recent Change History:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -93,11 +92,13 @@ def configure_operational_logger(
     resolved_server_id = (
         _clean_path(server_id) or profile_server_id or f"{service_name}-local"
     )
-    resolved_environment = (
-        _clean_path(environment)
-        or _clean_path(os.getenv("CLOUD_DOG_ENVIRONMENT"))
-        or "dev"
-    )
+    # W28A-#A29 (29.A Batch A) — environment value comes from caller
+    # (configure_logging_for_profile passes config.log.environment which
+    # cloud_dog_config resolves from defaults.yaml line 160:
+    #   log.environment: "${CLOUD_DOG_ENVIRONMENT:dev}").
+    # No direct os.environ read here — RULES §1.4 + BOOTSTRAP §11 forbid
+    # reading non-bootstrap env vars in service code.
+    resolved_environment = _clean_path(environment) or "dev"
 
     payload: dict[str, Any] = {
         "service_name": service_name,
