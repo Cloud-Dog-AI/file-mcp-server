@@ -25,6 +25,7 @@ run/workspace/logs/
 .mypy_cache/
 dist/
 ui/dist/
+ui/dist.bak*/
 *.egg-info/
 private/
 env-*-secrets
