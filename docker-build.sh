@@ -60,7 +60,6 @@ if [[ -n "${PYPI_USERNAME}" ]] && [[ -n "${PYPI_PASSWORD}" ]]; then
 [global]
 extra-index-url = https://${PYPI_USERNAME}:${PYPI_PASSWORD}@${PYPI_URL#https://}
 trusted-host = $(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'gitea.cloud-dog.net')")
-               pypi.org
                files.pythonhosted.org
 EOF
   echo "pip.conf: authenticated PyPI access."
@@ -69,7 +68,6 @@ else
 [global]
 extra-index-url = ${PYPI_URL}
 trusted-host = $(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'gitea.cloud-dog.net')")
-               pypi.org
                files.pythonhosted.org
 EOF
   echo "pip.conf: anonymous PyPI access."
