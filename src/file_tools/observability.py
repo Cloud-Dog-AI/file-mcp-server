@@ -96,8 +96,8 @@ def configure_operational_logger(
     # (configure_logging_for_profile passes config.log.environment which
     # cloud_dog_config resolves from defaults.yaml line 160:
     #   log.environment: "${CLOUD_DOG_ENVIRONMENT:dev}").
-    # No direct os.environ read here — RULES §1.4 + BOOTSTRAP §11 forbid
-    # reading non-bootstrap env vars in service code.
+    # No direct process-environment read here: RULES §1.4 + BOOTSTRAP §11
+    # forbid reading non-bootstrap env vars in service code.
     resolved_environment = _clean_path(environment) or "dev"
 
     payload: dict[str, Any] = {

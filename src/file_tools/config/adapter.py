@@ -47,8 +47,8 @@ EnvPath = Union[str, Path, Sequence[Union[str, Path]]]
 # `_select_relevant_os_environ` (loader.py:268, 310). Mirrors the canonical
 # pattern at `expert-agent-mcp-server/src/config/loader.py:81-89`.
 #
-# These four names + `CLOUD_DOG_ENV_FILES` are the ONLY allowed `os.environ`
-# reads in `src/` per RULES §1.4 + BOOTSTRAP §11.
+# These four names + `CLOUD_DOG_ENV_FILES` are the ONLY allowed direct
+# process-environment reads in `src/` per RULES §1.4/§5.6 + BOOTSTRAP §11.
 _BOOTSTRAP_VAULT_ENV_NAMES = (
     "VAULT_ADDR",
     "VAULT_TOKEN",
@@ -129,7 +129,7 @@ def load_config(
     # also reads these internally; we read them here explicitly so that the
     # bootstrap path is observable at the service layer and any future platform
     # refactor preserves the contract. Mirrors expert-agent loader.py:81-89.
-    _bootstrap_vault = _read_bootstrap_vault_env()  # noqa: F841 — observable side; cloud_dog_config consumes from os.environ
+    _bootstrap_vault = _read_bootstrap_vault_env()  # noqa: F841 — observable side; cloud_dog_config consumes the same process env
 
     root = path_utils.as_path(path_utils.resolve_path(root_dir)) if root_dir else path_utils.as_path(path_utils.cwd())
     config_file = config_path if config_path else str(root / "config.yaml")
