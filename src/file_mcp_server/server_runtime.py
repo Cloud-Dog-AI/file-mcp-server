@@ -43,6 +43,7 @@ import json
 import mimetypes
 import uvicorn
 import os
+import pwd
 import resource
 import secrets
 import sys
@@ -5035,6 +5036,8 @@ def build_tool_registry(
                 "size": None,
                 "modified_at": None,
                 "created_at": None,
+                "accessed_at": None,
+                "owner": None,
             }
             if backend.backend_name == "local":
                 try:
@@ -5046,6 +5049,13 @@ def build_tool_registry(
                     detail["created_at"] = time.strftime(
                         "%Y-%m-%dT%H:%M:%SZ", time.gmtime(stat_result.st_ctime)
                     )
+                    detail["accessed_at"] = time.strftime(
+                        "%Y-%m-%dT%H:%M:%SZ", time.gmtime(stat_result.st_atime)
+                    )
+                    try:
+                        detail["owner"] = pwd.getpwuid(stat_result.st_uid).pw_name
+                    except KeyError:
+                        detail["owner"] = str(stat_result.st_uid)
                 except OSError:
                     pass
             entry_details.append(detail)
