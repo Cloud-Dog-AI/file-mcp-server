@@ -409,9 +409,19 @@ def test_container_remote_storage_backend_over_host_network(
 
         asyncio.run(_flow())
 
-        audit_path = workspace / "logs" / f"audit.{backend}.log.jsonl"
-        assert audit_path.exists()
-        audit_text = audit_path.read_text(encoding="utf-8")
+        # Read audit log from inside the running container to avoid
+        # host permission issues (container writes as root with 0600).
+        cat_result = _run(
+            _docker_cmd(
+                "exec",
+                container_name,
+                "cat",
+                f"/workspace/logs/audit.{backend}.log.jsonl",
+            ),
+            cwd=repo_root,
+            check=True,
+        )
+        audit_text = cat_result.stdout
         assert "write_file" in audit_text
         assert "json_set_file" in audit_text
     finally:

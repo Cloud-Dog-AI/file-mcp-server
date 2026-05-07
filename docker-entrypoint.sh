@@ -15,6 +15,10 @@
 
 set -euo pipefail
 
+# Ensure files created by the container (logs, audit, snapshots) are world-readable
+# so that volume-mounted paths can be read by the host user (e.g., test harness).
+umask 0022
+
 echo "============================================================"
 echo "file-mcp-server container"
 echo "============================================================"
