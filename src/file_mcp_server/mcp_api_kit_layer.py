@@ -12,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""MCP transport via cloud_dog_api_kit for file-mcp-server tool dispatch."""
+"""MCP transport via cloud_dog_api_kit for file-mcp-server tool dispatch.
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Limited
+Description: Builds the API-kit ASGI transport layer for MCP, WebMCP, and A2A routes.
+Requirements: FR1.2, FR1.5, FR1.23, FR1.46
+Tasks: W28A-101a
+Architecture: API-kit MCP transport
+Tests: ST1, IT1, AT1, QT1
+"""
 
 from __future__ import annotations
 
 import json
 from typing import Any, Callable
 
-from fastapi import FastAPI, Request
+from fastapi import Request
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from starlette.authentication import AuthCredentials
 from starlette.responses import JSONResponse
@@ -30,7 +39,7 @@ from cloud_dog_api_kit.a2a.events import (  # W28A-1002-APPLY-A — CFG-06 primi
 )
 from cloud_dog_api_kit.envelopes import error_envelope
 from cloud_dog_api_kit.errors import UnauthenticatedError, UnauthorisedError
-from cloud_dog_api_kit.errors.handler import register_error_handlers
+from cloud_dog_api_kit.factory import create_app
 from cloud_dog_api_kit.mcp import ToolContract
 from cloud_dog_api_kit.mcp.tool_router import register_tool_router
 from cloud_dog_api_kit.mcp.transport import register_mcp_routes
@@ -48,6 +57,9 @@ from .auth import (
     MultiProfileApiKeyTokenVerifier,
     get_request_profile_name,
 )
+
+
+_WEB_COOKIE_AUTH_SUBJECT = "web-session"
 
 
 class WebMcpCookieAuthMiddleware:
@@ -110,7 +122,7 @@ class WebMcpCookieAuthMiddleware:
             return
 
         access_token = AccessToken(
-            token="web-session",
+            token=_WEB_COOKIE_AUTH_SUBJECT,
             client_id=str(session.get("user_id") or "1"),
             scopes=["*"],
             claims={
@@ -324,7 +336,7 @@ def build_mcp_fastapi_application(
     config_event_broadcaster: EventBroadcaster | None = None,
     mcp_base_path: str = "/mcp",
     a2a_base_path: str = "/a2a",
-) -> FastAPI:
+) -> Any:
     """FastAPI ASGI app: MCP JSON-RPC + api_kit transport + IDAM middleware.
 
     Args:
@@ -349,12 +361,20 @@ def build_mcp_fastapi_application(
         seed_registry=seed,
         profile_tool_factory=profile_tool_factory,
     )
-    app = FastAPI(title="file-mcp-server-mcp", version="1.0.0", docs_url=None, redoc_url=None)
+    app = create_app(
+        title="file-mcp-server-mcp",
+        version="1.0.0",
+        enable_docs=False,
+        enable_health=False,
+        enable_request_logging=False,
+        enable_cors=False,
+        register_signal_handlers_on_startup=False,
+        enable_audit_logging=False,
+    )
     app.state.file_mcp_web_sessions = session_store
     if config_event_broadcaster is not None:
         # W28A-1002-APPLY-A — CFG-06: expose broadcaster + register SSE/history routes.
         app.state.config_event_broadcaster = config_event_broadcaster
-    register_error_handlers(app)
     app.add_middleware(
         WebMcpCookieAuthMiddleware,
         session_store=session_store,

@@ -23,7 +23,9 @@ import re
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 REQUIREMENT_ID_RE = re.compile(r"\b(?:FR|NFR)-?\d+(?:\.\d+)?\b|\bR-DB-\d+\b", re.IGNORECASE)
-TEST_ID_RE = re.compile(r"\b(?:UT|ST|IT|AT|QT|PT|CT)\d+(?:\.\d+)?[a-z]?\b")
+TEST_ID_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?:UT|ST|IT|AT|QT|PT|CT)\d+(?:\.\d+)?[a-z]?(?![A-Za-z0-9_.])"
+)
 
 
 def _doc_path(name: str) -> Path | None:

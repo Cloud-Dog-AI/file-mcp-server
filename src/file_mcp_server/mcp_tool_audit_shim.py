@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""PS-50 MCP tool audit shim until cloud-dog-api-kit wheel includes mcp.tool_audit."""
+"""PS-50 MCP tool audit shim until cloud-dog-api-kit wheel includes mcp.tool_audit.
+
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Limited
+Description: Provides the API-kit MCP audit middleware contract for older wheels.
+Requirements: FR1.19, CS1.4
+Tasks: W28A-101a
+Architecture: API-kit compatibility shim
+Tests: ST1, IT1, QT1
+"""
 
 from __future__ import annotations
 

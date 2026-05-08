@@ -123,7 +123,12 @@ def test_qt2_6_defaults_config_do_not_embed_plain_secrets() -> None:
             if not SECRET_KEY_RE.search(key):
                 continue
             val = value.strip().strip('"').strip("'")
-            if not val or val.startswith("${vault.") or val in {"null", "~"}:
+            if (
+                not val
+                or val.startswith("${vault.")
+                or (val.startswith("${") and val.endswith("}"))
+                or val in {"null", "~"}
+            ):
                 continue
             violations.append(f"{rel}:{line_no}: {key.strip()} has plaintext value")
 

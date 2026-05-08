@@ -31,7 +31,9 @@ import re
 from typing import Iterable
 
 REQ_ID_RE = re.compile(r"\b(?:SV|BO|BR|FR|UC|CS|NF)\d+\.\d+\b")
-TEST_ID_RE = re.compile(r"\b(?:UT|ST|IT|AT|QT)\d+(?:\.\d+)?\b")
+TEST_ID_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?:UT|ST|IT|AT|QT)\d+(?:\.\d+)?(?![A-Za-z0-9_.])"
+)
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,6 @@
+not running
+started (pid 122386)
+document.getElementById("selected-file-editor")
+typeof d.value=="string"?d.value
+stopped
+not running

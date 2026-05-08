@@ -1,0 +1,25 @@
+not running
+not running
+not running
+not running
+started (pid 197592)
+started (pid 202757)
+started (pid 207121)
+started (pid 211615)
+target_run=1
+.                                                                        [100%]
+1 passed in 28.71s
+target_run=2
+.                                                                        [100%]
+1 passed in 6.10s
+target_run=3
+.                                                                        [100%]
+1 passed in 12.20s
+stopped
+stopped
+stopped
+stopped
+not running
+not running
+not running
+not running

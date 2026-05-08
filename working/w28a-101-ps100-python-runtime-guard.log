@@ -1,0 +1,11 @@
+python=3.12.13 (main, Mar  4 2026, 09:23:07) [GCC 11.4.0]
+executable=/opt/iac/Development/cloud-dog-ai/file-mcp-server/.venv/bin/python
+platform=Linux-5.15.0-176-generic-x86_64-with-glibc2.35
+anyio==4.13.0
+fastapi==0.136.1
+starlette==1.0.0
+httpx==0.28.1
+pytest==8.4.2
+pytest-asyncio==1.3.0
+asyncio_cross_thread=pass
+runtime_guard=pass

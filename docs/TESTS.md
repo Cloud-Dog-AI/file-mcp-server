@@ -180,7 +180,7 @@ The following test filenames are present in the repository and are included for 
 | FR1.8 (Dry Run) | `tests/system/ST1.6_SystemDryRunContract/test_system_dry_run_contract.py` | `test_dry_run_mutations_do_not_change_files_and_are_audited` | COVERED |
 | FR1.9 (Search) | `tests/unit/UT1.19_Search/test_search.py` | `test_search_paths`, `test_search_paths_glob`, `test_search_content`, `test_search_content_regex`, `test_search_content_max_results` | COVERED |
 | FR1.9 (Search) | `tests/integration/IT1.16_IntegrationSearchHttp/test_integration_search_http.py` | IT1.16 suite | COVERED |
-| FR1.9 (Time-based Search) | `tests/test_st_time_based_search.py` | ST1.18 suite | COVERED |
+| FR1.9 (Time-based Search) | `tests/test_st_time_based_search.py` | time-based search system suite | COVERED |
 | FR1.11 (Diff Generation) | `tests/unit/UT1.6_Diff/test_diff.py` | `test_diff_text_contains_changes`, `test_diff_files` | COVERED |
 | FR1.12 (Meld Integration) | `tests/unit/UT1.6_Diff/test_diff.py` | `test_meld_available_returns_bool`, `test_meld_unavailable_returns_warning` | COVERED |
 | FR1.13 (Structured Edits General) | `tests/unit/UT1.7_EditStructured/test_edit_structured.py` | `test_json_yaml_crud`, `test_xml_html_edits`, `test_markdown_section_edits` | COVERED |
@@ -209,13 +209,14 @@ The following test filenames are present in the repository and are included for 
 | R-DB-01 (DB access abstraction) | `tests/unit/UT1.29_DatabaseAbstraction/test_database_abstraction.py` | `test_ut_db_01_engine_factory_creates_sqlite_engine` | COVERED |
 | R-DB-03 (Session management) | `tests/unit/UT1.29_DatabaseAbstraction/test_database_abstraction.py` | `test_ut_db_02_session_manager_roundtrip` | COVERED |
 | R-DB-06 (DB readiness probe) | `tests/unit/UT1.29_DatabaseAbstraction/test_database_abstraction.py` | `test_ut_db_03_probe_database_reports_healthy` | COVERED |
-| R-DB-08 (Multi-dialect versioning) | `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration_multibackend.py` | ST1.17 suite | COVERED |
+| R-DB-08 / NF1.7 (Multi-dialect versioning) | `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration_multibackend.py` | ST1.17 suite | COVERED |
 | CFG-01..CFG-04 (Profile CRUD) | `tests/application/AT_ProfileCRUD/test_profile_crud.py` | AT_ProfileCRUD suite | COVERED |
-| CFG-01..CFG-04 (Dynamic Profile CRUD) | `tests/application/AT1.11_DynamicProfileCRUDLifecycle/test_dynamic_profile_crud_lifecycle.py` | AT1.11 suite | COVERED |
+| CFG-01..CFG-04 / FR1.47 (Dynamic Profile CRUD) | `tests/application/AT1.11_DynamicProfileCRUDLifecycle/test_dynamic_profile_crud_lifecycle.py` | AT1.11 suite | COVERED |
 | CFG-08..CFG-11 (User/Group/Key mgmt) | `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | `test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` | COVERED |
 | CFG-13 (Admin-only CRUD) | `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | (admin gating verified in lifecycle workflow) | COVERED |
 | FR1.37 (Web UI Routes) | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py` | AT_WEBUI suite | COVERED |
 | FR1.44 (Web UI Accessibility) | `tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py` | AT1.13 suite | COVERED |
+| FR1.47 (Web UI Standards Merge) | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py` + `tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py` | WebUI end-to-end and admin WebUI suites | COVERED |
 | CFG-06 (A2A broadcast) | `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py` + `tests/integration/IT_CFG06_A2AEvents/test_a2a_events_integration.py` | UT_CFG06_A2AEvents + IT_CFG06_A2AEvents | IMPLEMENTED |
 | CFG-12 (Audit logging for CRUD) | `tests/unit/UT1.2_Audit/test_audit.py` + `tests/unit/UT_AuditLogFormat/test_audit_log_format.py` + `tests/integration/IT1.20_IntegrationStructuredAuditSnapshot/test_integration_structured_audit_snapshot.py` + `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | `test_audit_logger_writes`, `test_audit_logger_uses_explicit_actor_identity`, `test_audit_event_has_all_au3_fields`, `test_structured_edit_with_audit_and_snapshot`, `test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` (platform capability via `cloud_dog_logging.AuditLogger.log_crud`, wrapped by `file_tools.audit.adapter.AuditLogger`) | IMPLEMENTED |
 | FR1.32 (Google Drive OAuth Folder Binding) | `tests/application/AT1.12_GoogleDriveOauthLive/test_google_drive_oauth_live.py` | AT1.12 suite | COVERED |

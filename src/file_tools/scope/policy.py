@@ -17,7 +17,7 @@ file-mcp-server — file_tools/scope/policy.py
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
-Description: File tools module for scope policy.py.
+Description: File tools module for sandbox scope policy and path resolution.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ class ScopePolicy:
         self.read_only_exts = [ext.lower() for ext in (read_only_exts or [])]
 
     def normalize(self, path: str) -> str:
-        """Execute normalize."""
+        """Resolve a candidate path through storage path_utils before scope checks."""
         raw = str(path or "").strip()
         if not raw or raw == ".":
             if self.roots:

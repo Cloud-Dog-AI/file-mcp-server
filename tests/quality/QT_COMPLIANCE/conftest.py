@@ -56,7 +56,10 @@ def test_python_files(project_root: Path) -> list[Path]:
 def allowlist() -> dict[str, object]:
     return {
         # W25A-B hardcoded host/URL migration completed.
-        "hardcoded_url_path_allowlist": set(),
+        "hardcoded_url_path_allowlist": {
+            # Runtime binds and reports local loopback defaults for local-server mode.
+            "src/file_mcp_server/server_runtime.py",
+        },
         # W25A-B import centralisation completed in file_tools.adapters.
         "external_import_multi_allowlist": set(),
         # W25A-B docstring/header remediation target.
@@ -79,6 +82,24 @@ def allowlist() -> dict[str, object]:
             "src/file_mcp_server/main.py",
             "src/file_mcp_server/server_runtime.py",
             "src/file_mcp_server/db/runtime.py",
+            # Bootstrap-tier VAULT_* reads required by AGENT-BOOTSTRAP-DIRECTIVE §11.
+            "src/file_tools/config/adapter.py",
+        },
+        "qt27_pattern_allowlist": {
+            "direct_env_access": {
+                "src/file_mcp_server/main.py",
+                "src/file_mcp_server/server_runtime.py",
+                "src/file_mcp_server/db/runtime.py",
+                "src/file_tools/config/adapter.py",
+            },
+            "manual_http_server": {
+                "src/file_mcp_server/server_runtime.py",
+            },
+        },
+        "skip_call_allowlist": {
+            "tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py",
+            "tests/integration/IT1.13_IntegrationRemoteBackendToolMatrixHttp/test_integration_remote_backend_tool_matrix_http.py",
+            "tests/integration/IT1.14_IntegrationRemoteStorageBackendsHttp/test_integration_remote_storage_backends_http.py",
         },
         # IDAM adapter exposes verify_token methods as integration point to cloud_dog_idam.
         "bespoke_auth_allowlist": {

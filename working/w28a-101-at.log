@@ -1,0 +1,24 @@
+not running
+not running
+not running
+not running
+started (pid 1127911)
+started (pid 1132284)
+started (pid 1136755)
+started (pid 1141330)
+running (pid 1127911)
+running (pid 1132284)
+running (pid 1136755)
+running (pid 1141330)
+..s.......................                                               [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/application/AT1.12_GoogleDriveOauthLive/test_google_drive_oauth_live.py:38: GDrive deferred: requires web OAuth interface (W28A-121)
+25 passed, 1 skipped in 158.98s (0:02:38)
+stopped
+stopped
+stopped
+stopped
+not running
+not running
+not running
+not running

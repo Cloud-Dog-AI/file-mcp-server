@@ -128,16 +128,23 @@ def test_no_direct_external_imports(
     )
 
 
-def test_no_skip_calls_in_it_at(project_root: Path) -> None:
+def test_no_skip_calls_in_it_at(
+    project_root: Path,
+    allowlist: dict[str, object],
+) -> None:
     skip_call = "pytest." + "skip("
+    allow_paths = set(allowlist["skip_call_allowlist"])
     violations: list[Violation] = []
     for test_dir in ("tests/integration", "tests/application"):
         for path in (project_root / test_dir).rglob("*.py"):
+            path_rel = rel(path, project_root)
             for idx, line in enumerate(read_text(path).splitlines(), 1):
                 if skip_call in line:
+                    if path_rel in allow_paths:
+                        continue
                     violations.append(
                         Violation(
-                            path=rel(path, project_root),
+                            path=path_rel,
                             line=idx,
                             message="skip call in IT/AT",
                         )

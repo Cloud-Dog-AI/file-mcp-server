@@ -88,7 +88,7 @@ REQUIREMENT_CODE_TRACEABILITY: dict[str, tuple[str, ...]] = {
         "src/file_tools/config/models.py",
         "src/file_mcp_server/server_runtime.py",
     ),
-    "FR1.5": ("src/file_mcp_server/auth.py", "src/file_mcp_server/idam_adapter.py"),
+    "FR1.5": ("src/file_mcp_server/auth.py",),
     "FR1.6": ("src/file_tools/scope/policy.py",),
     "FR1.7": ("src/file_tools/io/filesystem.py",),
     "FR1.8": ("src/file_tools/io/filesystem.py", "src/file_tools/audit/adapter.py"),
@@ -116,7 +116,11 @@ REQUIREMENT_CODE_TRACEABILITY: dict[str, tuple[str, ...]] = {
     "FR1.23": ("src/file_mcp_server/server_runtime.py",),
     "FR1.46": (
         "src/file_mcp_server/server_runtime.py",
-        "src/file_mcp_server/idam_adapter.py",
+        "src/file_mcp_server/auth.py",
+    ),
+    "FR1.47": (
+        "src/file_mcp_server/server_runtime.py",
+        "src/file_mcp_server/mcp_api_kit_layer.py",
     ),
     "FR1.24": ("src/file_tools/tools/registry.py",),
     "FR1.25": ("src/file_tools/posix.py",),
@@ -153,12 +157,12 @@ REQUIREMENT_CODE_TRACEABILITY: dict[str, tuple[str, ...]] = {
     "FR1.35": ("src/file_tools/storage/webdav.py", "src/file_tools/config/models.py"),
     "FR1.36": (
         "src/file_mcp_server/server_runtime.py",
-        "src/file_mcp_server/idam_adapter.py",
+        "src/file_mcp_server/auth.py",
     ),
     "FR1.37": ("src/file_mcp_server/server_runtime.py",),
     "FR1.38": ("src/file_mcp_server/server_runtime.py",),
     "FR1.39": (
-        "src/file_mcp_server/idam_adapter.py",
+        "src/file_mcp_server/auth.py",
         "src/file_mcp_server/server_runtime.py",
     ),
     "FR1.40": ("src/file_mcp_server/server_runtime.py",),
@@ -240,7 +244,7 @@ REQUIREMENT_CODE_TRACEABILITY: dict[str, tuple[str, ...]] = {
         "src/file_tools/tools/registry.py",
         "src/file_mcp_server/server_runtime.py",
     ),
-    "CS1.1": ("src/file_mcp_server/auth.py", "src/file_mcp_server/idam_adapter.py"),
+    "CS1.1": ("src/file_mcp_server/auth.py",),
     "CS1.2": ("src/file_tools/scope/policy.py",),
     "CS1.3": ("src/file_tools/config/adapter.py", "src/file_tools/logging_adapter.py"),
     "CS1.4": (

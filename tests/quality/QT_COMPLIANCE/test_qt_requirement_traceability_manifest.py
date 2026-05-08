@@ -105,6 +105,10 @@ REQUIREMENT_TEST_TRACEABILITY: dict[str, tuple[str, ...]] = {
     "FR1.46": (
         "tests/integration/IT1.25_IntegrationA2AAuthContract/test_integration_a2a_auth_contract.py",
     ),
+    "FR1.47": (
+        "tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py",
+        "tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py",
+    ),
     "FR1.24": ("tests/unit/UT1.23_ToolReuse/test_tool_reuse.py",),
     "FR1.25": ("tests/unit/UT1.17_Posix/test_posix.py",),
     "FR1.26": (

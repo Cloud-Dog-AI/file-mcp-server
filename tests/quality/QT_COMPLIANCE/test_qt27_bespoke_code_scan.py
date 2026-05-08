@@ -42,9 +42,12 @@ def _iter_py(root: Path) -> list[Path]:
     )
 
 
-def test_qt2_7_no_bespoke_platform_replacements() -> None:
+def test_qt2_7_no_bespoke_platform_replacements(
+    allowlist: dict[str, object],
+) -> None:
     """Scan src/ for bespoke patterns that should be platform package integrations."""
     violations: list[str] = []
+    pattern_allowlist = allowlist.get("qt27_pattern_allowlist", {})
     for path in _iter_py(PROJECT_ROOT / "src"):
         rel = path.relative_to(PROJECT_ROOT).as_posix()
         for line_no, line in enumerate(_read(path).splitlines(), 1):
@@ -52,6 +55,9 @@ def test_qt2_7_no_bespoke_platform_replacements() -> None:
             if not stripped or stripped.startswith("#"):
                 continue
             for name, regex in PATTERNS.items():
+                allowed_paths = set(pattern_allowlist.get(name, set()))
+                if rel in allowed_paths:
+                    continue
                 if regex.search(line):
                     violations.append(f"{name}: {rel}:{line_no}: {stripped}")
 

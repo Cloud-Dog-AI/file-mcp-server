@@ -205,7 +205,7 @@
     "/admin/google-drive/start": {
       "post": {
         "summary": "Start Google OAuth",
-        "description": "Accepts setup form fields and redirects to Google OAuth authorization URL.",
+        "description": "Accepts setup form fields and redirects to Google OAuth authorisation URL.",
         "security": [
           {
             "adminTokenHeader": []
@@ -250,7 +250,7 @@
         },
         "responses": {
           "302": {
-            "description": "Redirect to Google OAuth authorization URL"
+            "description": "Redirect to Google OAuth authorisation URL"
           },
           "400": {
             "description": "Invalid form input"

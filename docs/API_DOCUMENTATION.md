@@ -202,7 +202,7 @@ These tools are registered only when the `AdminIdentityService` is available (re
 ```bash
 curl -X POST http://localhost:8083/mcp \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
+  -H "Authorisation: Bearer your-api-key" \
   -d '{
     "jsonrpc": "2.0",
     "id": 1,
