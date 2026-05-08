@@ -2,7 +2,7 @@
 # Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
 # file-mcp-server container image
 
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -56,7 +56,7 @@ RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.vendor="Cloud-Dog, Viewdeck Engineering Limited"
 
@@ -92,7 +92,7 @@ RUN set -eux; \
       libmagic1; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src ./src
