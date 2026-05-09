@@ -1,4 +1,5 @@
 .venv/
+.venv.ps100-backup-*/
 .env
 private/env-*
 private/*
