@@ -89,7 +89,8 @@ RUN set -eux; \
       netcat-openbsd \
       procps \
       net-tools \
-      libmagic1; \
+      libmagic1 \
+      pandoc; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
