@@ -5182,6 +5182,7 @@ def build_tool_registry(
     def search_text_content(
         query: str,
         glob: str | None = None,
+        path: str | None = None,  # W28A-242: accept path as alias for glob (LLM compatibility)
         regex: bool = False,
         max_results: int | None = None,
         encoding: str = "utf-8",
@@ -5192,6 +5193,9 @@ def build_tool_registry(
         timeout_s: int | None = None,
     ) -> Dict[str, Any]:
         """Search text content."""
+        # W28A-242: accept path as alias for glob
+        if glob is None and path is not None:
+            glob = f"{path}/**" if not any(c in path for c in ("*", "?")) else path
         effective_max_results = (
             max_results if max_results is not None else limits.search_max_results
         )
@@ -5919,6 +5923,9 @@ def build_tool_registry(
         def _apply_single(current: str, op_args: Dict[str, Any]) -> str:
             """Handle apply single."""
             single_op = op_args.get("op")
+            # Accept "replace" as alias for "replace_regex" (W28A-242)
+            if single_op == "replace":
+                single_op = "replace_regex"
             if single_op == "replace_regex":
                 single_pattern = op_args.get("pattern")
                 single_repl = op_args.get("repl")

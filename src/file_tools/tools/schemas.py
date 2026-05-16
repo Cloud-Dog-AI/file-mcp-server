@@ -53,8 +53,9 @@ class ValidateFileInput(BaseModel):
 
 class SearchContentInput(BaseModel):
     query: str = Field(..., description="Search text or pattern")
-    path: str = Field(".", description="Directory to search in")
-    recursive: bool = Field(True, description="Search recursively")
+    glob: Optional[str] = Field(None, description="Glob pattern to filter files (e.g. '*.md', 'docs/**')")
+    regex: bool = Field(False, description="Treat query as regex")
+    max_results: Optional[int] = Field(None, description="Maximum results to return")
 
 
 class SedEditFileInput(BaseModel):
