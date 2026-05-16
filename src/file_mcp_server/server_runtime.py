@@ -131,6 +131,7 @@ from file_tools.scope import ScopePolicy, PosixScopePolicy
 from file_tools.search import search_content, search_paths
 from file_tools.storage import NotSupportedError, build_storage_backend
 from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry
+from file_tools.tools.definitions import ToolSchema
 from file_tools.convert import (
     BackendCannotHandleError,
     BackendNotFoundError,
