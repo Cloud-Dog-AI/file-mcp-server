@@ -317,11 +317,17 @@ def build_tool_contracts(
         handler = _make_dynamic_tool_handler(
             name, profile_tool_factory, verifier=verifier
         )
+        tool_input_schema: dict[str, Any] = {}
+        if definition.schema_def.input_model is not None:
+            try:
+                tool_input_schema = definition.schema_def.input_model.model_json_schema()
+            except Exception:
+                pass
         out[name] = ToolContract(
             name=name,
             handler=handler,
             description=definition.meta.description,
-            input_schema={},
+            input_schema=tool_input_schema,
             output_schema={},
         )
     return out
