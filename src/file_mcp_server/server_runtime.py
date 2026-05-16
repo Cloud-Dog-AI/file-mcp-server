@@ -542,8 +542,9 @@ class StdioServer:
                 tools = [_tool_payload(tool) for tool in self.registry.list_tools()]
                 return _build_response(request_id, result=tools)
             if method == "tools/call":
+                from file_tools.tools.schemas import normalize_tool_args
                 name = params.get("name")
-                arguments = params.get("arguments") or {}
+                arguments = normalize_tool_args(params.get("arguments") or {})
                 if not name:
                     raise DispatchError("Missing tool name")
                 tool = self.registry.get(name)
@@ -684,8 +685,9 @@ class HealthCheckMiddleware:
             if not callable(self.registry_provider):
                 return "Error: tool registry unavailable"
             try:
+                from file_tools.tools.schemas import normalize_tool_args
                 reg = self.registry_provider()
-                result = reg.get(tool).handler(**args)
+                result = reg.get(tool).handler(**normalize_tool_args(args))
                 return json.dumps(result, default=str)[:24000]
             except Exception as exc:
                 return f"Error: {exc}"
@@ -723,8 +725,9 @@ class HealthCheckMiddleware:
             if not callable(self.registry_provider):
                 return "Error: tool registry unavailable"
             try:
+                from file_tools.tools.schemas import normalize_tool_args
                 reg = self.registry_provider()
-                result = reg.get(tool).handler(**args)
+                result = reg.get(tool).handler(**normalize_tool_args(args))
                 return json.dumps(result, default=str)[:24000]
             except Exception as exc:
                 return f"Error: {exc}"
@@ -6241,10 +6244,17 @@ def build_tool_registry(
         )
         return {"ok": True, "api_key": api_key}
 
+    from file_tools.tools.schemas import (
+        ReadFileInput, WriteFileInput, CreateDirInput, ListDirInput,
+        ConvertFileInput, ValidateFileInput, SearchContentInput,
+        SedEditFileInput, ReplaceRegexInput,
+    )
+
     tools = ToolRegistry()
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="read_file", description="Read a text file"),
+            meta=ToolMeta(name="read_file", description="Read a text file. Parameters: path (required, file path relative to workspace root), encoding (optional, default utf-8)"),
+            schema_def=ToolSchema(input_model=ReadFileInput),
             handler=read_file,
         )
     )
@@ -6252,10 +6262,11 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="write_file",
-                description="Write text to a file",
+                description="Write text to a file. Parameters: path (required, file path), content (required, text to write), overwrite (optional, default true), dry_run (optional, default false)",
                 mutating=True,
                 supports_dry_run=True,
             ),
+            schema_def=ToolSchema(input_model=WriteFileInput),
             handler=write_file,
         )
     )
@@ -6285,10 +6296,11 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="create_dir",
-                description="Create a directory",
+                description="Create a directory. Parameters: path (required, directory path), parents (optional, default true), dry_run (optional)",
                 mutating=True,
                 supports_dry_run=True,
             ),
+            schema_def=ToolSchema(input_model=CreateDirInput),
             handler=create_dir_path,
         )
     )
@@ -6344,7 +6356,8 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="list_dir", description="List directory entries"),
+            meta=ToolMeta(name="list_dir", description="List directory entries. Parameters: path (optional, default '.'), recursive (optional, default false)"),
+            schema_def=ToolSchema(input_model=ListDirInput),
             handler=list_path,
         )
     )
@@ -6356,7 +6369,8 @@ def build_tool_registry(
     )
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="search_content", description="Search file contents"),
+            meta=ToolMeta(name="search_content", description="Search file contents. Parameters: query (required, search text), path (optional, directory to search), recursive (optional, default true)"),
+            schema_def=ToolSchema(input_model=SearchContentInput),
             handler=search_text_content,
         )
     )
@@ -6421,9 +6435,10 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="validate_file",
-                description="Validate file content by detected or explicit type",
+                description="Validate file content by detected or explicit type. Parameters: path (required, file path), content_type (optional, e.g. yaml/json)",
                 requires_validation=True,
             ),
+            schema_def=ToolSchema(input_model=ValidateFileInput),
             handler=validate_file,
         )
     )
@@ -6728,9 +6743,10 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="convert_file",
-                description="Convert file with limits and warning-based optional backend handling",
+                description="Convert file format. Parameters: path (required, source file), target_format (required, e.g. html/txt/pdf), output_path (optional)",
                 mutating=False,
             ),
+            schema_def=ToolSchema(input_model=ConvertFileInput),
             handler=convert_file_tool,
         )
     )
@@ -6766,11 +6782,12 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="sed_edit_file",
-                description="Apply sed-like file edits with audit/snapshot support",
+                description="Apply sed-like file edits. Parameters: path (required, file path), op (optional, replace/delete/insert), pattern (optional, regex), repl (optional, replacement text), dry_run (optional)",
                 mutating=True,
                 requires_validation=True,
                 supports_dry_run=True,
             ),
+            schema_def=ToolSchema(input_model=SedEditFileInput),
             handler=sed_edit_file,
         )
     )
