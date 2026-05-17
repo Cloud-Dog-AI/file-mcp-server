@@ -224,9 +224,9 @@ def _make_dynamic_tool_handler(
     required = tool_required_permission(tool_name)
 
     def _sync_core(**kwargs: Any) -> Any:
-        from file_tools.tools.schemas import normalize_tool_args
+        from file_tools.tools.schemas import normalize_and_filter_tool_args
         inner = profile_tool_factory(tool_name)
-        return inner(**normalize_tool_args(kwargs))
+        return inner(**normalize_and_filter_tool_args(kwargs, inner))
 
     audited = mcp_tool_audit_middleware(
         tool_name,

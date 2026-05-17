@@ -115,3 +115,32 @@ def normalize_tool_args(args: dict[str, Any]) -> dict[str, Any]:
         if canonical not in result:
             result[canonical] = value
     return result
+
+
+def normalize_and_filter_tool_args(
+    args: dict[str, Any],
+    handler: Any,
+) -> dict[str, Any]:
+    """Normalize args then filter to only those accepted by *handler*.
+
+    This prevents ``normalize_tool_args`` from remapping a caller-supplied
+    parameter (e.g. ``text``) to a canonical name (e.g. ``content``) that
+    the handler's signature does not declare, which causes a TypeError.
+
+    When normalization produces no matching parameters the original
+    (pre-normalization) keys are tried as a fallback so that handlers
+    whose parameter names happen to collide with alias *sources* still
+    receive the values they expect.
+    """
+    import inspect
+
+    normalized = normalize_tool_args(args)
+
+    sig = inspect.signature(handler)
+    if any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()):
+        return normalized
+
+    accepted = {k: v for k, v in normalized.items() if k in sig.parameters}
+    if not accepted and args:
+        accepted = {k: v for k, v in args.items() if k in sig.parameters}
+    return accepted

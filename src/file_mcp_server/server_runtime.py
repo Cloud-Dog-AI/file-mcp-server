@@ -543,12 +543,14 @@ class StdioServer:
                 tools = [_tool_payload(tool) for tool in self.registry.list_tools()]
                 return _build_response(request_id, result=tools)
             if method == "tools/call":
-                from file_tools.tools.schemas import normalize_tool_args
+                from file_tools.tools.schemas import normalize_and_filter_tool_args
                 name = params.get("name")
-                arguments = normalize_tool_args(params.get("arguments") or {})
                 if not name:
                     raise DispatchError("Missing tool name")
                 tool = self.registry.get(name)
+                arguments = normalize_and_filter_tool_args(
+                    params.get("arguments") or {}, tool.handler
+                )
                 result = tool.handler(**arguments)
                 return _build_response(request_id, result=result)
             raise DispatchError(f"Unknown method: {method}")
@@ -686,9 +688,11 @@ class HealthCheckMiddleware:
             if not callable(self.registry_provider):
                 return "Error: tool registry unavailable"
             try:
-                from file_tools.tools.schemas import normalize_tool_args
+                from file_tools.tools.schemas import normalize_and_filter_tool_args
                 reg = self.registry_provider()
-                result = reg.get(tool).handler(**normalize_tool_args(args))
+                tool_def = reg.get(tool)
+                filtered = normalize_and_filter_tool_args(args, tool_def.handler)
+                result = tool_def.handler(**filtered)
                 return json.dumps(result, default=str)[:24000]
             except Exception as exc:
                 return f"Error: {exc}"
@@ -726,9 +730,11 @@ class HealthCheckMiddleware:
             if not callable(self.registry_provider):
                 return "Error: tool registry unavailable"
             try:
-                from file_tools.tools.schemas import normalize_tool_args
+                from file_tools.tools.schemas import normalize_and_filter_tool_args
                 reg = self.registry_provider()
-                result = reg.get(tool).handler(**normalize_tool_args(args))
+                tool_def = reg.get(tool)
+                filtered = normalize_and_filter_tool_args(args, tool_def.handler)
+                result = tool_def.handler(**filtered)
                 return json.dumps(result, default=str)[:24000]
             except Exception as exc:
                 return f"Error: {exc}"
