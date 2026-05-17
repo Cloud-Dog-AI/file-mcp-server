@@ -957,7 +957,14 @@ class HealthCheckMiddleware:
             return False
 
         upstream_path = path
-        if upstream_path == "/api":
+        # W28A-258: /webmcp is the browser-facing cookie-auth MCP path.
+        # The API server's MCP transport is at /mcp. Rewrite so the proxy
+        # forwards to the correct upstream handler.
+        if upstream_path == self.web_mcp_path:
+            upstream_path = self.mcp_path
+        elif upstream_path.startswith(f"{self.web_mcp_path.rstrip('/')}/"):
+            upstream_path = f"{self.mcp_path.rstrip('/')}/{upstream_path[len(self.web_mcp_path.rstrip('/')) + 1:]}"
+        elif upstream_path == "/api":
             upstream_path = "/"
         elif upstream_path.startswith("/api/") and not (
             upstream_path == "/api/v1/jobs"
