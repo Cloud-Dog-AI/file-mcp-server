@@ -18,7 +18,7 @@ pip install -e ".[dev]"
 
 If local platform packages are available from a package index instead of editable source checkouts:
 ```bash
-PYPI_URL=https://packages.example.com/simple/
+PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple
 pip install -e ".[dev]" --extra-index-url "$PYPI_URL"
 ```
 
@@ -57,32 +57,19 @@ python -m pip install build
 python -m build
 ```
 
-### Build and Stage the UI Bundle
-```bash
-cd ../cloud-dog-ai-ui-monorepo
-npm install
-npm run build --workspace=apps/file-mcp
-cd ../file-mcp-server
-mkdir -p ./ui
-rm -rf ./ui/dist
-cp -r ../cloud-dog-ai-ui-monorepo/apps/file-mcp/dist ./ui/dist
-```
+### UI Bundle
+The exported tree includes the UI files used by the Docker build. Rebuild the UI only if you maintain a separate UI source tree.
 
 ### Docker Container
-The Docker build script can auto-discover editable platform packages from `.venv`, or you can provide them explicitly:
 ```bash
-./docker-build.sh registry.example.com/team/file-mcp-server:latest
+PUBLICATION_TAG_SUFFIX=gitea-test ./docker-build.sh latest
 ```
 
-Explicit source and CA example:
+Explicit package source and CA example:
 ```bash
-CLOUD_DOG_SITE_PACKAGES=.venv/lib/python3.10/site-packages \
-CLOUD_DOG_CONFIG_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-config \
-CLOUD_DOG_LOGGING_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-logging \
-CLOUD_DOG_DB_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-db \
-CLOUD_DOG_JOBS_SRC=../cloud-dog-ai-platform-standards/packages/backend/platform-jobs \
+PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple \
 CUSTOM_CA_CERT=./certs/ca.pem \
-./docker-build.sh registry.example.com/team/file-mcp-server:latest
+PUBLICATION_TAG_SUFFIX=gitea-test ./docker-build.sh latest
 ```
 
 ## Docker Push
@@ -93,10 +80,5 @@ docker push registry.example.com/team/file-mcp-server:latest
 ## Configuration
 Port and runtime configuration come from shell environment variables, the env file passed to `server_control.sh`, and `defaults.yaml`.
 
-## Vault Integration
-```bash
-export VAULT_ADDR=https://vault.example.com
-export VAULT_TOKEN=your-token
-export VAULT_MOUNT_POINT=your-mount
-export VAULT_CONFIG_PATH=your-path
-```
+## Local Secrets
+Put local-only values in the env file passed to `server_control.sh` or mounted into Docker. Do not commit real credentials.

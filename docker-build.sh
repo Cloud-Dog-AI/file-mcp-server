@@ -10,50 +10,39 @@ set -euo pipefail
 VERSION="${1:-latest}"
 CONTAINER="file-mcp-server"
 FOLDER="cloud-dog"
-REGISTRY="registry.cloud-dog.net:443"
+REGISTRY="${REGISTRY:-}"
 PIP_CONF=".pip.conf.build"
 CA_BUNDLE_FILE=".ca-bundle.build"
+
+PUBLICATION_TAG_SUFFIX="${PUBLICATION_TAG_SUFFIX:-}"
+if [[ -n "${PUBLICATION_TAG_SUFFIX}" ]]; then
+  if [[ ! "${PUBLICATION_TAG_SUFFIX}" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+    echo "ERROR: PUBLICATION_TAG_SUFFIX must match ^[a-z0-9]([a-z0-9-]*[a-z0-9])?\$ (got: '${PUBLICATION_TAG_SUFFIX}')" >&2
+    exit 2
+  fi
+  case "${PUBLICATION_TAG_SUFFIX}" in
+    latest|dev|preprod|prod|release|stable)
+      echo "ERROR: PUBLICATION_TAG_SUFFIX '${PUBLICATION_TAG_SUFFIX}' is reserved" >&2
+      exit 2
+      ;;
+  esac
+  EFFECTIVE_TAG="${VERSION}-${PUBLICATION_TAG_SUFFIX}"
+  echo "Publication test build: tag suffix '-${PUBLICATION_TAG_SUFFIX}' (registry tag will be skipped)."
+else
+  EFFECTIVE_TAG="${VERSION}"
+fi
 
 CUSTOM_CA_CERT="${CUSTOM_CA_CERT:-}"
 CORPORATE_CA_CERT="${CORPORATE_CA_CERT:-/usr/local/share/ca-certificates/cloud-dog.net.ca.crt}"
 
 echo "=========================================="
-echo "Docker Build: ${FOLDER}/${CONTAINER}:${VERSION}"
+echo "Docker Build: ${FOLDER}/${CONTAINER}:${EFFECTIVE_TAG}"
 echo "=========================================="
 
 # ── PyPI Configuration ───────────────────────────────────────────
-PYPI_URL="${PYPI_URL:-https://pypi.cloud-dog.net/simple/}"
+PYPI_URL="${PYPI_URL:-https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple}"
 PYPI_USERNAME="${PYPI_USERNAME:-}"
 PYPI_PASSWORD="${PYPI_PASSWORD:-}"
-
-if [[ -z "${PYPI_USERNAME}" || -z "${PYPI_PASSWORD}" ]]; then
-  if [[ -f /opt/iac/Development/cloud-dog-ai/env-vault ]]; then
-    set -a; source /opt/iac/Development/cloud-dog-ai/env-vault; set +a
-    VAULT_JSON=$(curl -fsS \
-      -H "X-Vault-Token: ${VAULT_TOKEN}" \
-      "${VAULT_ADDR}/v1/${VAULT_MOUNT_POINT}/data/${VAULT_CONFIG_PATH}" 2>/dev/null || echo "{}")
-    readarray -t PYPI_CREDS < <(VAULT_JSON_PAYLOAD="${VAULT_JSON}" python3 - <<'PY'
-import json, os
-raw = os.environ.get("VAULT_JSON_PAYLOAD", "{}")
-payload = json.loads(raw).get("data", {}).get("data", {})
-if isinstance(payload.get("json"), dict):
-    dev = payload["json"].get("dev", {})
-elif isinstance(payload.get("json"), str):
-    dev = json.loads(payload["json"]).get("dev", {})
-elif isinstance(payload.get("content"), str):
-    dev = json.loads(payload["content"]).get("dev", {})
-else:
-    dev = payload.get("dev", {}) if isinstance(payload, dict) else {}
-repo = dev.get("repository", {}) if isinstance(dev, dict) else {}
-pypi = repo.get("pypi", {}) if isinstance(repo, dict) else {}
-print(pypi.get("username", ""))
-print(pypi.get("password", ""))
-PY
-    ) || true
-    PYPI_USERNAME="${PYPI_CREDS[0]:-}"
-    PYPI_PASSWORD="${PYPI_CREDS[1]:-}"
-  fi
-fi
 
 if [[ -n "${PYPI_USERNAME}" ]] && [[ -n "${PYPI_PASSWORD}" ]]; then
   cat > "${PIP_CONF}" << EOF
@@ -99,15 +88,21 @@ DOCKER_BUILDKIT=1 docker buildx build \
   --build-arg http_proxy="${http_proxy:-}" \
   --build-arg https_proxy="${https_proxy:-}" \
   --build-arg no_proxy="${no_proxy:-}" \
-  -t "${FOLDER}/${CONTAINER}:${VERSION}" \
+  -t "${FOLDER}/${CONTAINER}:${EFFECTIVE_TAG}" \
   . 2>&1 | tee docker-build.log
 
 BUILD_STATUS=${PIPESTATUS[0]}
 
 if [[ ${BUILD_STATUS} -eq 0 ]]; then
-  echo "Build OK: ${FOLDER}/${CONTAINER}:${VERSION}"
-  docker tag "${FOLDER}/${CONTAINER}:${VERSION}" \
-    "${REGISTRY}/${FOLDER}/${CONTAINER}:${VERSION}"
+  echo "Build OK: ${FOLDER}/${CONTAINER}:${EFFECTIVE_TAG}"
+  if [[ -n "${REGISTRY}" && -z "${PUBLICATION_TAG_SUFFIX}" ]]; then
+    docker tag "${FOLDER}/${CONTAINER}:${EFFECTIVE_TAG}" \
+      "${REGISTRY}/${FOLDER}/${CONTAINER}:${EFFECTIVE_TAG}"
+  elif [[ -n "${PUBLICATION_TAG_SUFFIX}" ]]; then
+    echo "Registry tag skipped for publication suffix '${PUBLICATION_TAG_SUFFIX}'."
+  else
+    echo "Registry tag skipped; set REGISTRY to tag a registry image."
+  fi
 else
   echo "Build FAILED"
 fi
