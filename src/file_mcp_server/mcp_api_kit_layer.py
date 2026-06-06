@@ -418,13 +418,11 @@ def build_mcp_fastapi_application(
         # (a) native servers / tests (external == internal path)
         #     → ``{a2a_base_path}/events`` + ``{a2a_base_path}/events/history``
         #     reachable directly;
-        # (b) preprod via Traefik which strips the ``/a2a`` prefix (see
-        #     terraform filemcpserver_containers.tf.json middleware
-        #     ``filemcpserver0_a2a_strip``)
+        # (b) reverse-proxy deployments that strip the ``/a2a`` prefix
         #     → external ``{a2a_base_path}/events{,/history}`` forwards as
         #     internal ``/events{,/history}``. The Traefik-stripped alias
         #     remains hardcoded as ``/events`` because it is NOT configurable
-        #     per PS-92 (it tracks Traefik middleware behaviour, not a
+        #     per PS-92 (it tracks proxy middleware behaviour, not a
         #     service-level route prefix).
         # Both sets of routes share the same broadcaster instance; fan-out
         # is unified.

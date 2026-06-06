@@ -38,23 +38,6 @@ echo ""
 
 cd "${ROOT_DIR}"
 
-# Load Vault env automatically when available so setup can resolve
-# FILE_MCP_GDRIVE_* defaults from platform config without manual export.
-for VAULT_ENV in \
-  "${ROOT_DIR}/private/env-vault" \
-  "${ROOT_DIR}/../env-vault" \
-  "${ROOT_DIR}/../env-vault-admin" \
-  "${ROOT_DIR}/../cloud-dog-ai-private/private/vault_read.env"
-do
-  if [[ -f "${VAULT_ENV}" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "${VAULT_ENV}"
-    set +a
-    break
-  fi
-done
-
 if [[ -x ".venv/bin/python" ]]; then
   PYTHON_BIN=".venv/bin/python"
 elif command -v python3 >/dev/null 2>&1; then

@@ -21,7 +21,7 @@ if [[ -n "${PUBLICATION_TAG_SUFFIX}" ]]; then
     exit 2
   fi
   case "${PUBLICATION_TAG_SUFFIX}" in
-    latest|dev|preprod|prod|release|stable)
+    latest|dev|prod|release|stable)
       echo "ERROR: PUBLICATION_TAG_SUFFIX '${PUBLICATION_TAG_SUFFIX}' is reserved" >&2
       exit 2
       ;;

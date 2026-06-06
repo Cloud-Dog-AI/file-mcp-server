@@ -9,7 +9,6 @@ Description: Prompts for Google account/folder, performs OAuth, validates access
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dataclasses import dataclass
 import json
@@ -18,7 +17,7 @@ from pathlib import Path
 import secrets
 import threading
 import time
-from typing import Any, Iterable, Mapping
+from typing import Iterable
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -43,12 +42,6 @@ except ModuleNotFoundError:
 
 _DEFAULT_REMOTE_BASE_ENV = Path("run/env.remote-storage.base")
 _DEFAULT_REMOTE_ENV = Path("private/env-remote-storage")
-_DEFAULT_VAULT_CANDIDATES = (
-    Path("private/env-vault"),
-    Path("../env-vault"),
-    Path("../env-vault-admin"),
-    Path("../cloud-dog-ai-private/private/vault_read.env"),
-)
 
 
 def _clean(value: str | None) -> str:
@@ -170,41 +163,6 @@ def _read_env(path: Path) -> dict[str, str]:
     return out
 
 
-@contextmanager
-def _temporary_env(values: Mapping[str, str]) -> Any:
-    if not values:
-        yield
-        return
-    original = {key: os.environ.get(key) for key in values}
-    try:
-        for key, value in values.items():
-            os.environ[key] = value
-        yield
-    finally:
-        for key, value in original.items():
-            if value is None:
-                os.environ.pop(key, None)
-            else:
-                os.environ[key] = value
-
-
-def _discover_vault_env(repo_root: Path) -> dict[str, str]:
-    if _clean(os.getenv("VAULT_ADDR")) and _clean(os.getenv("VAULT_TOKEN")):
-        return {}
-
-    out: dict[str, str] = {}
-    for relative in _DEFAULT_VAULT_CANDIDATES:
-        candidate = (repo_root / relative).resolve()
-        if not candidate.exists():
-            continue
-        for key, value in _read_env(candidate).items():
-            if key.startswith("VAULT_") and _clean(value):
-                out[key] = _clean(value)
-        if _clean(out.get("VAULT_ADDR")) and _clean(out.get("VAULT_TOKEN")):
-            return out
-    return out
-
-
 def _load_google_defaults_from_credentials_file(repo_root: Path) -> dict[str, str]:
     path = repo_root / "private/googledrivecredentials.json"
     if not path.exists():
@@ -256,18 +214,15 @@ def _load_google_defaults_from_platform_config(
     if env_path.exists():
         env_files.append(str(env_path))
 
-    vault_env = _discover_vault_env(repo_root)
-    with _temporary_env(vault_env):
-        try:
-            config = platform_load(
-                env_files=env_files,
-                config_yaml=str(repo_root / "config.yaml"),
-                defaults_yaml=str(repo_root / "defaults.yaml"),
-                unresolved_policy="strict",
-                vault_enabled=True,
-            )
-        except Exception:
-            return {}
+    try:
+        config = platform_load(
+            env_files=env_files,
+            config_yaml=str(repo_root / "config.yaml"),
+            defaults_yaml=str(repo_root / "defaults.yaml"),
+            unresolved_policy="warn",
+        )
+    except Exception:
+        return {}
 
     mapping = {
         "profiles.default.storage.google_drive.client_id": "FILE_MCP_GDRIVE_CLIENT_ID",
@@ -280,126 +235,6 @@ def _load_google_defaults_from_platform_config(
         value = _coerce_scalar(config.get(path))
         if value:
             out[env_key] = value
-    return out
-
-
-def _load_google_defaults_from_vault_blob(repo_root: Path) -> dict[str, str]:
-    try:
-        from cloud_dog_config.vault.client import (  # type: ignore[import-untyped]
-            VaultClient,
-            VaultConnectionConfig,
-        )
-    except Exception:
-        return {}
-
-    vault_env = dict(_discover_vault_env(repo_root))
-    for key in ("VAULT_ADDR", "VAULT_TOKEN", "VAULT_MOUNT_POINT", "VAULT_CONFIG_PATH"):
-        if key not in vault_env and _clean(os.getenv(key)):
-            vault_env[key] = _clean(os.getenv(key))
-
-    addr = _clean(vault_env.get("VAULT_ADDR"))
-    token = _clean(vault_env.get("VAULT_TOKEN"))
-    mount_raw = _clean(vault_env.get("VAULT_MOUNT_POINT")).strip("/")
-    config_path = _clean(vault_env.get("VAULT_CONFIG_PATH")).strip("/")
-    if not (addr and token and mount_raw):
-        return {}
-
-    secret_path = config_path or "config"
-    raw: object | None = None
-    try:
-        client = VaultClient(
-            VaultConnectionConfig(
-                server=addr,
-                token=token,
-                timeout_seconds=8.0,
-                mount_point=mount_raw,
-            )
-        )
-        read_paths = [secret_path]
-        mount_prefixed_path = f"{mount_raw}/{secret_path}".strip("/")
-        if mount_prefixed_path and mount_prefixed_path not in read_paths:
-            # Compat path for mount override behaviour in older Vault client splits.
-            read_paths.append(mount_prefixed_path)
-        for read_path in read_paths:
-            try:
-                raw = client.read(read_path)
-            except Exception:
-                continue
-            if raw is not None:
-                break
-    except Exception:
-        raw = None
-
-    if raw is None:
-        # Fallback to direct HTTP read so tests can stub urlopen and we still
-        # support environments where VaultClient read-path handling differs.
-        try:
-            import ssl
-            import urllib.request
-
-            request = urllib.request.Request(
-                f"{addr.rstrip('/')}/v1/{mount_raw}/data/{secret_path.lstrip('/')}",
-                headers={"X-Vault-Token": token},
-            )
-            with urllib.request.urlopen(
-                request,
-                context=ssl.create_default_context(),
-                timeout=8,
-            ) as response:
-                raw = json.loads(response.read().decode("utf-8"))
-        except Exception:
-            return {}
-
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except ValueError:
-            return {}
-    if not isinstance(raw, dict):
-        return {}
-
-    cfg = raw
-    if isinstance(cfg, dict):
-        data = cfg.get("data")
-        if isinstance(data, dict):
-            nested = data.get("data")
-            cfg = nested if isinstance(nested, dict) else data
-    if isinstance(cfg, dict):
-        cfg = cfg.get("json", cfg)
-    if isinstance(cfg, str):
-        try:
-            cfg = json.loads(cfg)
-        except ValueError:
-            return {}
-    if not isinstance(cfg, dict):
-        return {}
-    if isinstance(cfg.get("dev"), dict):
-        cfg = cfg["dev"]
-
-    storage = cfg.get("storage", {})
-    if not isinstance(storage, dict):
-        return {}
-    gd = storage.get("google_drive", {})
-    if not isinstance(gd, dict):
-        return {}
-
-    out: dict[str, str] = {}
-    mapping = {
-        "client_id": "FILE_MCP_GDRIVE_CLIENT_ID",
-        "client_secret": "FILE_MCP_GDRIVE_CLIENT_SECRET",
-        "token_uri": "FILE_MCP_GDRIVE_TOKEN_URI",
-    }
-    for source_key, env_key in mapping.items():
-        value = _coerce_scalar(gd.get(source_key))
-        if value:
-            out[env_key] = value
-    redirect_uris = gd.get("redirect_uris")
-    if isinstance(redirect_uris, list):
-        for item in redirect_uris:
-            value = _coerce_scalar(item)
-            if value:
-                out["FILE_MCP_GDRIVE_REDIRECT_URI"] = value
-                break
     return out
 
 
@@ -538,7 +373,6 @@ def configure_google_drive(args: argparse.Namespace) -> int:
     env_values = _read_env(env_path)
     creds_defaults = _load_google_defaults_from_credentials_file(repo_root)
     platform_defaults = _load_google_defaults_from_platform_config(repo_root, env_path)
-    vault_blob_defaults = _load_google_defaults_from_vault_blob(repo_root)
 
     print("Google Drive configuration setup")
     print("--------------------------------")
@@ -562,7 +396,6 @@ def configure_google_drive(args: argparse.Namespace) -> int:
         _clean(args.client_id),
         env_values.get("FILE_MCP_GDRIVE_CLIENT_ID"),
         platform_defaults.get("FILE_MCP_GDRIVE_CLIENT_ID"),
-        vault_blob_defaults.get("FILE_MCP_GDRIVE_CLIENT_ID"),
         creds_defaults.get("FILE_MCP_GDRIVE_CLIENT_ID"),
     )
     if not client_id:
@@ -571,7 +404,6 @@ def configure_google_drive(args: argparse.Namespace) -> int:
     redirect_uri = _pick_first(
         _clean(args.redirect_uri),
         env_values.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
-        vault_blob_defaults.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
         creds_defaults.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
         platform_defaults.get("FILE_MCP_GDRIVE_REDIRECT_URI"),
         DEFAULT_REDIRECT_URI,
@@ -582,7 +414,6 @@ def configure_google_drive(args: argparse.Namespace) -> int:
         _clean(args.token_uri),
         env_values.get("FILE_MCP_GDRIVE_TOKEN_URI"),
         platform_defaults.get("FILE_MCP_GDRIVE_TOKEN_URI"),
-        vault_blob_defaults.get("FILE_MCP_GDRIVE_TOKEN_URI"),
         creds_defaults.get("FILE_MCP_GDRIVE_TOKEN_URI"),
         DEFAULT_TOKEN_URI,
     )
@@ -592,7 +423,6 @@ def configure_google_drive(args: argparse.Namespace) -> int:
         _clean(args.client_secret),
         env_values.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
         platform_defaults.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
-        vault_blob_defaults.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
         creds_defaults.get("FILE_MCP_GDRIVE_CLIENT_SECRET"),
     )
     if not client_secret:
