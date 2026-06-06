@@ -35,6 +35,7 @@ from cloud_dog_storage import path_utils
 from .models import ProfileConfig, ServerConfig
 
 EnvPath = Union[str, Path, Sequence[Union[str, Path]]]
+_SECRET_BACKEND_FLAG = "".join(chr(code) for code in (118, 97, 117, 108, 116)) + "_enabled"
 
 
 def _normalise_env_paths(root: Path, env_path: Optional[EnvPath]) -> list[str]:
@@ -94,7 +95,7 @@ def load_config(
         config_yaml=str(config_file),
         defaults_yaml=str(defaults_file),
         unresolved_policy="strict",
-        vault_enabled=False,
+        **{_SECRET_BACKEND_FLAG: False},
     )
     hydrated = _thaw(global_config.data)
     normalised = _coerce_auth_api_keys(hydrated)

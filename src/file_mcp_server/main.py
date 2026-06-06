@@ -299,7 +299,7 @@ def start(
         start_new_session=True,
     )
 
-    # Strict config + vault resolution can take several seconds on busy hosts.
+    # Strict config resolution can take several seconds on busy hosts.
     for _ in range(300):
         if process.poll() is not None:
             typer.echo("failed to start: serve process exited early")

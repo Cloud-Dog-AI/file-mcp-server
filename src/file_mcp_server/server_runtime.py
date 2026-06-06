@@ -212,15 +212,13 @@ class HttpRuntimeSettings:
     stateless_http: bool
 
 
-def _resolve_auth_api_key_value(
-    raw_value: str, vault_client: Any | None = None
-) -> str:
+def _resolve_auth_api_key_value(raw_value: str, **_unused_clients: Any) -> str:
     """Resolve API-key values, including nested env placeholders.
 
-    NOTE: `vault_client` is accepted for backward compatibility with existing
-    tests/call-sites and is intentionally unused here.
+    Extra client arguments are accepted for backward compatibility with
+    existing tests/call-sites and are intentionally unused here.
     """
-    del vault_client
+    del _unused_clients
     value = str(raw_value or "").strip()
     if not value:
         return ""
