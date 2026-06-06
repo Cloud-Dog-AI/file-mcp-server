@@ -36,7 +36,6 @@ tmp/
 storage/
 node_modules
 *.pyc
-.terraform
 *.tfstate
 working/w28a-*-screenshots/
 node_modules/

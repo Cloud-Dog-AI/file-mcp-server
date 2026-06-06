@@ -25,7 +25,6 @@ Tests: UT1.1
 
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional, Sequence, Union
@@ -36,45 +35,6 @@ from cloud_dog_storage import path_utils
 from .models import ProfileConfig, ServerConfig
 
 EnvPath = Union[str, Path, Sequence[Union[str, Path]]]
-
-
-# W28A-#36-file (15.A 36a) — Bootstrap-tier VAULT_* reads.
-# Per AGENT-BOOTSTRAP-DIRECTIVE.md §11 (binding 2026-05-04) and the user mandate
-# 2026-05-04, services MUST explicitly read the four bootstrap-tier env vars
-# at the service-bootstrap level for consistency, debuggability, and future-
-# proofing against any platform refactor — even though `cloud_dog_config`
-# performs the same read internally via `_canonical_vault_env_path` /
-# `_select_relevant_os_environ` (loader.py:268, 310). Mirrors the canonical
-# pattern at `expert-agent-mcp-server/src/config/loader.py:81-89`.
-#
-# These four names + `CLOUD_DOG_ENV_FILES` are the ONLY allowed direct
-# process-environment reads in `src/` per RULES §1.4/§5.6 + BOOTSTRAP §11.
-_BOOTSTRAP_VAULT_ENV_NAMES = (
-    "VAULT_ADDR",
-    "VAULT_TOKEN",
-    "VAULT_MOUNT_POINT",
-    "VAULT_CONFIG_PATH",
-)
-
-
-def _read_bootstrap_vault_env() -> dict[str, str]:
-    """Read the four bootstrap-tier VAULT_* env vars (canonical bootstrap carve-out).
-
-    Returns a dict of name->value, with empty string for any not set. Caller
-    decides whether to fail fast or fall back; current behaviour delegates to
-    `cloud_dog_config`, which raises a structured error if Vault resolution is
-    requested but the bootstrap names are missing.
-    """
-    addr = os.environ.get("VAULT_ADDR", "").strip()
-    token = os.environ.get("VAULT_TOKEN", "").strip()
-    mount = os.environ.get("VAULT_MOUNT_POINT", "").strip()
-    config_path = os.environ.get("VAULT_CONFIG_PATH", "").strip()
-    return {
-        "VAULT_ADDR": addr,
-        "VAULT_TOKEN": token,
-        "VAULT_MOUNT_POINT": mount,
-        "VAULT_CONFIG_PATH": config_path,
-    }
 
 
 def _normalise_env_paths(root: Path, env_path: Optional[EnvPath]) -> list[str]:
@@ -124,13 +84,6 @@ def load_config(
     defaults_path: Optional[str] = None,
 ) -> ServerConfig:
     """Load config through cloud_dog_config and bind to ServerConfig."""
-    # W28A-#36-file (15.A 36a) — Bootstrap-tier VAULT_* env-var read.
-    # Per BOOTSTRAP-DIRECTIVE §11 + user mandate 2026-05-04. cloud_dog_config
-    # also reads these internally; we read them here explicitly so that the
-    # bootstrap path is observable at the service layer and any future platform
-    # refactor preserves the contract. Mirrors expert-agent loader.py:81-89.
-    _bootstrap_vault = _read_bootstrap_vault_env()  # noqa: F841 — observable side; cloud_dog_config consumes the same process env
-
     root = path_utils.as_path(path_utils.resolve_path(root_dir)) if root_dir else path_utils.as_path(path_utils.cwd())
     config_file = config_path if config_path else str(root / "config.yaml")
     defaults_file = defaults_path if defaults_path else str(root / "defaults.yaml")
@@ -141,7 +94,7 @@ def load_config(
         config_yaml=str(config_file),
         defaults_yaml=str(defaults_file),
         unresolved_policy="strict",
-        vault_enabled=True,
+        vault_enabled=False,
     )
     hydrated = _thaw(global_config.data)
     normalised = _coerce_auth_api_keys(hydrated)
