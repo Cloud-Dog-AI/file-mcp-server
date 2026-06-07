@@ -62,14 +62,14 @@ TEST_A2A_API_KEY=changeme
 FILE_MCP_S3_ENDPOINT=https://storage.example.com
 FILE_MCP_S3_BUCKET=test
 FILE_MCP_S3_REGION=us-east-1
-FILE_MCP_S3_ACCESS_KEY=${vault.dev.storage.s3.access_key_id}
-FILE_MCP_S3_SECRET_KEY=${vault.dev.storage.s3.secret_access_key}
-FILE_MCP_S3_PREFIX=file-mcp/preprod
+FILE_MCP_S3_ACCESS_KEY=<your-s3-access-key-here>
+FILE_MCP_S3_SECRET_KEY=<your-s3-secret-key-here>
+FILE_MCP_S3_PREFIX=file-mcp
 
 # WebDAV
 FILE_MCP_WEBDAV_BASE_URL=https://files.example.com/remote.php/dav/files/user/temp
-FILE_MCP_WEBDAV_USERNAME=${vault.dev.storage.webdav.username}
-FILE_MCP_WEBDAV_PASSWORD=${vault.dev.storage.webdav.password}
+FILE_MCP_WEBDAV_USERNAME=<your-webdav-username-here>
+FILE_MCP_WEBDAV_PASSWORD=<your-webdav-password-here>
 FILE_MCP_WEBDAV_MOVE_RETRY_COUNT=2
 FILE_MCP_WEBDAV_MOVE_RETRY_BACKOFF_S=0.35
 FILE_MCP_WEBDAV_MOVE_PROBE_TIMEOUT_S=5
@@ -78,15 +78,15 @@ FILE_MCP_WEBDAV_MOVE_RETRY_STATUSES=408,409,423,425,429,500,502,503,504
 # FTP
 FILE_MCP_FTP_HOST=ftp.example.com
 FILE_MCP_FTP_PORT=21
-FILE_MCP_FTP_USERNAME=${vault.dev.storage.ftp.username}
-FILE_MCP_FTP_PASSWORD=${vault.dev.storage.ftp.password}
+FILE_MCP_FTP_USERNAME=<your-ftp-username-here>
+FILE_MCP_FTP_PASSWORD=<your-ftp-password-here>
 FILE_MCP_FTP_BASE_DIR=/
 FILE_MCP_FTP_USE_TLS=false
 
-# Google Drive client credentials from Vault.
+# Google Drive client credentials.
 # Tokens/folder are deployment-specific and should be set per environment.
-FILE_MCP_GDRIVE_CLIENT_ID=${vault.dev.storage.google_drive.client_id}
-FILE_MCP_GDRIVE_CLIENT_SECRET=${vault.dev.storage.google_drive.client_secret}
+FILE_MCP_GDRIVE_CLIENT_ID=<your-gdrive-client-id-here>
+FILE_MCP_GDRIVE_CLIENT_SECRET=<your-gdrive-client-secret-here>
 FILE_MCP_GDRIVE_TOKEN_URI=changeme
 FILE_MCP_GDRIVE_REDIRECT_URI=http://127.0.0.1:18090/admin/google-drive/callback
 FILE_MCP_GDRIVE_USER_EMAIL=

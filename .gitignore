@@ -8,6 +8,8 @@ __pycache__/
 *.py[cod]
 *.db
 docker-build.log
+.pip.conf.build
+.ca-bundle.build
 run/certs/
 run/env.handoff
 run/logs/

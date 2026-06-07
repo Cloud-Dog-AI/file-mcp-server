@@ -1,0 +1,130 @@
+# Apache-2.0
+# Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
+#
+# file-mcp-server — Docker Environment (PS-97 v1.1 §1.1.4 PUBLIC variant)
+#
+# PUBLIC variant — for external / GitHub-boundary deployments.
+# Uses *.example.com placeholders with <your-value-here> tokens.
+# Copy this file and adapt values for your deployment.
+#
+# IMPORTANT: choose one storage backend per running profile/environment.
+# For multiple backend profiles at once, define profiles in config.yaml and
+# select with FILE_MCP_PROFILE (or hot-reload via admin UI).
+
+# Authentication
+FILE_MCP_API_KEY_PRIMARY=<your-api-key-here>
+# Multi-profile single-server keys (recommended when using mounted multi-profile config):
+# FILE_MCP_API_KEY_LOCAL=<your-local-key-here>
+# FILE_MCP_API_KEY_S3=<your-s3-key-here>
+# FILE_MCP_API_KEY_WEBDAV=<your-webdav-key-here>
+# FILE_MCP_API_KEY_FTP=<your-ftp-key-here>
+# FILE_MCP_API_KEY_GDRIVE=<your-gdrive-key-here>
+FILE_MCP_AUTH_HEADER_NAME=Authorization
+FILE_MCP_AUTH_HEADER_SCHEME=Bearer
+
+# Scope and logs
+FILE_MCP_ROOT=/workspace
+FILE_MCP_AUDIT_LOG=/workspace/logs/audit.log.jsonl
+FILE_MCP_SERVER_LOG=/workspace/logs/server.log
+FILE_MCP_SNAPSHOT_DIR=/workspace/logs/snapshots
+# Recommended persistent volume mounts:
+#   -v /srv/file-mcp/workspace:/workspace
+#   -v /srv/file-mcp/logs:/workspace/logs
+# Optional cert mount:
+#   -v /srv/file-mcp/certs:/app/certs:ro
+
+# HTTP runtime — unified surface on FILE_MCP_HTTP_PORT.
+FILE_MCP_HTTP_TRANSPORT=streamable-http
+FILE_MCP_HTTP_HOST=0.0.0.0
+FILE_MCP_HTTP_PORT=8080
+FILE_MCP_HTTP_BASE_PATH=/
+FILE_MCP_HTTP_MCP_PATH=/mcp
+FILE_MCP_HTTP_HEALTH_PATH=/health
+FILE_MCP_HTTP_EVENTS_PATH=/events
+FILE_MCP_HTTP_STATELESS=true
+
+# PS-92 per-server ports (forwarded to the unified port by the entrypoint proxy).
+CLOUD_DOG__WEB_SERVER__PORT=8080
+CLOUD_DOG__API_SERVER__PORT=8083
+CLOUD_DOG__MCP_SERVER__PORT=8081
+CLOUD_DOG__A2A_SERVER__PORT=8085
+
+# Optional admin UI for Google Drive OAuth/profile setup pages
+FILE_MCP_ADMIN_UI_ENABLED=false
+# FILE_MCP_ADMIN_UI_TOKEN=<your-admin-ui-token-here>
+# Auto-apply updated config in-memory after OAuth callback (no process restart)
+FILE_MCP_ADMIN_APPLY_ON_CALLBACK=true
+
+# Limits
+FILE_MCP_SEARCH_MAX_RESULTS=250
+FILE_MCP_SEARCH_MAX_FILE_MB=5
+FILE_MCP_SEARCH_TIMEOUT_S=30
+FILE_MCP_STORAGE_TIMEOUT_S=30
+FILE_MCP_CONVERSION_TIMEOUT_S=60
+FILE_MCP_CONVERSION_MAX_INPUT_MB=25
+
+# Storage backend (default: local filesystem)
+FILE_MCP_STORAGE_BACKEND=local
+# Default profile used when no per-request profile selector is supplied.
+# Per-request selector options:
+#   query:  /mcp?profile=<profile-name>
+#   header: X-File-MCP-Profile: <profile-name>
+FILE_MCP_PROFILE=local
+# Backend TLS controls (remote backends only)
+FILE_MCP_STORAGE_TLS_INSECURE=false
+# FILE_MCP_STORAGE_TLS_CA_BUNDLE=/app/certs/ca.crt
+
+# Jobs (default: embedded SQLite queue)
+FILE_MCP_JOBS_ENABLED=true
+FILE_MCP_JOBS_BACKEND=sql
+FILE_MCP_JOBS_QUEUE=file-mcp
+FILE_MCP_JOBS_SQL_URL=sqlite:///database/file_mcp.db
+FILE_MCP_JOBS_REDIS_URL=disabled
+
+# S3 backend settings
+# FILE_MCP_STORAGE_BACKEND=s3
+# FILE_MCP_S3_ENDPOINT=https://storage.example.com
+# FILE_MCP_S3_BUCKET=my-bucket
+# FILE_MCP_S3_REGION=us-east-1
+# FILE_MCP_S3_ACCESS_KEY=<your-s3-access-key-here>
+# FILE_MCP_S3_SECRET_KEY=<your-s3-secret-key-here>
+# FILE_MCP_S3_PREFIX=
+
+# WebDAV backend settings
+# FILE_MCP_STORAGE_BACKEND=webdav
+# FILE_MCP_WEBDAV_BASE_URL=https://files.example.com/remote.php/dav/files/user/root
+# FILE_MCP_WEBDAV_USERNAME=<your-webdav-username-here>
+# FILE_MCP_WEBDAV_PASSWORD=<your-webdav-password-here>
+
+# FTP backend settings
+# FILE_MCP_STORAGE_BACKEND=ftp
+# FILE_MCP_FTP_HOST=ftp.example.com
+# FILE_MCP_FTP_PORT=21
+# FILE_MCP_FTP_USERNAME=<your-ftp-username-here>
+# FILE_MCP_FTP_PASSWORD=<your-ftp-password-here>
+# FILE_MCP_FTP_BASE_DIR=/
+# FILE_MCP_FTP_USE_TLS=false
+
+# Google Drive backend settings
+# FILE_MCP_STORAGE_BACKEND=google_drive
+# FILE_MCP_GDRIVE_USER_EMAIL=
+# FILE_MCP_GDRIVE_FOLDER_ID=
+# FILE_MCP_GDRIVE_CLIENT_ID=<your-gdrive-client-id-here>
+# FILE_MCP_GDRIVE_CLIENT_SECRET=<your-gdrive-client-secret-here>
+# FILE_MCP_GDRIVE_REFRESH_TOKEN=<your-gdrive-refresh-token-here>
+# FILE_MCP_GDRIVE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob
+# FILE_MCP_GDRIVE_TOKEN_URI=https://oauth2.googleapis.com/token
+
+# Snapshot controls
+FILE_MCP_SNAPSHOT_RETENTION_DAYS=30
+FILE_MCP_SNAPSHOT_RETENTION_COUNT=-1
+FILE_MCP_SNAPSHOT_MAX_STORAGE_MB=-1
+
+# Optional TLS trust bundle mounted from host, e.g. /app/certs/ca.crt
+# FILE_MCP_TLS_CA_BUNDLE=/app/certs/ca.crt
+# REQUESTS_CA_BUNDLE=/app/certs/ca.crt
+
+# Optional corporate proxy
+HTTP_PROXY=
+HTTPS_PROXY=
+NO_PROXY=127.0.0.1,localhost,.example.com
