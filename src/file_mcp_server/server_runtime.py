@@ -1571,12 +1571,14 @@ class HealthCheckMiddleware:
             "/idam/users",
             "/idam/groups",
             "/idam/api-keys",
+            "/idam/roles",
             "/idam/rbac",
             "/admin-identity",
             "/admin/identity",
             "/admin/users",
             "/admin/groups",
             "/admin/api-keys",
+            "/admin/roles",
             "/admin/rbac",
             "/google-drive-settings",
             "/mcp-console",
@@ -1836,6 +1838,10 @@ class HealthCheckMiddleware:
                 "/admin/api-keys": {
                     "get": {"summary": "List admin API keys", "responses": {"200": {"description": "API keys"}}},
                     "post": {"summary": "Create admin API key", "responses": {"201": {"description": "API key created"}}},
+                },
+                "/admin/roles": {
+                    "get": {"summary": "List roles", "responses": {"200": {"description": "Roles"}}},
+                    "post": {"summary": "Create role", "responses": {"201": {"description": "Role created"}}},
                 },
                 "/admin/profiles": {
                     "get": {"summary": "List storage profiles", "responses": {"200": {"description": "Profiles"}}},
@@ -3014,6 +3020,8 @@ class HealthCheckMiddleware:
                     or path.startswith("/admin/groups/")
                     or path == "/admin/api-keys"
                     or path.startswith("/admin/api-keys/")
+                    or path == "/admin/roles"
+                    or path.startswith("/admin/roles/")
                     or path == "/admin/profiles"
                     or path.startswith("/admin/profiles/")
                     or path == "/admin/runtime-config"
@@ -3163,6 +3171,8 @@ class HealthCheckMiddleware:
             or path.startswith("/admin/groups/")
             or path == "/admin/api-keys"
             or path.startswith("/admin/api-keys/")
+            or path == "/admin/roles"
+            or path.startswith("/admin/roles/")
         )
         is_profile_api_alias_route = path == "/api/admin/profiles" or path.startswith(
             "/api/admin/profiles/"
@@ -3796,6 +3806,70 @@ class HealthCheckMiddleware:
                             send,
                             status=200,
                             payload={"ok": True, "api_key": revoked},
+                        )
+                        return
+
+                if len(segments) >= 2 and segments[1] == "roles":
+                    if method == "GET" and len(segments) == 2:
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "roles": service.list_roles()},
+                        )
+                        return
+                    if method == "POST" and len(segments) == 2:
+                        payload = await self._read_json_body(receive)
+                        created = service.create_role(
+                            name=str(payload.get("name") or ""),
+                            description=str(payload.get("description") or ""),
+                            permissions=payload.get("permissions") or [],
+                        )
+                        await self._publish_cfg_event(
+                            resource="role",
+                            action="create",
+                            identifier=str(created.get("role_id") or ""),
+                            after=dict(created),
+                        )
+                        await self._send_json(
+                            send,
+                            status=201,
+                            payload={"ok": True, "role": created},
+                        )
+                        return
+                    if len(segments) == 3 and method == "GET":
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "role": service.get_role(segments[2])},
+                        )
+                        return
+                    if len(segments) == 3 and method in {"PUT", "PATCH"}:
+                        payload = await self._read_json_body(receive)
+                        updated = service.update_role(segments[2], data=payload)
+                        await self._publish_cfg_event(
+                            resource="role",
+                            action="update",
+                            identifier=str(segments[2]),
+                            after=dict(updated),
+                        )
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "role": updated},
+                        )
+                        return
+                    if len(segments) == 3 and method == "DELETE":
+                        deleted = service.delete_role(segments[2])
+                        await self._publish_cfg_event(
+                            resource="role",
+                            action="delete",
+                            identifier=str(segments[2]),
+                            before=dict(deleted) if isinstance(deleted, dict) else None,
+                        )
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={"ok": True, "result": deleted},
                         )
                         return
 

@@ -32,6 +32,11 @@ import secrets
 from typing import Any, Iterable
 
 from cloud_dog_idam.api_keys.hashing import hash_api_key  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.domain.models import Role  # type: ignore[import-not-found,import-untyped]
+from cloud_dog_idam.storage.sqlalchemy.role_store import (  # type: ignore[import-not-found,import-untyped]
+    BaselineRoleProtected,
+    SqlAlchemyRoleStore,
+)
 from cloud_dog_logging import get_logger  # type: ignore[import-not-found,import-untyped]
 
 from .db.models import (
@@ -645,6 +650,113 @@ class AdminIdentityService:
                 details={"api_key_id": record.id, "user_id": record.user_id},
             )
             return payload
+
+    # ----- Roles (PS-71 §IW3A; canonical cloud_dog_idam role store) -----------
+    def _role_store(self, session: Any) -> SqlAlchemyRoleStore:
+        return SqlAlchemyRoleStore(session)
+
+    def ensure_roles_seed(self) -> None:
+        """Seed the baseline admin/user roles (IW3A.4). Idempotent."""
+        with self.session_manager.session() as session:
+            self._role_store(session).seed_baseline()
+
+    def list_roles(self) -> list[dict[str, Any]]:
+        with self.session_manager.session() as session:
+            store = self._role_store(session)
+            store.seed_baseline()
+            return store.list_response()
+
+    def get_role(self, role_id: str) -> dict[str, Any]:
+        with self.session_manager.session() as session:
+            for row in self._role_store(session).list_response():
+                if row["role_id"] == role_id:
+                    return row
+            raise AdminIdentityError("NOT_FOUND", f"unknown role: {role_id}", status=404)
+
+    def create_role(
+        self,
+        *,
+        name: str,
+        description: str = "",
+        permissions: Iterable[str] | None = None,
+    ) -> dict[str, Any]:
+        clean_name = (name or "").strip()
+        if not clean_name:
+            raise AdminIdentityError("VALIDATION_ERROR", "name is required")
+        with self.session_manager.session() as session:
+            store = self._role_store(session)
+            if store.get_by_name(clean_name) is not None:
+                raise AdminIdentityError(
+                    "CONFLICT", f"role already exists: {clean_name}", status=409
+                )
+            role = store.save(
+                Role(
+                    name=clean_name,
+                    description=str(description or ""),
+                    permissions={
+                        str(p).strip() for p in (permissions or []) if str(p).strip()
+                    },
+                )
+            )
+            self._audit(
+                action="create_role",
+                outcome="ok",
+                details={"role_id": role.role_id, "name": role.name},
+            )
+            return {
+                "role_id": role.role_id,
+                "name": role.name,
+                "description": role.description,
+                "permissions": sorted(role.permissions),
+            }
+
+    def update_role(self, role_id: str, *, data: dict[str, Any]) -> dict[str, Any]:
+        with self.session_manager.session() as session:
+            store = self._role_store(session)
+            if store.get(role_id) is None:
+                raise AdminIdentityError(
+                    "NOT_FOUND", f"unknown role: {role_id}", status=404
+                )
+            raw_perms = data.get("permissions")
+            perms = (
+                {str(p).strip() for p in raw_perms if str(p).strip()}
+                if raw_perms is not None
+                else None
+            )
+            role = store.update(
+                role_id, description=data.get("description"), permissions=perms
+            )
+            self._audit(
+                action="update_role",
+                outcome="ok",
+                details={"role_id": role.role_id, "name": role.name},
+            )
+            return {
+                "role_id": role.role_id,
+                "name": role.name,
+                "description": role.description,
+                "permissions": sorted(role.permissions),
+            }
+
+    def delete_role(self, role_id: str) -> dict[str, Any]:
+        with self.session_manager.session() as session:
+            store = self._role_store(session)
+            try:
+                removed = store.delete(role_id)
+            except BaselineRoleProtected as exc:
+                raise AdminIdentityError(
+                    "FORBIDDEN",
+                    f"baseline role cannot be deleted: {exc}",
+                    status=403,
+                )
+            if not removed:
+                raise AdminIdentityError(
+                    "NOT_FOUND", f"unknown role: {role_id}", status=404
+                )
+            self._audit(
+                action="delete_role", outcome="ok", details={"role_id": role_id}
+            )
+            return {"deleted": role_id}
 
     def resolve_dynamic_api_key(
         self,
