@@ -195,6 +195,85 @@ class AdminIdentityService:
                 bucket.append(username)
         return result
 
+    def ensure_bootstrap_seed(
+        self,
+        *,
+        username: str = "admin",
+        group_name: str = "bootstrap-admin",
+    ) -> dict[str, Any]:
+        """Ensure the canonical PS-71 bootstrap admin user/group rows exist."""
+        clean_username = username.strip() or "admin"
+        clean_group_name = group_name.strip() or "bootstrap-admin"
+        with self.session_manager.session() as session:
+            user = (
+                session.query(FileAdminUser)
+                .filter(FileAdminUser.username == clean_username)
+                .one_or_none()
+            )
+            if user is None:
+                user = FileAdminUser(
+                    id=self._new_id("usr"),
+                    username=clean_username,
+                    display_name=clean_username.title(),
+                    is_active=True,
+                )
+                session.add(user)
+                session.flush()
+
+            group = (
+                session.query(FileAdminGroup)
+                .filter(FileAdminGroup.name == clean_group_name)
+                .one_or_none()
+            )
+            if group is None:
+                group = FileAdminGroup(
+                    id=self._new_id("grp"),
+                    name=clean_group_name,
+                    description="Bootstrap administrators",
+                    roles_json=self._dump_json_list(["admin"]),
+                    is_active=True,
+                )
+                session.add(group)
+                session.flush()
+            else:
+                roles = self._parse_json_list(group.roles_json)
+                if "admin" not in roles:
+                    roles.append("admin")
+                    group.roles_json = self._dump_json_list(roles)
+                group.is_active = True
+
+            membership = (
+                session.query(FileAdminGroupMember)
+                .filter(
+                    FileAdminGroupMember.group_id == group.id,
+                    FileAdminGroupMember.user_id == user.id,
+                )
+                .one_or_none()
+            )
+            if membership is None:
+                session.add(
+                    FileAdminGroupMember(
+                        group_id=group.id,
+                        user_id=user.id,
+                    )
+                )
+
+            session.flush()
+            self._audit(
+                action="ensure_bootstrap_seed",
+                outcome="ok",
+                details={
+                    "user_id": user.id,
+                    "username": user.username,
+                    "group_id": group.id,
+                    "group_name": group.name,
+                },
+            )
+            return {
+                "user": self._user_payload(user, groups=[group.name]),
+                "group": self._group_payload(group, members=[user.username]),
+            }
+
     def list_users(self) -> list[dict[str, Any]]:
         with self.session_manager.session() as session:
             memberships = self._group_members_by_user(session)

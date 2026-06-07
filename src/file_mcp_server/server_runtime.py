@@ -1567,6 +1567,11 @@ class HealthCheckMiddleware:
             "/storage-profiles",
             "/audit-log",
             "/api-docs",
+            "/idam",
+            "/idam/users",
+            "/idam/groups",
+            "/idam/api-keys",
+            "/idam/rbac",
             "/admin-identity",
             "/admin/identity",
             "/admin/users",
@@ -7389,6 +7394,9 @@ async def run_mcp_http_server(
     admin_identity_service = AdminIdentityService(
         session_manager=db_runtime.session_manager,
         logger=logger,
+    )
+    admin_identity_service.ensure_bootstrap_seed(
+        username=str(read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin")
     )
 
     # --- Phase 4b: Seed default profile into DB on first startup ---
