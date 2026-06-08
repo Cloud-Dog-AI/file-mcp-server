@@ -2915,6 +2915,34 @@ class HealthCheckMiddleware:
         method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
 
+        # W28A-876: serve the canonical SHARED cloud_dog_idam /idam/v1 surface
+        # (resource-registry + rbac-bindings) — the RBAC page calls /v1/idam/v1/<x>.
+        # This integrates the ONE estate-wide implementation into the bespoke ASGI
+        # dispatcher (file-mcp does not use FastAPI routing for the admin surface).
+        if scope.get("type") == "http" and "/idam/v1/" in path:
+            _idam_sub = path.split("/idam/v1/", 1)[1].split("?", 1)[0]
+            try:
+                from cloud_dog_idam.api.fastapi.router import (
+                    resource_registry as _idam_resource_registry,
+                    list_rbac_bindings as _idam_list_bindings,
+                )
+
+                _idam_payload = None
+                if method == "GET" and _idam_sub.startswith("resource-registry"):
+                    _idam_payload = await _idam_resource_registry()
+                elif method == "GET" and _idam_sub.startswith("rbac-bindings"):
+                    _idam_payload = await _idam_list_bindings()
+                if _idam_payload is not None:
+                    await self._send_bytes(
+                        send,
+                        status=200,
+                        body=json.dumps(_idam_payload).encode("utf-8"),
+                        content_type="application/json",
+                    )
+                    return
+            except Exception:
+                pass
+
         if await self._maybe_proxy_web_request(
             scope=scope,
             receive=receive,
