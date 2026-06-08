@@ -75,11 +75,11 @@ This reference is generated from `defaults.yaml` and the standard Cloud-Dog envi
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__ENDPOINT` | `${FILE_MCP_S3_ENDPOINT}` | Optional | `${FILE_MCP_S3_ENDPOINT}` | Configuration value for profiles default storage s3 endpoint. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__BUCKET` | `${FILE_MCP_S3_BUCKET}` | Optional | `${FILE_MCP_S3_BUCKET}` | Configuration value for profiles default storage s3 bucket. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__REGION` | `${FILE_MCP_S3_REGION}` | Optional | `${FILE_MCP_S3_REGION}` | Configuration value for profiles default storage s3 region. |
-| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__ACCESS_KEY` | `${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KE...` | Optional | `${vault.dev.storage.s3.access_key_id || FILE_MCP_S3_ACCESS_KE...` | Credential or authentication setting for the related subsystem. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__ACCESS_KEY` | `${FILE_MCP_S3_ACCESS_KEY}` | Optional | `${FILE_MCP_S3_ACCESS_KEY}` | Credential or authentication setting for the related subsystem. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__SECRET_KEY` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__S3__PREFIX` | `${FILE_MCP_S3_PREFIX}` | Optional | `${FILE_MCP_S3_PREFIX}` | Configuration value for profiles default storage s3 prefix. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__BASE_URL` | `${FILE_MCP_WEBDAV_BASE_URL}` | Deployment dependent | `${FILE_MCP_WEBDAV_BASE_URL}` | Endpoint or connection URL for profiles default storage webdav base. |
-| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__USERNAME` | `${vault.dev.storage.webdav.username || FILE_MCP_WEBDAV_USERNA...` | Optional | `service-admin` | Configuration value for profiles default storage webdav username. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__USERNAME` | `${FILE_MCP_WEBDAV_USERNAME}` | Optional | `service-admin` | Configuration value for profiles default storage webdav username. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__PASSWORD` | `<secret>` | Deployment dependent | `your-secure-password` | Credential or authentication setting for the related subsystem. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_RETRY_COUNT` | `3` | Optional | `3` | Configuration value for profiles default storage webdav move retry count. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_RETRY_BACKOFF_S` | `1.0` | Optional | `1.0` | Configuration value for profiles default storage webdav move retry backoff s. |
@@ -87,7 +87,7 @@ This reference is generated from `defaults.yaml` and the standard Cloud-Dog envi
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__WEBDAV__MOVE_RETRY_STATUSES` | `423,502,503,504` | Optional | `423,502,503,504` | Configuration value for profiles default storage webdav move retry statuses. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__HOST` | `${FILE_MCP_FTP_HOST}` | Optional | `0.0.0.0` | Host binding or upstream host for profiles default storage ftp. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__PORT` | `${FILE_MCP_FTP_PORT}` | Optional | `8080` | Port for profiles default storage ftp connections. |
-| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__USERNAME` | `${vault.dev.storage.ftp.username || FILE_MCP_FTP_USERNAME || ''}` | Optional | `service-admin` | Configuration value for profiles default storage ftp username. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__USERNAME` | `${FILE_MCP_FTP_USERNAME}` | Optional | `service-admin` | Configuration value for profiles default storage ftp username. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__PASSWORD` | `<secret>` | Deployment dependent | `your-secure-password` | Credential or authentication setting for the related subsystem. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__BASE_DIR` | `${FILE_MCP_FTP_BASE_DIR}` | Optional | `${FILE_MCP_FTP_BASE_DIR}` | Configuration value for profiles default storage ftp base dir. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__FTP__USE_TLS` | `${FILE_MCP_FTP_USE_TLS}` | Optional | `${FILE_MCP_FTP_USE_TLS}` | Configuration value for profiles default storage ftp use tls. |
@@ -95,7 +95,7 @@ This reference is generated from `defaults.yaml` and the standard Cloud-Dog envi
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__FOLDER_ID` | `${FILE_MCP_GDRIVE_FOLDER_ID}` | Optional | `${FILE_MCP_GDRIVE_FOLDER_ID}` | Configuration value for profiles default storage google drive folder id. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__FOLDER_URL` | `${FILE_MCP_GDRIVE_FOLDER_URL}` | Deployment dependent | `${FILE_MCP_GDRIVE_FOLDER_URL}` | Endpoint or connection URL for profiles default storage google drive folder. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__FOLDER_URL_EXAMPLE` | `${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com...` | Deployment dependent | `${FILE_MCP_GDRIVE_FOLDER_URL_EXAMPLE:https://drive.google.com...` | Configuration value for profiles default storage google drive folder url example. |
-| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__CLIENT_ID` | `${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE...` | Optional | `${vault.dev.storage.google_drive.client_id || FILE_MCP_GDRIVE...` | Configuration value for profiles default storage google drive client id. |
+| `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__CLIENT_ID` | `${FILE_MCP_GDRIVE_CLIENT_ID}` | Optional | `${FILE_MCP_GDRIVE_CLIENT_ID}` | Configuration value for profiles default storage google drive client id. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__CLIENT_SECRET` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__REFRESH_TOKEN` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |
 | `CLOUD_DOG__PROFILES__DEFAULT__STORAGE__GOOGLE_DRIVE__ACCESS_TOKEN` | `<secret>` | Deployment dependent | `your-secret-value` | Credential or authentication setting for the related subsystem. |

@@ -5,3 +5,10 @@ private/
 working/
 CONTEXT-SUMMARY.md
 .publish-exclude
+# W28A-861-R3: internal-only scaffolding — carries /opt/iac paths, env-vault
+# discovery, and internal vault paths; must never reach the public mirror (§9).
+migration/
+tests/
+AGENT-LESSONS.md
+RULES.md
+docker-build.log

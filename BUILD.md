@@ -16,10 +16,11 @@ pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
-If local platform packages are available from a package index instead of editable source checkouts:
+If platform packages are available from a package index instead of editable
+source checkouts, install from a single index (no `--extra-index-url`):
 ```bash
-PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple
-pip install -e ".[dev]" --extra-index-url "$PYPI_URL"
+PYPI_URL=https://pypi.org/simple
+pip install -e ".[dev]" --index-url "$PYPI_URL"
 ```
 
 ## Local Configuration
@@ -62,14 +63,22 @@ The exported tree includes the UI files used by the Docker build. Rebuild the UI
 
 ### Docker Container
 ```bash
-PUBLICATION_TAG_SUFFIX=gitea-test ./docker-build.sh latest
+# Public boundary (default): single public index, no internal host.
+PUBLICATION_TAG_SUFFIX=github-test ./docker-build.sh latest --variant public
 ```
 
 Explicit package source and CA example:
 ```bash
-PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple \
+PYPI_URL=https://pypi.org/simple \
 CUSTOM_CA_CERT=./certs/ca.pem \
-PUBLICATION_TAG_SUFFIX=gitea-test ./docker-build.sh latest
+PUBLICATION_TAG_SUFFIX=github-test ./docker-build.sh latest --variant public
+```
+
+For an internal/preprod developer build that resolves platform packages from the
+internal mirror, use `--variant dev` (this requires internal network access and
+is not part of the public publication path):
+```bash
+./docker-build.sh latest --variant dev
 ```
 
 ## Docker Push
