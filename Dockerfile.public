@@ -56,11 +56,21 @@ RUN set -eux; \
 
 COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
 # Single boundary index — public PyPI by default. No --extra-index-url (PS-97 §3.3).
-# A BuildKit pip.conf secret, if mounted, overrides this for the active boundary.
+# The active index (and any credentials) is supplied by the BuildKit pip.conf
+# secret, which docker-build.sh writes as a single authenticated/anonymous
+# `index-url` for the public variant. We deliberately do NOT pass `--index-url`
+# on the pip CLI: a CLI `--index-url` overrides (and thus discards the credentials
+# in) the mounted pip.conf, which breaks authenticated boundary indexes such as
+# pypi.cloud-dog.net (W28A-861-R3 local-docker reproof). When no pip.conf is
+# mounted, the PYPI_INDEX_URL build-arg below seeds a credential-less default.
+#
+# Note: pip precedence is CLI > env var (PIP_INDEX_URL) > config file. To let the
+# mounted, possibly-authenticated pip.conf drive the index, we neither pass
+# `--index-url` nor export `PIP_INDEX_URL`; PYPI_INDEX_URL is retained as a build
+# arg only so callers/tooling can record the intended public default.
 ARG PYPI_INDEX_URL=https://pypi.org/simple
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir \
-      --index-url ${PYPI_INDEX_URL} \
       cloud-dog-config \
       cloud-dog-logging \
       cloud-dog-api-kit==0.12.4 \
@@ -70,8 +80,8 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       cloud-dog-storage
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
-    pip install --no-cache-dir --index-url ${PYPI_INDEX_URL} -r /tmp/REQUIREMENTS.docker.txt && \
-    pip install --no-cache-dir --index-url ${PYPI_INDEX_URL} 'redis>=5.0'
+    pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
+    pip install --no-cache-dir 'redis>=5.0'
 
 # ── Final ────────────────────────────────────────────────────────
 FROM python:3.12-slim

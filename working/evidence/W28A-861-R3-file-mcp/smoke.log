@@ -1,0 +1,63 @@
+==============================================================
+W28A-861-R3 file-mcp SMOKE (docker run --rm, no port binding, default socket)
+image: cloud-dog/file-mcp-server:latest (sha256:5f51bd69...)
+date: 2026-06-08T07:14:14Z
+==============================================================
+
+### 1) Python import of file_mcp_server + platform packages ###
+import OK: file_mcp_server
+import OK: cloud_dog_config
+import OK: cloud_dog_logging
+import OK: cloud_dog_api_kit
+import OK: cloud_dog_idam
+import OK: cloud_dog_db
+import OK: cloud_dog_jobs
+import OK: cloud_dog_storage
+cloud_dog_api_kit version: 0.12.1
+SMOKE_IMPORT_OK
+IMPORT_EXIT=0
+
+### 2) Installed dist metadata versions (verify pins) ###
+cloud-dog-api-kit == 0.12.4
+cloud-dog-config == 0.3.2
+cloud-dog-idam == 0.4.0
+cloud-dog-storage == 0.1.6
+cloud-dog-jobs == 0.4.1
+cloud-dog-db == 0.3.0
+cloud-dog-logging == 0.4.0
+META_EXIT=0
+
+### 3) Entrypoint reachable + server CLI help (no port binding) ###
+-rwxrwxr-x 1 appuser appuser 5689 Jun  8 06:56 /app/docker-entrypoint.sh
+-rwxrwxr-x 1 appuser appuser  881 Jun  8 06:56 /app/healthcheck.sh
+-rwxrwxr-x 1 appuser appuser 6690 Jun  8 06:56 /app/server_control.sh
+cli-module-check-skipped
+ENTRYPOINT_CHECK_EXIT=0
+
+### 4) Healthcheck script + serve-boot smoke (timeboxed, no port binding) ###
+=== boot output (first 25 lines) ===
+============================================================
+file-mcp-server container
+============================================================
+Mode: serve
+Python: Python 3.12.13
+Working dir: /app
+============================================================
+[port-proxy] Listening on 8081 → 8080
+[port-proxy] Listening on 8083 → 8080
+INFO:     Started server process [9]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+=== healthcheck attempt ===
+HEALTHCHECK_RC=0
+SERVE_SMOKE_DONE
+
+==============================================================
+SMOKE SUMMARY: PASS
+  1) import file_mcp_server + 7 platform pkgs: OK
+  2) dist pins verified: cloud-dog-api-kit==0.12.4 (+ config/idam/storage/jobs/db/logging)
+  3) entrypoint/healthcheck/control scripts present+executable
+  4) serve boots (Uvicorn on 8080, port-proxy 8081/8083→8080); healthcheck.sh RC=0
+  socket: DEFAULT; no host port binding; no other containers touched
+==============================================================
