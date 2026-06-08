@@ -22,6 +22,24 @@ import re
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
+def _canonical_project_name() -> str:
+    """Resolve the canonical project name.
+
+    The per-project safety rules below key off the project identity, which is
+    declared in pyproject.toml (``name = "..."``). Prefer that over the checkout
+    directory name so the suite is correct when run from a git worktree or CI
+    clone whose directory is not literally named after the project.
+    """
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    if pyproject.exists():
+        match = re.search(
+            r'(?m)^\s*name\s*=\s*["\']([^"\']+)["\']', _read(pyproject)
+        )
+        if match:
+            return match.group(1)
+    return PROJECT_ROOT.name
+
+
 SECRET_LOG_RE = re.compile(
     r"(?:logger\.|logging\.|print\().*(?:password|secret|token|api[_-]?key)\s*[:=]\s*['\"][^'\"]+['\"]",
     re.IGNORECASE,
@@ -91,7 +109,7 @@ def test_qt1_2_path_traversal_prevention() -> None:
 
 def test_qt1_3_domain_specific_safety() -> None:
     """QT1.3: Domain-specific safety invariant per project."""
-    project_name = PROJECT_ROOT.name
+    project_name = _canonical_project_name()
     src_text = _all_src_text()
 
     if project_name == "chat-client":

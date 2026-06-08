@@ -28,13 +28,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import urllib.request
-
-import pytest
-
 from scripts.google_drive_setup import (
     _load_google_defaults_from_credentials_file,
-    _load_google_defaults_from_vault_blob,
     extract_folder_id,
     write_env_values,
 )
@@ -114,58 +109,9 @@ def test_load_google_defaults_from_credentials_file(tmp_path: Path) -> None:
     )
 
 
-def test_load_google_defaults_from_vault_blob(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("VAULT_ADDR", "https://vault.example")
-    monkeypatch.setenv("VAULT_TOKEN", "token-value")
-    monkeypatch.setenv("VAULT_MOUNT_POINT", "cloud_dog_ai")
-    monkeypatch.setenv("VAULT_CONFIG_PATH", "config")
-
-    payload = {
-        "data": {
-            "data": {
-                "json": {
-                    "dev": {
-                        "storage": {
-                            "google_drive": {
-                                "client_id": "vault-client-id",
-                                "client_secret": "vault-client-secret",
-                                "token_uri": "https://oauth2.googleapis.com/token",
-                                "redirect_uris": [
-                                    "http://127.0.0.1:8000/admin/google-drive/callback"
-                                ],
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    class _Response:
-        def __enter__(self) -> "_Response":
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:  # type: ignore[no-untyped-def]
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps(payload).encode("utf-8")
-
-    def _fake_urlopen(req, context=None, timeout=None):  # type: ignore[no-untyped-def]
-        return _Response()
-
-    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
-
-    defaults = _load_google_defaults_from_vault_blob(tmp_path)
-
-    assert defaults["FILE_MCP_GDRIVE_CLIENT_ID"] == "vault-client-id"
-    assert defaults["FILE_MCP_GDRIVE_CLIENT_SECRET"] == "vault-client-secret"
-    assert (
-        defaults["FILE_MCP_GDRIVE_TOKEN_URI"] == "https://oauth2.googleapis.com/token"
-    )
-    assert (
-        defaults["FILE_MCP_GDRIVE_REDIRECT_URI"]
-        == "http://127.0.0.1:8000/admin/google-drive/callback"
-    )
+# Note (W28A-861 public-boundary scrub, commit 329941c): the interactive setup
+# script no longer loads Google Drive defaults directly from a Vault blob — Vault
+# is an internal-only assumption excluded from the public export surface. Defaults
+# now come from the local credentials file (above) and the platform config loader
+# (cloud_dog_config). The former ``_load_google_defaults_from_vault_blob`` helper
+# and its test were removed accordingly.

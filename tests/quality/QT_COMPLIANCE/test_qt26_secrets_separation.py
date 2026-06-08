@@ -52,6 +52,12 @@ def _is_placeholder(value: str) -> bool:
     cleaned = value.strip().strip('"').strip("'")
     if not cleaned:
         return True
+    # Angle-bracket fill-in placeholders, e.g. <your-s3-access-key-here>.
+    # Public-export example env files (W28A-861 public-boundary scrub) use this
+    # convention in place of internal ${vault.*} references; they are documentation
+    # placeholders, never real secrets.
+    if cleaned.startswith("<") and cleaned.endswith(">"):
+        return True
     placeholders = {
         "changeme",
         "change-me",
@@ -98,6 +104,14 @@ def test_qt2_6_sensitive_env_values_use_vault_or_scoped_files() -> None:
                 continue
             clean_value = value.strip().strip('"').strip("'")
             if not clean_value or clean_value.startswith("${vault.") or _is_placeholder(clean_value):
+                continue
+            # Endpoint URLs are not secrets: a *_URI / *_URL key (e.g.
+            # FILE_MCP_GDRIVE_TOKEN_URI=https://oauth2.googleapis.com/token) only
+            # matches SECRET_KEY_RE because the name contains "TOKEN"/"KEY"/etc.
+            # Skip when the key denotes an endpoint and the value is a plain URL.
+            if key.strip().upper().endswith(("_URI", "_URL")) and re.match(
+                r"^(https?://|urn:|ftps?://)", clean_value
+            ):
                 continue
             in_test_env = rel.startswith("tests/env-")
             in_private_secret_file = rel.startswith("private/") and rel.endswith("-secrets")
