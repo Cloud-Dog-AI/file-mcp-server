@@ -2904,6 +2904,14 @@ class HealthCheckMiddleware:
             for k, v in (scope.get("headers") or [])
         }
         path = str(scope.get("path") or "")
+        # W28A-876: the shared @cloud-dog/idam admin pages call
+        # /api/v1/admin/<entity> (users/groups/api-keys/roles). Traefik strips the
+        # /api prefix, so requests arrive here as /v1/admin/<entity> — a path the
+        # canonical /admin/<entity> routing below does not match (→ 404, leaving
+        # the shared pages unable to load data). Normalise the /v1 prefix away for
+        # admin routes so the existing identity/admin dispatch resolves them.
+        if path.startswith("/v1/admin/") or path == "/v1/admin":
+            path = path[len("/v1"):]
         method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
 
