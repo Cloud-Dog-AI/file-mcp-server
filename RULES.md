@@ -7,7 +7,7 @@ Common rules are NOT restated here; consult central for: integrity (§1), enviro
 server+process management (§3), code+change management (§4), testing (§5), documentation (§6),
 repo structure (§7), operational controls (§8), security boundaries (§9), infrastructure
 protection (§10), Vault path verification (§11), implementation truthfulness (§12),
-sandbox dispatch preconditions (§13 once landed), mandatory reading (§14 once renumbered).
+sandbox dispatch preconditions (§13, W28A-882 Phase F), completion standards (§14), mandatory reading (§15).
 
 ## Project-Specific Rules
 
