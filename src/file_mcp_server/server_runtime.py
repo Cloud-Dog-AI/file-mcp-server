@@ -1410,6 +1410,43 @@ class HealthCheckMiddleware:
         await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
         return True
 
+    async def _handle_auth_status(self, send, headers: dict[str, str], scope: dict[str, Any]) -> bool:
+        """Handle GET /auth/status — best-effort capability probe for the IDAM WebUI.
+
+        W28A-889-A-R2: returns the caller's real capability so the shared @cloud-dog/idam
+        Users/Groups/API-Keys/Roles/RBAC pages can gate admin affordances without a 404 (which
+        the deployed Users page surfaced as a "Not Found" banner). Auth-safe: reflects only the
+        caller's own identity; an unauthenticated caller is denied (401), never handed admin.
+        """
+        sess = self._get_session_from_cookie(headers)
+        if sess:
+            is_admin = str(sess.get("role", "")).strip().lower() == "admin"
+            resp_body = json.dumps({
+                "authenticated": True,
+                "username": sess["user"],
+                "is_system_admin": is_admin,
+                "permissions": ["*"] if is_admin else [],
+            }).encode("utf-8")
+            await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
+            return True
+
+        auth_info, _selected_profile = await self._authenticate_request(scope=scope, headers=headers)
+        if auth_info is None:
+            await self._send_bytes(send, status=401, body=b'{"detail":"Not authenticated"}', content_type="application/json")
+            return True
+
+        payload = self._auth_user_payload(auth_info)
+        permissions = payload.get("permissions") or []
+        is_admin = "admin" in (payload.get("roles") or []) or "*" in permissions
+        resp_body = json.dumps({
+            "authenticated": True,
+            "username": payload.get("displayName") or payload.get("id"),
+            "is_system_admin": is_admin,
+            "permissions": permissions,
+        }).encode("utf-8")
+        await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
+        return True
+
     async def _handle_auth_logout(self, send, headers: dict[str, str]) -> bool:
         """Handle POST /auth/logout — clear session."""
         cookie_header = headers.get("cookie", "")
@@ -2942,6 +2979,15 @@ class HealthCheckMiddleware:
                     return
             except Exception:
                 pass
+
+        # W28A-889-A-R2: best-effort IDAM capability probe. Serve /auth/status (and its
+        # /api/auth/status alias) BEFORE the /api proxy strips "/api" and forwards to the API
+        # server (which has no such route -> 404). The shared @cloud-dog/idam Users page
+        # surfaced that 404 as a "Not Found" banner. Returns the caller's real cookie-session
+        # capability (200 authed, 401 unauthenticated) — never escalates.
+        if scope.get("type") == "http" and method == "GET" and path in ("/auth/status", "/api/auth/status"):
+            await self._handle_auth_status(send, headers, scope)
+            return
 
         if await self._maybe_proxy_web_request(
             scope=scope,
