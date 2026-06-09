@@ -1104,6 +1104,16 @@ def test_root_route_with_api_accept_serves_spa_index(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 
 
+def _w28c1702_admin_cookie(middleware):
+    """W28C-1702 (FM6): seed an admin cookie session so tests of the now-gated
+    /admin/google-drive* pages authenticate (anon is denied 401)."""
+    import time as _t
+    middleware._sessions["ut-admin"] = {
+        "user": "admin", "user_id": "1", "role": "admin", "_created": _t.time(),
+    }
+    return (b"cookie", b"file_web_session=ut-admin")
+
+
 def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
     sent = []
     previous = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
@@ -1125,6 +1135,7 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
         profile_name="default",
         transport="streamable-http",
     )
+    _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
 
     async def _run() -> None:
         scope = {
@@ -1132,7 +1143,7 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
             "method": "GET",
             "path": "/admin/google-drive",
             "query_string": b"profile=google_drive",
-            "headers": [(b"host", b"127.0.0.1:8000")],
+            "headers": [(b"host", b"127.0.0.1:8000"), _w28c1702_cookie],
             "scheme": "http",
         }
 
@@ -1459,13 +1470,14 @@ def test_health_middleware_serves_google_drive_admin_page() -> None:
         profile_name="default",
         transport="streamable-http",
     )
+    _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
 
     async def _run() -> None:
         scope = {
             "type": "http",
             "method": "GET",
             "path": "/admin/google-drive",
-            "headers": [(b"host", b"127.0.0.1:8000")],
+            "headers": [(b"host", b"127.0.0.1:8000"), _w28c1702_cookie],
             "scheme": "http",
         }
 
@@ -1511,6 +1523,7 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
         profile_name="default",
         transport="streamable-http",
     )
+    _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
 
     async def _run() -> None:
         scope = {
@@ -1518,6 +1531,7 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
             "method": "GET",
             "path": "/admin/google-drive",
             "headers": [
+                _w28c1702_cookie,
                 (b"host", b"filemcpserver0.example.com"),
                 (b"x-forwarded-proto", b"https"),
             ],
@@ -1592,6 +1606,7 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
         profile_name="default",
         transport="streamable-http",
     )
+    _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
 
     async def _run() -> None:
         scope = {
@@ -1599,7 +1614,7 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
             "method": "GET",
             "path": "/admin/google-drive",
             "query_string": b"profile=google_drive",
-            "headers": [(b"host", b"127.0.0.1:8000")],
+            "headers": [(b"host", b"127.0.0.1:8000"), _w28c1702_cookie],
             "scheme": "http",
         }
 
@@ -1691,6 +1706,7 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
         profile_name="default",
         transport="streamable-http",
     )
+    _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
 
     async def _run() -> None:
         scope = {
@@ -1698,6 +1714,7 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
             "method": "POST",
             "path": "/admin/google-drive/start",
             "headers": [
+                _w28c1702_cookie,
                 (b"host", b"127.0.0.1:8000"),
                 (b"content-type", b"application/x-www-form-urlencoded"),
             ],
@@ -1878,12 +1895,14 @@ def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
         transport="streamable-http",
         reload_callback=_reload,
     )
+    _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
 
     async def _run() -> None:
         scope = {
             "type": "http",
             "method": "GET",
             "path": "/admin/google-drive/callback",
+            "headers": [_w28c1702_cookie],
             "query_string": b"state=s123&code=c123",
         }
 

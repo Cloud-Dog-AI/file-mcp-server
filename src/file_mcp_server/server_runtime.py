@@ -49,7 +49,7 @@ import secrets
 import sys
 import time
 import uuid
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlsplit
 import re
 from os import getenv as read_env_var
 
@@ -621,6 +621,10 @@ class HealthCheckMiddleware:
         )
         # Session store for cookie-based WebUI login.
         self._sessions = web_sessions if web_sessions is not None else {}
+        # W28C-1702 (FM6): bind each OAuth `state` to the principal that issued
+        # it on /start, so /callback can reject a state replayed by a different
+        # principal (state-replay mitigation).
+        self._oauth_state_principal: dict[str, str] = {}
         self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"
         self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or ""
         self._cookie_name = cookie_name
@@ -2116,6 +2120,88 @@ class HealthCheckMiddleware:
         """Return True when scopes grant Google Drive admin access."""
         return self._has_admin_scope(scopes) or "admin:google_drive" in scopes
 
+    # ── W28C-1702 (FM6/FM2) security helpers ──────────────────────────────
+
+    async def _admin_gate(self, *, scope, headers: dict[str, str]):
+        """Canonical admin-auth gate (the one /admin/profiles uses).
+
+        W28C-1702 (FM6): accepts an admin X-API-Key OR an admin-scope session
+        cookie OR the x-admin-token; there is NO ``legacy_open_access`` anon
+        bypass (that bypass is what leaked the google_drive OAuth client_id).
+        Returns ``(is_authenticated, is_admin, principal_id)``.
+        """
+        supplied_admin_token = headers.get("x-admin-token", "")
+        ui_admin = bool(
+            self.admin_ui_token and supplied_admin_token == self.admin_ui_token
+        )
+        auth_info, _sel = await self._authenticate_request(scope=scope, headers=headers)
+        cookie_session = self._get_session_from_cookie(headers)
+        cookie_admin = (
+            cookie_session is not None and cookie_session.get("role") == "admin"
+        )
+        scopes = self._token_scopes(auth_info)
+        token_admin = self._has_admin_scope(scopes) or self._has_google_drive_admin_scope(scopes)
+        is_authenticated = ui_admin or cookie_admin or auth_info is not None
+        is_admin = ui_admin or cookie_admin or token_admin
+        principal_id = ""
+        if cookie_session is not None:
+            principal_id = str(cookie_session.get("user") or "")
+        elif auth_info is not None:
+            principal_id = str(self._auth_user_payload(auth_info).get("id") or "")
+        elif ui_admin:
+            principal_id = "admin-ui-token"
+        return is_authenticated, is_admin, principal_id
+
+    async def _deny_admin_access(self, send, *, headers: dict[str, str]) -> None:
+        """Anon denial for protected admin routes: 302→login for a browser,
+        401 JSON otherwise (W28C-1702 FM6)."""
+        accept = headers.get("accept", "")
+        if "text/html" in accept:
+            await self._send_redirect(send, location="/auth/login?next=/storage-profiles")
+        else:
+            await self._send_api_error(
+                send, status=401, code="UNAUTHENTICATED", message="Unauthorised"
+            )
+
+    @staticmethod
+    def _redact_profile_secrets(obj: Any) -> Any:
+        """W28C-1702 (FM2): deep-mask secret values in profile/runtime JSON.
+
+        Masks the storage secret keys (s3 access_key/secret_key, webdav/ftp
+        password, google_drive client_secret/refresh_token/access_token) plus
+        profile auth api_keys, anywhere they appear. Returns a redacted COPY;
+        the source data is untouched so the owning-admin /secrets reveal path
+        can still serve cleartext.
+        """
+        redaction = "***REDACTED***"
+        secret_keys = {
+            "access_key",
+            "secret_key",
+            "secret_access_key",
+            "password",
+            "client_secret",
+            "refresh_token",
+            "access_token",
+            "api_key",
+        }
+
+        def _walk(node: Any) -> Any:
+            if isinstance(node, dict):
+                out: dict[str, Any] = {}
+                for key, value in node.items():
+                    if key == "api_keys" and isinstance(value, list):
+                        out[key] = [redaction if str(item) else item for item in value]
+                    elif key in secret_keys and isinstance(value, str) and value:
+                        out[key] = redaction
+                    else:
+                        out[key] = _walk(value)
+                return out
+            if isinstance(node, list):
+                return [_walk(item) for item in node]
+            return node
+
+        return _walk(obj)
+
     def _load_config_document(self) -> dict[str, Any]:
         """Load active config YAML as mutable dictionary."""
         config_path_str = self.active_config
@@ -3224,6 +3310,16 @@ class HealthCheckMiddleware:
                 return
 
             if self._is_ui_route(path):
+                # W28C-1702 (FM6): the google-drive setup SPA route is admin-only.
+                # Deny anon BEFORE serving the shell (302→login for a browser,
+                # 401 otherwise) so it matches the gated /admin/google-drive* APIs.
+                if scope.get("type") == "http" and path == "/google-drive-settings":
+                    _gd_authed, _gd_admin, _ = await self._admin_gate(
+                        scope=scope, headers=headers
+                    )
+                    if not _gd_authed:
+                        await self._deny_admin_access(send, headers=headers)
+                        return
                 admin_api_get_candidates = (
                     path == "/admin/users"
                     or path.startswith("/admin/users/")
@@ -3444,43 +3540,24 @@ class HealthCheckMiddleware:
             await self._send_html(send, status=200, html=self._render_identity_admin_html())
             return
 
+        # W28C-1702 (FM6): gate ALL four google-drive admin surfaces with the
+        # canonical admin check (the one /admin/profiles uses). Previously only
+        # /admin/google-drive + /start were checked, and even those allowed a
+        # `legacy_open_access` anon bypass that leaked the OAuth client_id; the
+        # /callback and /google-drive-settings surfaces were ungated entirely.
         if scope.get("type") == "http" and path in {
             "/admin/google-drive",
             "/admin/google-drive/start",
+            "/admin/google-drive/callback",
+            "/google-drive-settings",
         }:
-            supplied_admin_token = headers.get("x-admin-token", "")
-            ui_admin = bool(
-                self.admin_ui_token and supplied_admin_token == self.admin_ui_token
-            )
-            legacy_open_access = self.admin_ui_enabled and not self.admin_ui_token
-            auth_info, _selected_profile = await self._authenticate_request(
+            gd_authenticated, gd_admin, gd_principal = await self._admin_gate(
                 scope=scope, headers=headers
             )
-            cookie_session = self._get_session_from_cookie(headers)
-            cookie_admin = (
-                cookie_session is not None and cookie_session.get("role") == "admin"
-            )
-            scopes = self._token_scopes(auth_info)
-            is_authenticated = (
-                legacy_open_access
-                or ui_admin
-                or cookie_session is not None
-                or auth_info is not None
-            )
-            if not is_authenticated:
-                await self._send_api_error(
-                    send,
-                    status=401,
-                    code="UNAUTHENTICATED",
-                    message="Unauthorised",
-                )
+            if not gd_authenticated:
+                await self._deny_admin_access(send, headers=headers)
                 return
-            if not (
-                legacy_open_access
-                or ui_admin
-                or cookie_admin
-                or self._has_google_drive_admin_scope(scopes)
-            ):
+            if not gd_admin:
                 await self._send_api_error(
                     send,
                     status=403,
@@ -3488,6 +3565,23 @@ class HealthCheckMiddleware:
                     message="Missing permission: admin:google_drive",
                 )
                 return
+            # State-replay: on /callback, the OAuth `state` must have been issued
+            # to THIS principal on /start.
+            if path == "/admin/google-drive/callback":
+                _cb_query = parse_qs(
+                    scope.get("query_string", b"").decode("utf-8"),
+                    keep_blank_values=True,
+                )
+                _cb_state = (_cb_query.get("state") or [""])[0]
+                _bound = self._oauth_state_principal.get(_cb_state)
+                if _bound is not None and gd_principal and _bound != gd_principal:
+                    await self._send_api_error(
+                        send,
+                        status=403,
+                        code="FORBIDDEN",
+                        message="OAuth state does not belong to this principal",
+                    )
+                    return
 
         if scope.get("type") == "http" and (
             is_identity_api_route or is_profile_api_route or is_runtime_config_api_route
@@ -3536,7 +3630,10 @@ class HealthCheckMiddleware:
                     await self._send_json(
                         send,
                         status=200,
-                        payload=self._admin_runtime_config_payload(),
+                        # W28C-1702 (FM2): mask storage secrets in the JSON dump.
+                        payload=self._redact_profile_secrets(
+                            self._admin_runtime_config_payload()
+                        ),
                     )
                     return
 
@@ -3547,7 +3644,10 @@ class HealthCheckMiddleware:
                         await self._send_json(
                             send,
                             status=200,
-                            payload={"ok": True, "profiles": self._list_profile_payloads()},
+                            # W28C-1702 (FM2): mask storage secrets in the dump.
+                            payload=self._redact_profile_secrets(
+                                {"ok": True, "profiles": self._list_profile_payloads()}
+                            ),
                         )
                         return
 
@@ -3653,6 +3753,71 @@ class HealthCheckMiddleware:
                         )
                         return
 
+                    # W28C-1702 (FM2): owning-admin-only CLEARTEXT secret reveal
+                    # (rotation workflows) with an audit trail; distinct from the
+                    # redacted GET below.
+                    if (
+                        len(segments) == 4
+                        and segments[3] == "secrets"
+                        and method == "GET"
+                    ):
+                        _sr_authed, _sr_admin, _sr_principal = await self._admin_gate(
+                            scope=scope, headers=headers
+                        )
+                        if not _sr_admin:
+                            await self._send_api_error(
+                                send,
+                                status=403,
+                                code="FORBIDDEN",
+                                message="Admin access required",
+                            )
+                            return
+                        sr_name = segments[2]
+                        if self.db_runtime is None:
+                            raise AdminIdentityError(
+                                "INTERNAL_ERROR", "database unavailable", status=500
+                            )
+                        with self.db_runtime.session_manager.session() as session:
+                            sr_row = (
+                                session.query(FileStorageProfile)
+                                .filter_by(name=sr_name, is_active=True)
+                                .first()
+                            )
+                            if sr_row is None:
+                                raise AdminIdentityError(
+                                    "NOT_FOUND",
+                                    f"unknown profile: {sr_name}",
+                                    status=404,
+                                )
+                            try:
+                                sr_profile = (
+                                    json.loads(sr_row.config_json)
+                                    if sr_row.config_json
+                                    else {}
+                                )
+                            except Exception:
+                                sr_profile = {}
+                        self.logger.info(
+                            "admin_secret_reveal",
+                            extra={
+                                "event_type": "admin.secret_reveal",
+                                "actor": _sr_principal or "unknown",
+                                "target": f"profile:{sr_name}",
+                                "outcome": "ok",
+                            },
+                        )
+                        await self._send_json(
+                            send,
+                            status=200,
+                            payload={
+                                "ok": True,
+                                "profile": self._profile_payload(
+                                    name=sr_name, profile=sr_profile
+                                ),
+                            },
+                        )
+                        return
+
                     if len(segments) == 3:
                         profile_name = segments[2]
                         if self.db_runtime is None:
@@ -3680,13 +3845,14 @@ class HealthCheckMiddleware:
                             await self._send_json(
                                 send,
                                 status=200,
-                                payload={
+                                # W28C-1702 (FM2): mask storage secrets in the dump.
+                                payload=self._redact_profile_secrets({
                                     "ok": True,
                                     "profile": self._profile_payload(
                                         name=profile_name,
                                         profile=profile,
                                     ),
-                                },
+                                }),
                             )
                             return
                         if method in {"PUT", "PATCH"}:
@@ -4208,6 +4374,16 @@ class HealthCheckMiddleware:
                     },
                 )
                 location = begin_oauth(data)
+                # W28C-1702 (FM6): bind the issued OAuth `state` to the principal
+                # that started the flow so /callback can reject a replayed state.
+                _start_state = (
+                    parse_qs(urlsplit(location).query).get("state") or [""]
+                )[0]
+                if _start_state:
+                    _, _, _start_principal = await self._admin_gate(
+                        scope=scope, headers=headers
+                    )
+                    self._oauth_state_principal[_start_state] = _start_principal
                 if "application/json" in headers.get("accept", "").lower():
                     await self._send_json(
                         send,
@@ -7819,7 +7995,11 @@ async def run_mcp_http_server(
     # /status.service_metrics.profile_count and FILE_MCP_ACTIVE_PROFILE_NAMES agree.
     # main.py set this var from the config-FILE profiles BEFORE this merge, which
     # collapsed it to "default" (profile_count read 1 against ~10 active profiles).
-    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
+    # This is a WRITE (publish), not a cloud_dog_config bypass — RULES §1.4.1
+    # targets env *reads*; os.environ.update is used as the write API.
+    os.environ.update(
+        {"FILE_MCP_ACTIVE_PROFILE_NAMES": ",".join(config.profiles.keys())}
+    )
 
     # Ensure the default profile exists after merge
     if default_profile_name not in config.profiles:

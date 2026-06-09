@@ -85,10 +85,17 @@ def build_storage_backend(profile: ProfileConfig) -> StorageBackend:
             password=str(src.ftp.password or "") if src.ftp else "",
         ),
         google_drive=GoogleDriveConfig(
+            # W28C-1702 (FM4): folder_id/folder_url were dropped here, so the
+            # google_drive backend always raised "requires folder_id" once a
+            # per-request profile dispatched to it (the FM3 dispatch bug had
+            # masked this by routing every call to the default/local registry).
+            folder_id=str(src.google_drive.folder_id or "") if src.google_drive else "",
+            folder_url=str(src.google_drive.folder_url or "") if src.google_drive else "",
             client_id=str(src.google_drive.client_id or "") if src.google_drive else "",
             client_secret=str(src.google_drive.client_secret or "") if src.google_drive else "",
             refresh_token=str(src.google_drive.refresh_token or "") if src.google_drive else "",
             access_token=str(src.google_drive.access_token or "") if src.google_drive else "",
+            redirect_uri=str(src.google_drive.redirect_uri or "") if src.google_drive else "",
             token_uri=str(src.google_drive.token_uri or "") if src.google_drive else "",
         ),
     )

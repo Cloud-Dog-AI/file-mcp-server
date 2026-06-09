@@ -327,3 +327,108 @@ def test_fm9_status_banner_is_rendered() -> None:
     )
     assert "id='gd-banner'" in html
     assert "NOT CONFIGURED" in html
+
+
+# ───────────────────────────── FM4 ─────────────────────────────
+
+def test_fm4_factory_passes_folder_id_to_google_drive_backend() -> None:
+    from file_tools.storage import build_storage_backend
+
+    prof = ProfileConfig.model_validate(
+        {
+            "storage": {
+                "backend": "google_drive",
+                "google_drive": {
+                    "folder_id": "FID",
+                    "folder_url": "https://drive.example/FID",
+                    "client_id": "cid",
+                    "client_secret": "csec",
+                    "refresh_token": "rtok",
+                    "access_token": "atok",
+                    "token_uri": "https://oauth/token",
+                },
+            },
+            "scope": {"roots": []},
+            "auth": {"api_keys": ["secret"]},
+        }
+    )
+    # Before the FM4 fix this raised "requires google_drive.folder_id or
+    # google_drive.folder_url" because factory.py dropped folder_id/folder_url.
+    backend = build_storage_backend(prof)
+    assert backend.backend_name == "google_drive"
+
+
+# ───────────────────────────── FM2 ─────────────────────────────
+
+def test_fm2_redact_profile_secrets_masks_all_secret_values() -> None:
+    payload = {
+        "ok": True,
+        "profiles": [
+            {
+                "name": "gd",
+                "backend": "google_drive",
+                "profile": {
+                    "storage": {
+                        "backend": "google_drive",
+                        "google_drive": {
+                            "client_secret": "GOCSPX-supersecretvalue",
+                            "refresh_token": "1//03oXgyDkn-longrefreshtoken",
+                            "access_token": "ya29.a0AQvPyI-longaccesstoken",
+                            "folder_id": "FID-public",
+                        },
+                    },
+                    "auth": {"api_keys": ["plaintext-key-value"]},
+                },
+            },
+            {
+                "name": "s3",
+                "backend": "s3",
+                "profile": {
+                    "storage": {
+                        "s3": {
+                            "access_key": "AKIAEXAMPLE123",
+                            "secret_key": "verysecrets3keyvalue",
+                            "bucket": "public-bucket",
+                        }
+                    }
+                },
+            },
+        ],
+    }
+    redacted = HealthCheckMiddleware._redact_profile_secrets(payload)
+    blob = json.dumps(redacted)
+    for leaked in (
+        "GOCSPX-supersecretvalue",
+        "1//03oXgyDkn-longrefreshtoken",
+        "ya29.a0AQvPyI-longaccesstoken",
+        "plaintext-key-value",
+        "AKIAEXAMPLE123",
+        "verysecrets3keyvalue",
+    ):
+        assert leaked not in blob, f"secret leaked: {leaked}"
+    assert "REDACTED" in blob
+    # Non-secret values (folder_id, bucket) are preserved.
+    assert "FID-public" in blob
+    assert "public-bucket" in blob
+    # Source object was not mutated (owning-admin /secrets reveal needs cleartext).
+    assert payload["profiles"][1]["profile"]["storage"]["s3"]["access_key"] == "AKIAEXAMPLE123"
+
+
+def test_fm2_admin_gate_denies_anonymous() -> None:
+    import asyncio
+
+    mw = HealthCheckMiddleware(
+        _noop_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    async def _go():
+        return await mw._admin_gate(
+            scope={"type": "http", "method": "GET", "headers": []}, headers={}
+        )
+
+    is_authenticated, is_admin, principal = asyncio.run(_go())
+    assert is_authenticated is False
+    assert is_admin is False
