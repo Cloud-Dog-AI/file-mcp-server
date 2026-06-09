@@ -74,6 +74,21 @@ class SearchContentInput(BaseModel):
     max_results: Optional[int] = Field(None, description="Maximum results to return")
 
 
+class SearchPathsInput(BaseModel):
+    """W28C-1702 (FM7): explicit schema for search_paths / search_path_names.
+
+    The handler signature is ``search_path_names(query=...)``; advertising
+    ``query`` (not ``name``) stops ``normalize_and_filter_tool_args`` from
+    stripping the caller's value and matches index-retriever's W28A-824
+    fallback contract.
+    """
+
+    query: str = Field(..., description="Filename/path pattern to search for")
+    glob: Optional[str] = Field(None, description="Glob pattern to filter files (e.g. '*.md')")
+    regex: bool = Field(False, description="Treat query as a regular expression")
+    max_results: Optional[int] = Field(None, description="Maximum number of matches to return")
+
+
 class SedEditFileInput(BaseModel):
     path: str = Field(..., description="File path to edit")
     op: Optional[str] = Field(None, description="Operation: replace, delete, insert")

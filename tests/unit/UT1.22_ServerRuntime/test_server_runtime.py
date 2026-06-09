@@ -104,6 +104,8 @@ class _FakeBindResult:
         self.folder_id = "folder123"
         self.config_path = "/tmp/config.yaml"
         self.folder_url = "https://drive.google.com/drive/folders/folder123"
+        # W28C-1702 (FM8): mirror the real GoogleDriveBindResult.db_row_id field.
+        self.db_row_id = None
 
 
 class _StubA2AVerifier:

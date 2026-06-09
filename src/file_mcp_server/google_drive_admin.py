@@ -62,6 +62,7 @@ class GoogleDriveBindResult:
     folder_name: str
     folder_url: str
     config_path: str
+    db_row_id: str | None = None  # W28C-1702 (FM8): id of the durable file_storage_profiles row
 
 
 _PENDING: Dict[str, PendingGoogleDriveAuth] = {}
@@ -146,8 +147,16 @@ def render_setup_page(
     prefills: dict[str, str] | None = None,
     has_client_secret: bool = False,
     folder_url_example: str = "",
+    status_banner: str = "",
 ) -> str:
-    """Execute render setup page."""
+    """Execute render setup page.
+
+    W28C-1702 (FM9): ``status_banner`` is server-rendered HTML reflecting the
+    profile's DB-row state (NOT CONFIGURED / PARTIALLY CONFIGURED / CONFIGURED).
+    It is the authoritative connection indicator — the form's localStorage no
+    longer remembers credentials/identity (which faked an "already connected"
+    state with no real server-side badge).
+    """
     prefills = prefills or {}
 
     def _prefill(name: str) -> str:
@@ -219,6 +228,7 @@ def render_setup_page(
 </head>
 <body>
   <h1>Google Drive Profile Setup</h1>
+  {status_banner}
   {status_html}
   <p>Configure Google Drive for a selected file-mcp-server profile.</p>
   <form method="post" action="/admin/google-drive/start">
@@ -246,7 +256,11 @@ def render_setup_page(
   <script>
     (function () {{
       var storageKey = "file_mcp_google_drive_setup_v1";
-      var fields = ["profile", "user_email", "folder_input", "client_id", "redirect_uri", "token_uri"];
+      // W28C-1702 (FM9): only operator-default fields are remembered locally —
+      // NEVER credentials/identity (user_email/folder/client_id), which faked an
+      // "already connected" state. The authoritative connection state is the
+      // server-rendered banner above the form.
+      var fields = ["redirect_uri", "token_uri"];
       var defaults = {{
         redirect_uri: "{default_redirect}",
         token_uri: "{default_token_uri}"
@@ -437,6 +451,43 @@ def _fetch_folder(
     return first["id"], first.get("name", ""), first.get("webViewLink", "")
 
 
+def _merge_google_drive_into_profile(
+    profile_mapping: Dict,
+    *,
+    user_email: str,
+    folder_id: str,
+    folder_url: str,
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+    access_token: str,
+    redirect_uri: str,
+    token_uri: str,
+) -> Dict:
+    """In-place: set the google_drive storage block on a profile mapping.
+
+    W28C-1702 (FM8): shared by the ephemeral config.yaml writer and the durable
+    DB-row persister so both produce the same google_drive block.
+    """
+    storage = profile_mapping.setdefault("storage", {})
+    if not isinstance(storage, dict):
+        raise RuntimeError("profile.storage is not a mapping")
+    storage["backend"] = "google_drive"
+    drive = storage.setdefault("google_drive", {})
+    if not isinstance(drive, dict):
+        raise RuntimeError("profile.storage.google_drive is not a mapping")
+    drive["user_email"] = user_email
+    drive["folder_id"] = folder_id
+    drive["folder_url"] = folder_url
+    drive["client_id"] = client_id
+    drive["client_secret"] = client_secret
+    drive["refresh_token"] = refresh_token
+    drive["access_token"] = access_token
+    drive["redirect_uri"] = redirect_uri
+    drive["token_uri"] = token_uri
+    return profile_mapping
+
+
 def _update_profile_google_drive(
     *,
     config_path: Path,
@@ -451,7 +502,15 @@ def _update_profile_google_drive(
     redirect_uri: str,
     token_uri: str,
 ) -> None:
-    """Handle update profile google drive."""
+    """Update the in-image config.yaml (in-flight diagnostic ONLY).
+
+    W28C-1702 (FM8): the canonical durable home for these tokens is the
+    ``file_storage_profiles`` DB row written by
+    ``_persist_profile_google_drive_to_db``. This config.yaml update is a
+    convenience for in-flight inspection (``grep google_drive
+    /app/config.yaml``) and is OVERWRITTEN on every container recreate — DO
+    NOT rely on it for durability.
+    """
     raw = load_yaml(str(config_path), missing_ok=True)
     raw.setdefault("profiles", {})
     profiles = raw["profiles"]
@@ -461,34 +520,145 @@ def _update_profile_google_drive(
     prof = profiles[profile]
     if not isinstance(prof, dict):
         raise RuntimeError(f"profile {profile} is not a mapping")
-    storage = prof.setdefault("storage", {})
-    if not isinstance(storage, dict):
-        raise RuntimeError(f"profile {profile}.storage is not a mapping")
-    storage["backend"] = "google_drive"
-    drive = storage.setdefault("google_drive", {})
-    if not isinstance(drive, dict):
-        raise RuntimeError(f"profile {profile}.storage.google_drive is not a mapping")
-    drive["user_email"] = user_email
-    drive["folder_id"] = folder_id
-    drive["folder_url"] = folder_url
-    drive["client_id"] = client_id
-    drive["client_secret"] = client_secret
-    drive["refresh_token"] = refresh_token
-    drive["access_token"] = access_token
-    drive["redirect_uri"] = redirect_uri
-    drive["token_uri"] = token_uri
+    _merge_google_drive_into_profile(
+        prof,
+        user_email=user_email,
+        folder_id=folder_id,
+        folder_url=folder_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        refresh_token=refresh_token,
+        access_token=access_token,
+        redirect_uri=redirect_uri,
+        token_uri=token_uri,
+    )
     config_path.write_text(safe_dump(raw, sort_keys=False), encoding="utf-8")
 
 
+def _persist_profile_google_drive_to_db(
+    *,
+    db_session_manager,
+    file_storage_profile_model,
+    profile: str,
+    user_email: str,
+    folder_id: str,
+    folder_url: str,
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+    access_token: str,
+    redirect_uri: str,
+    token_uri: str,
+) -> str:
+    """W28C-1702 (FM8): upsert OAuth tokens into file_storage_profiles.config_json.
+
+    This is the DURABLE persistence path. ``/workspace/database/file_mcp.db``
+    survives container recreates via the bind-mounted volume; the DB-overlay
+    path in ``server_runtime._merge_active_db_profiles_into_config`` reads
+    ``is_active=True`` rows back at startup and merges them into the runtime
+    ProfileConfig with DB taking precedence over env-derived defaults.
+
+    Behaviour:
+      * Locate an is_active row matching ``profile`` (preferred); else any
+        active row whose backend is ``google_drive``; else create a NEW row.
+      * Merge captured GDrive fields into the row's existing config_json
+        (preserving auth, scope, etc.).
+      * Soft-deleted ``<name>__deleted_<ts>_<rand>`` rows stay archived (audit).
+
+    Returns the DB row id for evidence/audit-log citation.
+    """
+    import json as _json
+    import uuid as _uuid
+
+    with db_session_manager.session() as session:
+        row = (
+            session.query(file_storage_profile_model)
+            .filter_by(name=profile, is_active=True)
+            .first()
+        )
+        existing_config: Dict = {}
+        if row is not None:
+            try:
+                existing_config = _json.loads(row.config_json) if row.config_json else {}
+            except Exception:
+                existing_config = {}
+        else:
+            row = (
+                session.query(file_storage_profile_model)
+                .filter_by(backend="google_drive", is_active=True)
+                .first()
+            )
+            if row is not None:
+                try:
+                    existing_config = (
+                        _json.loads(row.config_json) if row.config_json else {}
+                    )
+                except Exception:
+                    existing_config = {}
+
+        if not isinstance(existing_config, dict):
+            existing_config = {}
+
+        merged = _merge_google_drive_into_profile(
+            dict(existing_config),
+            user_email=user_email,
+            folder_id=folder_id,
+            folder_url=folder_url,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            access_token=access_token,
+            redirect_uri=redirect_uri,
+            token_uri=token_uri,
+        )
+        merged_json = _json.dumps(merged, sort_keys=False)
+
+        if row is None:
+            row_id = f"prof_{_uuid.uuid4().hex[:12]}"
+            row = file_storage_profile_model(
+                id=row_id,
+                name=profile,
+                display_name=profile,
+                backend="google_drive",
+                config_json=merged_json,
+                is_active=True,
+            )
+            session.add(row)
+        else:
+            row.backend = "google_drive"
+            row.config_json = merged_json
+            row.is_active = True
+            row_id = row.id
+
+        session.commit()
+        return str(row_id)
+
+
 def complete_oauth_callback(
-    *, state: str, code: str, config_path: Path
+    *,
+    state: str,
+    code: str,
+    config_path: Path,
+    db_session_manager=None,
+    file_storage_profile_model=None,
+    reload_callback=None,
 ) -> GoogleDriveBindResult:
-    """Execute complete oauth callback."""
+    """Execute complete oauth callback.
+
+    W28C-1702 (FM8): callers SHOULD supply ``db_session_manager`` +
+    ``file_storage_profile_model`` + ``reload_callback`` so captured OAuth
+    tokens persist to the DB (the only durable home — ``/app/config.yaml`` is
+    ephemeral and lost on container recreate) and the runtime backend refreshes
+    live without a container restart. When the DB args are omitted the function
+    falls back to the legacy config.yaml-only behaviour for backward compat, but
+    the caller MUST surface that the tokens are NOT durable.
+    """
     pending = _take_pending(state)
     access_token, refresh_token = _exchange_code(pending, code)
     folder_id, folder_name, folder_url = _fetch_folder(
         access_token, pending.folder_input, api_base_uri=pending.api_base_uri
     )
+    # In-image config.yaml: in-flight diagnostic / inspection (ephemeral).
     _update_profile_google_drive(
         config_path=config_path,
         profile=pending.profile,
@@ -502,6 +672,33 @@ def complete_oauth_callback(
         redirect_uri=pending.redirect_uri,
         token_uri=pending.token_uri,
     )
+    # DURABLE persistence: DB row (the only path that survives container
+    # recreate — RULES §0A.WS bind-mounted /workspace volume + W28M-1603 brief).
+    db_row_id = None
+    if db_session_manager is not None and file_storage_profile_model is not None:
+        db_row_id = _persist_profile_google_drive_to_db(
+            db_session_manager=db_session_manager,
+            file_storage_profile_model=file_storage_profile_model,
+            profile=pending.profile,
+            user_email=pending.user_email,
+            folder_id=folder_id,
+            folder_url=folder_url,
+            client_id=pending.client_id,
+            client_secret=pending.client_secret,
+            refresh_token=refresh_token,
+            access_token=access_token,
+            redirect_uri=pending.redirect_uri,
+            token_uri=pending.token_uri,
+        )
+        # Live refresh: re-merge DB profiles into runtime config without
+        # waiting for a container recreate.
+        if callable(reload_callback):
+            try:
+                reload_callback()
+            except Exception:  # noqa: BLE001
+                # Refresh failure is non-fatal — the row is durable; the next
+                # restart picks it up via _merge_active_db_profiles_into_config.
+                pass
     return GoogleDriveBindResult(
         profile=pending.profile,
         user_email=pending.user_email,
@@ -509,4 +706,5 @@ def complete_oauth_callback(
         folder_name=folder_name,
         folder_url=folder_url,
         config_path=str(config_path),
+        db_row_id=db_row_id,
     )

@@ -655,6 +655,21 @@ class HealthCheckMiddleware:
             ).split(",")
             if name.strip()
         ]
+        # W28C-1702 (FM5): the env-derived list above is collapsed at startup.
+        # main.py sets FILE_MCP_ACTIVE_PROFILE_NAMES from the config-FILE profiles
+        # BEFORE _merge_active_db_profiles_into_config overlays the additional
+        # active DB profiles, so /status.service_metrics.profile_count read 1. The
+        # authoritative active-profile set is the DB-merged config this middleware
+        # already holds; derive the list from it when present (the env list is the
+        # fallback only when no config is wired, e.g. isolated unit tests).
+        if config is not None and getattr(config, "profiles", None):
+            self.profile_names = list(config.profiles.keys())
+        assert len(self.profile_names) >= 1  # tripwire: must never collapse to 0
+        self.logger.info(
+            "profile_names_loaded",
+            names=self.profile_names,
+            count=len(self.profile_names),
+        )
         self.admin_ui_enabled = _to_bool(
             read_env_var("FILE_MCP_ADMIN_UI_ENABLED"), default=False
         )
@@ -2454,6 +2469,111 @@ class HealthCheckMiddleware:
                 base[key] = self._deep_copy_jsonish(value)
         return base
 
+    def _compute_profile_status(
+        self, *, backend: str, storage: dict[str, Any], roots: list[str]
+    ) -> dict[str, Any]:
+        """W28C-1702 (FM1): server-side 'configured' status for the SPA badge.
+
+        Single source of truth computed from the DB-merged profile config per
+        backend, replacing the SPA's broken single-profile ``backend_status``
+        heuristic that rendered every non-local backend as ``not_configured``.
+        Resolves ``${ENV}`` references and treats unresolved placeholders as
+        absent. Returns ``status`` in {configured, partially_configured,
+        not_configured} plus the list of ``missing`` required fields.
+        """
+        b = str(backend or "").strip().lower()
+        storage = storage if isinstance(storage, dict) else {}
+
+        def _missing(block_key: str, *fields: str) -> list[str]:
+            block = storage.get(block_key)
+            block = block if isinstance(block, dict) else {}
+            return [f for f in fields if not self._configured_value(block.get(f))]
+
+        if b == "local":
+            required = ["roots"]
+            missing = [] if roots else ["roots"]
+        elif b == "s3":
+            required = ["endpoint", "bucket", "access_key", "secret_key"]
+            missing = _missing("s3", *required)
+        elif b == "webdav":
+            required = ["base_url", "username", "password"]
+            missing = _missing("webdav", *required)
+        elif b == "ftp":
+            required = ["host", "username", "password"]
+            missing = _missing("ftp", *required)
+        elif b in {"google_drive", "gdrive", "drive"}:
+            required = [
+                "refresh_token",
+                "folder_id",
+                "user_email",
+                "client_id",
+                "client_secret",
+            ]
+            missing = _missing("google_drive", *required)
+        else:
+            required = []
+            missing = []
+
+        if not missing:
+            status = "configured"
+        elif required and len(missing) >= len(required):
+            status = "not_configured"
+        else:
+            status = "partially_configured"
+        return {"status": status, "missing": missing}
+
+    def _render_gdrive_status_banner(self, profile_name: str) -> str:
+        """W28C-1702 (FM9): server-rendered banner reflecting the profile's
+        google_drive DB state — the authoritative connection indicator (the
+        admin form's localStorage prefill no longer fakes 'already connected').
+        Computes the google_drive-block status regardless of the profile's
+        declared backend, so the banner is honest for any selected profile.
+        """
+        storage: dict[str, Any] = {}
+        for item in self._list_profile_payloads():
+            if item.get("name") == profile_name:
+                prof = item.get("profile") or {}
+                storage = prof.get("storage") if isinstance(prof, dict) else {}
+                break
+        if not isinstance(storage, dict):
+            storage = {}
+        gd_status = self._compute_profile_status(
+            backend="google_drive", storage=storage, roots=[]
+        )
+        status = gd_status["status"]
+        missing = gd_status["missing"]
+        gd = storage.get("google_drive") if isinstance(storage, dict) else {}
+        user_email = (
+            self._configured_value((gd or {}).get("user_email"))
+            if isinstance(gd, dict)
+            else ""
+        )
+        if status == "configured":
+            colour, label = "#0b8043", "&#x1F7E2; CONFIGURED"
+            who = f" — last authorised <b>{escape(user_email)}</b>" if user_email else ""
+            detail = (
+                f"Google Drive is connected for profile <b>{escape(profile_name)}</b>{who}. "
+                "Submitting the form below re-authorises and REPLACES the stored tokens."
+            )
+        elif status == "partially_configured":
+            colour, label = "#b07000", "&#x1F7E1; PARTIALLY CONFIGURED"
+            detail = (
+                f"Profile <b>{escape(profile_name)}</b> is missing: "
+                f"<code>{escape(', '.join(missing))}</code>. Complete the form to finish setup."
+            )
+        else:
+            colour, label = "#b00020", "&#x1F534; NOT CONFIGURED"
+            detail = (
+                f"No captured Google Drive tokens for profile <b>{escape(profile_name)}</b>."
+            )
+        return (
+            f'<div style="padding:10px 12px;margin:12px 0;border:1px solid {colour};'
+            f'border-left:6px solid {colour};border-radius:4px;background:#fafafa;">'
+            f'<div style="font-weight:700;color:{colour};">{label}</div>'
+            f'<div style="font-size:0.95em;color:#333;">{detail}</div>'
+            "</div>"
+        )
+
     def _profile_payload(self, *, name: str, profile: dict[str, Any]) -> dict[str, Any]:
         """Normalise a profile entry for API/UI responses."""
         normalized_profile = _normalise_profile_mapping(
@@ -2475,11 +2595,20 @@ class HealthCheckMiddleware:
         api_keys = []
         if isinstance(auth, dict):
             api_keys = [str(item) for item in (auth.get("api_keys") or [])]
+        # W28C-1702 (FM1): per-row 'configured' status so the SPA badge has a
+        # server-computed single source of truth (was always not_configured).
+        status_info = self._compute_profile_status(
+            backend=backend,
+            storage=storage if isinstance(storage, dict) else {},
+            roots=roots,
+        )
         return {
             "name": name,
             "backend": backend,
             "roots": roots,
             "api_keys_count": len(api_keys),
+            "status": status_info["status"],
+            "status_missing": status_info["missing"],
             "profile": normalized_profile,
         }
 
@@ -4022,6 +4151,7 @@ class HealthCheckMiddleware:
                 },
                 has_client_secret=bool(prefill_values.get("client_secret", "")),
                 folder_url_example=prefill_values.get("folder_url_example", ""),
+                status_banner=self._render_gdrive_status_banner(prefill_profile),
             )
             await self._send_html(send, status=200, html=html)
             return
@@ -4128,23 +4258,51 @@ class HealthCheckMiddleware:
                 return
             try:
                 callback_fn = _resolve_complete_oauth_callback()
+                # W28C-1702 (FM8): pass the DB session manager + the
+                # FileStorageProfile model + reload_callback so captured OAuth
+                # tokens persist to the file_storage_profiles row (durable on the
+                # /workspace volume) instead of only to /app/config.yaml
+                # (ephemeral, lost on container recreate).
+                db_session_manager = None
+                if self.db_runtime is not None:
+                    db_session_manager = self.db_runtime.session_manager
                 result = callback_fn(
                     state=state,
                     code=code,
                     config_path=path_utils.as_path(path_utils.resolve_path(self.active_config)),
+                    db_session_manager=db_session_manager,
+                    file_storage_profile_model=FileStorageProfile,
+                    reload_callback=self.reload_callback
+                    if self.admin_apply_on_callback and callable(self.reload_callback)
+                    else None,
                 )
-                reload_message = "Restart server to apply updated config."
-                if self.admin_apply_on_callback and callable(self.reload_callback):
+                # complete_oauth_callback already triggers reload_callback when DB
+                # args are supplied; this block narrates the durability outcome.
+                if result.db_row_id is not None:
+                    reload_message = (
+                        f"Persisted to DB row {result.db_row_id}; config "
+                        "hot-reloaded; survives container recreate."
+                    )
+                elif self.admin_apply_on_callback and callable(self.reload_callback):
                     try:
                         reload_info = self.reload_callback()
-                        reload_message = f"Config hot-reloaded for profile {reload_info.get('profile', self.profile_name)}."
+                        reload_message = (
+                            "Config hot-reloaded for profile "
+                            f"{reload_info.get('profile', self.profile_name)}; "
+                            "NOTE: this run did NOT persist to DB — tokens are in "
+                            "/app/config.yaml only and WILL be lost on container "
+                            "recreate. Investigate db_runtime availability."
+                        )
                     except Exception as exc:
                         reload_message = f"Config written but hot-reload failed: {exc}"
+                else:
+                    reload_message = "Restart server to apply updated config."
                 html = (
                     "<h1>Google Drive linked successfully</h1>"
                     f"<p>Profile: <b>{result.profile}</b></p>"
                     f"<p>Folder: <b>{result.folder_name}</b> ({result.folder_id})</p>"
                     f"<p>Config updated: <code>{result.config_path}</code></p>"
+                    f"<p>DB row: <code>{result.db_row_id or '(not persisted)'}</code></p>"
                     f'<p>Folder URL: <a href="{result.folder_url}">{result.folder_url}</a></p>'
                     f"<p>{escape(reload_message)}</p>"
                 )
@@ -4154,6 +4312,7 @@ class HealthCheckMiddleware:
                         "profile": result.profile,
                         "folder_id": result.folder_id,
                         "config_path": result.config_path,
+                        "db_row_id": result.db_row_id,
                     },
                 )
                 await self._send_html(send, status=200, html=html)
@@ -6427,7 +6586,7 @@ def build_tool_registry(
     from file_tools.tools.schemas import (
         ReadFileInput, WriteFileInput, CreateDirInput, ListDirInput,
         ConvertFileInput, ValidateFileInput, SearchContentInput,
-        SedEditFileInput, ReplaceRegexInput,
+        SedEditFileInput, ReplaceRegexInput, SearchPathsInput,
     )
 
     tools = ToolRegistry()
@@ -6541,9 +6700,28 @@ def build_tool_registry(
             handler=list_path,
         )
     )
+    # W28C-1702 (FM7): advertise `query` (handler is search_path_names(query=...))
+    # so callers send the right field and normalize_and_filter_tool_args keeps it
+    # (an empty schema + the `name`->`path` alias caused `TypeError: missing query`);
+    # and register search_path_names as a documented alias so direct calls resolve
+    # (was `Unknown tool: search_path_names`). index-retriever W28A-824 uses `query`.
     tools.register(
         ToolDefinition(
-            meta=ToolMeta(name="search_paths", description="Search file paths"),
+            meta=ToolMeta(
+                name="search_paths",
+                description="Search file paths by name. Parameters: query (required, filename pattern), glob (optional), regex (optional), max_results (optional)",
+            ),
+            schema_def=ToolSchema(input_model=SearchPathsInput),
+            handler=search_path_names,
+        )
+    )
+    tools.register(
+        ToolDefinition(
+            meta=ToolMeta(
+                name="search_path_names",
+                description="Alias of search_paths. Search file paths by name. Parameters: query (required), glob, regex, max_results.",
+            ),
+            schema_def=ToolSchema(input_model=SearchPathsInput),
             handler=search_path_names,
         )
     )
@@ -7110,7 +7288,7 @@ def _truncate_value(value: Any) -> Any:
 
 
 def create_profile_tool_handler(
-    registry_provider: Callable[[], ToolRegistry],
+    registry_provider: Callable[..., ToolRegistry],
     tool_name: str,
     *,
     default_profile_name: str,
@@ -7131,12 +7309,27 @@ def create_profile_tool_handler(
     def wrapped_handler(*args, **kwargs):
         """Execute wrapped handler."""
         started = time.perf_counter()
+        # W28C-1702 (FM3): an explicit per-call ``profile`` argument selects the
+        # storage profile to dispatch against (explicit arg > request header /
+        # context-var > default). Pop it so it is NOT forwarded to the raw tool
+        # handler (whose signature does not accept it) and is not logged as a
+        # tool argument.
+        explicit_profile = kwargs.pop("profile", None)
+        explicit_profile = (
+            str(explicit_profile).strip() if explicit_profile is not None else ""
+        )
         params = _truncate_value(kwargs)
         paths = _extract_paths_from_params(kwargs)
         profile_name = (
-            get_request_profile_name(default_profile_name) or default_profile_name
+            explicit_profile
+            or get_request_profile_name(default_profile_name)
+            or default_profile_name
         )
-        registry = registry_provider()
+        if explicit_profile:
+            # Make the selected profile authoritative for scope checks, audit,
+            # and downstream get_request_profile_name() reads in this request.
+            set_request_profile_name(explicit_profile)
+        registry = registry_provider(profile_name)
         current_def = registry.get(tool_name)
         raw_tool_handler = current_def.handler
         audit_writer = getattr(registry, "audit_writer", None)
@@ -7267,7 +7460,32 @@ def create_profile_tool_handler(
             raise
 
     _sig_handler = registry_provider().get(tool_name).handler
-    setattr(wrapped_handler, "__signature__", inspect.signature(_sig_handler))
+    _base_sig = inspect.signature(_sig_handler)
+    # W28C-1702 (FM3): advertise + accept an optional per-call ``profile`` selector.
+    # normalize_and_filter_tool_args filters by THIS signature, so without adding
+    # ``profile`` here the argument would be stripped before wrapped_handler runs.
+    if "profile" not in _base_sig.parameters:
+        _params = list(_base_sig.parameters.values())
+        _profile_param = inspect.Parameter(
+            "profile",
+            inspect.Parameter.KEYWORD_ONLY,
+            default=None,
+            annotation=Optional[str],
+        )
+        _var_kw_idx = next(
+            (
+                i
+                for i, p in enumerate(_params)
+                if p.kind == inspect.Parameter.VAR_KEYWORD
+            ),
+            None,
+        )
+        if _var_kw_idx is None:
+            _params.append(_profile_param)
+        else:
+            _params.insert(_var_kw_idx, _profile_param)
+        _base_sig = _base_sig.replace(parameters=_params)
+    setattr(wrapped_handler, "__signature__", _base_sig)
     wrapped_handler.__name__ = f"wrapped_{tool_name}"
     wrapped_handler.__doc__ = f"Dynamic wrapper for tool {tool_name}"
     wrapped_handler.__annotations__ = getattr(_sig_handler, "__annotations__", {})
@@ -7412,26 +7630,37 @@ def build_mcp_server(
             jobs_runtime_by_profile[selected_name] = runtime
             return runtime
 
-    def _registry_provider() -> ToolRegistry:
-        """Handle registry provider."""
-        profile_name = (
-            get_request_profile_name(default_profile_name) or default_profile_name
+    def _registry_provider(profile_name: str | None = None) -> ToolRegistry:
+        """Resolve the per-profile tool registry.
+
+        W28C-1702 (FM3): accept an explicit ``profile_name`` so a per-request
+        ``profile`` tool argument can dispatch against the right backend. When
+        omitted, fall back to the request-scoped profile (X-File-MCP-Profile
+        header / context-var, FM4) then the default — preserving prior behaviour.
+        """
+        selected = (
+            str(profile_name or "").strip()
+            or get_request_profile_name(default_profile_name)
+            or default_profile_name
         )
         with registry_lock:
-            registry = registry_by_profile.get(profile_name)
+            registry = registry_by_profile.get(selected)
             if registry is None:
-                profile = profiles_holder.get(profile_name)
+                profile = profiles_holder.get(selected)
                 if profile is None:
+                    selected = default_profile_name
+                    cached = registry_by_profile.get(selected)
+                    if cached is not None:
+                        return cached
                     profile = profiles_holder[default_profile_name]
-                    profile_name = default_profile_name
                 registry = build_tool_registry(
                     profile,
-                    profile_name=profile_name,
+                    profile_name=selected,
                     logger=logger,
                     admin_identity_service=admin_identity_service,
-                    jobs_runtime=_jobs_runtime_provider(profile_name),
+                    jobs_runtime=_jobs_runtime_provider(selected),
                 )
-                registry_by_profile[profile_name] = registry
+                registry_by_profile[selected] = registry
             return registry
 
     def _reload_registry(
@@ -7585,6 +7814,12 @@ async def run_mcp_http_server(
         db_runtime=db_runtime,
         logger=logger,
     )
+
+    # W28C-1702 (FM5): republish the active-profile env to the DB-MERGED set so
+    # /status.service_metrics.profile_count and FILE_MCP_ACTIVE_PROFILE_NAMES agree.
+    # main.py set this var from the config-FILE profiles BEFORE this merge, which
+    # collapsed it to "default" (profile_count read 1 against ~10 active profiles).
+    os.environ["FILE_MCP_ACTIVE_PROFILE_NAMES"] = ",".join(config.profiles.keys())
 
     # Ensure the default profile exists after merge
     if default_profile_name not in config.profiles:

@@ -323,6 +323,24 @@ def build_tool_contracts(
                 tool_input_schema = definition.schema_def.input_model.model_json_schema()
             except Exception:
                 pass
+        # W28C-1702 (FM3): advertise the optional per-call ``profile`` selector on
+        # every tool so MCP clients can dispatch a single call against a named
+        # storage profile (explicit arg > X-File-MCP-Profile header > default).
+        tool_input_schema = dict(tool_input_schema or {})
+        _props = dict(tool_input_schema.get("properties") or {})
+        _props.setdefault(
+            "profile",
+            {
+                "type": "string",
+                "title": "Profile",
+                "description": (
+                    "Optional storage profile to dispatch this call against. "
+                    "Defaults to the X-File-MCP-Profile header or the active profile."
+                ),
+            },
+        )
+        tool_input_schema["properties"] = _props
+        tool_input_schema.setdefault("type", "object")
         out[name] = ToolContract(
             name=name,
             handler=handler,
