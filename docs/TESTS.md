@@ -125,6 +125,7 @@ The following test filenames are present in the repository and are included for 
 - `test_logging_compliance.py`
 - `test_observability.py`
 - `test_package_compliance.py`
+- `test_param_alias_fallback.py`
 - `test_posix.py`
 - `test_profile_crud.py`
 - `test_profile_lifecycle.py`
@@ -176,6 +177,8 @@ The following test filenames are present in the repository and are included for 
 | Requirement | Test File | Test Function/Class | Status |
 |---|---|---|---|
 | FR1.1 (Tool Boundary & Schema) | `tests/unit/UT1.24_ToolsRegistry/test_tools_registry.py` | UT1.24 suite | COVERED |
+| FR1.1 (Tool Boundary & Schema) | `tests/unit/UT1.36_ParamAliasFallback/test_param_alias_fallback.py` | UT1.36 suite (alias-source/param collisions; preserves `b64_decode_to_file` `data`) | COVERED |
+| FR1.1 (Tool Boundary & Schema) | `tests/integration/IT1.3_IntegrationBase64FileOps/test_integration_base64_file_ops.py` | `test_base64_file_roundtrip_over_http` | COVERED |
 | FR1.3 (Config Precedence) | `tests/unit/UT1.4_ConfigLoader/test_config_loader.py` | `test_load_config_env_precedence`, `test_load_config_os_environ_precedence`, `test_load_config_defaults_only`, `test_load_config_env_override_precedence` | COVERED |
 | FR1.5 (Authentication) | `tests/unit/UT1.3_Auth/test_auth.py` | `test_auth_accepts_valid_key`, `test_auth_rejects_invalid_key`, `test_auth_rejects_missing_token`, `test_multi_profile_verifier_query_profile_and_key_routing` | COVERED |
 | FR1.6 (Scope Enforcement) | `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py` | `test_scope_denies_outside_root`, `test_scope_denies_glob`, `test_scope_allows_glob`, `test_scope_denies_extension`, `test_scope_denies_read_only_on_write` | COVERED |

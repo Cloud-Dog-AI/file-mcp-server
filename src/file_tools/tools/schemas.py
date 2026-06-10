@@ -158,6 +158,18 @@ def normalize_and_filter_tool_args(
     parameter (e.g. ``text``) to a canonical name (e.g. ``content``) that
     the handler's signature does not declare, which causes a TypeError.
 
+    Required-parameter recovery (W28A-822, re-landed to main by W28A-752):
+    blind alias normalization can strip a value whose key is itself a genuine
+    required parameter of the handler. The canonical example is
+    ``b64_decode_to_file(path, data, ...)`` — ``PARAM_ALIASES`` rewrites the
+    caller's ``data`` to ``content``, which the handler does not declare, so it
+    is filtered out while ``path`` survives. The all-or-nothing fallback below
+    only fires when *every* normalized key is rejected, so it misses this
+    partial collision. The recovery loop restores any still-missing required
+    parameter either from the caller's original key (``data``) or, where the
+    caller supplied the alias *target* form (``content``), from that value.
+    This is the defect surfaced by IT1.3/IT1.14.
+
     When normalization produces no matching parameters the original
     (pre-normalization) keys are tried as a fallback so that handlers
     whose parameter names happen to collide with alias *sources* still
@@ -172,6 +184,29 @@ def normalize_and_filter_tool_args(
         return normalized
 
     accepted = {k: v for k, v in normalized.items() if k in sig.parameters}
+
+    required = {
+        name
+        for name, p in sig.parameters.items()
+        if p.default is inspect.Parameter.empty
+        and p.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    }
+    missing = required - set(accepted.keys())
+    if missing:
+        for key in missing:
+            if key in args and key in sig.parameters:
+                accepted[key] = args[key]
+                continue
+            canonical = PARAM_ALIASES.get(key)
+            if (
+                canonical
+                and canonical in args
+                and canonical not in sig.parameters
+                and key in sig.parameters
+            ):
+                accepted[key] = args[canonical]
+
     if not accepted and args:
         accepted = {k: v for k, v in args.items() if k in sig.parameters}
     return accepted
