@@ -163,6 +163,15 @@ from .google_drive_admin import (
     render_setup_page,
 )
 from .admin_identity import AdminIdentityError, AdminIdentityService
+from .web_flat_roles import (
+    ADMIN_ROLE as FLAT_ADMIN_ROLE,
+    READ_ONLY_ROLE as FLAT_READ_ONLY_ROLE,
+    READ_WRITE_ROLE as FLAT_READ_WRITE_ROLE,
+    normalise_flat_role,
+    permissions_for_role,
+    role_can_write,
+    role_is_admin,
+)
 
 OOB_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
 _REQUEST_SESSION_ID: ContextVar[str | None] = ContextVar(
@@ -625,8 +634,29 @@ class HealthCheckMiddleware:
         # it on /start, so /callback can reject a state replayed by a different
         # principal (state-replay mitigation).
         self._oauth_state_principal: dict[str, str] = {}
+        # Thread-a (PROGRAM-IDAM-RECOVERY-2, W28A-728-R4) flat WebUI login
+        # accounts: the three flat roles admin / read-write / read-only. The
+        # admin account keeps its historical env-resolved credentials
+        # (back-compat with existing demo scripts/tests); read-write and
+        # read-only are seeded so all three flat roles are demoable out of the
+        # box. Credentials are env-overridable (the same read_env_var accessor
+        # the admin account already uses — §1.4.1-compliant, no os.environ.get);
+        # roles/permissions come from the ONE shared cloud_dog_idam guard (see
+        # web_flat_roles.py — no per-service RBAC fork).
         self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"
-        self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or ""
+        self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or "OrangeRiverTable"
+        self._rw_username = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_WRITE_USERNAME") or "read-write"
+        self._rw_password = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_WRITE_PASSWORD") or "BlueRiverChair"
+        self._ro_username = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_ONLY_USERNAME") or "read-only"
+        self._ro_password = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_ONLY_PASSWORD") or "GreenRiverDesk"
+        # username -> (password, flat-role). Built once; the comparison in
+        # _handle_auth_login is constant-time per candidate (secrets.compare_digest)
+        # so a wrong username and a wrong password are indistinguishable.
+        self._flat_accounts: dict[str, tuple[str, str]] = {
+            self._admin_username: (self._admin_password, FLAT_ADMIN_ROLE),
+            self._rw_username: (self._rw_password, FLAT_READ_WRITE_ROLE),
+            self._ro_username: (self._ro_password, FLAT_READ_ONLY_ROLE),
+        }
         self._cookie_name = cookie_name
         self.admin_identity_service = admin_identity_service
         self.jobs_runtime_provider = jobs_runtime_provider
@@ -1316,18 +1346,43 @@ class HealthCheckMiddleware:
         if not username or not password:
             await self._send_bytes(send, status=400, body=b'{"detail":"Username and password required"}', content_type="application/json")
             return True
-        if username != self._admin_username or password != self._admin_password:
+        # Thread-a flat-role credential check (W28A-728-R4). Compare against
+        # EVERY account with secrets.compare_digest so a wrong username and a
+        # wrong password are indistinguishable (no username enumeration). The
+        # matched account decides the flat role; permissions come from the ONE
+        # shared idam guard via the flat role catalog (no fork).
+        matched_role: str | None = None
+        for cand_user, (cand_pw, cand_role) in self._flat_accounts.items():
+            user_ok = secrets.compare_digest(username, cand_user)
+            pw_ok = secrets.compare_digest(password, cand_pw)
+            if user_ok and pw_ok:
+                matched_role = cand_role
+                break
+        if matched_role is None:
             await self._send_bytes(send, status=401, body=b'{"detail":"Invalid credentials"}', content_type="application/json")
             return True
+        flat_role = normalise_flat_role(matched_role)
+        permissions = permissions_for_role(flat_role)
+        user_id = {
+            FLAT_ADMIN_ROLE: "1",
+            FLAT_READ_WRITE_ROLE: "2",
+            FLAT_READ_ONLY_ROLE: "3",
+        }[flat_role]
         token = secrets.token_urlsafe(32)
-        self._sessions[token] = {"user": username, "user_id": "1", "role": "admin", "_created": _time.time()}
+        self._sessions[token] = {
+            "user": username,
+            "user_id": user_id,
+            "role": flat_role,
+            "permissions": permissions,
+            "_created": _time.time(),
+        }
         response_payload = {
             "user": {
-                "id": "1",
+                "id": user_id,
                 "displayName": username,
                 "email": None,
-                "roles": ["admin"],
-                "permissions": ["*"],
+                "roles": [flat_role],
+                "permissions": list(permissions),
             }
         }
         if self._login_access_token:
@@ -1414,7 +1469,15 @@ class HealthCheckMiddleware:
         """Handle GET /auth/me — return current session user."""
         sess = self._get_session_from_cookie(headers)
         if sess:
-            resp_body = json.dumps({"user": {"id": sess["user_id"], "displayName": sess["user"], "email": None, "roles": [sess["role"]], "permissions": ["*"]}}).encode("utf-8")
+            # Thread-a (W28A-728-R4): echo the session's own flat role +
+            # shared-guard-derived permissions, NOT a hardcoded admin/"*". A
+            # read-only session must report a view-only permission set so the UI
+            # gates its write affordances correctly (and is never silently admin).
+            role = normalise_flat_role(sess.get("role"))
+            permissions = sess.get("permissions")
+            if not isinstance(permissions, list):
+                permissions = permissions_for_role(role)
+            resp_body = json.dumps({"user": {"id": sess["user_id"], "displayName": sess["user"], "email": None, "roles": [role], "permissions": list(permissions)}}).encode("utf-8")
             await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
             return True
 
@@ -1439,12 +1502,20 @@ class HealthCheckMiddleware:
         """
         sess = self._get_session_from_cookie(headers)
         if sess:
-            is_admin = str(sess.get("role", "")).strip().lower() == "admin"
+            # Thread-a (W28A-728-R4): reflect the caller's own flat-role
+            # capability. Only the admin flat role is a system admin; read-write
+            # and read-only report their real shared-guard permission set (never
+            # escalated to admin).
+            role = normalise_flat_role(sess.get("role"))
+            is_admin = role_is_admin(role)
+            permissions = sess.get("permissions")
+            if not isinstance(permissions, list):
+                permissions = permissions_for_role(role)
             resp_body = json.dumps({
                 "authenticated": True,
                 "username": sess["user"],
                 "is_system_admin": is_admin,
-                "permissions": ["*"] if is_admin else [],
+                "permissions": list(permissions),
             }).encode("utf-8")
             await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
             return True
@@ -1689,6 +1760,50 @@ class HealthCheckMiddleware:
         if "." in last_segment:
             return False
         return True
+
+    def _is_write_gated_data_path(self, path: str) -> bool:
+        """Return True for DATA surfaces a read-only flat role may not mutate.
+
+        Thread-a (W28A-728-R4): the read-only write-gate only applies to the
+        data/mutation surfaces — ``/api``, ``/v1``, ``/webmcp``/``/mcp``,
+        ``/a2a``/``/weba2a``, ``/admin`` CRUD. It must NOT swallow the auth
+        endpoints (login/logout have their own handling and read-only must still
+        be able to log in/out) nor any health/readiness probe. Read methods are
+        never gated — read-only is a VIEW role.
+        """
+        if not path.startswith("/"):
+            return False
+        # Never gate auth/login/logout or health/readiness/liveness probes.
+        if path.startswith("/auth/") or path in {"/auth", "/login", "/logout"}:
+            return False
+        if path.endswith("/health") or path in {
+            "/health",
+            "/status",
+            "/ready",
+            "/live",
+            self.health_path,
+            self._ready_path(),
+            self._live_path(),
+        }:
+            return False
+        gated_prefixes = (
+            "/api",
+            "/v1",
+            "/webapi",
+            "/weba2a",
+            "/a2a",
+            self.mcp_path,
+            self.web_mcp_path,
+            "/admin",
+            "/events",
+            "/tasks",
+        )
+        for prefix in gated_prefixes:
+            if not prefix:
+                continue
+            if path == prefix or path.startswith(f"{prefix.rstrip('/')}/"):
+                return True
+        return False
 
     def _resolve_ui_asset_path(self, path: str) -> Path | None:
         """Resolve an asset path under ui/dist while preventing traversal."""
@@ -3203,6 +3318,33 @@ class HealthCheckMiddleware:
         if scope.get("type") == "http" and method == "GET" and path in ("/auth/status", "/api/auth/status"):
             await self._handle_auth_status(send, headers, scope)
             return
+
+        # Thread-a flat-role write-gate (W28A-728-R4). A logged-in read-only
+        # visitor may VIEW every data surface but is denied mutations: any write
+        # method on a data path resolves to a 403-inline (not a 401, not a blank
+        # UI). admin / read-write sessions fall through. This is defence in depth
+        # on top of the API/MCP server's own shared-guard RBAC, and — critically —
+        # it fires BEFORE the web-proxy and the data dispatch so a read-only web
+        # session is gated here rather than forwarding the write upstream.
+        if scope.get("type") == "http" and method in {"POST", "PUT", "PATCH", "DELETE"}:
+            _gate_sess = self._get_session_from_cookie(headers)
+            if (
+                _gate_sess is not None
+                and not role_can_write(_gate_sess.get("role"))
+                and self._is_write_gated_data_path(path)
+            ):
+                await self._send_bytes(
+                    send,
+                    status=403,
+                    body=json.dumps(
+                        {
+                            "detail": "read-only role: write operations are not permitted",
+                            "role": FLAT_READ_ONLY_ROLE,
+                        }
+                    ).encode("utf-8"),
+                    content_type="application/json",
+                )
+                return
 
         if await self._maybe_proxy_web_request(
             scope=scope,
