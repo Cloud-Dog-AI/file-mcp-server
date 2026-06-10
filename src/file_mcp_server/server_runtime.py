@@ -640,7 +640,8 @@ class HealthCheckMiddleware:
         # (back-compat with existing demo scripts/tests); read-write and
         # read-only are seeded so all three flat roles are demoable out of the
         # box. Credentials are env-overridable (the same read_env_var accessor
-        # the admin account already uses — §1.4.1-compliant, no os.environ.get);
+        # the admin account already uses — §1.4.1-compliant, config-routed, no
+        # direct-env reads);
         # roles/permissions come from the ONE shared cloud_dog_idam guard (see
         # web_flat_roles.py — no per-service RBAC fork).
         self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"

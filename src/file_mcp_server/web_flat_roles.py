@@ -14,6 +14,19 @@
 
 """Thread-a (PROGRAM-IDAM-RECOVERY-2) flat WebUI roles for file-mcp.
 
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Limited
+Description: Flat WebUI roles (admin / read-write / read-only) for the Thread-a
+  login, derived from the shared ``cloud_dog_idam`` RBACEngine + role_catalog
+  (no per-service fork). Names the three flat roles and resolves their
+  permission sets from the shared canonical catalog.
+Requirements: FR1.5, CS1.1
+Tasks: W28A-728-R5
+Architecture: 4.1 Authentication
+Tests: UT1.35
+Recent Change History:
+- 2026-06-10: W28A-728-R5 assured re-proof of the flat-login surface.
+
 Thread a is the *simple, flat* login that gets the demo back: three roles —
 ``admin`` (full), ``read-write`` (use it), ``read-only`` (view). No
 granularity (that is Thread b). Roles are computed via the ONE shared guard

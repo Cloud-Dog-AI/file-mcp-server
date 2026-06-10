@@ -73,7 +73,11 @@ The following test filenames are present in the repository and are included for 
 - `test_audit.py`
 - `test_audit_log_format.py`
 - `test_auth.py`
+- `test_auth_status_probe.py`
 - `test_config_loader.py`
+- `test_flat_role_login.py`
+- `test_w28c_1702_fm6_anon_gate.py`
+- `test_w28c_1702_forensic_fixes.py`
 - `test_convert.py`
 - `test_database_abstraction.py`
 - `test_database_migration.py`
