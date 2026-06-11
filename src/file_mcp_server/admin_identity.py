@@ -835,7 +835,11 @@ class AdminIdentityService:
                 ):
                     permissions.update(self._parse_json_list(group.roles_json))
 
-            role = "admin" if ("*" in permissions or "admin" in permissions) else "viewer"
+            # W28A-742 (D-VIEWER-1): PS-82 canonical non-admin role is
+            # "user" (was "viewer"). The "admin" branch via "*"/"admin" in
+            # permissions is unchanged — that's an explicit positive
+            # match, not an absent-role default (PS-82 §3.1).
+            role = "admin" if ("*" in permissions or "admin" in permissions) else "user"
             if not _allows_profile_permission(permissions, profile_name):
                 if self.logger:
                     self.logger.warning(

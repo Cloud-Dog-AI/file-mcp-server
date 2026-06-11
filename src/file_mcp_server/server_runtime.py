@@ -663,6 +663,13 @@ class HealthCheckMiddleware:
         self.jobs_runtime_provider = jobs_runtime_provider
         # W28A-1002-APPLY-A — CFG-06: A2A config-change broadcaster for admin CRUD.
         self.config_event_broadcaster = config_event_broadcaster
+        # W28A-742 — lazy IDAM keystone dependencies. The chokepoint
+        # (file_mcp_server.guard.check_route_guard) and the inline
+        # /idam/v1/rbac/bindings handlers call _w28a742_idam_dependencies()
+        # to obtain (engine, binding_repo, membership). Engine + membership
+        # are cached; binding_repo is built per-call (fresh session).
+        self._w28a742_engine = None
+        self._w28a742_membership = None
         # PS-92 (W28A-970h-V2): prefer TEST_A2A_BASE_PATH (legacy test override),
         # then configured `a2a_server.base_path`, then canonical default. Distinct
         # from top-level `http.base_path` (transport listener base).
@@ -1318,6 +1325,318 @@ class HealthCheckMiddleware:
         registry = self.registry_provider()
         tools = [_tool_payload(tool) for tool in registry.list_tools()]
         return {"tools": tools}
+
+    def _w28a742_session_manager(self):
+        """Return the file-mcp DB session manager, or ``None`` when absent.
+
+        The chokepoint (``guard.check_route_guard``) and the inline
+        ``/idam/v1/rbac/bindings`` handlers BOTH use this to open a fresh
+        per-request session for the ``RBACBindingRepository``. Returning
+        ``None`` causes the chokepoint to fail-open to the existing
+        dispatch — appropriate for bootstrap/test scenarios where the DB
+        runtime is not yet initialised.
+        """
+        if self.db_runtime is None:
+            return None
+        return getattr(self.db_runtime, "session_manager", None)
+
+    def _w28a742_get_engine(self):
+        """Lazily construct + cache the shared :class:`RBACEngine`.
+
+        The default ctor composes the W28A-741 6-baseline role+permission
+        catalog automatically; no per-service overlay is required for the
+        chokepoint or the binding write API.
+        """
+        if self._w28a742_engine is None:
+            try:
+                from cloud_dog_idam import RBACEngine
+                self._w28a742_engine = RBACEngine()
+            except Exception:
+                return None
+        return self._w28a742_engine
+
+    def _w28a742_get_membership(self):
+        """Lazily construct + cache the :class:`FileMcpMembershipResolver`."""
+        if self._w28a742_membership is None:
+            session_manager = self._w28a742_session_manager()
+            if session_manager is None:
+                return None
+            try:
+                from .idam_seam import FileMcpMembershipResolver
+                self._w28a742_membership = FileMcpMembershipResolver(
+                    session_manager=session_manager
+                )
+            except Exception:
+                return None
+        return self._w28a742_membership
+
+    async def _w28a742_handle_rbac_bindings(
+        self,
+        *,
+        scope,
+        receive,
+        send,
+        method: str,
+        idam_sub: str,
+        headers: dict[str, str],
+    ) -> bool:
+        """DB-backed ``/idam/v1/rbac/bindings`` handlers (W28A-742 §3.3).
+
+        Returns ``True`` when the request was served, ``False`` to fall
+        through to the existing dispatch.
+        """
+        session_manager = self._w28a742_session_manager()
+        if session_manager is None:
+            return False
+        try:
+            from cloud_dog_idam.domain.models import RBACBinding
+            from cloud_dog_idam.storage.sqlalchemy.repositories import (
+                RBACBindingRepository,
+            )
+        except Exception:
+            return False
+
+        # Determine binding id from sub-path. Both 'rbac/bindings' and
+        # 'rbac-bindings' aliases are stripped; trailing segment is the id.
+        if idam_sub.startswith("rbac/bindings"):
+            _trim = idam_sub[len("rbac/bindings"):]
+        else:
+            _trim = idam_sub[len("rbac-bindings"):]
+        _trim = _trim.strip("/")
+        binding_id: str | None = _trim or None
+
+        from .guard import (
+            _resolve_principal_lightweight,
+            _principal_has_wildcard,
+        )
+
+        principal = _resolve_principal_lightweight(self, scope, headers)
+        if principal is None:
+            await self._send_bytes(
+                send,
+                status=401,
+                body=b'{"ok":false,"error":{"code":"UNAUTHENTICATED"}}',
+                content_type="application/json",
+            )
+            return True
+        is_admin = _principal_has_wildcard(principal)
+
+        def _row_to_dict(row) -> dict:
+            return {
+                "binding_id": row.binding_id,
+                "subject_type": row.subject_type,
+                "subject_id": row.subject_id,
+                "project": row.project,
+                "resource_type": row.resource_type,
+                "resource_id": row.resource_id,
+                "permission": row.permission,
+                "granted_by": row.granted_by,
+                "created_at": (
+                    row.created_at.isoformat() if row.created_at is not None else None
+                ),
+            }
+
+        # GET (list) — idam.rbac.read
+        if method == "GET" and binding_id is None:
+            try:
+                with session_manager.session() as session:
+                    repo = RBACBindingRepository(session)
+                    if is_admin:
+                        try:
+                            from cloud_dog_idam.storage.sqlalchemy.repositories import (
+                                PaginationParams,
+                            )
+                            page = repo.list(PaginationParams(offset=0, limit=200))
+                            rows = list(getattr(page, "items", page))
+                        except Exception:
+                            rows = []
+                    else:
+                        rows = list(repo.by_subject("user", principal["user_id"]))
+                        membership = self._w28a742_get_membership()
+                        if membership is not None:
+                            try:
+                                gids = membership.groups_of(principal["user_id"])
+                            except Exception:
+                                gids = set()
+                            for gid in gids:
+                                rows.extend(repo.by_subject("group", gid))
+                    body = json.dumps([_row_to_dict(r) for r in rows]).encode("utf-8")
+                await self._send_bytes(
+                    send, status=200, body=body, content_type="application/json"
+                )
+                return True
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=500,
+                    body=b'{"ok":false,"error":{"code":"INTERNAL"}}',
+                    content_type="application/json",
+                )
+                return True
+
+        # POST (create) — idam.rbac.write (admin)
+        if method == "POST" and binding_id is None:
+            if not is_admin:
+                await self._send_bytes(
+                    send,
+                    status=403,
+                    body=b'{"ok":false,"error":{"code":"FORBIDDEN"}}',
+                    content_type="application/json",
+                )
+                return True
+            try:
+                body_bytes = await self._read_http_body(receive)
+                payload = json.loads(body_bytes or b"{}")
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=400,
+                    body=b'{"ok":false,"error":{"code":"BAD_REQUEST"}}',
+                    content_type="application/json",
+                )
+                return True
+            try:
+                import uuid as _uuid
+                from datetime import datetime as _dt, timezone as _tz
+
+                binding = RBACBinding(
+                    binding_id=str(payload.get("binding_id") or _uuid.uuid4()),
+                    subject_type=str(payload.get("subject_type") or ""),
+                    subject_id=str(payload.get("subject_id") or ""),
+                    project=str(payload.get("project") or ""),
+                    resource_type=str(payload.get("resource_type") or ""),
+                    resource_id=str(payload.get("resource_id") or "*"),
+                    permission=str(payload.get("permission") or ""),
+                    granted_by=str(principal["user_id"]),
+                    created_at=_dt.now(_tz.utc),
+                )
+                with session_manager.session() as session:
+                    repo = RBACBindingRepository(session)
+                    saved = repo.save(binding)
+                    session.commit()
+                    body = json.dumps(_row_to_dict(saved)).encode("utf-8")
+                engine = self._w28a742_get_engine()
+                inv = getattr(engine, "_invalidate_user", None)
+                if callable(inv):
+                    try:
+                        inv(binding.subject_id)
+                    except Exception:
+                        pass
+                await self._send_bytes(
+                    send, status=201, body=body, content_type="application/json"
+                )
+                return True
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=500,
+                    body=b'{"ok":false,"error":{"code":"INTERNAL"}}',
+                    content_type="application/json",
+                )
+                return True
+
+        # GET (by id) — idam.rbac.read
+        if method == "GET" and binding_id is not None:
+            try:
+                with session_manager.session() as session:
+                    repo = RBACBindingRepository(session)
+                    row = repo.get_by_id(binding_id)
+                if row is None:
+                    await self._send_bytes(
+                        send,
+                        status=404,
+                        body=b'{"ok":false,"error":{"code":"NOT_FOUND"}}',
+                        content_type="application/json",
+                    )
+                    return True
+                if not is_admin:
+                    own = (
+                        getattr(row, "subject_type", "") == "user"
+                        and getattr(row, "subject_id", None) == principal["user_id"]
+                    )
+                    group_owned = False
+                    if not own and getattr(row, "subject_type", "") == "group":
+                        membership = self._w28a742_get_membership()
+                        if membership is not None:
+                            try:
+                                group_owned = getattr(row, "subject_id", None) in (
+                                    membership.groups_of(principal["user_id"])
+                                )
+                            except Exception:
+                                group_owned = False
+                    if not (own or group_owned):
+                        await self._send_bytes(
+                            send,
+                            status=403,
+                            body=b'{"ok":false,"error":{"code":"FORBIDDEN"}}',
+                            content_type="application/json",
+                        )
+                        return True
+                body = json.dumps(_row_to_dict(row)).encode("utf-8")
+                await self._send_bytes(
+                    send, status=200, body=body, content_type="application/json"
+                )
+                return True
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=500,
+                    body=b'{"ok":false,"error":{"code":"INTERNAL"}}',
+                    content_type="application/json",
+                )
+                return True
+
+        # DELETE — idam.rbac.write (admin)
+        if method == "DELETE" and binding_id is not None:
+            if not is_admin:
+                await self._send_bytes(
+                    send,
+                    status=403,
+                    body=b'{"ok":false,"error":{"code":"FORBIDDEN"}}',
+                    content_type="application/json",
+                )
+                return True
+            try:
+                subject_id = None
+                with session_manager.session() as session:
+                    repo = RBACBindingRepository(session)
+                    row = repo.get_by_id(binding_id)
+                    if row is not None:
+                        subject_id = row.subject_id
+                    ok = repo.delete(binding_id, soft=False)
+                    session.commit()
+                if not ok:
+                    await self._send_bytes(
+                        send,
+                        status=404,
+                        body=b'{"ok":false,"error":{"code":"NOT_FOUND"}}',
+                        content_type="application/json",
+                    )
+                    return True
+                engine = self._w28a742_get_engine()
+                inv = getattr(engine, "_invalidate_user", None)
+                if callable(inv) and subject_id is not None:
+                    try:
+                        inv(subject_id)
+                    except Exception:
+                        pass
+                await self._send_bytes(
+                    send,
+                    status=204,
+                    body=b"",
+                    content_type="application/json",
+                )
+                return True
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=500,
+                    body=b'{"ok":false,"error":{"code":"INTERNAL"}}',
+                    content_type="application/json",
+                )
+                return True
+
+        return False
 
     def _get_session_from_cookie(self, headers: dict[str, str]) -> dict | None:
         """Extract and validate session from cookie header."""
@@ -2150,11 +2469,17 @@ class HealthCheckMiddleware:
         if verifier is None:
             session = self._get_session_from_cookie(headers)
             if session is not None:
+                # W28A-742 (PS-82 §3.1): NEVER default a missing role to
+                # "admin". Authenticated-but-empty sessions get the role
+                # the cookie actually carries (empty string if missing);
+                # the W28A-742 route-guard chokepoint enforces the
+                # authorise() decision, so a default-admin can no longer
+                # slip through.
                 return (
                     SimpleNamespace(
                         subject=session.get("user_id", "1"),
-                        scopes=["*"],
-                        roles=[session.get("role", "admin")],
+                        scopes=["*"] if session.get("role") == "admin" else [],
+                        roles=[str(session.get("role") or "")],
                     ),
                     self.profile_name,
                 )
@@ -2192,11 +2517,17 @@ class HealthCheckMiddleware:
         if not token:
             session = self._get_session_from_cookie(headers)
             if session is not None:
+                # W28A-742 (PS-82 §3.1): NEVER default a missing role to
+                # "admin". Authenticated-but-empty sessions get the role
+                # the cookie actually carries (empty string if missing);
+                # the W28A-742 route-guard chokepoint enforces the
+                # authorise() decision, so a default-admin can no longer
+                # slip through.
                 return (
                     SimpleNamespace(
                         subject=session.get("user_id", "1"),
-                        scopes=["*"],
-                        roles=[session.get("role", "admin")],
+                        scopes=["*"] if session.get("role") == "admin" else [],
+                        roles=[str(session.get("role") or "")],
                     ),
                     profile_name,
                 )
@@ -3283,24 +3614,87 @@ class HealthCheckMiddleware:
         method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
 
+        # Thread-a flat-role write-gate must fire before the generic
+        # no-unguarded-route chokepoint so authenticated read-only users get
+        # the explicit 403 read-only contract instead of a catalog 401/403.
+        if scope.get("type") == "http" and method in {"POST", "PUT", "PATCH", "DELETE"}:
+            _flat_gate_sess = self._get_session_from_cookie(headers)
+            if (
+                _flat_gate_sess is not None
+                and not role_can_write(_flat_gate_sess.get("role"))
+                and self._is_write_gated_data_path(path)
+            ):
+                await self._send_bytes(
+                    send,
+                    status=403,
+                    body=json.dumps(
+                        {
+                            "detail": "read-only role: write operations are not permitted",
+                            "role": FLAT_READ_ONLY_ROLE,
+                        }
+                    ).encode("utf-8"),
+                    content_type="application/json",
+                )
+                return
+
+        # ─── W28A-742 route-guard chokepoint ────────────────────────────────
+        # Classify (method, path) against the file-mcp-local route catalog
+        # (route_guards.classify). For "guarded" / "unknown" paths the guard
+        # resolves the principal and calls
+        # cloud_dog_idam.rbac.grants.authorise(...) — default-DENY. For
+        # "public" / "auth" / "ui" / "idam_v1" paths the chokepoint passes
+        # through to the existing dispatch unchanged. The IDAM-v1 surface
+        # carries its own inline guards per the v3 comparison map §3.3.
+        #
+        # CFI: the chokepoint sits HERE (immediately after path/method
+        # extraction) so that NO data/API/MCP/A2A/admin route can fire
+        # before the guard decides. UI/static routes still resolve below
+        # because the chokepoint returns False for "ui" classifications.
+        # See the v3 comparison map §3.1 + W28A-742-COORDINATOR-MAP-V2
+        # sendback §F4.
+        try:
+            from . import guard as _w28a742_guard
+
+            if await _w28a742_guard.check_route_guard(
+                self,
+                scope,
+                receive,
+                send,
+                method=method,
+                path=path,
+                headers=headers,
+            ):
+                # 401/403 already sent by the chokepoint.
+                return
+        except Exception:
+            # The chokepoint MUST NOT crash the dispatcher. A bug inside
+            # the chokepoint is logged downstream by the existing handlers
+            # (which will then enforce their own auth as before).
+            pass
+
         # W28A-876: serve the canonical SHARED cloud_dog_idam /idam/v1 surface
         # (resource-registry + rbac-bindings) — the RBAC page calls /v1/idam/v1/<x>.
         # This integrates the ONE estate-wide implementation into the bespoke ASGI
         # dispatcher (file-mcp does not use FastAPI routing for the admin surface).
+        #
+        # W28A-742 (§3.3): extended with DB-backed POST / GET-by-id / DELETE on
+        # ``/idam/v1/rbac/bindings`` (slash canonical) PLUS the back-compat
+        # ``rbac-bindings`` hyphen alias. The 0.5.0 router's in-memory
+        # ``_bindings: dict`` is NOT used; persistence goes through
+        # ``RBACBindingRepository`` over file-mcp's session. The shim also
+        # normalises ``/v1/idam/v1/...`` because the surrounding ``"/idam/v1/"
+        # in path`` test matches BOTH prefixes (v3 §3.4.6).
         if scope.get("type") == "http" and "/idam/v1/" in path:
             _idam_sub = path.split("/idam/v1/", 1)[1].split("?", 1)[0]
             try:
                 from cloud_dog_idam.api.fastapi.router import (
                     resource_registry as _idam_resource_registry,
-                    list_rbac_bindings as _idam_list_bindings,
                 )
 
-                _idam_payload = None
+                # GET resource-registry stays anon-passthrough; the IDAM page
+                # needs the schema regardless of principal.
                 if method == "GET" and _idam_sub.startswith("resource-registry"):
                     _idam_payload = await _idam_resource_registry()
-                elif method == "GET" and _idam_sub.startswith("rbac-bindings"):
-                    _idam_payload = await _idam_list_bindings()
-                if _idam_payload is not None:
                     await self._send_bytes(
                         send,
                         status=200,
@@ -3308,6 +3702,22 @@ class HealthCheckMiddleware:
                         content_type="application/json",
                     )
                     return
+
+                # W28A-742: DB-backed RBAC bindings CRUD.
+                _is_bindings = _idam_sub.startswith("rbac/bindings") or _idam_sub.startswith(
+                    "rbac-bindings"
+                )
+                if _is_bindings:
+                    handled = await self._w28a742_handle_rbac_bindings(
+                        scope=scope,
+                        receive=receive,
+                        send=send,
+                        method=method,
+                        idam_sub=_idam_sub,
+                        headers=headers,
+                    )
+                    if handled:
+                        return
             except Exception:
                 pass
 
@@ -3320,29 +3730,20 @@ class HealthCheckMiddleware:
             await self._handle_auth_status(send, headers, scope)
             return
 
-        # Thread-a flat-role write-gate (W28A-728-R4). A logged-in read-only
-        # visitor may VIEW every data surface but is denied mutations: any write
-        # method on a data path resolves to a 403-inline (not a 401, not a blank
-        # UI). admin / read-write sessions fall through. This is defence in depth
-        # on top of the API/MCP server's own shared-guard RBAC, and — critically —
-        # it fires BEFORE the web-proxy and the data dispatch so a read-only web
-        # session is gated here rather than forwarding the write upstream.
         if scope.get("type") == "http" and method in {"POST", "PUT", "PATCH", "DELETE"}:
             _gate_sess = self._get_session_from_cookie(headers)
             if (
-                _gate_sess is not None
-                and not role_can_write(_gate_sess.get("role"))
-                and self._is_write_gated_data_path(path)
+                _gate_sess is None
+                and (path == self.mcp_path or path.startswith(f"{self.mcp_path.rstrip('/')}/"))
+                and not (
+                    headers.get("authorization", "").strip()
+                    or headers.get("x-api-key", "").strip()
+                )
             ):
                 await self._send_bytes(
                     send,
-                    status=403,
-                    body=json.dumps(
-                        {
-                            "detail": "read-only role: write operations are not permitted",
-                            "role": FLAT_READ_ONLY_ROLE,
-                        }
-                    ).encode("utf-8"),
+                    status=401,
+                    body=b'{"detail":"Not authenticated"}',
                     content_type="application/json",
                 )
                 return
@@ -3570,11 +3971,20 @@ class HealthCheckMiddleware:
                 send, status=200, body=body, content_type="application/json"
             )
             return
+        # W28A-742 (F-741-1 CLOSED): the unconditional ``/a2a/health`` 200
+        # branch that lived here is DELETED. The route is now enforced by the
+        # W28A-742 chokepoint at the top of ``__call__``: anon → 401; authed
+        # principal with ``a2a.access`` → falls through to the A2A handler
+        # below. PS-82 FR1.46: "GET /a2a/health without valid auth SHALL
+        # return 401." See the W28A-742 comparison map §3.1.1.
         if (
             scope.get("type") == "http"
             and method == "GET"
             and path == self.a2a_health_path
         ):
+            # Authed-and-allowed (post-chokepoint) → serve the same payload
+            # as before. The 200 path was the legitimate behaviour for an
+            # authenticated caller; only the anon bypass was the defect.
             body = json.dumps(
                 {
                     "status": "ok",

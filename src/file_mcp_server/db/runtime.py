@@ -166,10 +166,18 @@ def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntim
 
         # W28A-876: ensure the canonical cloud_dog_idam role tables exist so the
         # PS-71 §IW3A Roles page (/api/v1/admin/roles) is backed by the shared
-        # SqlAlchemyRoleStore. Only the role-related tables are created here;
-        # other idam tables are not part of this service's schema.
+        # SqlAlchemyRoleStore.
+        #
+        # W28A-742 (IDAM-B2 §2.1): also create RBACBindingORM so the
+        # /idam/v1/rbac/bindings handlers (server_runtime.py) persist
+        # group→resource bindings to the canonical rbac_bindings table. This
+        # is the keystone seam — the binding lives on the GROUP and the
+        # FileMcpMembershipResolver composes it with file-mcp's
+        # FileAdminGroupMember rows at authorisation time. NO bespoke
+        # per-service FK; NO schema change to file-mcp's own tables.
         from cloud_dog_idam.storage.sqlalchemy.models import (  # type: ignore[import-not-found,import-untyped]
             PermissionORM as _PermissionORM,
+            RBACBindingORM as _RBACBindingORM,
             RoleORM as _RoleORM,
             RolePermissionORM as _RolePermissionORM,
         )
@@ -180,6 +188,7 @@ def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntim
                 _RoleORM.__table__,
                 _PermissionORM.__table__,
                 _RolePermissionORM.__table__,
+                _RBACBindingORM.__table__,
             ],
         )
 

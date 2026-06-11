@@ -355,6 +355,57 @@ class _ProfileAuthState:
     role_name: str
 
 
+#: W28A-742 colon→dotted scope back-compat (W28A-742 §3.6.5).
+#:
+#: Existing API keys carry colon-style scopes that predate the
+#: PS-70 §UM3.3 dotted canonical. The verifier projects each colon
+#: scope onto its dotted equivalents (additive — colon strings remain
+#: in the set for legacy consumers) so the
+#: ``cloud_dog_idam.rbac.grants.authorise`` resolver matches them
+#: against the W28A-741 baseline role permissions.
+_W28A742_FIXED_COLON_DOT_MAP: dict[str, frozenset[str]] = {
+    "*": frozenset({"*"}),
+    "file:*": frozenset({"files.read", "files.write", "files.list", "files.search"}),
+    "file:read": frozenset({"files.read"}),
+    "file:write": frozenset({"files.write"}),
+    "file:list": frozenset({"files.list"}),
+    "file:search": frozenset({"files.search"}),
+    "file:gdrive:*": frozenset({"files.gdrive.read", "files.gdrive.write"}),
+    "file:gdrive:read": frozenset({"files.gdrive.read"}),
+    "file:gdrive:write": frozenset({"files.gdrive.write"}),
+    "profile:*": frozenset({"profiles.read", "profiles.write"}),
+}
+
+
+def _w28a742_dotted_equivalents(colon_scope: str) -> frozenset[str]:
+    """Return the dotted-canonical equivalents of a colon-style scope string.
+
+    Returns ``frozenset()`` for inputs that already look dotted or that
+    don't map to a known colon form (so the additive set stays clean and
+    the resolver can still match dotted scopes directly).
+    """
+    if not colon_scope:
+        return frozenset()
+    if colon_scope in _W28A742_FIXED_COLON_DOT_MAP:
+        return _W28A742_FIXED_COLON_DOT_MAP[colon_scope]
+    if ":" not in colon_scope:
+        return frozenset()
+    # profile:<name>[:read|:write] dynamic forms — project to
+    # profiles.read / profiles.write surface gates. Per-profile resource
+    # binding is the b-3 cascade primitive and lands via the
+    # RBACBinding rows written through /idam/v1/rbac/bindings, not
+    # synthesised here.
+    if colon_scope.startswith("profile:"):
+        _rest = colon_scope.split(":", 2)
+        if len(_rest) == 2 and _rest[1]:  # 'profile:<name>'
+            return frozenset({"profiles.read", "profiles.write"})
+        if len(_rest) == 3 and _rest[2] == "read":
+            return frozenset({"profiles.read"})
+        if len(_rest) == 3 and _rest[2] == "write":
+            return frozenset({"profiles.write"})
+    return frozenset()
+
+
 class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin):
     """Profile-aware API-key verifier backed by cloud_dog_idam."""
 
@@ -599,6 +650,19 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin):
                 text = str(item).strip()
                 if text:
                     values.add(text)
+                    # W28A-742 (back-compat): existing API keys carry
+                    # colon-style scopes (file:read, file:write,
+                    # file:list, file:search, file:gdrive:read/write,
+                    # profile:<P>, profile:<P>:read/write, profile:*,
+                    # file:*, *). Project them onto the PS-70 §UM3.3
+                    # dotted canonical (files.read, files.write, ...)
+                    # so the cloud_dog_idam.rbac.grants resolver can
+                    # match them against role permissions seeded by
+                    # the W28A-741 baseline. The colon form remains in
+                    # `values` for any legacy consumers; the dotted
+                    # equivalents are additive.
+                    for dotted in _w28a742_dotted_equivalents(text):
+                        values.add(dotted)
             return values
 
         try:
@@ -641,8 +705,14 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin):
                 return None
 
             dynamic_permissions = _dynamic_permissions(dynamic_payload)
+            # W28A-742 (D-VIEWER-1): PS-82 canonical non-admin role is "user"
+            # (was "viewer"). Paired with the PS-82 §7.2 baseline grant
+            # seeded by W28A-741, dynamic-key principals that previously
+            # landed on the empty "viewer" role now get the baseline
+            # non-admin permission set (webui/mcp/a2a/apidocs.access,
+            # apikeys.read_own + manage_own, profiles.read, logs.read, ...).
             dynamic_role = str(
-                _dynamic_value(dynamic_payload, "role", "viewer") or "viewer"
+                _dynamic_value(dynamic_payload, "role", "user") or "user"
             )
             dynamic_user_id = str(
                 _dynamic_value(dynamic_payload, "user_id", "dynamic-api-key")

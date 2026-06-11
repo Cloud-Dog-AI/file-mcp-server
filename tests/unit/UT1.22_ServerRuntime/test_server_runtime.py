@@ -554,6 +554,20 @@ def test_health_middleware_returns_status_metrics() -> None:
 
 
 def test_a2a_health_is_public_without_auth() -> None:
+    """W28A-742 F-741-1 closure: anon ``GET /a2a/health`` MUST return 401.
+
+    PS-82 FR1.46 says "GET /a2a/health without valid auth SHALL return
+    401." Pre-742 file-mcp served 200 unconditionally — that was the
+    F-741-1 defect carried forward from W28A-741. W28A-742 §3.1.1
+    deletes the unconditional 200 branch in
+    ``server_runtime.py::__call__`` and routes the request through the
+    W28A-742 ASGI chokepoint, which classifies ``/a2a/health`` as a
+    guarded route with permission ``a2a.access``. An anonymous request
+    (no Authorization header, no X-API-Key, no session cookie) is
+    rejected with 401 regardless of whether the IDAM runtime is
+    bootstrapped — the F-741-1 closure is unconditional. This test is
+    the structural regression guard for the closure.
+    """
     sent = []
 
     async def fake_app(
@@ -583,13 +597,18 @@ def test_a2a_health_is_public_without_auth() -> None:
         await middleware(scope, receive, send)
 
     asyncio.run(_run())
-    assert sent[0]["status"] == 200
-    body = json.loads(sent[1]["body"].decode("utf-8"))
-    assert body["status"] == "ok"
-    assert verifier.verify_calls == []
+    assert sent[0]["status"] == 401, (
+        f"F-741-1 closure regressed: anon /a2a/health expected 401, got {sent[0]['status']}"
+    )
 
 
 def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
+    """W28A-742: with a Bearer token, the request carries credentials so
+    the chokepoint falls through to the existing dispatch. The existing
+    ``/a2a/health`` handler at server_runtime.py serves the 200 payload
+    for authenticated callers; the verifier itself is not consulted
+    (the test stub's empty ``verify_calls`` list confirms that).
+    """
     sent = []
 
     async def fake_app(
@@ -1761,6 +1780,17 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
 
 
 def test_health_middleware_reload_requires_admin_gate() -> None:
+    """W28A-742: anon POST /admin/reload MUST 401 regardless of
+    FILE_MCP_ADMIN_UI_ENABLED.
+
+    Pre-742, file-mcp's ``/admin/reload`` allowed anonymous calls when
+    FILE_MCP_ADMIN_UI_ENABLED=false (back-compat). The W28A-742 ASGI
+    chokepoint closes this anon path: ``/admin/reload`` is a guarded
+    route requiring ``config.write`` permission, anon → 401. A request
+    carrying any credential header falls through to the existing
+    handler which then enforces the ADMIN_UI_TOKEN match per the
+    server_runtime contract.
+    """
     sent = []
     prev_enabled = runtime_env.get("FILE_MCP_ADMIN_UI_ENABLED")
     runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = "false"
@@ -1792,7 +1822,10 @@ def test_health_middleware_reload_requires_admin_gate() -> None:
 
     try:
         asyncio.run(_run())
-        assert sent[0]["status"] == 200
+        assert sent[0]["status"] == 401, (
+            f"W28A-742 chokepoint regressed: anon /admin/reload expected "
+            f"401, got {sent[0]['status']}"
+        )
     finally:
         if prev_enabled is None:
             runtime_env.pop("FILE_MCP_ADMIN_UI_ENABLED", None)

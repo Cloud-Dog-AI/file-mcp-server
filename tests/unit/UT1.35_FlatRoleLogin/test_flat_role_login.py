@@ -139,6 +139,16 @@ def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
         )
 
 
+def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
+    resp = web_client.post(
+        "/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+    )
+    assert resp.status_code == 401, (
+        f"anon POST /mcp tools/list must be 401; got {resp.status_code}: {resp.text[:160]}"
+    )
+
+
 def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> None:
     # ASSERTION 3: all three flat roles log in with the correct shared-guard perms.
     for role in (ADMIN_ROLE, READ_WRITE_ROLE, READ_ONLY_ROLE):

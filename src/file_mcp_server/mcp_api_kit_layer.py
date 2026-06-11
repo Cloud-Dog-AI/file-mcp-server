@@ -121,15 +121,25 @@ class WebMcpCookieAuthMiddleware:
             await response(scope, receive, send)
             return
 
+        # W28A-742 (PS-82 §3.1 hard rule + b-6 §6 G5 identity-collapse):
+        # NEVER default a missing session role/user to "admin". An incoming
+        # cookie with no role/user is treated as authenticated-but-empty,
+        # which the W28A-742 chokepoint at server_runtime.py::__call__ has
+        # already rejected with 401 for any guarded route. The downstream
+        # scopes default is the authenticated wildcard ONLY when the cookie
+        # truly carries an admin claim (verified explicitly by the route
+        # guard's wildcard short-circuit).
+        _claim_role = str(session.get("role") or "").strip()
+        _claim_user = str(session.get("user") or "").strip()
         access_token = AccessToken(
             token=_WEB_COOKIE_AUTH_SUBJECT,
-            client_id=str(session.get("user_id") or "1"),
-            scopes=["*"],
+            client_id=str(session.get("user_id") or _claim_user or "1"),
+            scopes=["*"] if _claim_role == "admin" else [],
             claims={
                 "auth_mode": "cookie",
-                "role": str(session.get("role") or "admin"),
-                "user_id": str(session.get("user_id") or "1"),
-                "username": str(session.get("user") or "admin"),
+                "role": _claim_role,
+                "user_id": str(session.get("user_id") or _claim_user or "1"),
+                "username": _claim_user,
             },
         )
         scope["auth"] = AuthCredentials(access_token.scopes)
@@ -460,23 +470,14 @@ def build_mcp_fastapi_application(
             )
         )
 
-    # PS-50: Per-tool RBAC enforcement via cloud_dog_idam.
-    _TOOL_PERMISSION_MAP = {
-        "file_read": "file:read", "file_write": "file:write",
-        "file_list": "file:list", "file_search": "file:search",
-        "file_upload": "file:write", "file_download": "file:read",
-        "file_delete": "file:write", "file_move": "file:write",
-        "file_copy": "file:write", "dir_list": "file:list",
-        "dir_mkdir": "file:write", "dir_rmdir": "file:write",
-    }
-    _rbac = RBACEngine(role_permissions={
-        "admin": {"file:*"},
-        "user": {"file:read", "file:write", "file:list", "file:search"},
-        "viewer": {"file:read", "file:list", "file:search"},
-    })
-
-    def _enforce_tool_rbac(user_id: str, tool_name: str) -> bool:
-        """PS-50 per-tool RBAC check."""
-        perm = _TOOL_PERMISSION_MAP.get(tool_name, "file:read")
-        return _rbac.has_permission(user_id, perm)  # has_permission for tool access
+    # W28A-742 (D-DEAD-RBAC-1 / b-6 §6 G4): the dead PS-50 RBAC block that
+    # lived here (a locally-constructed RBACEngine + _TOOL_PERMISSION_MAP
+    # + _enforce_tool_rbac defined immediately before ``return app`` and
+    # NEVER CALLED) is DELETED. ARCHITECTURE.md cited this as the RBAC
+    # mechanism; the live gate was actually ``tool_required_permission`` +
+    # ``_scopes_allow`` (mcp_api_kit_layer.py:140-205). After W28A-742 the
+    # canonical enforcement path is the file-mcp-local route-guard catalog
+    # (``file_mcp_server.route_guards``) + the central resolver
+    # (``cloud_dog_idam.rbac.grants.authorise``) — see the W28A-742
+    # comparison map §3.6.
     return app
