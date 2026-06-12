@@ -22,6 +22,7 @@ from pathlib import Path
 from tests.path_helpers import project_root
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     wait_for_health,
     write_server_config,
@@ -39,6 +40,9 @@ def _run_cli(
         text=True,
         timeout=20,
     )
+@pytest.mark.AT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_operator_lifecycle_workflow(tmp_path: Path) -> None:

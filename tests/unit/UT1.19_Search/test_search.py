@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Search utility tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -63,6 +64,9 @@ profiles:
         config_yaml=config_yaml,
     )
     return profile, root
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_search_paths(tmp_path: Path) -> None:
@@ -75,6 +79,9 @@ def test_search_paths(tmp_path: Path) -> None:
 
     matches = search_paths("alpha", roots=[Path(profile.scope.roots[0])])
     assert any(path.name == "alpha.txt" for path in matches)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_search_paths_glob(tmp_path: Path) -> None:
@@ -89,6 +96,9 @@ def test_search_paths_glob(tmp_path: Path) -> None:
         "", roots=[Path(profile.scope.roots[0])], glob=profile.scope.allow_globs[0]
     )
     assert {path.name for path in matches} == {"beta.md"}
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_search_content(tmp_path: Path) -> None:
@@ -103,6 +113,9 @@ def test_search_content(tmp_path: Path) -> None:
     assert results
     assert all(isinstance(result, SearchMatch) for result in results)
     assert any(result.path.name == "beta.txt" for result in results)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_search_content_regex(tmp_path: Path) -> None:
@@ -117,6 +130,9 @@ def test_search_content_regex(tmp_path: Path) -> None:
     )
     assert len(results) == 1
     assert results[0].line == "foo123"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_search_content_max_results(tmp_path: Path) -> None:
@@ -133,6 +149,9 @@ def test_search_content_max_results(tmp_path: Path) -> None:
         max_results=profile.limits.search_max_results,
     )
     assert len(results) == 1
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_search_content_max_file_mb(tmp_path: Path) -> None:

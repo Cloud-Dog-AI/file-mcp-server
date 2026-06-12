@@ -37,6 +37,9 @@ from fastapi.testclient import TestClient
 
 
 pytestmark = pytest.mark.unit
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_broadcaster_is_event_broadcaster_protocol():
@@ -46,6 +49,9 @@ def test_broadcaster_is_event_broadcaster_protocol():
     assert hasattr(b, "publish")
     assert hasattr(b, "subscribe")
     assert hasattr(b, "history")
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_event_shape_for_user_crud():
@@ -66,6 +72,9 @@ def test_event_shape_for_user_crud():
     assert data["actor"] == "admin"
     assert data["after"]["username"] == "alice"
     assert data["outcome"] == "success"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_router_mounts_history_and_stream_when_broadcaster_provided():
@@ -107,6 +116,9 @@ def test_router_mounts_history_and_stream_when_broadcaster_provided():
     assert event["identifier"] == "g1"
     assert event["after"] == {"group_id": "g1", "name": "ops"}
     assert event["event_id"] == 1
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_history_filter_and_limit_work_end_to_end():
@@ -134,6 +146,9 @@ def test_history_filter_and_limit_work_end_to_end():
     assert resp.status_code == 200
     events = resp.json()["events"]
     assert [e["event_id"] for e in events] == [4, 5]
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_api_key_event_does_not_leak_secret():

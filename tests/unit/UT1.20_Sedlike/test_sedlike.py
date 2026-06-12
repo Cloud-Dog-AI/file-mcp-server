@@ -61,6 +61,9 @@ profiles:
         config_yaml=config_yaml,
     )
     return Path(profile.scope.roots[0])
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_replace_regex(tmp_path: Path) -> None:
@@ -71,6 +74,9 @@ def test_replace_regex(tmp_path: Path) -> None:
     assert result.changed
     path.write_text(result.text, encoding="utf-8")
     assert path.read_text(encoding="utf-8") == "alpha gamma"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_insert_before_after_line(tmp_path: Path) -> None:
@@ -83,6 +89,9 @@ def test_insert_before_after_line(tmp_path: Path) -> None:
 
     assert before.text.splitlines()[1] == "insert"
     assert after.text.splitlines()[2] == "insert"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_delete_matching_lines(tmp_path: Path) -> None:
@@ -92,6 +101,9 @@ def test_delete_matching_lines(tmp_path: Path) -> None:
     result = delete_matching_lines(path.read_text(encoding="utf-8"), r"remove")
     assert result.changed
     assert "remove" not in result.text
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_replace_line_range(tmp_path: Path) -> None:
@@ -101,11 +113,17 @@ def test_replace_line_range(tmp_path: Path) -> None:
     result = replace_line_range(path.read_text(encoding="utf-8"), 2, 2, ["TWO"])
     assert result.changed
     assert result.text.splitlines()[1] == "TWO"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_insert_invalid_line_raises() -> None:
     with pytest.raises(IndexError):
         insert_before_line("one", 3, "bad")
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_apply_edits_atomic_on_error(tmp_path: Path) -> None:
@@ -121,6 +139,9 @@ def test_apply_edits_atomic_on_error(tmp_path: Path) -> None:
     result = apply_edits(original, edits)
     assert not result.changed
     assert result.text == original
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_apply_edits_success(tmp_path: Path) -> None:

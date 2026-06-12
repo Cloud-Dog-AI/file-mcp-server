@@ -67,6 +67,9 @@ profiles:
         config_yaml=config_yaml,
     )
     return Path(profile.scope.roots[0])
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_atomic_write_and_read(tmp_path: Path) -> None:
@@ -74,6 +77,9 @@ def test_atomic_write_and_read(tmp_path: Path) -> None:
     target = root / "notes.txt"
     atomic_write(target, b"hello")
     assert read_text(target) == "hello"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_atomic_write_respects_overwrite(tmp_path: Path) -> None:
@@ -82,6 +88,9 @@ def test_atomic_write_respects_overwrite(tmp_path: Path) -> None:
     atomic_write(target, b"first")
     with pytest.raises(FileExistsError):
         atomic_write(target, b"second", overwrite=False)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_write_text_and_copy_move(tmp_path: Path) -> None:
@@ -97,12 +106,18 @@ def test_write_text_and_copy_move(tmp_path: Path) -> None:
     move_file(src, moved)
     assert not src.exists()
     assert read_text(moved) == "data"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_delete_file_missing_ok(tmp_path: Path) -> None:
     root = _scoped_root(tmp_path)
     target = root / "missing.txt"
     delete_file(target, missing_ok=True)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_list_dir(tmp_path: Path) -> None:
@@ -112,6 +127,9 @@ def test_list_dir(tmp_path: Path) -> None:
     entries = list_dir(root)
     assert len(entries) == 2
     assert {path.name for path in entries} == {"a.txt", "b.txt"}
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_create_dir_and_move_rename_with_utf8_names(tmp_path: Path) -> None:
@@ -130,6 +148,9 @@ def test_create_dir_and_move_rename_with_utf8_names(tmp_path: Path) -> None:
     rename_path(moved_dir, renamed_dir)
     assert not moved_dir.exists()
     assert (renamed_dir / "cafe-🙂.txt").read_text(encoding="utf-8") == "payload"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_chmod_path_updates_mode_for_file(tmp_path: Path) -> None:

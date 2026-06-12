@@ -20,6 +20,7 @@ from cloud_dog_db import probe_database
 
 from file_mcp_server.db.models import FilePlatformDbState
 from file_mcp_server.db.runtime import (
+import pytest
     database_health,
     initialise_database,
     shutdown_database,
@@ -31,6 +32,9 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
     monkeypatch.setenv("CLOUD_DOG__DB__DATABASE", str(db_path))
     monkeypatch.delenv("CLOUD_DOG__DB__URL", raising=False)
     monkeypatch.delenv("CLOUD_DOG_DB__URL", raising=False)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_ut_db_01_engine_factory_creates_sqlite_engine(
@@ -46,6 +50,9 @@ def test_ut_db_01_engine_factory_creates_sqlite_engine(
         assert health["ok"] is True
     finally:
         shutdown_database()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_ut_db_02_session_manager_roundtrip(monkeypatch, tmp_path: Path) -> None:
@@ -66,6 +73,9 @@ def test_ut_db_02_session_manager_roundtrip(monkeypatch, tmp_path: Path) -> None
             assert item.status == "ready"
     finally:
         shutdown_database()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_ut_db_03_probe_database_reports_healthy(

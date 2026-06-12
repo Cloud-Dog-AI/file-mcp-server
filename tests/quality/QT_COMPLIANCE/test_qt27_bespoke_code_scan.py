@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -40,6 +41,9 @@ def _iter_py(root: Path) -> list[Path]:
     return sorted(
         p for p in root.rglob("*.py") if "__pycache__" not in p.parts and ".venv" not in p.parts
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt2_7_no_bespoke_platform_replacements(

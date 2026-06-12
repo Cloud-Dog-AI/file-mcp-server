@@ -137,6 +137,9 @@ def docker_image() -> str:
     tag = "cloud-dog/file-mcp-server:test"
     _run(_docker_cmd("build", "--network=host", "-t", tag, "."), cwd=repo_root)
     return tag
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 @pytest.mark.parametrize("backend", ["webdav", "ftp", "s3"])

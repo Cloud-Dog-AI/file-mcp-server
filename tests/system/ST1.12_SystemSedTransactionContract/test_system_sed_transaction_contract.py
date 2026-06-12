@@ -29,6 +29,9 @@ from tests.http_integration_helpers import (
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_sed_transaction_contract_validation_and_noop(tmp_path: Path) -> None:
@@ -123,6 +126,9 @@ def test_sed_transaction_contract_validation_and_noop(tmp_path: Path) -> None:
     assert events
     assert any(evt["status"] == "error" for evt in events)
     assert any(evt["status"] == "ok" for evt in events)
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_sed_transaction_ordering_and_policy_variants(tmp_path: Path) -> None:

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Structured edit tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -73,6 +74,9 @@ profiles:
         config_yaml=config_yaml,
     )
     return Path(profile.scope.roots[0])
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_json_yaml_crud(tmp_path: Path) -> None:
@@ -94,6 +98,9 @@ def test_json_yaml_crud(tmp_path: Path) -> None:
     assert yaml_get(yaml_updated, "/a/b/0") == 9
     yaml_updated = yaml_delete(yaml_updated, "/a/b/1")
     assert yaml_get(yaml_updated, "/a/b/0") == 9
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_json_yaml_move_copy_merge_matrix(tmp_path: Path) -> None:
@@ -118,6 +125,9 @@ def test_json_yaml_move_copy_merge_matrix(tmp_path: Path) -> None:
     assert yaml_get(yaml_text, "/a/moved") == 1
     yaml_text = yaml_merge(yaml_text, "/a", {"merged": {"x": 9}})
     assert yaml_get(yaml_text, "/a/merged/x") == 9
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_xml_html_edits(tmp_path: Path) -> None:
@@ -152,6 +162,9 @@ def test_xml_html_edits(tmp_path: Path) -> None:
         assert "Selector" in str(exc)
     else:  # pragma: no cover - defensive
         raise AssertionError("Expected ValueError for missing HTML selector")
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_markdown_section_edits(tmp_path: Path) -> None:

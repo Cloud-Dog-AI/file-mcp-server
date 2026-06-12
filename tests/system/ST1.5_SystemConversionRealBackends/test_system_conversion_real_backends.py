@@ -58,6 +58,9 @@ def _write_minimal_docx(path: Path, *, text: str) -> None:
         docx.writestr("[Content_Types].xml", content_types)
         docx.writestr("_rels/.rels", rels)
         docx.writestr("word/document.xml", document)
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 @pytest.mark.skipif(which("pandoc") is None, reason="pandoc not installed")
@@ -111,6 +114,9 @@ def test_real_pandoc_backend_conversion(tmp_path: Path) -> None:
         assert payload["backend"] == "pandoc"
         assert output.exists()
         assert "<h1" in output.read_text(encoding="utf-8").lower()
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 @pytest.mark.skipif(which("soffice") is None, reason="soffice not installed")

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -70,6 +71,9 @@ def _iter_py(root: Path) -> list[Path]:
 def _all_src_text() -> str:
     src_root = PROJECT_ROOT / "src"
     return "\n".join(_read(path) for path in _iter_py(src_root))
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt1_1_secrets_never_logged() -> None:
@@ -83,6 +87,9 @@ def test_qt1_1_secrets_never_logged() -> None:
             if SECRET_LOG_RE.search(line):
                 violations.append(f"{rel}:{line_no}: {line.strip()}")
     assert not violations, "QT1.1 violations found:\n" + "\n".join(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt1_2_path_traversal_prevention() -> None:
@@ -105,6 +112,9 @@ def test_qt1_2_path_traversal_prevention() -> None:
         "QT1.2 failed: file/path operations detected but no traversal guard patterns "
         "(resolve/relative_to/normpath/commonpath/sandbox) found in src/."
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt1_3_domain_specific_safety() -> None:
@@ -197,6 +207,9 @@ def test_qt1_3_domain_specific_safety() -> None:
         return
 
     raise AssertionError(f"QT1.3 has no domain safety rule for project: {project_name}")
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt1_4_uk_english_compliance() -> None:

@@ -69,6 +69,9 @@ def _require(env: Mapping[str, str], key: str) -> str:
     os.environ.get("FILE_MCP_RUN_GDRIVE_LIVE_TEST") != "1",
     reason="GDrive deferred: requires web OAuth interface (W28A-121)",
 )
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 def test_google_drive_backend_end_to_end_live(tmp_path: Path) -> None:
     if not _gdrive_live_enabled():
         pytest.fail(

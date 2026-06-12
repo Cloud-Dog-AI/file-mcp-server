@@ -24,6 +24,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
@@ -84,6 +85,9 @@ def _is_present(matches: list[str], expected_path: str) -> bool:
         if candidate.endswith(Path(expected).name):
             return True
     return False
+@pytest.mark.AT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_at1_11_dynamic_profile_crud_lifecycle(tmp_path: Path) -> None:

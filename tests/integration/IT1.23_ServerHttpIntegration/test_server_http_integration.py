@@ -28,6 +28,7 @@ from urllib.request import urlopen
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
+import pytest
 
 
 def _pick_free_port() -> int:
@@ -47,6 +48,9 @@ def _wait_for_health(url: str, timeout_s: float = 10.0) -> dict:
             time.sleep(0.1)
             continue
     raise RuntimeError(f"Health check timed out: {url}")
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_http_health_and_authenticated_tool_call(tmp_path: Path) -> None:

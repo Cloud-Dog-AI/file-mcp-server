@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for Google Drive OAuth helper script.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -30,6 +31,9 @@ import subprocess
 import sys
 
 from scripts.google_drive_oauth_helper import build_auth_url
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_build_auth_url_contains_required_params() -> None:
@@ -45,6 +49,9 @@ def test_build_auth_url_contains_required_params() -> None:
     assert "access_type=offline" in url
     assert "prompt=consent" in url
     assert "state=abc123" in url
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_helper_cli_prints_auth_url_without_code() -> None:

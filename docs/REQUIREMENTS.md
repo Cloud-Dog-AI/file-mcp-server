@@ -1,3 +1,18 @@
+---
+template-id: T-REQ
+template-version: 1.1
+applies-to: docs/REQUIREMENTS.md
+project: file-mcp-server
+doc-last-updated: 2026-06-12T16:36:44Z
+doc-git-commit: 02b2e3c250769135eef5c087b4da824fa226d023
+doc-git-branch: main
+doc-age-policy: indefinite
+doc-conformance-stamp: 2026-06-12T16:36:44Z
+req-trace-version: 1.0
+req-id-prefixes-used: [SV, BO, BR, FR, UC, CS, NF, R, F]
+surface-coverage: [api, mcp, a2a, webui]
+---
+
 # File MCP Server — REQUIREMENTS.md
 ## W28A-421 Review Status
 - Reviewed for external/shareable publication during W28A-421.
@@ -561,3 +576,14 @@ The service MUST use `cloud_dog_logging` as the only application and audit loggi
 Every auditable event MUST emit a PS-40/NIST AU-3 audit record with: `event_type`, `action`, `timestamp`, `service`, `component`, `service_instance`, `environment`, `source_host`, `source_process`, `source_application`, `source_address` where available, `destination_address` where available, `outcome`, actor identity including user/service/system plus account/process/device identifiers where available, `target`, `process_id`, `affected_files` where relevant, `correlation_id`, `trace_id`, and `request_id`.
 
 Auditable events MUST include authentication and authorisation decisions, user/group/API-key/RBAC changes, storage profile/file/folder/share operations, MCP/A2A/API calls, job lifecycle changes, configuration changes, data access and mutation, denials, failures, and privileged operations. Secrets MUST be redacted before persistence. Tests MUST cover schema fields, event coverage, redaction, append-only audit persistence, retention/integrity, and WebUI observability rendering/filtering.
+
+## 5. Cyber Security & Negative Flows
+
+Mandatory schema per PS-REQ-TEST-TRACE v1.0 §3.4. Every project covers anon-denied, wrong-role-denied, missing-param-error per declared surface. The CS rows below are platform-baseline; project-specific extensions append in §5.1.
+
+| ID | Threat / negative scenario | Surface | Role(s) attempted | Expected | Tests |
+|---|---|---|---|---|---|
+| `CS-001` | Anon attempts data read | `api`, `mcp`, `a2a`, `webui` | `anon` | `401` | (to be bound in Instruction 4 by operator) |
+| `CS-002` | read-only attempts write | `api`, `mcp` | `read-only` | `403` | (to be bound in Instruction 4 by operator) |
+| `CS-003` | Missing required param | `api` | `admin` | `422` | (to be bound in Instruction 4 by operator) |
+| `CS-004` | Wrong-role privileged op | `mcp` | `read-write` | `403` | (to be bound in Instruction 4 by operator) |

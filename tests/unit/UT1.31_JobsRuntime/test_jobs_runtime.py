@@ -74,6 +74,9 @@ profiles:
         defaults_yaml=defaults_yaml,
         config_yaml=defaults_yaml,
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_jobs_runtime_memory_lifecycle(tmp_path: Path) -> None:
@@ -87,6 +90,9 @@ def test_jobs_runtime_memory_lifecycle(tmp_path: Path) -> None:
             profile_name="default",
             fallback_sql_url=None,
         )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_jobs_runtime_sql_backend_uses_fallback_db_url(tmp_path: Path) -> None:

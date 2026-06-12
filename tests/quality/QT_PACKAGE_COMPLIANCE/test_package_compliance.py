@@ -34,6 +34,9 @@ def _grep_count(pattern: str, exclude_pattern: str | None = None) -> list[str]:
 
 class TestPackageCompliance:
     """Every test here MUST pass. Zero bespoke code allowed."""
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_bespoke_logging(self):
         """All logging must use cloud_dog_logging. Zero logging.getLogger calls."""
@@ -42,6 +45,9 @@ class TestPackageCompliance:
             f"FAIL: {len(hits)} bespoke logging calls found. "
             f"Replace with cloud_dog_logging:\n" + "\n".join(hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_bespoke_config_manager(self):
         """Config must use cloud_dog_config. Zero bespoke ConfigManager."""
@@ -51,6 +57,9 @@ class TestPackageCompliance:
             f"FAIL: {len(real_hits)} bespoke config calls found:\n"
             + "\n".join(real_hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_bespoke_auth(self):
         """Auth must use cloud_dog_idam. Zero bespoke auth imports outside the package."""
@@ -70,6 +79,9 @@ class TestPackageCompliance:
             f"{len(real_hits)} bespoke auth imports not delegating to cloud_dog_idam:\n"
             + "\n".join(real_hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_memory_queue(self):
         """Jobs must use cloud_dog_jobs. Zero MemoryQueue/ThreadPoolExecutor."""
@@ -78,6 +90,9 @@ class TestPackageCompliance:
             f"FAIL: {len(hits)} bespoke queue/thread calls found:\n"
             + "\n".join(hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_direct_llm_calls(self):
         """LLM calls must use cloud_dog_llm. Zero direct httpx to ollama/openai."""
@@ -88,6 +103,9 @@ class TestPackageCompliance:
         assert len(hits) == 0, (
             f"FAIL: {len(hits)} direct LLM calls found:\n" + "\n".join(hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_hardcoded_secrets(self):
         """Zero hardcoded passwords or secrets in source."""
@@ -112,6 +130,9 @@ class TestPackageCompliance:
             f"FAIL: {len(real_hits)} hardcoded secrets found:\n"
             + "\n".join(real_hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_no_internal_hostnames(self):
         """Zero internal hostnames in source (must use config/vault)."""
@@ -128,6 +149,9 @@ class TestPackageCompliance:
             f"FAIL: {len(real_hits)} internal hostnames in source:\n"
             + "\n".join(real_hits[:10])
         )
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_ui_dist_exists(self):
         """PS-30: ui/dist/ must exist (SPA built and wired)."""
@@ -135,6 +159,9 @@ class TestPackageCompliance:
         if not _has_web_server():
             pytest.skip("No web server - UI not applicable")
         assert ui_dist.exists(), "FAIL: ui/dist/ not found. SPA must be built."
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_runtime_config_endpoint(self):
         """PS-30: /runtime-config.js must be served by the web server."""
@@ -151,14 +178,23 @@ class TestPackageCompliance:
         if not _has_web_server():
             pytest.skip("No web server - runtime-config not applicable")
         assert has_runtime_config, "FAIL: No /runtime-config.js endpoint found in web server."
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_server_control_exists(self):
         """server_control.sh must exist."""
         assert (PROJECT_ROOT / "server_control.sh").exists(), "FAIL: server_control.sh missing."
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_licence_exists(self):
         """LICENCE file must exist."""
         assert (PROJECT_ROOT / "LICENCE").exists(), "FAIL: LICENCE file missing."
+    @pytest.mark.QT
+    @pytest.mark.mcp
+    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
     def test_readme_exists(self):
         """README.md must exist."""

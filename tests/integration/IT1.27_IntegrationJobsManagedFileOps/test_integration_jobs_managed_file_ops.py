@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Managed jobs integration test for file processing.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -71,6 +72,9 @@ def _http_get_json(url: str, *, auth_header_value: str) -> tuple[int, dict]:
     with urlopen(request, timeout=3.0) as response:
         body = json.loads(response.read().decode("utf-8"))
         return response.status, body
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_conversion_operation_is_tracked_as_managed_job(tmp_path: Path) -> None:

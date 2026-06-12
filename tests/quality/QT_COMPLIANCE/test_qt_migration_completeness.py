@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """QT migration completeness checks.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -29,6 +30,9 @@ from pathlib import Path
 import re
 
 from ._helpers import Violation, format_violations, read_text, rel
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_yaml_safe_load_for_config(
@@ -54,6 +58,9 @@ def test_no_yaml_safe_load_for_config(
     assert not violations, "yaml.safe_load migration violations:\n" + format_violations(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_raw_fastapi(project_root: Path, src_python_files: list[Path]) -> None:
@@ -69,6 +76,9 @@ def test_no_raw_fastapi(project_root: Path, src_python_files: list[Path]) -> Non
                     )
                 )
     assert not violations, "Raw FastAPI usage found:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_bespoke_auth(
@@ -93,6 +103,9 @@ def test_no_bespoke_auth(
                     )
                 )
     assert not violations, "Bespoke auth findings:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_os_environ_for_config(

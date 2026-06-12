@@ -1,3 +1,18 @@
+---
+template-id: T-TST
+template-version: 1.1
+applies-to: docs/TESTS.md
+project: file-mcp-server
+doc-last-updated: 2026-06-12T16:36:44Z
+doc-git-commit: 02b2e3c250769135eef5c087b4da824fa226d023
+doc-git-branch: main
+doc-age-policy: 90d
+doc-conformance-stamp: 2026-06-12T16:36:44Z
+req-trace-version: 1.0
+total-tests: 0
+coverage-percent: 0
+---
+
 # Tests
 
 ## Service Scope
@@ -227,3 +242,10 @@ The following test filenames are present in the repository and are included for 
 | CFG-06 (A2A broadcast) | `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py` + `tests/integration/IT_CFG06_A2AEvents/test_a2a_events_integration.py` | UT_CFG06_A2AEvents + IT_CFG06_A2AEvents | IMPLEMENTED |
 | CFG-12 (Audit logging for CRUD) | `tests/unit/UT1.2_Audit/test_audit.py` + `tests/unit/UT_AuditLogFormat/test_audit_log_format.py` + `tests/integration/IT1.20_IntegrationStructuredAuditSnapshot/test_integration_structured_audit_snapshot.py` + `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | `test_audit_logger_writes`, `test_audit_logger_uses_explicit_actor_identity`, `test_audit_event_has_all_au3_fields`, `test_structured_edit_with_audit_and_snapshot`, `test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` (platform capability via `cloud_dog_logging.AuditLogger.log_crud`, wrapped by `file_tools.audit.adapter.AuditLogger`) | IMPLEMENTED |
 | FR1.32 (Google Drive OAuth Folder Binding) | `tests/application/AT1.12_GoogleDriveOauthLive/test_google_drive_oauth_live.py` | AT1.12 suite | COVERED |
+
+## 2. Coverage map
+
+Mandatory 10-column schema per PS-REQ-TEST-TRACE v1.0 §4.2. The per-test catalogue below will be populated by operator-driven Instruction 4 work that binds @pytest.mark.req() decorators to specific REQ-IDs. Until then, all tests carry @pytest.mark.probe (KEEP-AS-PROBE disposition per PS-REQ-TEST-TRACE §7).
+
+| Test ID | Tier | Use case | Requirement | Surface | Scenario | Variants | Env files | Known issue | Last run commit |
+|---|---|---|---|---|---|---|---|---|---|

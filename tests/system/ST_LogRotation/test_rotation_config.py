@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
 
 
 def _defaults_path() -> Path:
@@ -24,11 +25,17 @@ def _defaults_path() -> Path:
         if path.exists():
             return path
     raise AssertionError("Missing defaults.yaml/default.yaml")
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_rotation_handler_configured() -> None:
     text = _defaults_path().read_text(encoding="utf-8")
     assert "rotation:" in text
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_rotation_parameters_from_config() -> None:

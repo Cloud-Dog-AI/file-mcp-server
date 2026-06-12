@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry
 from file_mcp_server.server import StdioServer
+import pytest
 
 
 def _build_registry() -> ToolRegistry:
@@ -27,12 +28,18 @@ def _build_registry() -> ToolRegistry:
         )
     )
     return registry
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_tools_list() -> None:
     server = StdioServer(_build_registry())
     response = server.handle_request({"id": 1, "method": "tools/list"})
     assert response["result"][0]["name"] == "echo"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_tools_call() -> None:
@@ -45,6 +52,9 @@ def test_tools_call() -> None:
         }
     )
     assert response["result"] == "hi"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_unknown_method() -> None:

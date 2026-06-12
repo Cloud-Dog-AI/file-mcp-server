@@ -23,6 +23,7 @@ from typing import Mapping
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
+import pytest
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -81,6 +82,9 @@ async def _call_tool(
         )
     ) as client:
         return await client.call_tool(tool, arguments)
+@pytest.mark.AT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_application_preprod_profile_chain_flow_live() -> None:

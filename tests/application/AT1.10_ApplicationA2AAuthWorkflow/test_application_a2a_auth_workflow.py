@@ -19,6 +19,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
@@ -46,6 +47,9 @@ def _read_env_value(env_path: Path, key: str) -> str:
         if candidate_key.strip() == key:
             return candidate_value.strip()
     raise AssertionError(f"Missing env key: {key}")
+@pytest.mark.AT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_application_a2a_health_flow_uses_test_a2a_api_key(tmp_path: Path) -> None:

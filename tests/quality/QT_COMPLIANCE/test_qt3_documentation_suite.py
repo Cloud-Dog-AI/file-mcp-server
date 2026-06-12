@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 import re
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -36,6 +37,9 @@ def _doc_path(name: str) -> Path | None:
     if docs.exists():
         return docs
     return None
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt3_1_required_files_exist() -> None:
@@ -48,6 +52,9 @@ def test_qt3_1_required_files_exist() -> None:
             missing.append(logical)
 
     assert not missing, "QT3.1 missing required files: " + ", ".join(missing)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt3_2_requirement_id_format() -> None:
@@ -57,6 +64,9 @@ def test_qt3_2_requirement_id_format() -> None:
     text = req_path.read_text(encoding="utf-8", errors="ignore")
     matches = REQUIREMENT_ID_RE.findall(text)
     assert matches, "QT3.2 failed: REQUIREMENTS.md has no formal FR/NFR/R-DB IDs"
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt3_3_test_id_uniqueness() -> None:

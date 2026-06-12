@@ -123,3 +123,38 @@ def load_env_files(pytestconfig: pytest.Config) -> None:
         pytest.fail(f"ERROR: env file not found: {path}")
     _load_env_file(path)
     _consume_optional_test_env_keys()
+
+
+# --- PS-REQ-TEST-TRACE marker enforcement (added by rtt-2026-06-12 Instruction 3 uplift) ---
+# See PS-REQ-TEST-TRACE v1.0 §6.2 — fails session if any test lacks tier + surface + req()/probe markers.
+
+import sys
+
+_PS_REQ_TIER_MARKERS = {"QT", "UT", "ST", "IT", "AT"}
+_PS_REQ_SURFACE_MARKERS = {"api", "mcp", "a2a", "webui", "cli", "internal"}
+
+
+def pytest_collection_modifyitems(config, items):
+    """PS-REQ-TEST-TRACE marker enforcement."""
+    failures = []
+    for item in items:
+        marker_names = {m.name for m in item.iter_markers()}
+        is_probe = "probe" in marker_names
+        if not (marker_names & _PS_REQ_TIER_MARKERS):
+            failures.append(f"{item.nodeid}: missing @pytest.mark.<tier> per PS-REQ-TEST-TRACE §6")
+        if not (marker_names & _PS_REQ_SURFACE_MARKERS):
+            failures.append(f"{item.nodeid}: missing @pytest.mark.<surface> per PS-REQ-TEST-TRACE §6")
+        if not is_probe:
+            req_marker = item.get_closest_marker("req")
+            if req_marker is None or not req_marker.args:
+                failures.append(
+                    f"{item.nodeid}: missing @pytest.mark.req('FR-NNN') per PS-REQ-TEST-TRACE §6 "
+                    "(add @pytest.mark.probe to mark as orphan)"
+                )
+    if failures:
+        msg = "PS-REQ-TEST-TRACE marker enforcement failed for " + str(len(failures)) + " test(s):\n  " + "\n  ".join(failures[:20])
+        if len(failures) > 20:
+            msg += f"\n  ... and {len(failures) - 20} more"
+        print(msg, file=sys.stderr)
+        import pytest
+        pytest.exit(msg, returncode=2)

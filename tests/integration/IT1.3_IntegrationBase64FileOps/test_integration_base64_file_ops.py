@@ -23,6 +23,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
@@ -43,6 +44,9 @@ def _extract_payload(result):
     if isinstance(structured, dict):
         return structured
     return text
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_base64_file_roundtrip_over_http(tmp_path: Path) -> None:

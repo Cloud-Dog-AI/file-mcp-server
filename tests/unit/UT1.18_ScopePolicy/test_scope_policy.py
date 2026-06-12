@@ -19,6 +19,7 @@ from pathlib import Path
 
 from tests.config_helpers import build_profile
 from file_tools.scope import PosixScopePolicy, ScopePolicy
+import pytest
 
 
 def _build_profile(
@@ -59,6 +60,9 @@ profiles:
         defaults_yaml=defaults_yaml,
         config_yaml=config_yaml,
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_scope_denies_outside_root(tmp_path: Path) -> None:
@@ -83,6 +87,9 @@ def test_scope_denies_outside_root(tmp_path: Path) -> None:
     decision = policy.check(tmp_path / "other.txt")
     assert not decision.allowed
     assert decision.reason == "outside_roots"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_scope_denies_glob(tmp_path: Path) -> None:
@@ -107,6 +114,9 @@ def test_scope_denies_glob(tmp_path: Path) -> None:
     decision = policy.check(root / "hidden.secret")
     assert not decision.allowed
     assert decision.reason == "denied_glob"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_scope_allows_glob(tmp_path: Path) -> None:
@@ -131,6 +141,9 @@ def test_scope_allows_glob(tmp_path: Path) -> None:
     decision = policy.check(root / "notes.txt")
     assert decision.allowed
     assert decision.reason == "allowed"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_scope_denies_extension(tmp_path: Path) -> None:
@@ -155,6 +168,9 @@ def test_scope_denies_extension(tmp_path: Path) -> None:
     decision = policy.check(root / "notes.txt")
     assert not decision.allowed
     assert decision.reason == "extension_not_allowed"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_scope_denies_read_only_on_write(tmp_path: Path) -> None:
@@ -179,6 +195,9 @@ def test_scope_denies_read_only_on_write(tmp_path: Path) -> None:
     decision = policy.check(root / "notes.md", operation="write")
     assert not decision.allowed
     assert decision.reason == "extension_read_only"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_scope_allows_root_directory_for_recursive_glob(tmp_path: Path) -> None:
@@ -190,6 +209,9 @@ def test_scope_allows_root_directory_for_recursive_glob(tmp_path: Path) -> None:
 
     assert decision.allowed
     assert decision.reason == "allowed"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_posix_scope_allows_root_directory_for_recursive_glob() -> None:

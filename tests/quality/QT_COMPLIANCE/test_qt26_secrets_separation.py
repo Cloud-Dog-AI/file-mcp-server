@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -72,6 +73,9 @@ def _is_placeholder(value: str) -> bool:
         "~",
     }
     return cleaned.lower() in placeholders
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt2_6_no_hardcoded_secrets_in_source() -> None:
@@ -88,6 +92,9 @@ def test_qt2_6_no_hardcoded_secrets_in_source() -> None:
             if ASSIGNMENT_RE.search(line):
                 violations.append(f"{rel}:{line_no}: {stripped}")
     assert not violations, "QT2.6 hardcoded source secret assignments:\n" + "\n".join(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt2_6_sensitive_env_values_use_vault_or_scoped_files() -> None:
@@ -120,6 +127,9 @@ def test_qt2_6_sensitive_env_values_use_vault_or_scoped_files() -> None:
             violations.append(f"{rel}:{line_no}: {key} has non-vault sensitive value")
 
     assert not violations, "QT2.6 env-value separation violations:\n" + "\n".join(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_qt2_6_defaults_config_do_not_embed_plain_secrets() -> None:

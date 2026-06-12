@@ -74,6 +74,27 @@ packages = [
 addopts = "-p no:cloud_dog_config"
 testpaths = ["tests"]
 
+markers = [
+    "QT: Quick test",
+    "UT: Unit test",
+    "ST: System test",
+    "IT: Integration test",
+    "AT: Acceptance test",
+    "api: REST API surface",
+    "mcp: MCP surface",
+    "a2a: A2A surface",
+    "webui: WebUI surface",
+    "cli: CLI surface",
+    "internal: Internal",
+    "negative: Negative flow",
+    "probe: Probe (orphan, exempt from req)",
+    "slow: Long-running",
+    "llm: LLM endpoint required",
+    "external: External service",
+    "flaky: Known-flaky",
+    "req(*ids): Bind to REQ-IDs",
+]
+
 [tool.mypy]
 python_version = "3.12"
 

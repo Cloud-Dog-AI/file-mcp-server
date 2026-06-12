@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Integration workflow for config/user/key CRUD completion.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -63,6 +64,9 @@ def _json_request(
     with urlopen(request, timeout=5.0) as response:
         response_payload = json.loads(response.read().decode("utf-8"))
         return int(response.status), response_payload
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations(

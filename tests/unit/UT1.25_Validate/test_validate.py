@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Validation policy tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -75,32 +76,50 @@ def _validation_config(
         config_yaml=defaults_yaml,
     )
     return profile.validation
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_json() -> None:
     assert validate_json('{"a": 1}').valid
     assert not validate_json("{bad}").valid
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_yaml() -> None:
     assert validate_yaml("a: 1\n").valid
     assert not validate_yaml("a: [\n").valid
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_xml() -> None:
     assert validate_xml("<root />").valid
     assert not validate_xml("<root>").valid
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_html() -> None:
     result = validate_html("<html><body></body></html>")
     assert isinstance(result, ValidationResult)
     assert result.valid
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_markdown() -> None:
     assert validate_markdown("# Title\n## Subtitle").valid
     assert not validate_markdown("# Title\n### Skipped").valid
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validation_strict_mode(tmp_path: Path) -> None:
@@ -108,6 +127,9 @@ def test_validation_strict_mode(tmp_path: Path) -> None:
     result = validate_with_mode("json", "{bad}", validation)
     assert not result.valid
     assert result.errors
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validation_warn_mode(tmp_path: Path) -> None:
@@ -117,6 +139,9 @@ def test_validation_warn_mode(tmp_path: Path) -> None:
     result = validate_with_mode("markdown", "# Title\n### Skipped", validation)
     assert result.valid
     assert result.warnings
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validation_ignore_mode(tmp_path: Path) -> None:

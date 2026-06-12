@@ -146,6 +146,9 @@ PROBES = [
     ("GET", "/v1/admin",                          "guarded"),
     ("GET", "/v1/admin/users",                    "guarded"),
 ]
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 @pytest.mark.parametrize("method,path,expected", PROBES)
@@ -157,6 +160,9 @@ def test_classify_returns_expected_bucket(
     assert actual == expected, (
         f"classify({method!r}, {path!r}) returned {actual!r}, expected {expected!r}"
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_unguarded_route_for_canonical_probes() -> None:
@@ -167,6 +173,9 @@ def test_no_unguarded_route_for_canonical_probes() -> None:
             f"({method}, {path}) classified as 'unknown' — would default-DENY at runtime; "
             "every served route must be classifiable"
         )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_public_allowlist_includes_required_anon_endpoints() -> None:
@@ -181,6 +190,9 @@ def test_public_allowlist_includes_required_anon_endpoints() -> None:
     }
     missing = required - FILE_MCP_PUBLIC_ALLOWLIST
     assert not missing, f"public allowlist missing required entries: {missing}"
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_public_allowlist_excludes_a2a_health() -> None:
@@ -189,6 +201,9 @@ def test_public_allowlist_excludes_a2a_health() -> None:
         "/a2a/health is the F-741-1 closure site — it must require auth (PS-82 FR1.46), "
         "not be added to the public allowlist"
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_auth_paths_include_login_me_logout() -> None:
@@ -202,6 +217,9 @@ def test_auth_paths_include_login_me_logout() -> None:
     }
     missing = required - FILE_MCP_AUTH_PATHS
     assert not missing, f"auth bucket missing required entries: {missing}"
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_idam_v1_pattern_matches_canonical_and_v1_prefix() -> None:
@@ -210,6 +228,9 @@ def test_idam_v1_pattern_matches_canonical_and_v1_prefix() -> None:
     v1_alias = "/v1/idam/v1/rbac/bindings"
     assert FILE_MCP_IDAM_V1_PATTERN.search(canonical)
     assert FILE_MCP_IDAM_V1_PATTERN.search(v1_alias)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_a2a_health_is_guarded() -> None:
@@ -220,6 +241,9 @@ def test_a2a_health_is_guarded() -> None:
     assert match_result is not None
     guard, _ = match_result
     assert guard.permission == "a2a.access"
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_mcp_tools_get_routes_are_guarded() -> None:
@@ -233,6 +257,9 @@ def test_mcp_tools_get_routes_are_guarded() -> None:
         assert guard.permission == "mcp.access", (
             f"GET {path}: expected mcp.access, got {guard.permission}"
         )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_a2a_events_endpoints_all_four_guarded() -> None:
@@ -249,6 +276,9 @@ def test_a2a_events_endpoints_all_four_guarded() -> None:
         assert match_result is not None
         guard, _ = match_result
         assert guard.permission == "a2a.access"
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_route_guards_have_no_duplicate_keys() -> None:
@@ -264,6 +294,9 @@ def test_route_guards_have_no_duplicate_keys() -> None:
     # No silent dedup — the registered_keys set has at most as many entries
     # as ROUTE_GUARDS (with first-wins, duplicates are not catastrophic).
     assert len(seen) <= len(ROUTE_GUARDS)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_route_guards_minimum_coverage() -> None:
@@ -275,6 +308,9 @@ def test_route_guards_minimum_coverage() -> None:
         "v3 §3.4.4 expects ≥40 rows covering files/jobs/logs/users/groups/api-keys/"
         "roles/profiles/google-drive/reload/runtime-config/rbac"
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_resource_id_extractor_for_user_route() -> None:

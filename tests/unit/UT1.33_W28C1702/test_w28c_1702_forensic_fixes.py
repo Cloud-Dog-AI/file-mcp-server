@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """file-mcp-server — UT for W28C-1702 forensic fixes.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -112,6 +113,9 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
 
 
 # ───────────────────────────── FM5 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm5_profile_names_reflect_db_merged_config_not_collapsed_env(monkeypatch) -> None:
     # Simulate main.py's startup collapse: env says a single profile.
@@ -126,6 +130,9 @@ def test_fm5_profile_names_reflect_db_merged_config_not_collapsed_env(monkeypatc
     # FM5: the DB-merged config (2 profiles) wins over the collapsed env (1).
     assert len(mw.profile_names) >= 2
     assert set(mw.profile_names) == {"default", "google_drive"}
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm5_status_profile_count_matches_active_profiles(monkeypatch) -> None:
@@ -154,6 +161,9 @@ def test_fm5_status_profile_count_matches_active_profiles(monkeypatch) -> None:
 
 
 # ───────────────────────────── FM3 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm3_explicit_profile_arg_routes_to_named_registry() -> None:
     calls: dict[str, object] = {}
@@ -186,6 +196,9 @@ def test_fm3_explicit_profile_arg_routes_to_named_registry() -> None:
     assert result["ok"] is True
     # ...and is advertised on the wrapper signature so it is not stripped.
     assert "profile" in inspect.signature(handler).parameters
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm3_build_tool_contracts_advertise_profile() -> None:
@@ -208,11 +221,17 @@ def test_fm3_build_tool_contracts_advertise_profile() -> None:
 
 
 # ───────────────────────────── FM7 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm7_search_paths_input_advertises_query() -> None:
     schema = SearchPathsInput.model_json_schema()
     assert "query" in schema["properties"]
     assert "query" in schema.get("required", [])
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm7_search_paths_and_alias_registered_with_schema(tmp_path) -> None:
@@ -228,6 +247,9 @@ def test_fm7_search_paths_and_alias_registered_with_schema(tmp_path) -> None:
 
 
 # ───────────────────────────── FM8 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm8_gdrive_tokens_persist_across_new_session_manager(monkeypatch, tmp_path) -> None:
     db_path = tmp_path / "fm8.db"
@@ -269,6 +291,9 @@ def test_fm8_gdrive_tokens_persist_across_new_session_manager(monkeypatch, tmp_p
             assert gd["user_email"] == "ops@example.test"
     finally:
         shutdown_database()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm8_complete_oauth_callback_accepts_db_injection_kwargs() -> None:
@@ -280,6 +305,9 @@ def test_fm8_complete_oauth_callback_accepts_db_injection_kwargs() -> None:
 
 
 # ───────────────────────────── FM1 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm1_compute_profile_status_per_backend() -> None:
     mw = HealthCheckMiddleware(
@@ -308,6 +336,9 @@ def test_fm1_compute_profile_status_per_backend() -> None:
 
 
 # ───────────────────────────── FM9 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm9_localstorage_narrowed_to_operator_defaults() -> None:
     html = admin.render_setup_page(callback_url="http://x/cb", profiles=["default"])
@@ -317,6 +348,9 @@ def test_fm9_localstorage_narrowed_to_operator_defaults() -> None:
     # Credentials / identity are NEVER remembered locally (the FM9 fix).
     for leaked in ("user_email", "folder_input", "client_id"):
         assert leaked not in fields_block
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm9_status_banner_is_rendered() -> None:
@@ -330,6 +364,9 @@ def test_fm9_status_banner_is_rendered() -> None:
 
 
 # ───────────────────────────── FM4 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm4_factory_passes_folder_id_to_google_drive_backend() -> None:
     from file_tools.storage import build_storage_backend
@@ -359,6 +396,9 @@ def test_fm4_factory_passes_folder_id_to_google_drive_backend() -> None:
 
 
 # ───────────────────────────── FM2 ─────────────────────────────
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 def test_fm2_redact_profile_secrets_masks_all_secret_values() -> None:
     payload = {
@@ -412,6 +452,9 @@ def test_fm2_redact_profile_secrets_masks_all_secret_values() -> None:
     assert "public-bucket" in blob
     # Source object was not mutated (owning-admin /secrets reveal needs cleartext).
     assert payload["profiles"][1]["profile"]["storage"]["s3"]["access_key"] == "AKIAEXAMPLE123"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm2_admin_gate_denies_anonymous() -> None:

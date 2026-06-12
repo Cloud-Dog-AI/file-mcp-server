@@ -33,6 +33,9 @@ import pytest
 BASE = os.environ.get("E2E_BASE_URL", "https://filemcpserver0.cloud-dog.net")
 USER = os.environ.get("E2E_WEB_USERNAME", "admin")
 PASS = os.environ.get("E2E_WEB_PASSWORD", "OrangeRiverTable")
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 @pytest.mark.integration

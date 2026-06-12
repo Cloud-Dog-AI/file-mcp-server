@@ -29,6 +29,9 @@ from tests.http_integration_helpers import (
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
@@ -77,6 +80,9 @@ def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
         line_payload, byte_payload = asyncio.run(_calls())
         assert line_payload == "line2\nline3\n"
         assert byte_payload == "line1"
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_read_file_rejects_mixed_line_and_byte_ranges(tmp_path: Path) -> None:

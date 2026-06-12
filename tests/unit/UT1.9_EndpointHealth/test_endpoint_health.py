@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Endpoint health manager tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -49,6 +50,9 @@ def _profile(root: Path) -> ProfileConfig:
             "recover_after_s": "0",
         },
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_run_startup_checks_marks_local_healthy(tmp_path: Path) -> None:
@@ -60,6 +64,9 @@ def test_run_startup_checks_marks_local_healthy(tmp_path: Path) -> None:
     assert state.status == "healthy"
     assert state.reason == "startup_probe_ok"
     assert state.requires_restart is False
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_classify_http_error_503_as_busy_temporary() -> None:
@@ -68,6 +75,9 @@ def test_classify_http_error_503_as_busy_temporary() -> None:
     response.status_code = 503
     error = requests.HTTPError("service unavailable", response=response)
     assert manager.classify_exception(error) == "busy_temporary"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_recover_backend_after_failure(tmp_path: Path) -> None:
@@ -96,6 +106,9 @@ def test_recover_backend_after_failure(tmp_path: Path) -> None:
     assert recovered is not None
     assert recovered.status == "healthy"
     assert recovered.reason == "recovered"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_configured_backends_ignores_unresolved_placeholders(tmp_path: Path) -> None:

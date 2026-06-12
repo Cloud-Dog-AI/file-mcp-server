@@ -117,6 +117,9 @@ def _login(client: TestClient, role: str) -> "dict[str, str]":
     resp = client.post("/auth/login", json={"username": user, "password": pw})
     assert resp.status_code == 200, f"{role} login: {resp.status_code} {resp.text[:200]}"
     return {k: v for k, v in resp.cookies.items()}
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_static_ui_is_public_for_anon(web_client: TestClient) -> None:
@@ -127,6 +130,9 @@ def test_static_ui_is_public_for_anon(web_client: TestClient) -> None:
             f"anon {path} must be PUBLIC 200 (login box must load); "
             f"got {resp.status_code}: {resp.text[:160]}"
         )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
@@ -137,6 +143,9 @@ def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
             f"anon {path} must be 401 (data stays auth-gated); "
             f"got {resp.status_code}: {resp.text[:160]}"
         )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
@@ -147,6 +156,9 @@ def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
     assert resp.status_code == 401, (
         f"anon POST /mcp tools/list must be 401; got {resp.status_code}: {resp.text[:160]}"
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> None:
@@ -165,6 +177,9 @@ def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> No
             # read-write carries write perms; read-only does not.
             has_write = any(p.endswith(".write") or p.endswith(":write") for p in perms)
             assert has_write is role_can_write(role), (role, perms)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_read_only_writes_are_denied_inline_403(web_client: TestClient) -> None:
@@ -183,6 +198,9 @@ def test_read_only_writes_are_denied_inline_403(web_client: TestClient) -> None:
             f"got {resp.status_code}: {resp.text[:160]}"
         )
         assert "read-only role" in resp.text, resp.text[:160]
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_read_write_writes_are_not_pre_gated(web_client: TestClient) -> None:
@@ -192,6 +210,9 @@ def test_read_write_writes_are_not_pre_gated(web_client: TestClient) -> None:
     cookies = _login(web_client, READ_WRITE_ROLE)
     resp = web_client.post("/api/v1/profiles", cookies=cookies, json={"name": "x"})
     assert resp.status_code != 403 or "read-only role" not in resp.text, resp.text[:200]
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_bad_credentials_rejected(web_client: TestClient) -> None:
@@ -207,6 +228,9 @@ def test_bad_credentials_rejected(web_client: TestClient) -> None:
         ).status_code
         == 401
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_logout_clears_session(web_client: TestClient) -> None:

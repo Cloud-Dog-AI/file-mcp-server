@@ -18,6 +18,10 @@ import json
 from pathlib import Path
 
 from cloud_dog_logging.integrity import AuditIntegrityVerifier
+import pytest
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_integrity_verifier_starts_with_server(tmp_path: Path) -> None:
@@ -30,6 +34,9 @@ def test_integrity_verifier_starts_with_server(tmp_path: Path) -> None:
     verifier.stop()
 
     assert integrity_log.exists()
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_integrity_log_file_populated(tmp_path: Path) -> None:
@@ -43,6 +50,9 @@ def test_integrity_log_file_populated(tmp_path: Path) -> None:
 
     rows = [json.loads(line) for line in integrity_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert rows
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_integrity_record_fields(tmp_path: Path) -> None:

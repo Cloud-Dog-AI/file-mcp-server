@@ -29,6 +29,9 @@ from tests.http_integration_helpers import (
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_auth_enforcement_and_health(tmp_path: Path) -> None:

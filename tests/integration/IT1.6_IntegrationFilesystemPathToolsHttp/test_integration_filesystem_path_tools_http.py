@@ -24,6 +24,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
@@ -38,6 +39,9 @@ def _decode_result(result):
         return json.loads(text)
     except (json.JSONDecodeError, ValueError):
         return text
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_filesystem_path_tools_cover_files_dirs_and_utf8(tmp_path: Path) -> None:

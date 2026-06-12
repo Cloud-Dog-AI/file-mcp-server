@@ -29,6 +29,9 @@ from tests.http_integration_helpers import (
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_file_tool_success_and_type_inference(tmp_path: Path) -> None:
@@ -69,6 +72,9 @@ def test_validate_file_tool_success_and_type_inference(tmp_path: Path) -> None:
         assert payload["ok"] is True
         assert payload["valid"] is True
         assert payload["content_type"] == "json"
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_validate_file_tool_unsupported_extension_fails(tmp_path: Path) -> None:

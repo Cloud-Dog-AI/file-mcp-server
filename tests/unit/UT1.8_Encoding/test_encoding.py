@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Base64 encoding tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -28,12 +29,18 @@ Recent Change History:
 from __future__ import annotations
 
 from file_tools.io import b64_decode, b64_encode
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_b64_encode_decode_roundtrip() -> None:
     encoded = b64_encode(b"hello")
     assert encoded == "aGVsbG8="
     assert b64_decode(encoded) == b"hello"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_b64_urlsafe_roundtrip() -> None:

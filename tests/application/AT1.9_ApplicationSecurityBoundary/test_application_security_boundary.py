@@ -29,6 +29,9 @@ from tests.http_integration_helpers import (
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.AT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_security_boundary_enforcement_with_audit(tmp_path: Path) -> None:

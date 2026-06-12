@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Observability helper tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -60,6 +61,9 @@ profiles:
         config_yaml=config_yaml,
     )
     return profile, log_path
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_operational_logger_writes_file(
@@ -77,6 +81,9 @@ def test_operational_logger_writes_file(
     entry = json.loads(content.strip().splitlines()[-1])
     assert entry["environment"] == "test"
     assert (log_path.stat().st_mode & 0o777) == 0o644
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_operational_logger_disabled(tmp_path: Path) -> None:
@@ -88,6 +95,9 @@ def test_operational_logger_disabled(tmp_path: Path) -> None:
     logger.info("skip")
 
     assert not log_path.exists()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_configure_logging_for_profile_uses_role_specific_log_file(tmp_path: Path) -> None:

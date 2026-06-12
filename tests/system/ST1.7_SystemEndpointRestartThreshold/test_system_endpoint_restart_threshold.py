@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """System tests for endpoint health restart threshold behavior.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -31,6 +32,9 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:

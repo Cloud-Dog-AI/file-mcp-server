@@ -23,11 +23,15 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_dry_run_mutations_do_not_change_files_and_are_audited(tmp_path: Path) -> None:

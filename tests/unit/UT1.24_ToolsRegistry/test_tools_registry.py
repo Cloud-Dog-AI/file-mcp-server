@@ -45,6 +45,9 @@ class EchoInput(BaseModel):
 
 class EchoOutput(BaseModel):
     text: str
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_registry_register_and_get() -> None:
@@ -57,6 +60,9 @@ def test_registry_register_and_get() -> None:
     registry.register(definition)
 
     assert registry.get("echo").meta.name == "echo"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_registry_duplicate_registration() -> None:
@@ -69,6 +75,9 @@ def test_registry_duplicate_registration() -> None:
     registry.register(definition)
     with pytest.raises(KeyError):
         registry.register(definition)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_build_registry() -> None:
@@ -81,6 +90,9 @@ def test_build_registry() -> None:
     tool = registry.get("echo")
     assert tool.schema_def.input_model is EchoInput
     assert tool.schema_def.output_model is EchoOutput
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_registry_list_deterministic() -> None:

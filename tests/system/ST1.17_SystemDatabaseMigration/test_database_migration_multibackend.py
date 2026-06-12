@@ -20,6 +20,7 @@ from pathlib import Path
 from sqlalchemy import inspect, text
 
 from file_mcp_server.db.runtime import initialise_database, shutdown_database
+import pytest
 
 
 def _version_table_ref(runtime) -> str:
@@ -69,6 +70,9 @@ def downgrade() -> None:
         encoding="utf-8",
     )
     return revision, path
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade() -> None:
@@ -84,6 +88,9 @@ def test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade() -> None:
         assert _current_revision(runtime) == baseline_revision
     finally:
         shutdown_database()
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_st_db_04_schema_versioning_simulation() -> None:

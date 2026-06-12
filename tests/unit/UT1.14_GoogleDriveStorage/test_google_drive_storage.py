@@ -29,6 +29,9 @@ import pytest
 
 from file_tools.config.models import StorageConfig
 from file_tools.storage.google_drive import GoogleDriveStorage, _extract_folder_id
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_extract_folder_id_from_drive_url() -> None:
@@ -37,6 +40,9 @@ def test_extract_folder_id_from_drive_url() -> None:
         "https://drive.google.com/drive/folders/1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn?usp=drive_link",
     )
     assert folder_id == "1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_google_drive_requires_folder_id_or_url() -> None:
@@ -50,6 +56,9 @@ def test_google_drive_requires_folder_id_or_url() -> None:
     )
     with pytest.raises(ValueError, match="folder_id or google_drive.folder_url"):
         GoogleDriveStorage(storage)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_google_drive_requires_oauth_client() -> None:

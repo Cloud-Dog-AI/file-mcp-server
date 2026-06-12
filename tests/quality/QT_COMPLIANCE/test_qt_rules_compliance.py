@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """QT rules compliance checks (RC-01 .. RC-10).
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -35,6 +36,9 @@ from ._helpers import Violation, format_violations, ratio, read_text, rel
 
 def _path_allowed(path: str, allowed: set[str]) -> bool:
     return path in allowed
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_hardcoded_urls(
@@ -63,6 +67,9 @@ def test_no_hardcoded_urls(
     assert not violations, "Hardcoded URL/host findings:\n" + format_violations(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_hardcoded_credentials(
@@ -88,6 +95,9 @@ def test_no_hardcoded_credentials(
     assert not violations, "Hardcoded credential findings:\n" + format_violations(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_direct_external_imports(
@@ -126,6 +136,9 @@ def test_no_direct_external_imports(
     assert not violations, "External import spread violations:\n- " + "\n- ".join(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_skip_calls_in_it_at(
@@ -150,6 +163,9 @@ def test_no_skip_calls_in_it_at(
                         )
                     )
     assert not violations, "IT/AT skip usage found:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_mock_in_it_at(project_root: Path) -> None:
@@ -167,6 +183,9 @@ def test_no_mock_in_it_at(project_root: Path) -> None:
                         )
                     )
     assert not violations, "IT/AT mock usage found:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_file_headers_present(
@@ -197,6 +216,9 @@ def test_file_headers_present(
                 )
             )
     assert not violations, "Missing file headers:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_functions_have_docstrings(

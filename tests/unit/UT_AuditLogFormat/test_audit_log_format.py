@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 
 from cloud_dog_logging.audit_schema import Actor, AuditEvent, Target
+import pytest
 
 
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
@@ -36,6 +37,9 @@ def _event(outcome: str = "success") -> AuditEvent:
         target=Target(type="resource", id="res-1", name="resource-name"),
         details={"token": "secret-value"},
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_event_has_all_au3_fields() -> None:
@@ -49,15 +53,24 @@ def test_audit_event_has_all_au3_fields() -> None:
     assert payload["actor"]["type"]
     assert payload["actor"]["id"]
     assert payload["outcome"]
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_event_timestamp_format() -> None:
     assert _TS_RE.match(_event().timestamp)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_event_outcome_values() -> None:
     for value in ("success", "failure", "error", "denied", "partial"):
         assert _event(outcome=value).outcome == value
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_event_no_secrets() -> None:

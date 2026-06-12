@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Application-level profile lifecycle workflow test.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -114,6 +115,9 @@ def _is_present(matches: list[Any], expected_path: str) -> bool:
         if value == expected or value.endswith(expected_name):
             return True
     return False
+@pytest.mark.AT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_profile_lifecycle_project_folder_with_dated_content(tmp_path: Path) -> None:

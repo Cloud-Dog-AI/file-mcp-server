@@ -17,11 +17,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from file_mcp_server.lifecycle import (
+import pytest
     read_pid,
     start_pidfile,
     status_pidfile,
     stop_pidfile,
 )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_pidfile_lifecycle(tmp_path: Path) -> None:
@@ -37,6 +41,9 @@ def test_pidfile_lifecycle(tmp_path: Path) -> None:
     stopped = stop_pidfile(pidfile, send_signal=True, timeout_s=0.01)
     assert not stopped.running
     assert read_pid(pidfile) is None
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_stop_pidfile_without_pid(tmp_path: Path) -> None:

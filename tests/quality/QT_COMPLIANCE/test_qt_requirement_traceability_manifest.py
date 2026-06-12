@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """QT requirement traceability manifest validation.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -204,6 +205,9 @@ REQUIREMENT_TEST_TRACEABILITY: dict[str, tuple[str, ...]] = {
     "NF1.7": ("tests/unit/UT1.4_ConfigLoader/test_config_loader.py",),
     "NF1.8": ("tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py",),
 }
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_manifest_covers_all_requirements(project_root: Path) -> None:
@@ -217,6 +221,9 @@ def test_manifest_covers_all_requirements(project_root: Path) -> None:
     assert not missing_test_map, "Missing test-map requirement ids:\n- " + "\n- ".join(
         missing_test_map
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_manifest_mapped_paths_exist(project_root: Path) -> None:
@@ -234,6 +241,9 @@ def test_manifest_mapped_paths_exist(project_root: Path) -> None:
     assert not missing_test_paths, "Mapped test paths missing:\n- " + "\n- ".join(
         missing_test_paths
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_manifest_entries_not_empty() -> None:

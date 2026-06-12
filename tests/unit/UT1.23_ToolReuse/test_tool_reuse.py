@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tool reuse tests.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -55,6 +56,9 @@ profiles:
         config_yaml=config_yaml,
     )
     return Path(profile.scope.roots[0])
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_file_tools_helpers_reusable(tmp_path: Path) -> None:

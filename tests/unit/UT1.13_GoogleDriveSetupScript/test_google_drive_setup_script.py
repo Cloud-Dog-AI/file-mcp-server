@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Unit tests for interactive Google Drive setup script helpers.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -33,6 +34,9 @@ from scripts.google_drive_setup import (
     extract_folder_id,
     write_env_values,
 )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_extract_folder_id_from_share_url() -> None:
@@ -41,12 +45,18 @@ def test_extract_folder_id_from_share_url() -> None:
     )
     assert folder_id == "1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn"
     assert folder_url and folder_url.startswith("https://drive.google.com/")
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_extract_folder_id_from_literal_id() -> None:
     folder_id, folder_url = extract_folder_id("abc123-folder-id")
     assert folder_id == "abc123-folder-id"
     assert folder_url is None
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_write_env_values_updates_existing_and_appends_new(tmp_path: Path) -> None:
@@ -73,6 +83,9 @@ def test_write_env_values_updates_existing_and_appends_new(tmp_path: Path) -> No
     assert "FILE_MCP_GDRIVE_CLIENT_ID=new-id" in content
     assert "FILE_MCP_GDRIVE_CLIENT_SECRET=old-secret" in content
     assert "FILE_MCP_GDRIVE_REFRESH_TOKEN=refresh-token" in content
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_load_google_defaults_from_credentials_file(tmp_path: Path) -> None:

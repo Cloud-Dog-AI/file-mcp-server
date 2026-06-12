@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """QT traceability checks for REQUIREMENTS <-> TESTS <-> CODE.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -100,6 +101,9 @@ def _collect_refs(project_root: Path) -> tuple[list[DeliveryRow], list[str], lis
             )
         )
     return rows, missing_tests, missing_code
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_all_requirements_have_tests(
@@ -109,6 +113,9 @@ def test_all_requirements_have_tests(
     allowed = set(allowlist["traceability_missing_tests"])
     unresolved = sorted(req for req in missing_tests if req not in allowed)
     assert not unresolved, "Requirements missing tests:\n- " + "\n- ".join(unresolved)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_all_tests_have_requirements(
@@ -132,6 +139,9 @@ def test_all_tests_have_requirements(
         "Tests without requirement references in docs/TESTS.md:\n- "
         + "\n- ".join(orphan)
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_all_requirements_have_code(
@@ -143,6 +153,9 @@ def test_all_requirements_have_code(
     assert not unresolved, "Requirements missing code references:\n- " + "\n- ".join(
         unresolved
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_delivery_matrix_complete(
@@ -177,6 +190,9 @@ def test_delivery_matrix_complete(
         f"FR delivered ratio below 80% in non-allowlisted set: {delivered_ratio:.2%} "
         f"({delivered}/{len(fr_rows)}). Matrix: {out}"
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_orphan_test_files(project_root: Path, allowlist: dict[str, object]) -> None:

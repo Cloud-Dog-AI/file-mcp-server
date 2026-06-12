@@ -8,6 +8,7 @@ from pathlib import Path
 
 from tests.config_helpers import build_profile
 from file_mcp_server.jobs_runtime import FileMcpJobsRuntime
+import pytest
 
 
 def _make_runtime(tmp_path: Path, db_name: str = "lifecycle.db") -> FileMcpJobsRuntime:
@@ -59,6 +60,9 @@ profiles:
     )
     assert runtime is not None
     return runtime
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_lifecycle_create_queue_run_succeed(tmp_path: Path) -> None:
@@ -77,6 +81,9 @@ def test_lifecycle_create_queue_run_succeed(tmp_path: Path) -> None:
     job = rt.get_job(job_id)
     assert job["status"] == "succeeded"
     rt.close()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_lifecycle_create_queue_run_fail(tmp_path: Path) -> None:
@@ -89,6 +96,9 @@ def test_lifecycle_create_queue_run_fail(tmp_path: Path) -> None:
     job = rt.get_job(job_id)
     assert job["status"] == "failed"
     rt.close()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_lifecycle_create_queue_cancel(tmp_path: Path) -> None:
@@ -103,6 +113,9 @@ def test_lifecycle_create_queue_cancel(tmp_path: Path) -> None:
     job = rt.get_job(job_id)
     assert job["status"] == "cancelled"
     rt.close()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_lifecycle_create_queue_run_fail_retryable(tmp_path: Path) -> None:

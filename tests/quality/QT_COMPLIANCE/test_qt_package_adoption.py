@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """QT platform package adoption checks.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -44,6 +45,9 @@ def _any_src_import(project_root: Path, package: str) -> bool:
         if pattern.search(read_text(path)):
             return True
     return False
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_config_uses_cloud_dog_config(
@@ -74,6 +78,9 @@ def test_config_uses_cloud_dog_config(
     assert not violations, "Potential bespoke config loading:\n" + format_violations(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_logging_uses_cloud_dog_logging(
@@ -103,6 +110,9 @@ def test_logging_uses_cloud_dog_logging(
     assert not violations, "Logging adoption violations:\n" + format_violations(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_api_uses_cloud_dog_api_kit(
@@ -130,6 +140,9 @@ def test_api_uses_cloud_dog_api_kit(
     assert not violations, "Direct FastAPI construction found:\n" + format_violations(
         violations
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_auth_uses_cloud_dog_idam(
@@ -160,6 +173,9 @@ def test_auth_uses_cloud_dog_idam(
                     )
                 )
     assert not violations, "Auth adoption violations:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_bespoke_db_access(project_root: Path, src_python_files: list[Path]) -> None:
@@ -176,6 +192,9 @@ def test_no_bespoke_db_access(project_root: Path, src_python_files: list[Path]) 
                     )
                 )
     assert not violations, "Bespoke DB usage found:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_bespoke_llm_calls(project_root: Path, src_python_files: list[Path]) -> None:
@@ -192,6 +211,9 @@ def test_no_bespoke_llm_calls(project_root: Path, src_python_files: list[Path]) 
                     )
                 )
     assert not violations, "Bespoke LLM usage found:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_bespoke_vdb_calls(project_root: Path, src_python_files: list[Path]) -> None:
@@ -208,6 +230,9 @@ def test_no_bespoke_vdb_calls(project_root: Path, src_python_files: list[Path]) 
                     )
                 )
     assert not violations, "Bespoke VDB usage found:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_pyproject_declares_platform_packages(project_root: Path) -> None:

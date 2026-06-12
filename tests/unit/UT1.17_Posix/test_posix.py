@@ -61,17 +61,26 @@ profiles:
         config_yaml=config_yaml,
     )
     return Path(profile.scope.roots[0])
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_is_posix_path() -> None:
     assert is_posix_path("/tmp/alpha")
     assert not is_posix_path("C:\\temp\\alpha")
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_normalize_and_to_posix(tmp_path: Path) -> None:
     path = normalize_path(tmp_path / "alpha")
     assert path.is_absolute()
     assert "/" in to_posix(path)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_safe_join(tmp_path: Path) -> None:
@@ -81,12 +90,18 @@ def test_safe_join(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         safe_join(root, "..", "escape")
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_require_relative() -> None:
     require_relative(Path("relative.txt"))
     with pytest.raises(ValueError):
         require_relative(Path("/abs"))
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_filter_posix_paths(tmp_path: Path) -> None:

@@ -192,6 +192,9 @@ http:
         encoding="utf-8",
     )
     return defaults_path, config_path, env_path, pidfile
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None:

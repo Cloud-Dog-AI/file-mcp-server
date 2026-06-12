@@ -21,6 +21,9 @@ from file_tools.storage.ftp import FtpStorage
 from file_tools.storage.google_drive import GoogleDriveStorage
 from file_tools.storage.s3 import S3Storage
 from file_tools.storage.webdav import WebDavStorage
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_s3_rejects_unresolved_placeholder_credentials() -> None:
@@ -37,6 +40,9 @@ def test_s3_rejects_unresolved_placeholder_credentials() -> None:
     )
     with pytest.raises(ValueError, match="placeholder found"):
         S3Storage(cfg)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_webdav_rejects_unresolved_placeholder_credentials() -> None:
@@ -52,6 +58,9 @@ def test_webdav_rejects_unresolved_placeholder_credentials() -> None:
     )
     with pytest.raises(ValueError, match="placeholder found"):
         WebDavStorage(cfg)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_ftp_rejects_unresolved_placeholder_credentials() -> None:
@@ -67,6 +76,9 @@ def test_ftp_rejects_unresolved_placeholder_credentials() -> None:
     )
     with pytest.raises(ValueError, match="placeholder found"):
         FtpStorage(cfg)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_google_drive_rejects_unresolved_placeholder_credentials() -> None:

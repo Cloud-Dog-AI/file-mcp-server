@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
 
 
 def _defaults_path() -> Path:
@@ -24,6 +25,9 @@ def _defaults_path() -> Path:
         if path.exists():
             return path
     raise AssertionError("Missing defaults.yaml/default.yaml")
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_defaults_yaml_has_integrity_config() -> None:
@@ -31,6 +35,9 @@ def test_defaults_yaml_has_integrity_config() -> None:
     assert "integrity:" in text
     assert "interval_seconds" in text
     assert "hash_algorithm" in text
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_defaults_yaml_has_rotation_config() -> None:
@@ -38,6 +45,9 @@ def test_defaults_yaml_has_rotation_config() -> None:
     assert "rotation:" in text
     assert "max_bytes" in text
     assert "backup_count" in text
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_defaults_yaml_has_retention_config() -> None:
@@ -45,6 +55,9 @@ def test_defaults_yaml_has_retention_config() -> None:
     assert "retention:" in text
     assert "hot_days" in text
     assert "cold_days" in text
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_events_doc_exists() -> None:

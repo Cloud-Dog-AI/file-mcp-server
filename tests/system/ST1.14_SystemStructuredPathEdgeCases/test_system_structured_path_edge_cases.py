@@ -30,6 +30,9 @@ from tests.http_integration_helpers import (
     wait_for_health,
     write_server_config,
 )
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_structured_path_edge_cases_and_negative_contract(tmp_path: Path) -> None:
@@ -177,6 +180,9 @@ def test_structured_path_edge_cases_and_negative_contract(tmp_path: Path) -> Non
     assert final_json["a"]["nested"]["x"] == 7
     assert final_yaml["a"]["moved"] == 1
     assert final_yaml["a"]["nested"]["x"] == 9
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_structured_nested_list_dict_and_root_merge_paths(tmp_path: Path) -> None:

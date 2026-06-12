@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Unit coverage for admin identity CRUD service.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -36,6 +37,9 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
     monkeypatch.setenv("CLOUD_DOG__DB__DATABASE", str(db_path))
     monkeypatch.delenv("CLOUD_DOG__DB__URL", raising=False)
     monkeypatch.delenv("CLOUD_DOG_DB__URL", raising=False)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_create_group_user_and_dynamic_api_key_resolution(
@@ -71,6 +75,9 @@ def test_create_group_user_and_dynamic_api_key_resolution(
         assert "profile:default" in set(principal.permissions)
     finally:
         shutdown_database()
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_revoke_api_key_blocks_future_resolution(monkeypatch, tmp_path: Path) -> None:

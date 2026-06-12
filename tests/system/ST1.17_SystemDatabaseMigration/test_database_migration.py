@@ -20,6 +20,7 @@ from sqlalchemy import text
 
 from file_mcp_server.db.models import FilePlatformDbState
 from file_mcp_server.db.runtime import initialise_database, shutdown_database
+import pytest
 
 
 _BASELINE_REVISION = "20260321_0002"
@@ -30,6 +31,9 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
     monkeypatch.setenv("CLOUD_DOG__DB__DATABASE", str(db_path))
     monkeypatch.delenv("CLOUD_DOG__DB__URL", raising=False)
     monkeypatch.delenv("CLOUD_DOG_DB__URL", raising=False)
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_st_db_01_migration_upgrade_on_fresh_sqlite(
@@ -48,6 +52,9 @@ def test_st_db_01_migration_upgrade_on_fresh_sqlite(
         assert revision == _BASELINE_REVISION
     finally:
         shutdown_database()
+@pytest.mark.ST
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_st_db_02_crud_via_session_manager(monkeypatch, tmp_path: Path) -> None:

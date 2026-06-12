@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
@@ -86,6 +87,9 @@ def _to_zulu(value: datetime) -> str:
 
 def _match_paths(payload: dict) -> set[str]:
     return {str(item.get("path")) for item in payload.get("matches") or []}
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_st1_18_time_based_search_filters_honor_modified_window(tmp_path: Path) -> None:

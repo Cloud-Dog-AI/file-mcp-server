@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for server-hosted Google Drive admin flow helpers.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -29,6 +30,9 @@ from pathlib import Path
 import requests
 
 from file_mcp_server import google_drive_admin as admin
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_render_setup_page_contains_form_and_profiles() -> None:
@@ -43,6 +47,9 @@ def test_render_setup_page_contains_form_and_profiles() -> None:
     assert "profile2" in html
     assert "/admin/google-drive/start" in html
     assert "selected" in html
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_render_setup_page_locks_profile_when_requested() -> None:
@@ -55,6 +62,9 @@ def test_render_setup_page_locks_profile_when_requested() -> None:
     assert "Profile is fixed for this authorisation flow." in html
     assert "name='profile'" in html
     assert "disabled" in html
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_render_setup_page_prefills_values_and_masks_stored_secret() -> None:
@@ -76,6 +86,9 @@ def test_render_setup_page_prefills_values_and_masks_stored_secret() -> None:
     assert "folder123" in html
     assert f'value="{admin.MASKED_CLIENT_SECRET}"' in html
     assert "raw-secret-should-not-render" not in html
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> None:
@@ -102,6 +115,9 @@ def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> 
     assert "backend: google_drive" in content
     assert "folder123" in content
     assert "client_id: cid" in content
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
@@ -141,6 +157,9 @@ def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
     assert result.folder_id == "folder1"
     updated = cfg.read_text(encoding="utf-8")
     assert "backend: google_drive" in updated
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fetch_folder_falls_back_to_name_lookup_on_404(monkeypatch) -> None:

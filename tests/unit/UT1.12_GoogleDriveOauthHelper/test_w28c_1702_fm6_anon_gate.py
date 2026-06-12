@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """file-mcp-server — UT1.12 FM6: /admin/google-drive* anonymous-gate.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -79,6 +80,9 @@ def _mw():
         profile_name="default",
         transport="streamable-http",
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm6_anonymous_denied_on_all_four_gdrive_surfaces() -> None:
@@ -92,6 +96,9 @@ def test_fm6_anonymous_denied_on_all_four_gdrive_surfaces() -> None:
             m.get("body", b"") for m in sent if m.get("type") == "http.response.body"
         )
         assert b"client_id" not in body
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_fm6_admin_cookie_session_admitted() -> None:

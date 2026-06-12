@@ -26,6 +26,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
+import pytest
     pick_free_port,
     running_server,
     wait_for_health,
@@ -45,6 +46,9 @@ def _extract_payload(result) -> dict:
         return structured
     text = "\n".join(item.text for item in result.content if hasattr(item, "text"))
     return json.loads(text)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> None:
@@ -105,6 +109,9 @@ def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> N
 
         assert mismatched_payload["ok"] is False
         assert mismatched_payload["error_code"] == "unknown_backend"
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> None:
@@ -173,6 +180,9 @@ def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> 
             assert Path(payload["output_path"]).exists()
     finally:
         shutil.rmtree(bin_dir, ignore_errors=True)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) -> None:
@@ -240,6 +250,9 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
             assert Path(payload["output_path"]).exists()
     finally:
         shutil.rmtree(bin_dir, ignore_errors=True)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_conversion_explicit_backend_unavailable_and_unsupported_codes(

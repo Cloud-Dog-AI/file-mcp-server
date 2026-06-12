@@ -18,6 +18,7 @@ from pathlib import Path
 
 from tests.config_helpers import build_profile
 from file_tools.audit import AuditEvent, AuditLogger, build_event, create_snapshot
+import pytest
 
 
 def _build_profile(tmp_path: Path, *, log_path: Path, snapshot_dir: Path):
@@ -40,12 +41,18 @@ profiles:
         defaults_yaml=defaults_yaml,
         config_yaml=config_yaml,
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_build_event() -> None:
     event = build_event(tool="read", action="read_file", status="ok")
     assert isinstance(event, AuditEvent)
     assert event.tool == "read"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_logger_writes(tmp_path: Path) -> None:
@@ -57,6 +64,9 @@ def test_audit_logger_writes(tmp_path: Path) -> None:
     logger.write(event)
     content = log_path.read_text()
     assert "write_file" in content
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_audit_logger_uses_explicit_actor_identity(tmp_path: Path) -> None:
@@ -80,6 +90,9 @@ def test_audit_logger_uses_explicit_actor_identity(tmp_path: Path) -> None:
     assert '"id": "user-123"' in content
     assert '"type": "user"' in content
     assert '"ip": "127.0.0.1"' in content
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_create_snapshot(tmp_path: Path) -> None:

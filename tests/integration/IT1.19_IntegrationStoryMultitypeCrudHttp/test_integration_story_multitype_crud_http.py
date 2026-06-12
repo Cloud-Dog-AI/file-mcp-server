@@ -75,6 +75,9 @@ def _write_pdf(path: Path, text: str) -> None:
         )
     )
     path.write_bytes(b"".join(parts))
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_story_multitype_upload_search_update_retrieve_delete_with_audit(
@@ -285,6 +288,9 @@ def test_story_multitype_upload_search_update_retrieve_delete_with_audit(
     server_log = tmp_path / "server.log"
     if server_log.exists():
         assert server_log.read_text(encoding="utf-8")
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) -> None:
@@ -365,6 +371,9 @@ def test_story_upload_pdf_convert_update_find_return_with_audit(tmp_path: Path) 
         if line.strip()
     ]
     assert any(event.get("tool") == "markdown_set_section_file" for event in events)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_upload_download_cycle_with_invalid_key_rejected(tmp_path: Path) -> None:

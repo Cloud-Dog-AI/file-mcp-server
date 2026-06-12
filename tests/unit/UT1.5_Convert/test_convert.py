@@ -100,6 +100,9 @@ profiles:
         defaults_yaml=defaults_yaml,
         config_yaml=config_yaml,
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_convert_file_with_dummy_backend(tmp_path: Path) -> None:
@@ -116,6 +119,9 @@ def test_convert_file_with_dummy_backend(tmp_path: Path) -> None:
         timeout_s=profile.limits.conversion_timeout_s,
     )
     assert result.content == "ok"
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_convert_file_no_backend(tmp_path: Path) -> None:
@@ -132,6 +138,9 @@ def test_convert_file_no_backend(tmp_path: Path) -> None:
             max_input_mb=profile.conversion.max_input_mb,
             timeout_s=profile.limits.conversion_timeout_s,
         )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_convert_file_max_input_mb(tmp_path: Path) -> None:
@@ -149,6 +158,9 @@ def test_convert_file_max_input_mb(tmp_path: Path) -> None:
             max_input_mb=profile.conversion.max_input_mb,
             timeout_s=profile.limits.conversion_timeout_s,
         )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_convert_file_timeout(tmp_path: Path) -> None:

@@ -301,6 +301,9 @@ def docker_image() -> str:
     tag = "cloud-dog/file-mcp-server:test"
     _run(_docker_cmd("build", "--network=host", "-t", tag, "."), cwd=repo_root)
     return tag
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_docker_command_builder_supports_remote_host_flag() -> None:
@@ -314,6 +317,9 @@ def test_docker_command_builder_supports_remote_host_flag() -> None:
             runtime_env.pop("FILE_MCP_DOCKER_HOST", None)
         else:
             runtime_env["FILE_MCP_DOCKER_HOST"] = prev
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_docker_command_builder_defaults_to_local_daemon() -> None:
@@ -324,6 +330,9 @@ def test_docker_command_builder_defaults_to_local_daemon() -> None:
     finally:
         if prev is not None:
             runtime_env["FILE_MCP_DOCKER_HOST"] = prev
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_docker_remote_host_exec_path_if_enabled() -> None:
@@ -347,6 +356,9 @@ def test_docker_remote_host_exec_path_if_enabled() -> None:
             runtime_env.pop("FILE_MCP_DOCKER_HOST", None)
         else:
             runtime_env["FILE_MCP_DOCKER_HOST"] = prev
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_container_smoke_with_host_network_and_mcp_call(
@@ -405,6 +417,9 @@ def test_container_smoke_with_host_network_and_mcp_call(
         assert "hello from docker host network" in response_text
     finally:
         _rm_container(repo_root, container_name)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_container_smoke_with_bridge_network_port_publish(
@@ -464,6 +479,9 @@ def test_container_smoke_with_bridge_network_port_publish(
         assert health["transport"] == "streamable-http"
     finally:
         _rm_container(repo_root, container_name)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_container_multi_env_override_changes_root_and_api_key(
@@ -571,6 +589,9 @@ def test_container_multi_env_override_changes_root_and_api_key(
         )
     finally:
         _rm_container(repo_root, container_name)
+@pytest.mark.IT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_container_multi_folder_scope_controls_and_audit_logs(

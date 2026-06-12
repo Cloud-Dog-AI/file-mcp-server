@@ -48,6 +48,9 @@ def _storage() -> WebDavStorage:
             },
         )
     )
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_webdav_move_retries_transient_then_succeeds(monkeypatch) -> None:
@@ -65,6 +68,9 @@ def test_webdav_move_retries_transient_then_succeeds(monkeypatch) -> None:
     monkeypatch.setattr("file_tools.storage.webdav.time.sleep", lambda _: None)
     storage.move_path("/a.txt", "/b.txt", overwrite=True)
     assert len(calls) == 2
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_webdav_move_treats_already_applied_as_success(monkeypatch) -> None:
@@ -80,6 +86,9 @@ def test_webdav_move_treats_already_applied_as_success(monkeypatch) -> None:
 
     monkeypatch.setattr(storage, "_path_exists", _path_exists)
     storage.move_path("/a.txt", "/b.txt", overwrite=True)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_webdav_move_non_transient_raises(monkeypatch) -> None:
@@ -92,6 +101,9 @@ def test_webdav_move_non_transient_raises(monkeypatch) -> None:
     monkeypatch.setattr("file_tools.storage.webdav.time.sleep", lambda _: None)
     with pytest.raises(requests.HTTPError):
         storage.move_path("/a.txt", "/b.txt", overwrite=True)
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_webdav_retry_config_is_read_from_storage_model() -> None:
@@ -113,6 +125,9 @@ def test_webdav_retry_config_is_read_from_storage_model() -> None:
     assert storage._move_retry_backoff_s == 0.2
     assert storage._move_probe_timeout_s == 1.5
     assert storage._move_retry_statuses == {429, 500, 503}
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_parse_retry_statuses_falls_back_for_invalid_input() -> None:

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Application-level WebUI admin verification.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -82,6 +83,9 @@ def _is_legacy_admin_html(route: str, html: str) -> bool:
     if route == "/admin/rbac":
         return "<h1>RBAC</h1>" in html or "<h1>Role-Based Access Control</h1>" in html
     return False
+@pytest.mark.AT
+@pytest.mark.webui
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_at1_13_webui_admin_pages_render_profile_and_identity_data(

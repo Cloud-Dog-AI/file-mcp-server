@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """QT vault/config contract checks.
+import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -64,10 +65,16 @@ def _secret_assignments(text: str) -> list[str]:
             continue
         findings.append(raw)
     return findings
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_defaults_yaml_exists(project_root: Path) -> None:
     assert (project_root / "defaults.yaml").exists(), "defaults.yaml is missing"
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_defaults_yaml_no_secrets(project_root: Path) -> None:
@@ -76,6 +83,9 @@ def test_defaults_yaml_no_secrets(project_root: Path) -> None:
     assert not secret_like, (
         "defaults.yaml contains secret-like assignments:\n- " + "\n- ".join(secret_like)
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_config_yaml_no_secrets(project_root: Path) -> None:
@@ -87,6 +97,9 @@ def test_config_yaml_no_secrets(project_root: Path) -> None:
     assert not secret_like, (
         "config.yaml contains secret-like assignments:\n- " + "\n- ".join(secret_like)
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_env_files_use_vault_expressions(project_root: Path) -> None:
@@ -140,6 +153,9 @@ def test_env_files_use_vault_expressions(project_root: Path) -> None:
     assert not violations, (
         "Credential env vars without vault expressions:\n- " + "\n- ".join(violations)
     )
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_no_secrets_in_source(project_root: Path, src_python_files: list[Path]) -> None:
@@ -162,6 +178,9 @@ def test_no_secrets_in_source(project_root: Path, src_python_files: list[Path]) 
                     )
                     break
     assert not violations, "Possible secrets in src/:\n" + format_violations(violations)
+@pytest.mark.QT
+@pytest.mark.mcp
+@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
 
 
 def test_env_files_exist_per_tier(project_root: Path) -> None:
