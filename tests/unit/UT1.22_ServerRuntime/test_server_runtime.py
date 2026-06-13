@@ -25,7 +25,6 @@ from tests.config_helpers import build_profile
 from file_tools.config.models import HttpServerConfig
 from file_mcp_server.jobs_runtime import FileMcpJobsRuntime
 from file_mcp_server.server import (
-import pytest
     HealthCheckMiddleware,
     StreamableHttpAcceptCompatibilityMiddleware,
     build_tool_registry,
@@ -38,6 +37,7 @@ from file_mcp_server.server_runtime import (
     _resolve_auth_api_key_value,
 )
 from file_tools.config.models import ProfileConfig, ServerConfig
+import pytest
 
 
 class _FakeDbRow:

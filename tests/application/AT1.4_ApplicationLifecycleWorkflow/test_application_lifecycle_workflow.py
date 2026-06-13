@@ -22,11 +22,11 @@ from pathlib import Path
 from tests.path_helpers import project_root
 
 from tests.http_integration_helpers import (
-import pytest
     pick_free_port,
     wait_for_health,
     write_server_config,
 )
+import pytest
 
 
 def _run_cli(

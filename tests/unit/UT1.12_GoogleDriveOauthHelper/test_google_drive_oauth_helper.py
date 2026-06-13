@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Tests for Google Drive OAuth helper script.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -24,7 +23,9 @@ Architecture: 9.2 Google Drive Backend
 Tests: UT1.30
 """
 
+
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 import subprocess

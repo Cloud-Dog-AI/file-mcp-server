@@ -17,12 +17,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from file_mcp_server.lifecycle import (
-import pytest
     read_pid,
     start_pidfile,
     status_pidfile,
     stop_pidfile,
 )
+import pytest
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding

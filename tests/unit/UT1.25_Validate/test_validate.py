@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Validation policy tests.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -26,7 +25,9 @@ Recent Change History:
 - 2026-02-05: Align validation tests to config-driven strict/warn/ignore modes.
 """
 
+
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 

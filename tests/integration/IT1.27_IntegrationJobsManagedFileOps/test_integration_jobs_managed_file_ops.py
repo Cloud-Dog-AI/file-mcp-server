@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Managed jobs integration test for file processing.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -24,7 +23,9 @@ Architecture: 6. Interface Specifications, 8. Configuration Architecture
 Tests: IT1.27
 """
 
+
 from __future__ import annotations
+import pytest
 
 import asyncio
 import json

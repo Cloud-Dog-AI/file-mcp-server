@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Application-level WebUI admin verification.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -24,7 +23,9 @@ Architecture: 4.1 Authentication, 5. Tool Interface
 Tests: AT1.13
 """
 
+
 from __future__ import annotations
+import pytest
 
 import json
 from pathlib import Path

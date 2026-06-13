@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Search utility tests.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -26,7 +25,9 @@ Recent Change History:
 - 2026-02-05: Added limit coverage for search utilities.
 """
 
+
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 

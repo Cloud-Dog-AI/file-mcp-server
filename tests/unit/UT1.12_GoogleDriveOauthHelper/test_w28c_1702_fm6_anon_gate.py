@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """file-mcp-server — UT1.12 FM6: /admin/google-drive* anonymous-gate.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -22,7 +21,9 @@ deny anonymous callers (401 JSON) and admit an admin-cookie session, closing the
 OAuth client_id leak. Tests: UT1.12
 """
 
+
 from __future__ import annotations
+import pytest
 
 from tests.env_runtime import runtime_env  # noqa: F401  (autouse env loader)
 

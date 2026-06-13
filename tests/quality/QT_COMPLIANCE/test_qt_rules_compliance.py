@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """QT rules compliance checks (RC-01 .. RC-10).
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -24,7 +23,9 @@ Architecture: Compliance quality gates
 Tests: QT1.1
 """
 
+
 from __future__ import annotations
+import pytest
 
 import ast
 from collections import defaultdict

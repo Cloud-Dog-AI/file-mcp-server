@@ -3,11 +3,11 @@ template-id: T-RCM
 template-version: 1.0
 applies-to: docs/REQ-COVERAGE.md
 project: file-mcp-server
-doc-last-updated: 2026-06-12T16:47:16.606527+00:00
-doc-git-commit: bc8b6f7f030668571663f22da3732a1c3e1a9fd6
+doc-last-updated: 2026-06-13T10:29:06.788383+00:00
+doc-git-commit: d893dd83bd865d6699918b9ceecd2ae53e1f873e
 doc-git-branch: main
 doc-age-policy: 30d
-doc-conformance-stamp: 2026-06-12T16:47:16.606527+00:00
+doc-conformance-stamp: 2026-06-13T10:29:06.788383+00:00
 generated-by: scripts/generate-req-coverage.py
 ---
 
@@ -18,7 +18,7 @@ generated-by: scripts/generate-req-coverage.py
 
 ## 1. Latest generation
 
-- **Generated at:** 2026-06-12T16:47:16.606527+00:00
+- **Generated at:** 2026-06-13T10:29:06.788383+00:00
 - **Source REQ commit:** bc8b6f7
 - **Source TEST commit:** bc8b6f7
 

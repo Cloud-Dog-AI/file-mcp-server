@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Integration workflow for config/user/key CRUD completion.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -24,7 +23,9 @@ Architecture: 4.1 Authentication, 5. Tool Interface
 Tests: IT1.26
 """
 
+
 from __future__ import annotations
+import pytest
 
 import asyncio
 import json

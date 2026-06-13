@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Endpoint health manager tests.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -24,7 +23,9 @@ Architecture: 6. Runtime Health
 Tests: UT1.28
 """
 
+
 from __future__ import annotations
+import pytest
 
 from dataclasses import replace
 from pathlib import Path

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Unit tests for interactive Google Drive setup script helpers.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -24,7 +23,9 @@ Architecture: 9.2 Google Drive Backend
 Tests: UT1.31
 """
 
+
 from __future__ import annotations
+import pytest
 
 import json
 from pathlib import Path

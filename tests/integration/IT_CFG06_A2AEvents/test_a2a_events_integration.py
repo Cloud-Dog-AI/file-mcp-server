@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Integration test for CFG-06 A2A config-change broadcast.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -26,7 +25,9 @@ Architecture: 5. Tool Interface, SA1 API Kit integration.
 Tests: IT_CFG06_A2AEvents.
 """
 
+
 from __future__ import annotations
+import pytest
 
 import json
 from pathlib import Path

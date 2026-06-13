@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Config loader tests.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -27,7 +26,9 @@ Recent Change History:
 - 2026-02-19: Migrated tests to cloud_dog_config adapter and added baseline adapter coverage.
 """
 
+
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Unit coverage for admin identity CRUD service.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -24,7 +23,9 @@ Architecture: 4.1 Authentication
 Tests: UT1.30
 """
 
+
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 

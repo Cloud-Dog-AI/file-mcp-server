@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """System tests for endpoint health restart threshold behavior.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -24,7 +23,9 @@ Architecture: 8.3 Endpoint Health Lifecycle
 Tests: ST1.8
 """
 
+
 from __future__ import annotations
+import pytest
 
 from tests.env_runtime import runtime_env
 

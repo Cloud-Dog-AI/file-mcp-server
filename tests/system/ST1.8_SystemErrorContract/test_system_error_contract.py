@@ -23,12 +23,12 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
-import pytest
     pick_free_port,
     running_server,
     wait_for_health,
     write_server_config,
 )
+import pytest
 @pytest.mark.ST
 @pytest.mark.mcp
 @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding

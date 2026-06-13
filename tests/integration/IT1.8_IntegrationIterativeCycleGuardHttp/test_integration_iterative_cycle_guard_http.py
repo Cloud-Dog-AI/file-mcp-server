@@ -23,12 +23,12 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from tests.http_integration_helpers import (
-import pytest
     pick_free_port,
     running_server,
     wait_for_health,
     write_server_config,
 )
+import pytest
 
 
 def _decode_result(result):

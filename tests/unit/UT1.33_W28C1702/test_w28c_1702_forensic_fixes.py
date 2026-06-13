@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """file-mcp-server — UT for W28C-1702 forensic fixes.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -24,7 +23,9 @@ profile status), FM9 (admin-form banner + narrowed localStorage).
 Tests: UT1.33
 """
 
+
 from __future__ import annotations
+import pytest
 
 from tests.env_runtime import runtime_env  # noqa: F401  (autouse env loader)
 

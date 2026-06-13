@@ -20,11 +20,11 @@ from cloud_dog_db import probe_database
 
 from file_mcp_server.db.models import FilePlatformDbState
 from file_mcp_server.db.runtime import (
-import pytest
     database_health,
     initialise_database,
     shutdown_database,
 )
+import pytest
 
 
 def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:

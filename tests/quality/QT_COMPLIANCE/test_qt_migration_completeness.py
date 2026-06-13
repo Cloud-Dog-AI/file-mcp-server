@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """QT migration completeness checks.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
@@ -24,7 +23,9 @@ Architecture: Compliance quality gates
 Tests: QT1.4
 """
 
+
 from __future__ import annotations
+import pytest
 
 from pathlib import Path
 import re

@@ -20,13 +20,13 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 from tests.http_integration_helpers import (
-import pytest
     pick_free_port,
     running_server,
     wait_for_health,
     write_server_config,
 )
 from tests.path_helpers import project_root
+import pytest
 
 
 def _call_mcp_tool(

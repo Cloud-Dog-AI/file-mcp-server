@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """PARAM_ALIASES required-parameter fallback tests.
-import pytest
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Limited
@@ -28,7 +27,9 @@ Recent Change History:
   b64_decode_to_file's `data` arg silently stripped (IT1.3/IT1.14 root cause) (W28A-752).
 """
 
+
 from __future__ import annotations
+import pytest
 
 from typing import Any
 
