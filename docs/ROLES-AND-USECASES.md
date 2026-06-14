@@ -78,3 +78,21 @@ _This section carries forward the full content of the archived predecessor doc v
 Current status:
 - Dynamic profile lifecycle exists.
 - Generic user/group/API-key CRUD and WebUI parity are not yet delivered.
+
+
+<!-- W28C-1710b design-delta additions (2026-06-14T18:01:23Z) -->
+
+## Cross-surface UC mappings (W28C-1710b)
+
+Per T-RUC v1.1 + PS-REQ-TEST-TRACE §3.5, every UC-NNN maps to one OR MORE FR-NNN across surfaces.
+
+This service's surface set: **api, mcp, a2a, webui**.
+
+Detailed UC-by-UC operator-review pass + per-FR cross-surface mapping deferred to W28C-1711. The cross-surface declarations are enabled here.
+
+```yaml
+# Schema for every UC-NNN (default; operator amends per UC):
+surfaces: ['api', 'mcp', 'a2a', 'webui']
+roles: [admin, read-write, read-only, anon]
+FR-mapping: []  # populated by W28C-1711
+```

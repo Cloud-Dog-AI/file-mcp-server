@@ -249,3 +249,21 @@ Mandatory 10-column schema per PS-REQ-TEST-TRACE v1.0 §4.2. The per-test catalo
 
 | Test ID | Tier | Use case | Requirement | Surface | Scenario | Variants | Env files | Known issue | Last run commit |
 |---|---|---|---|---|---|---|---|---|---|
+
+
+<!-- W28C-1710b design-delta additions (2026-06-14T18:01:23Z) -->
+
+## W28C-1710b design-delta — planned tests catalogue (T-TST v1.1 10-col schema)
+
+Per T-TST v1.1, the planned tests catalogue carries 10 columns: `test-id | tier | use-case | requirement | surface | scenario | variants | env-files | known-issue | last-run-commit`. Test binding (replacement of probe markers with `@pytest.mark.req("FR-NNN")`) is W28C-1711 work.
+
+Consolidation rules (per W28C-1711):
+
+1. One primary test per FR-NNN; variants via `pytest.parametrize`.
+2. Common scenarios (login, RBAC matrix, anon-denied) in `tests/helpers/`.
+3. Cross-surface FR uses parametrized test file; not duplicate files.
+4. Every `surface: webui` FR has a Playwright test (cookie-login + RBAC matrix + screenshot + DOM-assert + console-error-gate + CW-pattern).
+5. Every `surface: api|mcp|a2a` FR has a protocol-level test.
+6. Every `CS-NNN` binds to `@pytest.mark.negative` test with expected denial code.
+7. CRUD-applicable entities have C/R/U/D coverage.
+8. Orphan retirement requires knowledge-extract worksheet.
