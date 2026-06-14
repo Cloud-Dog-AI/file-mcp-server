@@ -1,0 +1,13 @@
+FR_or_CS	surfaces	primary_test_id	action	operator_note
+CS-005	api	test_negative_anon_denied_api	NEW-NEGATIVE-TEST	Expected 401
+CS-006	mcp	test_negative_anon_denied_mcp	NEW-NEGATIVE-TEST	Expected 401
+CS-007	a2a	test_negative_anon_denied_a2a	NEW-NEGATIVE-TEST	Expected 401
+CS-008	webui	test_negative_anon_denied_webui	NEW-NEGATIVE-TEST	Expected 401
+CS-009	api	test_negative_wrong_role_denied_api	NEW-NEGATIVE-TEST	Expected 403
+CS-010	mcp	test_negative_wrong_role_denied_mcp	NEW-NEGATIVE-TEST	Expected 403
+CS-011	a2a	test_negative_wrong_role_denied_a2a	NEW-NEGATIVE-TEST	Expected 403
+CS-012	webui	test_negative_wrong_role_denied_webui	NEW-NEGATIVE-TEST	Expected 403
+CS-013	api	test_negative_missing_param_error_api	NEW-NEGATIVE-TEST	Expected 422
+CS-014	mcp	test_negative_missing_param_error_mcp	NEW-NEGATIVE-TEST	Expected 422
+CS-015	a2a	test_negative_missing_param_error_a2a	NEW-NEGATIVE-TEST	Expected 422
+CS-016	webui	test_negative_missing_param_error_webui	NEW-NEGATIVE-TEST	Expected 422
