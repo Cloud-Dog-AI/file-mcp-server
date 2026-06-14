@@ -59,7 +59,7 @@ profiles:
     return Path(profile.scope.roots[0])
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.24")
 
 
 def test_file_tools_helpers_reusable(tmp_path: Path) -> None:

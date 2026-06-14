@@ -98,7 +98,7 @@ def _env_paths(tmp_path: Path) -> tuple[list[Path], str, str]:
     return [env_a, env_b], str(log_path_b), level_config_b
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_env_precedence(tmp_path: Path, monkeypatch) -> None:
@@ -129,7 +129,7 @@ def test_load_config_env_precedence(tmp_path: Path, monkeypatch) -> None:
     assert profile.observability.level == expected_level
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_os_environ_precedence(tmp_path: Path, monkeypatch) -> None:
@@ -159,7 +159,7 @@ def test_load_config_os_environ_precedence(tmp_path: Path, monkeypatch) -> None:
     assert profile.observability.level == expected_level
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_env_overrides_literal_config_values(
@@ -210,7 +210,7 @@ profiles:
     assert profile.observability.level == "WARN"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_os_environ_overrides_env_file_and_config(
@@ -253,7 +253,7 @@ profiles:
     assert profile.observability.log_path == "/literal/from/config.log"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_defaults_only(tmp_path: Path, monkeypatch) -> None:
@@ -284,7 +284,7 @@ profiles:
     assert profile.observability.level == "INFO"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_coerces_numeric_api_keys_to_strings(
@@ -337,7 +337,7 @@ profiles:
     assert all(isinstance(item, str) for item in profile.auth.api_keys)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_load_config_env_override_precedence(tmp_path: Path, monkeypatch) -> None:

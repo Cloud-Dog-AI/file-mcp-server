@@ -208,7 +208,7 @@ REQUIREMENT_TEST_TRACEABILITY: dict[str, tuple[str, ...]] = {
 }
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.1")
 
 
 def test_manifest_covers_all_requirements(project_root: Path) -> None:
@@ -224,7 +224,7 @@ def test_manifest_covers_all_requirements(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.1")
 
 
 def test_manifest_mapped_paths_exist(project_root: Path) -> None:
@@ -244,7 +244,7 @@ def test_manifest_mapped_paths_exist(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.1")
 
 
 def test_manifest_entries_not_empty() -> None:

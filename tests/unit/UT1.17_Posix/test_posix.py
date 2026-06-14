@@ -63,7 +63,7 @@ profiles:
     return Path(profile.scope.roots[0])
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.25")
 
 
 def test_is_posix_path() -> None:
@@ -71,7 +71,7 @@ def test_is_posix_path() -> None:
     assert not is_posix_path("C:\\temp\\alpha")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.25")
 
 
 def test_normalize_and_to_posix(tmp_path: Path) -> None:
@@ -80,7 +80,7 @@ def test_normalize_and_to_posix(tmp_path: Path) -> None:
     assert "/" in to_posix(path)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.25")
 
 
 def test_safe_join(tmp_path: Path) -> None:
@@ -92,7 +92,7 @@ def test_safe_join(tmp_path: Path) -> None:
         safe_join(root, "..", "escape")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.25")
 
 
 def test_require_relative() -> None:
@@ -101,7 +101,7 @@ def test_require_relative() -> None:
         require_relative(Path("/abs"))
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.25")
 
 
 def test_filter_posix_paths(tmp_path: Path) -> None:

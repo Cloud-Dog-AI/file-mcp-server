@@ -41,7 +41,7 @@ import pytest
 )
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.32")
 def test_google_oauth_live_exchange_if_enabled() -> None:
     if env_get("FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST", "0") != "1":
         pytest.fail(

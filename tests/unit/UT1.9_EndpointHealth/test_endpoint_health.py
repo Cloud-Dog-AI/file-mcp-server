@@ -53,7 +53,7 @@ def _profile(root: Path) -> ProfileConfig:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-2.4")
 
 
 def test_run_startup_checks_marks_local_healthy(tmp_path: Path) -> None:
@@ -67,7 +67,7 @@ def test_run_startup_checks_marks_local_healthy(tmp_path: Path) -> None:
     assert state.requires_restart is False
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-2.4")
 
 
 def test_classify_http_error_503_as_busy_temporary() -> None:
@@ -78,7 +78,7 @@ def test_classify_http_error_503_as_busy_temporary() -> None:
     assert manager.classify_exception(error) == "busy_temporary"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-2.4")
 
 
 def test_recover_backend_after_failure(tmp_path: Path) -> None:
@@ -109,7 +109,7 @@ def test_recover_backend_after_failure(tmp_path: Path) -> None:
     assert recovered.reason == "recovered"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-2.4")
 
 
 def test_configured_backends_ignores_unresolved_placeholders(tmp_path: Path) -> None:

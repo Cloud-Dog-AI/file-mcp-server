@@ -119,7 +119,7 @@ def _login(client: TestClient, role: str) -> "dict[str, str]":
     return {k: v for k, v in resp.cookies.items()}
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_static_ui_is_public_for_anon(web_client: TestClient) -> None:
@@ -132,7 +132,7 @@ def test_static_ui_is_public_for_anon(web_client: TestClient) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
@@ -145,7 +145,7 @@ def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
@@ -158,7 +158,7 @@ def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> None:
@@ -179,7 +179,7 @@ def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> No
             assert has_write is role_can_write(role), (role, perms)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_read_only_writes_are_denied_inline_403(web_client: TestClient) -> None:
@@ -200,7 +200,7 @@ def test_read_only_writes_are_denied_inline_403(web_client: TestClient) -> None:
         assert "read-only role" in resp.text, resp.text[:160]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_read_write_writes_are_not_pre_gated(web_client: TestClient) -> None:
@@ -212,7 +212,7 @@ def test_read_write_writes_are_not_pre_gated(web_client: TestClient) -> None:
     assert resp.status_code != 403 or "read-only role" not in resp.text, resp.text[:200]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_bad_credentials_rejected(web_client: TestClient) -> None:
@@ -230,7 +230,7 @@ def test_bad_credentials_rejected(web_client: TestClient) -> None:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R4")
 
 
 def test_logout_clears_session(web_client: TestClient) -> None:

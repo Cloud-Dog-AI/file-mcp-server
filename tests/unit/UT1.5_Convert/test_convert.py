@@ -102,7 +102,7 @@ profiles:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_convert_file_with_dummy_backend(tmp_path: Path) -> None:
@@ -121,7 +121,7 @@ def test_convert_file_with_dummy_backend(tmp_path: Path) -> None:
     assert result.content == "ok"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_convert_file_no_backend(tmp_path: Path) -> None:
@@ -140,7 +140,7 @@ def test_convert_file_no_backend(tmp_path: Path) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_convert_file_max_input_mb(tmp_path: Path) -> None:
@@ -160,7 +160,7 @@ def test_convert_file_max_input_mb(tmp_path: Path) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_convert_file_timeout(tmp_path: Path) -> None:

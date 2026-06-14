@@ -35,7 +35,7 @@ USER = os.environ.get("E2E_WEB_USERNAME", "admin")
 PASS = os.environ.get("E2E_WEB_PASSWORD", "OrangeRiverTable")
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("R2")
 
 
 @pytest.mark.integration

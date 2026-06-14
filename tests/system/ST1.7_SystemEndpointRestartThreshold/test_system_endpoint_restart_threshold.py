@@ -35,7 +35,7 @@ from pathlib import Path
 from textwrap import dedent
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.30")
 
 
 def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:

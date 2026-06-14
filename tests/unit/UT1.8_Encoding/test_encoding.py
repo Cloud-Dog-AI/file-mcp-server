@@ -32,7 +32,7 @@ import pytest
 from file_tools.io import b64_decode, b64_encode
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.10")
 
 
 def test_b64_encode_decode_roundtrip() -> None:
@@ -41,7 +41,7 @@ def test_b64_encode_decode_roundtrip() -> None:
     assert b64_decode(encoded) == b"hello"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.10")
 
 
 def test_b64_urlsafe_roundtrip() -> None:

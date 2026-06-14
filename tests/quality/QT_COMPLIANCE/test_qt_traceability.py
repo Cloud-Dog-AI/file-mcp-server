@@ -104,7 +104,7 @@ def _collect_refs(project_root: Path) -> tuple[list[DeliveryRow], list[str], lis
     return rows, missing_tests, missing_code
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_all_requirements_have_tests(
@@ -116,7 +116,7 @@ def test_all_requirements_have_tests(
     assert not unresolved, "Requirements missing tests:\n- " + "\n- ".join(unresolved)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_all_tests_have_requirements(
@@ -142,7 +142,7 @@ def test_all_tests_have_requirements(
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_all_requirements_have_code(
@@ -156,7 +156,7 @@ def test_all_requirements_have_code(
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_delivery_matrix_complete(
@@ -193,7 +193,7 @@ def test_delivery_matrix_complete(
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.3")
 
 
 def test_no_orphan_test_files(project_root: Path, allowlist: dict[str, object]) -> None:

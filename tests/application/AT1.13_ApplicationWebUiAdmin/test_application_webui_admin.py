@@ -86,7 +86,7 @@ def _is_legacy_admin_html(route: str, html: str) -> bool:
     return False
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.36")
 
 
 def test_at1_13_webui_admin_pages_render_profile_and_identity_data(

@@ -124,7 +124,7 @@ def _backend_ready(backend: str, env: Mapping[str, str]) -> bool:
     return False
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.26")
 
 
 @pytest.mark.parametrize("backend", _BACKEND_MATRIX)

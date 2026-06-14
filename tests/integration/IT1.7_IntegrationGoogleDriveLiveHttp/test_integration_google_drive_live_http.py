@@ -71,7 +71,7 @@ def _require(env: Mapping[str, str], key: str) -> str:
 )
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.26")
 def test_google_drive_backend_end_to_end_live(tmp_path: Path) -> None:
     if not _gdrive_live_enabled():
         pytest.fail(

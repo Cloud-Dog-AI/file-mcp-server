@@ -75,7 +75,7 @@ def _http_get_json(url: str, *, auth_header_value: str) -> tuple[int, dict]:
         return response.status, body
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_conversion_operation_is_tracked_as_managed_job(tmp_path: Path) -> None:

@@ -77,7 +77,7 @@ profiles:
     return Path(profile.scope.roots[0])
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.13")
 
 
 def test_json_yaml_crud(tmp_path: Path) -> None:
@@ -101,7 +101,7 @@ def test_json_yaml_crud(tmp_path: Path) -> None:
     assert yaml_get(yaml_updated, "/a/b/0") == 9
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.13")
 
 
 def test_json_yaml_move_copy_merge_matrix(tmp_path: Path) -> None:
@@ -128,7 +128,7 @@ def test_json_yaml_move_copy_merge_matrix(tmp_path: Path) -> None:
     assert yaml_get(yaml_text, "/a/merged/x") == 9
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.13")
 
 
 def test_xml_html_edits(tmp_path: Path) -> None:
@@ -165,7 +165,7 @@ def test_xml_html_edits(tmp_path: Path) -> None:
         raise AssertionError("Expected ValueError for missing HTML selector")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.13")
 
 
 def test_markdown_section_edits(tmp_path: Path) -> None:
