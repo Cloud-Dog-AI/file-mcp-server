@@ -69,7 +69,7 @@ profiles:
     return Path(profile.scope.roots[0])
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_atomic_write_and_read(tmp_path: Path) -> None:
@@ -79,7 +79,7 @@ def test_atomic_write_and_read(tmp_path: Path) -> None:
     assert read_text(target) == "hello"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_atomic_write_respects_overwrite(tmp_path: Path) -> None:
@@ -90,7 +90,7 @@ def test_atomic_write_respects_overwrite(tmp_path: Path) -> None:
         atomic_write(target, b"second", overwrite=False)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_write_text_and_copy_move(tmp_path: Path) -> None:
@@ -108,7 +108,7 @@ def test_write_text_and_copy_move(tmp_path: Path) -> None:
     assert read_text(moved) == "data"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_delete_file_missing_ok(tmp_path: Path) -> None:
@@ -117,7 +117,7 @@ def test_delete_file_missing_ok(tmp_path: Path) -> None:
     delete_file(target, missing_ok=True)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_list_dir(tmp_path: Path) -> None:
@@ -129,7 +129,7 @@ def test_list_dir(tmp_path: Path) -> None:
     assert {path.name for path in entries} == {"a.txt", "b.txt"}
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_create_dir_and_move_rename_with_utf8_names(tmp_path: Path) -> None:
@@ -150,7 +150,7 @@ def test_create_dir_and_move_rename_with_utf8_names(tmp_path: Path) -> None:
     assert (renamed_dir / "cafe-🙂.txt").read_text(encoding="utf-8") == "payload"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.7")
+@pytest.mark.req("FR-018")
 
 
 def test_chmod_path_updates_mode_for_file(tmp_path: Path) -> None:

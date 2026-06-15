@@ -118,8 +118,23 @@ def _login(client: TestClient, role: str) -> "dict[str, str]":
     assert resp.status_code == 200, f"{role} login: {resp.status_code} {resp.text[:200]}"
     return {k: v for k, v in resp.cookies.items()}
 @pytest.mark.UT
+@pytest.mark.req("CS-016")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-015")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-014")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-012")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-011")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-010")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-009")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-008")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-007")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-006")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-005")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-004")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-003")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-002")  # W28C-1711-R3.5 binding
+@pytest.mark.req("CS-001")  # W28C-1711-R3.5 binding
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_static_ui_is_public_for_anon(web_client: TestClient) -> None:
@@ -132,7 +147,7 @@ def test_static_ui_is_public_for_anon(web_client: TestClient) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
@@ -145,7 +160,7 @@ def test_data_surfaces_gated_for_anon(web_client: TestClient) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
@@ -158,7 +173,7 @@ def test_mcp_discovery_gated_for_anon(web_client: TestClient) -> None:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> None:
@@ -179,7 +194,7 @@ def test_each_flat_role_logs_in_with_expected_role(web_client: TestClient) -> No
             assert has_write is role_can_write(role), (role, perms)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_read_only_writes_are_denied_inline_403(web_client: TestClient) -> None:
@@ -200,7 +215,7 @@ def test_read_only_writes_are_denied_inline_403(web_client: TestClient) -> None:
         assert "read-only role" in resp.text, resp.text[:160]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_read_write_writes_are_not_pre_gated(web_client: TestClient) -> None:
@@ -212,7 +227,7 @@ def test_read_write_writes_are_not_pre_gated(web_client: TestClient) -> None:
     assert resp.status_code != 403 or "read-only role" not in resp.text, resp.text[:200]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_bad_credentials_rejected(web_client: TestClient) -> None:
@@ -230,7 +245,7 @@ def test_bad_credentials_rejected(web_client: TestClient) -> None:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("R4")
+@pytest.mark.req("FR-024")
 
 
 def test_logout_clears_session(web_client: TestClient) -> None:

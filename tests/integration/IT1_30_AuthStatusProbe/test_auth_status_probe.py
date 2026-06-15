@@ -35,7 +35,7 @@ USER = os.environ.get("E2E_WEB_USERNAME", "admin")
 PASS = os.environ.get("E2E_WEB_PASSWORD", "OrangeRiverTable")
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("R2")
+@pytest.mark.req("FR-023")
 
 
 @pytest.mark.integration

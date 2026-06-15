@@ -49,7 +49,7 @@ def _read_env_value(env_path: Path, key: str) -> str:
     raise AssertionError(f"Missing env key: {key}")
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-027")
 
 
 def test_application_a2a_health_flow_uses_test_a2a_api_key(tmp_path: Path) -> None:

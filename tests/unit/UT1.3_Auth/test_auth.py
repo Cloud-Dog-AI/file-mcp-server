@@ -129,7 +129,7 @@ profiles:
     return ApiKeyAuth(profile.auth.api_keys)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_key_fingerprint_format(tmp_path) -> None:
@@ -139,7 +139,7 @@ def test_key_fingerprint_format(tmp_path) -> None:
     assert len(fingerprint) == len("sha256:") + 12
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_auth_rejects_missing_keys(tmp_path) -> None:
@@ -148,7 +148,7 @@ def test_auth_rejects_missing_keys(tmp_path) -> None:
         auth.validate("anything")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_auth_rejects_missing_token(tmp_path) -> None:
@@ -157,7 +157,7 @@ def test_auth_rejects_missing_token(tmp_path) -> None:
         auth.validate(None)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_auth_accepts_valid_key(tmp_path) -> None:
@@ -167,7 +167,7 @@ def test_auth_accepts_valid_key(tmp_path) -> None:
     assert result.key_fingerprint.startswith("sha256:")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_auth_rejects_invalid_key(tmp_path) -> None:
@@ -176,7 +176,7 @@ def test_auth_rejects_invalid_key(tmp_path) -> None:
         auth.validate("nope")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_token_verifier_accepts_valid_bearer_token(tmp_path) -> None:
@@ -187,7 +187,7 @@ def test_token_verifier_accepts_valid_bearer_token(tmp_path) -> None:
     assert token.claims["fingerprint"].startswith("sha256:")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_header_backend_accepts_custom_header_and_scheme(tmp_path) -> None:
@@ -210,7 +210,7 @@ def test_header_backend_accepts_custom_header_and_scheme(tmp_path) -> None:
     assert result is not None
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_header_backend_rejects_wrong_scheme(tmp_path) -> None:
@@ -233,7 +233,7 @@ def test_header_backend_rejects_wrong_scheme(tmp_path) -> None:
     assert result is None
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_token_verifier_ignores_unexpanded_env_placeholders(tmp_path) -> None:
@@ -247,7 +247,7 @@ def test_token_verifier_ignores_unexpanded_env_placeholders(tmp_path) -> None:
     assert verifier.header_scheme == "Bearer"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_multi_profile_verifier_query_profile_and_key_routing() -> None:
@@ -276,7 +276,7 @@ def test_multi_profile_verifier_query_profile_and_key_routing() -> None:
     assert verifier.resolve_profile(conn) == "s3"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_multi_profile_verifier_rejects_wrong_profile_key() -> None:
@@ -304,7 +304,7 @@ def test_multi_profile_verifier_rejects_wrong_profile_key() -> None:
     assert result is None
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_multi_profile_verifier_admin_api_key_gets_admin_scope() -> None:

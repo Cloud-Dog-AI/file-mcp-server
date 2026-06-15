@@ -39,7 +39,7 @@ def _event(outcome: str = "success") -> AuditEvent:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_audit_event_has_all_au3_fields() -> None:
@@ -55,14 +55,14 @@ def test_audit_event_has_all_au3_fields() -> None:
     assert payload["outcome"]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_audit_event_timestamp_format() -> None:
     assert _TS_RE.match(_event().timestamp)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_audit_event_outcome_values() -> None:
@@ -70,7 +70,7 @@ def test_audit_event_outcome_values() -> None:
         assert _event(outcome=value).outcome == value
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_audit_event_no_secrets() -> None:

@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 import pytest
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_meld_optional_unavailable_returns_warning(tmp_path: Path) -> None:

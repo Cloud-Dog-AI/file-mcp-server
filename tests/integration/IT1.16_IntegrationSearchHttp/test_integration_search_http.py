@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 import pytest
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_search_http_honors_scope_deny_and_limits(tmp_path: Path) -> None:

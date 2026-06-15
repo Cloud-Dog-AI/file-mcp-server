@@ -124,7 +124,7 @@ def _backend_ready(backend: str, env: Mapping[str, str]) -> bool:
     return False
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 @pytest.mark.parametrize("backend", _BACKEND_MATRIX)

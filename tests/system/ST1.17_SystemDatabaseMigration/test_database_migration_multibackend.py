@@ -72,7 +72,7 @@ def downgrade() -> None:
     return revision, path
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade() -> None:
@@ -90,7 +90,7 @@ def test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade() -> None:
         shutdown_database()
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_st_db_04_schema_versioning_simulation() -> None:

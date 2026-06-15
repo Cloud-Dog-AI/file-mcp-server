@@ -84,7 +84,7 @@ async def _call_tool(
         return await client.call_tool(tool, arguments)
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("CS-013")
 
 
 def test_application_preprod_profile_chain_flow_live() -> None:

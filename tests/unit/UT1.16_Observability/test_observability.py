@@ -64,7 +64,7 @@ profiles:
     return profile, log_path
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("NF-1.3")
+@pytest.mark.req("FR-022")
 
 
 def test_operational_logger_writes_file(
@@ -84,7 +84,7 @@ def test_operational_logger_writes_file(
     assert (log_path.stat().st_mode & 0o777) == 0o644
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("NF-1.3")
+@pytest.mark.req("FR-022")
 
 
 def test_operational_logger_disabled(tmp_path: Path) -> None:
@@ -98,7 +98,7 @@ def test_operational_logger_disabled(tmp_path: Path) -> None:
     assert not log_path.exists()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("NF-1.3")
+@pytest.mark.req("FR-022")
 
 
 def test_configure_logging_for_profile_uses_role_specific_log_file(tmp_path: Path) -> None:

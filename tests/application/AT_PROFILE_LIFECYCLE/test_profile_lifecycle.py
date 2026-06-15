@@ -118,7 +118,7 @@ def _is_present(matches: list[Any], expected_path: str) -> bool:
     return False
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.36")
+@pytest.mark.req("FR-016")
 
 
 def test_profile_lifecycle_project_folder_with_dated_content(tmp_path: Path) -> None:

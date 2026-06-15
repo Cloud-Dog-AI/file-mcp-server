@@ -39,7 +39,7 @@ from fastapi.testclient import TestClient
 pytestmark = pytest.mark.unit
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.23")
+@pytest.mark.req("FR-009")
 
 
 def test_broadcaster_is_event_broadcaster_protocol():
@@ -51,7 +51,7 @@ def test_broadcaster_is_event_broadcaster_protocol():
     assert hasattr(b, "history")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.23")
+@pytest.mark.req("FR-009")
 
 
 def test_event_shape_for_user_crud():
@@ -74,7 +74,7 @@ def test_event_shape_for_user_crud():
     assert data["outcome"] == "success"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.23")
+@pytest.mark.req("FR-009")
 
 
 def test_router_mounts_history_and_stream_when_broadcaster_provided():
@@ -118,7 +118,7 @@ def test_router_mounts_history_and_stream_when_broadcaster_provided():
     assert event["event_id"] == 1
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.23")
+@pytest.mark.req("FR-009")
 
 
 def test_history_filter_and_limit_work_end_to_end():
@@ -148,7 +148,7 @@ def test_history_filter_and_limit_work_end_to_end():
     assert [e["event_id"] for e in events] == [4, 5]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.23")
+@pytest.mark.req("FR-009")
 
 
 def test_api_key_event_does_not_leak_secret():

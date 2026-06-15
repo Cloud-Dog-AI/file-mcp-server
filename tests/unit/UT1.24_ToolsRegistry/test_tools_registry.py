@@ -47,7 +47,7 @@ class EchoOutput(BaseModel):
     text: str
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_registry_register_and_get() -> None:
@@ -62,7 +62,7 @@ def test_registry_register_and_get() -> None:
     assert registry.get("echo").meta.name == "echo"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_registry_duplicate_registration() -> None:
@@ -77,7 +77,7 @@ def test_registry_duplicate_registration() -> None:
         registry.register(definition)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_build_registry() -> None:
@@ -92,7 +92,7 @@ def test_build_registry() -> None:
     assert tool.schema_def.output_model is EchoOutput
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_registry_list_deterministic() -> None:

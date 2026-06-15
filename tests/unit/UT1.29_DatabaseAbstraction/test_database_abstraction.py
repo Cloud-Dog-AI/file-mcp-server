@@ -34,7 +34,7 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
     monkeypatch.delenv("CLOUD_DOG_DB__URL", raising=False)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_ut_db_01_engine_factory_creates_sqlite_engine(
@@ -52,7 +52,7 @@ def test_ut_db_01_engine_factory_creates_sqlite_engine(
         shutdown_database()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_ut_db_02_session_manager_roundtrip(monkeypatch, tmp_path: Path) -> None:
@@ -75,7 +75,7 @@ def test_ut_db_02_session_manager_roundtrip(monkeypatch, tmp_path: Path) -> None
         shutdown_database()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_ut_db_03_probe_database_reports_healthy(

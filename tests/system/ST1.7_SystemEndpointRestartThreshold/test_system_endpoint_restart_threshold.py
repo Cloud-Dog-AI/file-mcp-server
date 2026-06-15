@@ -35,7 +35,7 @@ from pathlib import Path
 from textwrap import dedent
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.30")
+@pytest.mark.req("FR-014")
 
 
 def test_server_exits_when_restart_threshold_reached(tmp_path: Path) -> None:

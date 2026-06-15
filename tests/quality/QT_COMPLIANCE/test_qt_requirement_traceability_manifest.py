@@ -208,7 +208,7 @@ REQUIREMENT_TEST_TRACEABILITY: dict[str, tuple[str, ...]] = {
 }
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_manifest_covers_all_requirements(project_root: Path) -> None:
@@ -224,7 +224,7 @@ def test_manifest_covers_all_requirements(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_manifest_mapped_paths_exist(project_root: Path) -> None:
@@ -244,7 +244,7 @@ def test_manifest_mapped_paths_exist(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.1")
+@pytest.mark.req("FR-001")
 
 
 def test_manifest_entries_not_empty() -> None:

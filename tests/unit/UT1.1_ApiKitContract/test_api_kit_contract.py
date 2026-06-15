@@ -61,7 +61,7 @@ def _middleware() -> HealthCheckMiddleware:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_health_middleware_exposes_ready_and_live() -> None:
@@ -80,7 +80,7 @@ def test_health_middleware_exposes_ready_and_live() -> None:
     assert "version" in live_body
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_admin_query_token_is_rejected_with_error_envelope() -> None:

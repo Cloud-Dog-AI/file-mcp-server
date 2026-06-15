@@ -40,7 +40,7 @@ def _decode_result(result):
         return text
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_iterative_search_update_retrieve_cycle_is_bounded_and_audited(

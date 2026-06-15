@@ -303,7 +303,7 @@ def docker_image() -> str:
     return tag
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_docker_command_builder_supports_remote_host_flag() -> None:
@@ -319,7 +319,7 @@ def test_docker_command_builder_supports_remote_host_flag() -> None:
             runtime_env["FILE_MCP_DOCKER_HOST"] = prev
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_docker_command_builder_defaults_to_local_daemon() -> None:
@@ -332,7 +332,7 @@ def test_docker_command_builder_defaults_to_local_daemon() -> None:
             runtime_env["FILE_MCP_DOCKER_HOST"] = prev
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_docker_remote_host_exec_path_if_enabled() -> None:
@@ -358,7 +358,7 @@ def test_docker_remote_host_exec_path_if_enabled() -> None:
             runtime_env["FILE_MCP_DOCKER_HOST"] = prev
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_container_smoke_with_host_network_and_mcp_call(
@@ -419,7 +419,7 @@ def test_container_smoke_with_host_network_and_mcp_call(
         _rm_container(repo_root, container_name)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_container_smoke_with_bridge_network_port_publish(
@@ -481,7 +481,7 @@ def test_container_smoke_with_bridge_network_port_publish(
         _rm_container(repo_root, container_name)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_container_multi_env_override_changes_root_and_api_key(
@@ -591,7 +591,7 @@ def test_container_multi_env_override_changes_root_and_api_key(
         _rm_container(repo_root, container_name)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_container_multi_folder_scope_controls_and_audit_logs(

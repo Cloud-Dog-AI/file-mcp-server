@@ -43,7 +43,7 @@ profiles:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_build_event() -> None:
@@ -52,7 +52,7 @@ def test_build_event() -> None:
     assert event.tool == "read"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_audit_logger_writes(tmp_path: Path) -> None:
@@ -66,7 +66,7 @@ def test_audit_logger_writes(tmp_path: Path) -> None:
     assert "write_file" in content
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_audit_logger_uses_explicit_actor_identity(tmp_path: Path) -> None:
@@ -92,7 +92,7 @@ def test_audit_logger_uses_explicit_actor_identity(tmp_path: Path) -> None:
     assert '"ip": "127.0.0.1"' in content
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_create_snapshot(tmp_path: Path) -> None:

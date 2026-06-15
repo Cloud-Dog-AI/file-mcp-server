@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 )
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-027")
 
 
 def test_security_boundary_enforcement_with_audit(tmp_path: Path) -> None:

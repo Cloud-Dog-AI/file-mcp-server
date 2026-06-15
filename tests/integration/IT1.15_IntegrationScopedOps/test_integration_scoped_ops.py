@@ -30,7 +30,7 @@ from tests.http_integration_helpers import (
 )
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_scoped_file_operations_over_http(tmp_path: Path) -> None:

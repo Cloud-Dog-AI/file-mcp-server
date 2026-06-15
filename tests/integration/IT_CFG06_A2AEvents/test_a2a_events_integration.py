@@ -64,7 +64,7 @@ def _json_request(
         return int(response.status), response_payload
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.23")
+@pytest.mark.req("FR-009")
 
 
 def test_it_cfg06_admin_crud_publishes_events_to_a2a_events_history(

@@ -139,7 +139,7 @@ def docker_image() -> str:
     return tag
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 @pytest.mark.parametrize("backend", ["webdav", "ftp", "s3"])

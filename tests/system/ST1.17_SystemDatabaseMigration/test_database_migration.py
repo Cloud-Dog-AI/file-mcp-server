@@ -33,7 +33,7 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
     monkeypatch.delenv("CLOUD_DOG_DB__URL", raising=False)
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_st_db_01_migration_upgrade_on_fresh_sqlite(
@@ -54,7 +54,7 @@ def test_st_db_01_migration_upgrade_on_fresh_sqlite(
         shutdown_database()
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_st_db_02_crud_via_session_manager(monkeypatch, tmp_path: Path) -> None:

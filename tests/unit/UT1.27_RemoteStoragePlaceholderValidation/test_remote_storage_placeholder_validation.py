@@ -23,7 +23,7 @@ from file_tools.storage.s3 import S3Storage
 from file_tools.storage.webdav import WebDavStorage
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_s3_rejects_unresolved_placeholder_credentials() -> None:
@@ -42,7 +42,7 @@ def test_s3_rejects_unresolved_placeholder_credentials() -> None:
         S3Storage(cfg)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_webdav_rejects_unresolved_placeholder_credentials() -> None:
@@ -60,7 +60,7 @@ def test_webdav_rejects_unresolved_placeholder_credentials() -> None:
         WebDavStorage(cfg)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_ftp_rejects_unresolved_placeholder_credentials() -> None:
@@ -78,7 +78,7 @@ def test_ftp_rejects_unresolved_placeholder_credentials() -> None:
         FtpStorage(cfg)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_google_drive_rejects_unresolved_placeholder_credentials() -> None:

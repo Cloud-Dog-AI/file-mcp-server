@@ -37,7 +37,7 @@ from scripts.google_drive_setup import (
 )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_extract_folder_id_from_share_url() -> None:
@@ -48,7 +48,7 @@ def test_extract_folder_id_from_share_url() -> None:
     assert folder_url and folder_url.startswith("https://drive.google.com/")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_extract_folder_id_from_literal_id() -> None:
@@ -57,7 +57,7 @@ def test_extract_folder_id_from_literal_id() -> None:
     assert folder_url is None
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_write_env_values_updates_existing_and_appends_new(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_write_env_values_updates_existing_and_appends_new(tmp_path: Path) -> No
     assert "FILE_MCP_GDRIVE_REFRESH_TOKEN=refresh-token" in content
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_load_google_defaults_from_credentials_file(tmp_path: Path) -> None:

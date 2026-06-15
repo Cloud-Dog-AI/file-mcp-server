@@ -33,7 +33,7 @@ import requests
 from file_mcp_server import google_drive_admin as admin
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_render_setup_page_contains_form_and_profiles() -> None:
@@ -50,7 +50,7 @@ def test_render_setup_page_contains_form_and_profiles() -> None:
     assert "selected" in html
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_render_setup_page_locks_profile_when_requested() -> None:
@@ -65,7 +65,7 @@ def test_render_setup_page_locks_profile_when_requested() -> None:
     assert "disabled" in html
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_render_setup_page_prefills_values_and_masks_stored_secret() -> None:
@@ -89,7 +89,7 @@ def test_render_setup_page_prefills_values_and_masks_stored_secret() -> None:
     assert "raw-secret-should-not-render" not in html
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> None:
@@ -118,7 +118,7 @@ def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> 
     assert "client_id: cid" in content
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
@@ -160,7 +160,7 @@ def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
     assert "backend: google_drive" in updated
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_fetch_folder_falls_back_to_name_lookup_on_404(monkeypatch) -> None:

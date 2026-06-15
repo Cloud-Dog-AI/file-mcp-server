@@ -67,7 +67,7 @@ profiles:
     return profile, root
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.9")
+@pytest.mark.req("FR-019")
 
 
 def test_search_paths(tmp_path: Path) -> None:
@@ -82,7 +82,7 @@ def test_search_paths(tmp_path: Path) -> None:
     assert any(path.name == "alpha.txt" for path in matches)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.9")
+@pytest.mark.req("FR-019")
 
 
 def test_search_paths_glob(tmp_path: Path) -> None:
@@ -99,7 +99,7 @@ def test_search_paths_glob(tmp_path: Path) -> None:
     assert {path.name for path in matches} == {"beta.md"}
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.9")
+@pytest.mark.req("FR-019")
 
 
 def test_search_content(tmp_path: Path) -> None:
@@ -116,7 +116,7 @@ def test_search_content(tmp_path: Path) -> None:
     assert any(result.path.name == "beta.txt" for result in results)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.9")
+@pytest.mark.req("FR-019")
 
 
 def test_search_content_regex(tmp_path: Path) -> None:
@@ -133,7 +133,7 @@ def test_search_content_regex(tmp_path: Path) -> None:
     assert results[0].line == "foo123"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.9")
+@pytest.mark.req("FR-019")
 
 
 def test_search_content_max_results(tmp_path: Path) -> None:
@@ -152,7 +152,7 @@ def test_search_content_max_results(tmp_path: Path) -> None:
     assert len(results) == 1
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.9")
+@pytest.mark.req("FR-019")
 
 
 def test_search_content_max_file_mb(tmp_path: Path) -> None:

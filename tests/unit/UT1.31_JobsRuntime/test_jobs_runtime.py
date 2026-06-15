@@ -76,7 +76,7 @@ profiles:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.21")
+@pytest.mark.req("FR-008")
 
 
 def test_jobs_runtime_memory_lifecycle(tmp_path: Path) -> None:
@@ -92,7 +92,7 @@ def test_jobs_runtime_memory_lifecycle(tmp_path: Path) -> None:
         )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.21")
+@pytest.mark.req("FR-008")
 
 
 def test_jobs_runtime_sql_backend_uses_fallback_db_url(tmp_path: Path) -> None:

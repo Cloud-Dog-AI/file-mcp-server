@@ -30,7 +30,7 @@ def _build_registry() -> ToolRegistry:
     return registry
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_tools_list() -> None:
@@ -39,7 +39,7 @@ def test_tools_list() -> None:
     assert response["result"][0]["name"] == "echo"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_tools_call() -> None:
@@ -54,7 +54,7 @@ def test_tools_call() -> None:
     assert response["result"] == "hi"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_unknown_method() -> None:

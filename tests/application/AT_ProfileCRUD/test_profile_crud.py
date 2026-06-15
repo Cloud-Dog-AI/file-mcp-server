@@ -87,7 +87,7 @@ def _is_present(matches: list[str], expected_path: str) -> bool:
     return False
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-027")
 
 
 def test_at_profile_crud_lifecycle(tmp_path: Path) -> None:

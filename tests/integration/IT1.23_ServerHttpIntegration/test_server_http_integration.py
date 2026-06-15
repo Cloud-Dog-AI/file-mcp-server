@@ -50,7 +50,7 @@ def _wait_for_health(url: str, timeout_s: float = 10.0) -> dict:
     raise RuntimeError(f"Health check timed out: {url}")
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_http_health_and_authenticated_tool_call(tmp_path: Path) -> None:

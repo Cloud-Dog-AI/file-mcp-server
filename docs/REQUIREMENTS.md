@@ -725,3 +725,52 @@ Every project MUST have CS-NNN rows for `anon-denied`, `wrong-role-denied`, `mis
 | `CS-016` | missing-param-error | `webui` | `422` | `*` |
 
 _These CS-NNN rows are pending W28C-1711 test binding. Each row binds to one or more `@pytest.mark.negative` tests with explicit expected denial code._
+
+
+<!-- W28C-1711-R3 forensic: canonical FR-NNN rows derived from legacy R-NNN/FR1.NN test bindings (2026-06-15T15:21:28Z) -->
+
+## Functional Requirements (W28C-1711-R3 canonical-FR expansion)
+
+Per PS-REQ-TEST-TRACE §2: every test req() must reference a backtick-wrapped FR/CS/NF-NNN row. This section adds canonical FR-NNN rows derived from existing legacy R-NNN / FR1.NN bindings + ADD-REQ probe-test functional capabilities. Test bindings rewritten to use these canonical FR-NNN IDs.
+
+| ID | Source (legacy) | Test count | Surface (inferred) | Priority | Description |
+|---|---|---:|---|---|---|
+| `FR-001` | FR-1.1 | 7 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.1` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-002` | FR-1.10 | 2 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.10` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-003` | FR-1.11 | 4 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.11` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-004` | FR-1.13 | 4 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.13` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-005` | FR-1.17 | 7 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.17` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-006` | FR-1.18 | 8 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.18` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-007` | FR-1.2 | 12 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.2` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-008` | FR-1.21 | 11 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.21` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-009` | FR-1.23 | 6 | `a2a` | `should` | Functional capability covered by legacy binding `FR-1.23` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-010` | FR-1.24 | 1 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.24` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-011` | FR-1.25 | 5 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.25` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-012` | FR-1.26 | 13 | `webui` | `should` | Functional capability covered by legacy binding `FR-1.26` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-013` | FR-1.3 | 25 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.3` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-014` | FR-1.30 | 1 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.30` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-015` | FR-1.32 | 13 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.32` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-016` | FR-1.36 | 5 | `webui` | `should` | Functional capability covered by legacy binding `FR-1.36` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-017` | FR-1.46 | 52 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.46` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-018` | FR-1.7 | 7 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.7` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-019` | FR-1.9 | 6 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.9` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-020` | FR-2.4 | 4 | `internal` | `should` | Functional capability covered by legacy binding `FR-2.4` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-021` | FR-2.5 | 3 | `internal` | `should` | Functional capability covered by legacy binding `FR-2.5` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-022` | NF-1.3 | 3 | `internal` | `should` | Functional capability covered by legacy binding `NF-1.3` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-023` | R2 | 1 | `internal` | `should` | Functional capability covered by legacy binding `R2` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| `FR-024` | R4 | 8 | `internal` | `should` | Functional capability covered by legacy binding `R4` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+
+
+<!-- W28C-1711-R3 forensic: ADD-REQ FR rows derived from probe-test clusters (2026-06-15T15:21:28Z) -->
+
+## Functional Requirements (W28C-1711-R3 ADD-REQ derivation)
+
+Per W28C-1711 spec rule: ADD-REQ — create the requirement and bind the test. This section adds FR-NNN rows derived from functional probe-test clusters that had no matching FR in REQUIREMENTS.md. Each row's description is derived from the cluster's test names.
+
+| ID | Cluster | Test count | Surface (inferred) | Priority | Description |
+|---|---|---:|---|---|---|
+| `FR-025` | test_st_time_based_search | 1 | `internal` | `should` | Test St Time Based Search (W28C-1711-R3 ADD-REQ cluster derivation) |
+| `FR-026` | unit | 14 | `api` | `should` | Unit (W28C-1711-R3 ADD-REQ cluster derivation) |
+| `FR-027` | application | 11 | `a2a` | `should` | Application (W28C-1711-R3 ADD-REQ cluster derivation) |
+| `FR-028` | system | 19 | `internal` | `should` | System (W28C-1711-R3 ADD-REQ cluster derivation) |
+| `FR-029` | integration | 23 | `a2a` | `should` | Integration (W28C-1711-R3 ADD-REQ cluster derivation) |

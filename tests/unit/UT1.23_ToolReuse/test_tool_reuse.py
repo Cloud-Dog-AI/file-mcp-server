@@ -59,7 +59,7 @@ profiles:
     return Path(profile.scope.roots[0])
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.24")
+@pytest.mark.req("FR-010")
 
 
 def test_file_tools_helpers_reusable(tmp_path: Path) -> None:

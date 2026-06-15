@@ -396,7 +396,7 @@ def _delete_admin_group_via_api(page: Page, base_url: str, group_id: str) -> Non
     assert response.ok, response.text()
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t1_api_key_login(ui_session: UiSession) -> None:
@@ -408,7 +408,7 @@ def test_webui_t1_api_key_login(ui_session: UiSession) -> None:
     assert page.get_by_role("link", name=re.compile("Search")).is_visible()
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t2_user_crud(ui_session: UiSession) -> None:
@@ -445,7 +445,7 @@ def test_webui_t2_user_crud(ui_session: UiSession) -> None:
     _wait_row_gone(page, username)
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t3_group_crud(ui_session: UiSession) -> None:
@@ -480,7 +480,7 @@ def test_webui_t3_group_crud(ui_session: UiSession) -> None:
     _wait_row_gone(page, group_name)
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t4_api_key_crud(ui_session: UiSession) -> None:
@@ -523,7 +523,7 @@ def test_webui_t4_api_key_crud(ui_session: UiSession) -> None:
     assert "revoked" in revoked_row.inner_text().lower()
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 def test_webui_t5_rbac_assign_verify_remove(ui_session: UiSession) -> None:
     page = ui_session.page
@@ -578,7 +578,7 @@ def test_webui_t5_rbac_assign_verify_remove(ui_session: UiSession) -> None:
     _delete_admin_group_via_api(page, ui_session.base_url, group_id)
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t6_read_file(ui_session: UiSession) -> None:
@@ -601,7 +601,7 @@ def test_webui_t6_read_file(ui_session: UiSession) -> None:
     assert editor.input_value() == content
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t7_search(ui_session: UiSession) -> None:
@@ -631,7 +631,7 @@ def test_webui_t7_search(ui_session: UiSession) -> None:
     assert rows.filter(has_text=marker_filename).count() > 0
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t8_audit_log(ui_session: UiSession) -> None:
@@ -691,7 +691,7 @@ def test_webui_t8_audit_log(ui_session: UiSession) -> None:
     )
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t9_storage_profile_crud(ui_session: UiSession) -> None:
@@ -737,7 +737,7 @@ def test_webui_t9_storage_profile_crud(ui_session: UiSession) -> None:
     _wait_row_gone(page, profile_name)
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t10_dashboard(ui_session: UiSession) -> None:
@@ -762,7 +762,7 @@ def test_webui_t10_dashboard(ui_session: UiSession) -> None:
     assert page.get_by_role("button", name="Refresh").first.is_visible()
 @pytest.mark.AT
 @pytest.mark.webui
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 
 
 def test_webui_t11_edit_file(ui_session: UiSession) -> None:

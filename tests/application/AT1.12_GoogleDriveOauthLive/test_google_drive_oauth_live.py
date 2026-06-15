@@ -41,7 +41,7 @@ import pytest
 )
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 def test_google_oauth_live_exchange_if_enabled() -> None:
     if env_get("FILE_MCP_RUN_GOOGLE_OAUTH_LIVE_TEST", "0") != "1":
         pytest.fail(

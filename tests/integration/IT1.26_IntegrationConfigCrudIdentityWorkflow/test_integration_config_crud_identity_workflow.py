@@ -67,7 +67,7 @@ def _json_request(
         return int(response.status), response_payload
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.36")
+@pytest.mark.req("FR-016")
 
 
 def test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations(

@@ -56,7 +56,7 @@ profiles:
     return Path(profile.scope.roots[0])
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.11")
+@pytest.mark.req("FR-003")
 
 
 def test_diff_text_contains_changes() -> None:
@@ -65,7 +65,7 @@ def test_diff_text_contains_changes() -> None:
     assert "+beta" in diff
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.11")
+@pytest.mark.req("FR-003")
 
 
 def test_diff_files(tmp_path: Path) -> None:
@@ -80,7 +80,7 @@ def test_diff_files(tmp_path: Path) -> None:
     assert "+two" in diff
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.11")
+@pytest.mark.req("FR-003")
 
 
 def test_meld_available_returns_bool() -> None:
@@ -88,7 +88,7 @@ def test_meld_available_returns_bool() -> None:
     assert isinstance(result, bool)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.11")
+@pytest.mark.req("FR-003")
 
 
 def test_meld_unavailable_returns_warning(

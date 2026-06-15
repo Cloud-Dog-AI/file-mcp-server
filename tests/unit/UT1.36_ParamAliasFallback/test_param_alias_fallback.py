@@ -40,7 +40,7 @@ def _call(handler: Any, args: dict[str, Any]) -> Any:
     return handler(**normalize_and_filter_tool_args(args, handler))
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_b64_decode_to_file_accepts_path_and_data() -> None:
@@ -55,7 +55,7 @@ def test_b64_decode_to_file_accepts_path_and_data() -> None:
     assert result == {"path": "/probe.bin", "data": "aGVsbG8="}
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_b64_decode_to_file_accepts_path_and_content() -> None:
@@ -70,7 +70,7 @@ def test_b64_decode_to_file_accepts_path_and_content() -> None:
     assert result == {"path": "/probe.bin", "data": "aGVsbG8="}
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_admin_create_group_accepts_name_collision_source() -> None:
@@ -85,7 +85,7 @@ def test_admin_create_group_accepts_name_collision_source() -> None:
     assert result == {"name": "operators", "description": "Ops team"}
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_filepath_alias_to_path_still_works() -> None:
@@ -97,7 +97,7 @@ def test_filepath_alias_to_path_still_works() -> None:
     assert result == "/notes/todo.txt"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_text_alias_to_content_still_works() -> None:

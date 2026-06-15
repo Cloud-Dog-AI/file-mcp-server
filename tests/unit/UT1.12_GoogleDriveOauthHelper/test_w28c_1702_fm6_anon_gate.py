@@ -83,7 +83,7 @@ def _mw():
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_fm6_anonymous_denied_on_all_four_gdrive_surfaces() -> None:
@@ -99,7 +99,7 @@ def test_fm6_anonymous_denied_on_all_four_gdrive_surfaces() -> None:
         assert b"client_id" not in body
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_fm6_admin_cookie_session_admitted() -> None:

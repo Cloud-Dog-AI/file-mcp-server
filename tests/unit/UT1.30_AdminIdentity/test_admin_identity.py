@@ -40,7 +40,7 @@ def _configure_sqlite_env(monkeypatch, db_path: Path) -> None:
     monkeypatch.delenv("CLOUD_DOG_DB__URL", raising=False)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.36")
+@pytest.mark.req("FR-016")
 
 
 def test_create_group_user_and_dynamic_api_key_resolution(
@@ -78,7 +78,7 @@ def test_create_group_user_and_dynamic_api_key_resolution(
         shutdown_database()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.36")
+@pytest.mark.req("FR-016")
 
 
 def test_revoke_api_key_blocks_future_resolution(monkeypatch, tmp_path: Path) -> None:

@@ -62,7 +62,7 @@ profiles:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_scope_denies_outside_root(tmp_path: Path) -> None:
@@ -89,7 +89,7 @@ def test_scope_denies_outside_root(tmp_path: Path) -> None:
     assert decision.reason == "outside_roots"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_scope_denies_glob(tmp_path: Path) -> None:
@@ -116,7 +116,7 @@ def test_scope_denies_glob(tmp_path: Path) -> None:
     assert decision.reason == "denied_glob"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_scope_allows_glob(tmp_path: Path) -> None:
@@ -143,7 +143,7 @@ def test_scope_allows_glob(tmp_path: Path) -> None:
     assert decision.reason == "allowed"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_scope_denies_extension(tmp_path: Path) -> None:
@@ -170,7 +170,7 @@ def test_scope_denies_extension(tmp_path: Path) -> None:
     assert decision.reason == "extension_not_allowed"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_scope_denies_read_only_on_write(tmp_path: Path) -> None:
@@ -197,7 +197,7 @@ def test_scope_denies_read_only_on_write(tmp_path: Path) -> None:
     assert decision.reason == "extension_read_only"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_scope_allows_root_directory_for_recursive_glob(tmp_path: Path) -> None:
@@ -211,7 +211,7 @@ def test_scope_allows_root_directory_for_recursive_glob(tmp_path: Path) -> None:
     assert decision.reason == "allowed"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_posix_scope_allows_root_directory_for_recursive_glob() -> None:

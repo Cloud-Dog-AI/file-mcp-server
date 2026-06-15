@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 import pytest
 @pytest.mark.AT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-027")
 
 
 def test_conversion_plus_markdown_edit_workflow(tmp_path: Path) -> None:

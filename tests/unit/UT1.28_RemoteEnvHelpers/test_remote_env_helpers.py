@@ -22,7 +22,7 @@ from tests.remote_env_helpers import merged_remote_env
 import pytest
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_merged_remote_env_reads_google_oauth_from_profile_config(

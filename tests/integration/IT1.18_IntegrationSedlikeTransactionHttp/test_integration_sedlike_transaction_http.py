@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 )
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_sedlike_transaction_atomicity_over_http(tmp_path: Path) -> None:
@@ -121,7 +121,7 @@ def test_sedlike_transaction_atomicity_over_http(tmp_path: Path) -> None:
     assert any(json.loads(line).get("tool") == "sed_edit_file" for line in lines)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_sedlike_transaction_validation_failure_rolls_back(tmp_path: Path) -> None:

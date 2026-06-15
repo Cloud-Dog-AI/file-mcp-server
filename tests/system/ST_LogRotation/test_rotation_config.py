@@ -27,7 +27,7 @@ def _defaults_path() -> Path:
     raise AssertionError("Missing defaults.yaml/default.yaml")
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_rotation_handler_configured() -> None:
@@ -35,7 +35,7 @@ def test_rotation_handler_configured() -> None:
     assert "rotation:" in text
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_rotation_parameters_from_config() -> None:

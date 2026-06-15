@@ -25,7 +25,7 @@ from file_mcp_server.lifecycle import (
 import pytest
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_pidfile_lifecycle(tmp_path: Path) -> None:
@@ -43,7 +43,7 @@ def test_pidfile_lifecycle(tmp_path: Path) -> None:
     assert read_pid(pidfile) is None
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-026")
 
 
 def test_stop_pidfile_without_pid(tmp_path: Path) -> None:

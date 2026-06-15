@@ -48,7 +48,7 @@ def _extract_payload(result) -> dict:
     return json.loads(text)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> None:
@@ -111,7 +111,7 @@ def test_conversion_backend_selection_and_fallback_metadata(tmp_path: Path) -> N
         assert mismatched_payload["error_code"] == "unknown_backend"
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> None:
@@ -182,7 +182,7 @@ def test_conversion_explicit_external_backend_when_available(tmp_path: Path) -> 
         shutil.rmtree(bin_dir, ignore_errors=True)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) -> None:
@@ -252,7 +252,7 @@ def test_conversion_explicit_libreoffice_backend_when_available(tmp_path: Path) 
         shutil.rmtree(bin_dir, ignore_errors=True)
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_conversion_explicit_backend_unavailable_and_unsupported_codes(

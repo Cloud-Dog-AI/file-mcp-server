@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 import pytest
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_structured_edit_with_audit_and_snapshot(tmp_path: Path) -> None:

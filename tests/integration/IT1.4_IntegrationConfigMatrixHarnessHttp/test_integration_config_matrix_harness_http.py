@@ -71,7 +71,7 @@ def _decode_result(result):
 )
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 def test_config_matrix_harness_validates_scope_limits_auth_and_audit(
     tmp_path: Path, variant: dict
 ) -> None:

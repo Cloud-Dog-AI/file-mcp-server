@@ -34,7 +34,7 @@ import sys
 from scripts.google_drive_oauth_helper import build_auth_url
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_build_auth_url_contains_required_params() -> None:
@@ -52,7 +52,7 @@ def test_build_auth_url_contains_required_params() -> None:
     assert "state=abc123" in url
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.32")
+@pytest.mark.req("FR-015")
 
 
 def test_helper_cli_prints_auth_url_without_code() -> None:

@@ -71,7 +71,7 @@ def _require(env: Mapping[str, str], key: str) -> str:
 )
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.26")
+@pytest.mark.req("FR-012")
 def test_google_drive_backend_end_to_end_live(tmp_path: Path) -> None:
     if not _gdrive_live_enabled():
         pytest.fail(

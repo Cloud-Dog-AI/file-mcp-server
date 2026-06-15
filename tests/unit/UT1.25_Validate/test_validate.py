@@ -79,7 +79,7 @@ def _validation_config(
     return profile.validation
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validate_json() -> None:
@@ -87,7 +87,7 @@ def test_validate_json() -> None:
     assert not validate_json("{bad}").valid
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validate_yaml() -> None:
@@ -95,7 +95,7 @@ def test_validate_yaml() -> None:
     assert not validate_yaml("a: [\n").valid
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validate_xml() -> None:
@@ -103,7 +103,7 @@ def test_validate_xml() -> None:
     assert not validate_xml("<root>").valid
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validate_html() -> None:
@@ -112,7 +112,7 @@ def test_validate_html() -> None:
     assert result.valid
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validate_markdown() -> None:
@@ -120,7 +120,7 @@ def test_validate_markdown() -> None:
     assert not validate_markdown("# Title\n### Skipped").valid
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validation_strict_mode(tmp_path: Path) -> None:
@@ -130,7 +130,7 @@ def test_validation_strict_mode(tmp_path: Path) -> None:
     assert result.errors
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validation_warn_mode(tmp_path: Path) -> None:
@@ -142,7 +142,7 @@ def test_validation_warn_mode(tmp_path: Path) -> None:
     assert result.warnings
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.18")
+@pytest.mark.req("FR-006")
 
 
 def test_validation_ignore_mode(tmp_path: Path) -> None:

@@ -31,7 +31,7 @@ from file_tools.config.models import StorageConfig
 from file_tools.storage.google_drive import GoogleDriveStorage, _extract_folder_id
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-2.5")
+@pytest.mark.req("FR-021")
 
 
 def test_extract_folder_id_from_drive_url() -> None:
@@ -42,7 +42,7 @@ def test_extract_folder_id_from_drive_url() -> None:
     assert folder_id == "1r6kwtGcunVpkbT3nBGmfcWyVfk84_Sjn"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-2.5")
+@pytest.mark.req("FR-021")
 
 
 def test_google_drive_requires_folder_id_or_url() -> None:
@@ -58,7 +58,7 @@ def test_google_drive_requires_folder_id_or_url() -> None:
         GoogleDriveStorage(storage)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.req("FR-2.5")
+@pytest.mark.req("FR-021")
 
 
 def test_google_drive_requires_oauth_client() -> None:

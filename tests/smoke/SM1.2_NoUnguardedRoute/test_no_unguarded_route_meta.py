@@ -148,7 +148,7 @@ PROBES = [
 ]
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 @pytest.mark.parametrize("method,path,expected", PROBES)
@@ -162,7 +162,7 @@ def test_classify_returns_expected_bucket(
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_no_unguarded_route_for_canonical_probes() -> None:
@@ -175,7 +175,7 @@ def test_no_unguarded_route_for_canonical_probes() -> None:
         )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_public_allowlist_includes_required_anon_endpoints() -> None:
@@ -192,7 +192,7 @@ def test_public_allowlist_includes_required_anon_endpoints() -> None:
     assert not missing, f"public allowlist missing required entries: {missing}"
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_public_allowlist_excludes_a2a_health() -> None:
@@ -203,7 +203,7 @@ def test_public_allowlist_excludes_a2a_health() -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_auth_paths_include_login_me_logout() -> None:
@@ -219,7 +219,7 @@ def test_auth_paths_include_login_me_logout() -> None:
     assert not missing, f"auth bucket missing required entries: {missing}"
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_idam_v1_pattern_matches_canonical_and_v1_prefix() -> None:
@@ -230,7 +230,7 @@ def test_idam_v1_pattern_matches_canonical_and_v1_prefix() -> None:
     assert FILE_MCP_IDAM_V1_PATTERN.search(v1_alias)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_a2a_health_is_guarded() -> None:
@@ -243,7 +243,7 @@ def test_a2a_health_is_guarded() -> None:
     assert guard.permission == "a2a.access"
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_mcp_tools_get_routes_are_guarded() -> None:
@@ -259,7 +259,7 @@ def test_mcp_tools_get_routes_are_guarded() -> None:
         )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_a2a_events_endpoints_all_four_guarded() -> None:
@@ -278,7 +278,7 @@ def test_a2a_events_endpoints_all_four_guarded() -> None:
         assert guard.permission == "a2a.access"
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_route_guards_have_no_duplicate_keys() -> None:
@@ -296,7 +296,7 @@ def test_route_guards_have_no_duplicate_keys() -> None:
     assert len(seen) <= len(ROUTE_GUARDS)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_route_guards_minimum_coverage() -> None:
@@ -310,7 +310,7 @@ def test_route_guards_minimum_coverage() -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.46")
+@pytest.mark.req("FR-017")
 
 
 def test_resource_id_extractor_for_user_route() -> None:

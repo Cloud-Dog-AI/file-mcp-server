@@ -33,7 +33,7 @@ import re
 from ._helpers import Violation, format_violations, read_text, rel
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.2")
+@pytest.mark.req("FR-007")
 
 
 def test_no_yaml_safe_load_for_config(
@@ -61,7 +61,7 @@ def test_no_yaml_safe_load_for_config(
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.2")
+@pytest.mark.req("FR-007")
 
 
 def test_no_raw_fastapi(project_root: Path, src_python_files: list[Path]) -> None:
@@ -79,7 +79,7 @@ def test_no_raw_fastapi(project_root: Path, src_python_files: list[Path]) -> Non
     assert not violations, "Raw FastAPI usage found:\n" + format_violations(violations)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.2")
+@pytest.mark.req("FR-007")
 
 
 def test_no_bespoke_auth(
@@ -106,7 +106,7 @@ def test_no_bespoke_auth(
     assert not violations, "Bespoke auth findings:\n" + format_violations(violations)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.2")
+@pytest.mark.req("FR-007")
 
 
 def test_no_os_environ_for_config(

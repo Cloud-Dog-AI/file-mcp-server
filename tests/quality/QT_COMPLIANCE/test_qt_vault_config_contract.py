@@ -68,14 +68,14 @@ def _secret_assignments(text: str) -> list[str]:
     return findings
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.3")
+@pytest.mark.req("FR-013")
 
 
 def test_defaults_yaml_exists(project_root: Path) -> None:
     assert (project_root / "defaults.yaml").exists(), "defaults.yaml is missing"
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.3")
+@pytest.mark.req("FR-013")
 
 
 def test_defaults_yaml_no_secrets(project_root: Path) -> None:
@@ -86,7 +86,7 @@ def test_defaults_yaml_no_secrets(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.3")
+@pytest.mark.req("FR-013")
 
 
 def test_config_yaml_no_secrets(project_root: Path) -> None:
@@ -100,7 +100,7 @@ def test_config_yaml_no_secrets(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.3")
+@pytest.mark.req("FR-013")
 
 
 def test_env_files_use_vault_expressions(project_root: Path) -> None:
@@ -156,7 +156,7 @@ def test_env_files_use_vault_expressions(project_root: Path) -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.3")
+@pytest.mark.req("FR-013")
 
 
 def test_no_secrets_in_source(project_root: Path, src_python_files: list[Path]) -> None:
@@ -181,7 +181,7 @@ def test_no_secrets_in_source(project_root: Path, src_python_files: list[Path]) 
     assert not violations, "Possible secrets in src/:\n" + format_violations(violations)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.req("FR-1.3")
+@pytest.mark.req("FR-013")
 
 
 def test_env_files_exist_per_tier(project_root: Path) -> None:

@@ -55,7 +55,7 @@ def _request_status(url: str, *, auth: str | None = None) -> tuple[int, dict]:
         return int(exc.code), payload
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-029")
 
 
 def test_a2a_health_auth_matrix_200_200_200(tmp_path: Path) -> None:

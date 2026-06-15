@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 )
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
@@ -82,7 +82,7 @@ def test_read_file_partial_line_and_byte_ranges(tmp_path: Path) -> None:
         assert byte_payload == "line1"
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_read_file_rejects_mixed_line_and_byte_ranges(tmp_path: Path) -> None:

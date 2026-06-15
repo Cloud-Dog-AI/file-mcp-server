@@ -31,7 +31,7 @@ from tests.http_integration_helpers import (
 )
 @pytest.mark.ST
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-028")
 
 
 def test_structured_failed_mutation_is_rolled_back_and_audited(tmp_path: Path) -> None:
