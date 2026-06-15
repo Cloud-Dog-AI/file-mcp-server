@@ -17,6 +17,21 @@
 #   docker-build.sh [VERSION] [--variant dev|public]
 set -euo pipefail
 
+require_main_or_release_branch() {
+  local branch
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  case "${branch}" in
+    main|release/*)
+      return 0
+      ;;
+  esac
+
+  echo "ERROR: docker-build.sh refuses to build/push from non-main branch. Got '${branch:-unknown}'; checkout main or release/*." >&2
+  exit 1
+}
+
+require_main_or_release_branch
+
 # ── Argument parsing ────────────────────────────────────────────
 VARIANT="${PUBLICATION_BUILD_VARIANT:-public}"
 POSITIONAL=()
