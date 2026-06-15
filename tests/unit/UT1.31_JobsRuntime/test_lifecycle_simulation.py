@@ -62,7 +62,7 @@ profiles:
     return runtime
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_lifecycle_create_queue_run_succeed(tmp_path: Path) -> None:
@@ -83,7 +83,7 @@ def test_lifecycle_create_queue_run_succeed(tmp_path: Path) -> None:
     rt.close()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_lifecycle_create_queue_run_fail(tmp_path: Path) -> None:
@@ -98,7 +98,7 @@ def test_lifecycle_create_queue_run_fail(tmp_path: Path) -> None:
     rt.close()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_lifecycle_create_queue_cancel(tmp_path: Path) -> None:
@@ -115,7 +115,7 @@ def test_lifecycle_create_queue_cancel(tmp_path: Path) -> None:
     rt.close()
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.21")
 
 
 def test_lifecycle_create_queue_run_fail_retryable(tmp_path: Path) -> None:

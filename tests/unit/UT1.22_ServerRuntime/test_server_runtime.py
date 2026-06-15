@@ -256,7 +256,7 @@ def _run_middleware_request(middleware, *, path: str, method: str = "GET", heade
     return sent
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_resolve_http_settings_with_base_path() -> None:
@@ -279,7 +279,7 @@ def test_resolve_http_settings_with_base_path() -> None:
     assert settings.stateless_http is True
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_deleted_profile_name_preserves_uniqueness_budget() -> None:
@@ -289,7 +289,7 @@ def test_deleted_profile_name_preserves_uniqueness_budget() -> None:
     assert len(tombstone) <= 128
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_merge_active_db_profiles_into_config_overrides_file_seed() -> None:
@@ -352,7 +352,7 @@ def test_merge_active_db_profiles_into_config_overrides_file_seed() -> None:
     assert "inactive-profile" not in merged.profiles
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_normalise_profile_mapping_inherits_default_auth_when_missing() -> None:
@@ -375,7 +375,7 @@ def test_normalise_profile_mapping_inherits_default_auth_when_missing() -> None:
     assert normalized["auth"]["header_scheme"] == "Bearer"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_supports_legacy_api_alias_path() -> None:
@@ -409,7 +409,7 @@ def test_health_middleware_supports_legacy_api_alias_path() -> None:
     assert sent[0]["status"] == 200
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_supports_legacy_root_alias_path() -> None:
@@ -443,7 +443,7 @@ def test_health_middleware_supports_legacy_root_alias_path() -> None:
     assert sent[0]["status"] == 200
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_build_tool_registry_wires_real_handlers(tmp_path) -> None:
@@ -458,7 +458,7 @@ def test_build_tool_registry_wires_real_handlers(tmp_path) -> None:
     assert read_handler(str(target)) == "hello"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_build_tool_registry_includes_backend_status(tmp_path) -> None:
@@ -470,7 +470,7 @@ def test_build_tool_registry_includes_backend_status(tmp_path) -> None:
     assert isinstance(status["states"], dict)
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_build_tool_registry_passes_max_results_to_local_search(tmp_path, monkeypatch) -> None:
@@ -500,7 +500,7 @@ def test_build_tool_registry_passes_max_results_to_local_search(tmp_path, monkey
     assert captured["content_max_results"] is None
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_returns_ok() -> None:
@@ -537,7 +537,7 @@ def test_health_middleware_returns_ok() -> None:
     assert body["status"] == "ok"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_returns_status_metrics() -> None:
@@ -587,7 +587,7 @@ def test_health_middleware_returns_status_metrics() -> None:
     }
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_a2a_health_is_public_without_auth() -> None:
@@ -639,7 +639,7 @@ def test_a2a_health_is_public_without_auth() -> None:
     )
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
@@ -690,7 +690,7 @@ def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
     assert verifier.verify_calls == []
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_admin_profiles_api_route_supports_api_prefix_alias() -> None:
@@ -733,7 +733,7 @@ def test_admin_profiles_api_route_supports_api_prefix_alias() -> None:
     assert verifier.verify_calls == [("12345678", "default")]
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_jobs_route_lists_jobs() -> None:
@@ -778,7 +778,7 @@ def test_health_middleware_jobs_route_lists_jobs() -> None:
     assert payload["jobs"][0]["job_id"] == "job-1"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_jobs_route_reads_single_job() -> None:
@@ -822,7 +822,7 @@ def test_health_middleware_jobs_route_reads_single_job() -> None:
     assert payload["job"]["job_id"] == "job-1"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_web_proxy_preserves_api_prefix_for_jobs_routes() -> None:
@@ -867,7 +867,7 @@ def test_web_proxy_preserves_api_prefix_for_jobs_routes() -> None:
     assert payload["proxied_path"] == "/api/v1/jobs"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_logs_route_returns_structured_rows(tmp_path) -> None:
@@ -957,7 +957,7 @@ def test_health_middleware_logs_route_returns_structured_rows(tmp_path) -> None:
             runtime_env["FILE_MCP_ACTIVE_SERVER_ROLE"] = previous_role
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_web_proxy_preserves_api_prefix_for_logs_routes() -> None:
@@ -1002,7 +1002,7 @@ def test_web_proxy_preserves_api_prefix_for_logs_routes() -> None:
     assert payload["proxied_path"] == "/api/v1/logs"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
     profile = _profile(tmp_path)
     jobs_runtime = FileMcpJobsRuntime.from_profile(
@@ -1030,7 +1030,7 @@ def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
     assert job["status"] == "succeeded"
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_streamable_http_accept_compatibility_middleware_patches_json_only_accept() -> (
@@ -1075,7 +1075,7 @@ def test_streamable_http_accept_compatibility_middleware_patches_json_only_accep
     assert "text/event-stream" in accept
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_resolve_auth_api_key_value_unwraps_nested_env_placeholders() -> None:
@@ -1102,7 +1102,7 @@ def test_resolve_auth_api_key_value_unwraps_nested_env_placeholders() -> None:
             runtime_env["W28A355_INNER_KEY"] = previous_inner
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_resolve_auth_api_key_value_returns_empty_for_unresolved_placeholder() -> None:
@@ -1121,7 +1121,7 @@ def test_resolve_auth_api_key_value_returns_empty_for_unresolved_placeholder() -
             runtime_env["W28A355_MISSING_KEY"] = previous
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_root_route_serves_spa_index_from_configured_dist(tmp_path) -> None:
@@ -1160,7 +1160,7 @@ def test_root_route_serves_spa_index_from_configured_dist(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_root_route_with_api_accept_serves_spa_index(tmp_path) -> None:
@@ -1209,7 +1209,7 @@ def _w28c1702_admin_cookie(middleware):
     return (b"cookie", b"file_web_session=ut-admin")
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
@@ -1274,7 +1274,7 @@ def test_health_middleware_google_drive_page_locks_profile_from_query() -> None:
             runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = previous_token
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_runtime_config_endpoint_returns_dynamic_script() -> None:
@@ -1329,7 +1329,7 @@ def test_runtime_config_endpoint_returns_dynamic_script() -> None:
                 runtime_env[key] = value
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_runtime_config_endpoint_scopes_audit_log_path_to_selected_profile_root() -> None:
@@ -1381,7 +1381,7 @@ def test_runtime_config_endpoint_scopes_audit_log_path_to_selected_profile_root(
                 runtime_env[key] = value
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_ui_routes_serve_spa_index_from_configured_dist(tmp_path) -> None:
@@ -1431,7 +1431,7 @@ def test_ui_routes_serve_spa_index_from_configured_dist(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_non_ui_api_paths_do_not_fallback_to_spa(tmp_path) -> None:
@@ -1466,7 +1466,7 @@ def test_non_ui_api_paths_do_not_fallback_to_spa(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_legacy_v1_jobs_paths_do_not_fallback_to_spa(tmp_path) -> None:
@@ -1501,7 +1501,7 @@ def test_legacy_v1_jobs_paths_do_not_fallback_to_spa(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_legacy_v1_logs_paths_do_not_fallback_to_spa(tmp_path) -> None:
@@ -1536,7 +1536,7 @@ def test_legacy_v1_logs_paths_do_not_fallback_to_spa(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 def test_ui_assets_are_served_from_dist(tmp_path) -> None:
     prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
     dist = tmp_path / "ui-dist"
@@ -1570,7 +1570,7 @@ def test_ui_assets_are_served_from_dist(tmp_path) -> None:
             runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_serves_google_drive_admin_page() -> None:
@@ -1626,7 +1626,7 @@ def test_health_middleware_serves_google_drive_admin_page() -> None:
             runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = previous_token
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
@@ -1689,7 +1689,7 @@ def test_health_middleware_google_drive_page_uses_forwarded_proto() -> None:
             runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = previous_token
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
@@ -1786,7 +1786,7 @@ def test_health_middleware_google_drive_page_prefills_config_and_masks_secret(
             runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_google_drive_start_reuses_masked_secret(
@@ -1891,7 +1891,7 @@ def test_health_middleware_google_drive_start_reuses_masked_secret(
             runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_reload_requires_admin_gate() -> None:
@@ -1948,7 +1948,7 @@ def test_health_middleware_reload_requires_admin_gate() -> None:
             runtime_env["FILE_MCP_ADMIN_UI_ENABLED"] = prev_enabled
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_health_middleware_reload_enforces_token_and_returns_json() -> None:
@@ -2017,7 +2017,7 @@ def test_health_middleware_reload_enforces_token_and_returns_json() -> None:
             runtime_env["FILE_MCP_ADMIN_UI_TOKEN"] = prev_token
 @pytest.mark.UT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("FR-1.46")
 
 
 def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
