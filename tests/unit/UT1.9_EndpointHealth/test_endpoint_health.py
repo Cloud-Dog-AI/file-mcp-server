@@ -76,6 +76,17 @@ def test_classify_http_error_503_as_busy_temporary() -> None:
     response.status_code = 503
     error = requests.HTTPError("service unavailable", response=response)
     assert manager.classify_exception(error) == "busy_temporary"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-020")
+def test_classify_google_invalid_grant_as_auth_failed() -> None:
+    manager = EndpointHealthManager()
+    error = RuntimeError(
+        "google token refresh failed: invalid_grant: Token has been expired or revoked."
+    )
+    assert manager.classify_exception(error) == "auth_failed"
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-020")

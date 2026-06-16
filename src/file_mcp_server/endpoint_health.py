@@ -100,7 +100,14 @@ class EndpointHealthManager:
         text = str(exc).lower()
         if "timed out" in text or "timeout" in text:
             return "temporary_unavailable"
-        if "uthoriz" in text or "uthoris" in text or "forbidden" in text:
+        if (
+            "uthoriz" in text
+            or "uthoris" in text
+            or "forbidden" in text
+            or "invalid_grant" in text
+            or "expired or revoked" in text
+            or ("refresh token" in text and "revoked" in text)
+        ):
             return "auth_failed"
         if "temporar" in text or "busy" in text or "too many requests" in text:
             return "busy_temporary"
