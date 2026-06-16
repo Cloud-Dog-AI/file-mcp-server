@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import pytest
 
+from file_tools.adapters import Response
 from file_tools.config.models import StorageConfig
 from file_tools.storage.google_drive import GoogleDriveStorage, _extract_folder_id
 @pytest.mark.UT
@@ -71,3 +72,38 @@ def test_google_drive_requires_oauth_client() -> None:
     )
     with pytest.raises(ValueError, match="client_id and google_drive.client_secret"):
         GoogleDriveStorage(storage)
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-021")
+def test_google_drive_token_refresh_surfaces_invalid_grant(monkeypatch) -> None:
+    storage = StorageConfig(
+        backend="google_drive",
+        google_drive={
+            "folder_id": "folder",
+            "client_id": "id",
+            "client_secret": "secret",
+            "refresh_token": "refresh",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "api_base_uri": "https://www.googleapis.com/drive/v3",
+            "upload_base_uri": "https://www.googleapis.com/upload/drive/v3",
+        },
+    )
+
+    def fake_request(*_args, **_kwargs):
+        response = Response()
+        response.status_code = 400
+        response.reason = "Bad Request"
+        response.url = "https://oauth2.googleapis.com/token"
+        response._content = (
+            b'{"error":"invalid_grant",'
+            b'"error_description":"Token has been expired or revoked."}'
+        )
+        return response
+
+    monkeypatch.setattr("file_tools.storage.google_drive.http_request", fake_request)
+    backend = GoogleDriveStorage(storage)
+
+    with pytest.raises(RuntimeError, match="invalid_grant.*expired or revoked"):
+        backend._token()

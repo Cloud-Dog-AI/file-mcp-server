@@ -28,7 +28,7 @@ import time
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
 
-from file_tools.adapters import Response
+from file_tools.adapters import HTTPError, Response
 from file_tools.adapters import request as http_request
 
 from file_tools.config.models import StorageConfig
@@ -204,7 +204,22 @@ class GoogleDriveStorage(StorageBackend):
             timeout=self._timeout_s,
             verify=self._verify,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except HTTPError as exc:
+            try:
+                payload = resp.json()
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict):
+                error = str(payload.get("error") or "").strip()
+                description = str(payload.get("error_description") or "").strip()
+                if error or description:
+                    detail = ": ".join(part for part in (error, description) if part)
+                    raise RuntimeError(
+                        f"Google Drive token refresh failed: {detail}"
+                    ) from exc
+            raise
         payload = resp.json()
         token = payload.get("access_token")
         if not token:
