@@ -87,6 +87,20 @@ def test_classify_google_invalid_grant_as_auth_failed() -> None:
         "google token refresh failed: invalid_grant: Token has been expired or revoked."
     )
     assert manager.classify_exception(error) == "auth_failed"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-020")
+def test_classify_google_oauth_token_400_as_auth_failed() -> None:
+    manager = EndpointHealthManager()
+    response = requests.Response()
+    response.status_code = 400
+    error = requests.HTTPError(
+        "400 Client Error: Bad Request for url: https://oauth2.googleapis.com/token",
+        response=response,
+    )
+    assert manager.classify_exception(error) == "auth_failed"
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-020")

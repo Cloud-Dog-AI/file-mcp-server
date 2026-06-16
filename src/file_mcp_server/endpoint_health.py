@@ -94,6 +94,8 @@ class EndpointHealthManager:
             status = exc.response.status_code if exc.response is not None else None
             if status in {401, 403}:
                 return "auth_failed"
+            if status == 400 and self._is_oauth_token_error(str(exc)):
+                return "auth_failed"
             if status in {408, 409, 423, 425, 429, 500, 502, 503, 504}:
                 return "busy_temporary"
             return "failed"
@@ -104,6 +106,7 @@ class EndpointHealthManager:
             "uthoriz" in text
             or "uthoris" in text
             or "forbidden" in text
+            or self._is_oauth_token_error(text)
             or "invalid_grant" in text
             or "expired or revoked" in text
             or ("refresh token" in text and "revoked" in text)
@@ -112,6 +115,11 @@ class EndpointHealthManager:
         if "temporar" in text or "busy" in text or "too many requests" in text:
             return "busy_temporary"
         return "failed"
+
+    @staticmethod
+    def _is_oauth_token_error(text: str) -> bool:
+        normalized = str(text or "").lower()
+        return "oauth" in normalized and "token" in normalized
 
     def _probe_backend(self, backend: StorageBackend, profile: ProfileConfig) -> None:
         """Handle probe backend."""
