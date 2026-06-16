@@ -38,6 +38,7 @@ from types import SimpleNamespace
 from tests.config_helpers import build_profile
 
 from file_mcp_server import google_drive_admin as admin
+from file_mcp_server import server_runtime as sr
 from file_mcp_server.db.models import FileStorageProfile
 from file_mcp_server.db.runtime import initialise_database, shutdown_database
 from file_mcp_server.mcp_api_kit_layer import build_tool_contracts
@@ -334,6 +335,58 @@ def test_fm1_compute_profile_status_per_backend() -> None:
     assert mw._compute_profile_status(backend="local", storage={}, roots=[])["status"] == "not_configured"
     s3 = {"s3": {"endpoint": "e", "bucket": "b", "access_key": "a", "secret_key": "k"}}
     assert mw._compute_profile_status(backend="s3", storage=s3, roots=[])["status"] == "configured"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-026")
+def test_fm1_gdrive_auth_failed_health_demotes_configured(monkeypatch) -> None:
+    state = SimpleNamespace(
+        backend="google_drive",
+        status="auth_failed",
+        reason="startup_probe_failed",
+        updated_at="2026-06-16T00:00:00+00:00",
+        requires_restart=False,
+    )
+
+    class FakeEndpointHealth:
+        def get_state(self, profile_name: str, backend: str):
+            if profile_name == "google_drive" and backend == "google_drive":
+                return state
+            return None
+
+        def get_profile_states(self, profile_name: str):
+            return {"google_drive": state} if profile_name == "google_drive" else {}
+
+    monkeypatch.setattr(sr, "ENDPOINT_HEALTH_MANAGER", FakeEndpointHealth())
+
+    mw = HealthCheckMiddleware(
+        _noop_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+    payload = mw._profile_payload(
+        name="google_drive",
+        profile={
+            "storage": {
+                "backend": "google_drive",
+                "google_drive": {
+                    "refresh_token": "r",
+                    "folder_id": "f",
+                    "user_email": "u@e",
+                    "client_id": "c",
+                    "client_secret": "s",
+                },
+            },
+            "scope": {"roots": []},
+            "auth": {"api_keys": ["secret"]},
+        },
+    )
+
+    assert payload["status"] == "partially_configured"
+    assert "google_drive_reauthorisation_required" in payload["status_missing"]
+    assert payload["endpoint_health"]["status"] == "auth_failed"
 
 
 # ───────────────────────────── FM9 ─────────────────────────────

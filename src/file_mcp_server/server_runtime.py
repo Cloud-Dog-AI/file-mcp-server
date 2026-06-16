@@ -2729,6 +2729,53 @@ class HealthCheckMiddleware:
             "redirect_uri": callback_url,
             "token_uri": "",
         }
+
+        def _values_from_drive(raw_drive: dict[str, Any]) -> dict[str, str]:
+            folder_url = self._configured_value(raw_drive.get("folder_url"))
+            folder_id = self._configured_value(raw_drive.get("folder_id"))
+            configured_redirect = self._configured_value(raw_drive.get("redirect_uri"))
+            redirect_uri = (
+                callback_url
+                if configured_redirect.strip().lower() == OOB_REDIRECT_URI
+                else (configured_redirect or callback_url)
+            )
+            return {
+                "user_email": self._configured_value(raw_drive.get("user_email")),
+                "folder_input": folder_url or folder_id,
+                "client_id": self._configured_value(raw_drive.get("client_id")),
+                "client_secret": self._configured_value(raw_drive.get("client_secret")),
+                "folder_url_example": self._configured_value(
+                    raw_drive.get("folder_url_example")
+                ),
+                "oauth_scope": self._configured_value(raw_drive.get("oauth_scope")),
+                "oauth_authorize_uri": self._configured_value(
+                    raw_drive.get("oauth_authorize_uri")
+                ),
+                "api_base_uri": self._configured_value(raw_drive.get("api_base_uri")),
+                "redirect_uri": redirect_uri,
+                "token_uri": self._configured_value(raw_drive.get("token_uri")),
+            }
+
+        for item in self._list_profile_payloads():
+            if item.get("name") != profile_name:
+                continue
+            prof = item.get("profile") if isinstance(item, dict) else {}
+            storage = prof.get("storage") if isinstance(prof, dict) else {}
+            raw_drive = storage.get("google_drive") if isinstance(storage, dict) else {}
+            if isinstance(raw_drive, dict):
+                db_values = _values_from_drive(raw_drive)
+                if any(
+                    db_values.get(key)
+                    for key in (
+                        "user_email",
+                        "folder_input",
+                        "client_id",
+                        "client_secret",
+                        "token_uri",
+                    )
+                ):
+                    return db_values
+
         defaults_path = str(read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
         try:
             cfg = load_config(
@@ -2742,28 +2789,7 @@ class HealthCheckMiddleware:
             if profile is None:
                 return empty_values
             drive = profile.storage.google_drive
-            folder_url = self._configured_value(drive.folder_url)
-            folder_id = self._configured_value(drive.folder_id)
-            configured_redirect = self._configured_value(drive.redirect_uri)
-            redirect_uri = (
-                callback_url
-                if configured_redirect.strip().lower() == OOB_REDIRECT_URI
-                else (configured_redirect or callback_url)
-            )
-            return {
-                "user_email": self._configured_value(drive.user_email),
-                "folder_input": folder_url or folder_id,
-                "client_id": self._configured_value(drive.client_id),
-                "client_secret": self._configured_value(drive.client_secret),
-                "folder_url_example": self._configured_value(drive.folder_url_example),
-                "oauth_scope": self._configured_value(drive.oauth_scope),
-                "oauth_authorize_uri": self._configured_value(
-                    drive.oauth_authorize_uri
-                ),
-                "api_base_uri": self._configured_value(drive.api_base_uri),
-                "redirect_uri": redirect_uri,
-                "token_uri": self._configured_value(drive.token_uri),
-            }
+            return _values_from_drive(drive.model_dump())
         except Exception:
             config_path_str = self.active_config
             if not path_utils.exists(config_path_str):
@@ -2785,36 +2811,7 @@ class HealthCheckMiddleware:
                 if not isinstance(raw_drive, dict):
                     return empty_values
 
-                folder_url = self._configured_value(raw_drive.get("folder_url"))
-                folder_id = self._configured_value(raw_drive.get("folder_id"))
-                configured_redirect = self._configured_value(
-                    raw_drive.get("redirect_uri")
-                )
-                redirect_uri = (
-                    callback_url
-                    if configured_redirect.strip().lower() == OOB_REDIRECT_URI
-                    else (configured_redirect or callback_url)
-                )
-                return {
-                    "user_email": self._configured_value(raw_drive.get("user_email")),
-                    "folder_input": folder_url or folder_id,
-                    "client_id": self._configured_value(raw_drive.get("client_id")),
-                    "client_secret": self._configured_value(
-                        raw_drive.get("client_secret")
-                    ),
-                    "folder_url_example": self._configured_value(
-                        raw_drive.get("folder_url_example")
-                    ),
-                    "oauth_scope": self._configured_value(raw_drive.get("oauth_scope")),
-                    "oauth_authorize_uri": self._configured_value(
-                        raw_drive.get("oauth_authorize_uri")
-                    ),
-                    "api_base_uri": self._configured_value(
-                        raw_drive.get("api_base_uri")
-                    ),
-                    "redirect_uri": redirect_uri,
-                    "token_uri": self._configured_value(raw_drive.get("token_uri")),
-                }
+                return _values_from_drive(raw_drive)
             except Exception:
                 return empty_values
 
@@ -2920,11 +2917,21 @@ class HealthCheckMiddleware:
             """Handle action cell."""
             metadata = profile_metadata.get(name) or {}
             requires_auth = bool(metadata.get("google_auth_required", False))
-            if not requires_auth:
+            health = profile_health.get(name) or {}
+            health_auth_failed = (
+                str(health.get("backend") or "").lower() == "google_drive"
+                and str(health.get("status") or "").lower() == "auth_failed"
+            )
+            if not requires_auth and not health_auth_failed:
                 return ""
             if not self.admin_ui_enabled:
                 return "Enable admin UI to authorise"
-            return f"<a class='btn' href='/admin/google-drive?profile={escape(name)}'>Authorise Google Drive</a>"
+            label = (
+                "Re-authorise Google Drive"
+                if health_auth_failed
+                else "Authorise Google Drive"
+            )
+            return f"<a class='btn' href='/admin/google-drive?profile={escape(name)}'>{label}</a>"
 
         profile_rows = "".join(
             "<tr>"
@@ -3055,6 +3062,24 @@ class HealthCheckMiddleware:
             status = "partially_configured"
         return {"status": status, "missing": missing}
 
+    def _profile_backend_health(
+        self, *, profile_name: str, backend: str
+    ) -> dict[str, Any] | None:
+        backend_name = str(backend or "").strip().lower()
+        state = ENDPOINT_HEALTH_MANAGER.get_state(profile_name, backend_name)
+        if state is None:
+            states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+            state = states.get(backend_name) if states else None
+        if state is None:
+            return None
+        return {
+            "backend": state.backend,
+            "status": state.status,
+            "reason": state.reason,
+            "updated_at": state.updated_at,
+            "requires_restart": state.requires_restart,
+        }
+
     def _render_gdrive_status_banner(self, profile_name: str) -> str:
         """W28C-1702 (FM9): server-rendered banner reflecting the profile's
         google_drive DB state — the authoritative connection indicator (the
@@ -3075,13 +3100,32 @@ class HealthCheckMiddleware:
         )
         status = gd_status["status"]
         missing = gd_status["missing"]
+        health = self._profile_backend_health(
+            profile_name=profile_name, backend="google_drive"
+        )
+        health_status = str((health or {}).get("status") or "").strip().lower()
         gd = storage.get("google_drive") if isinstance(storage, dict) else {}
         user_email = (
             self._configured_value((gd or {}).get("user_email"))
             if isinstance(gd, dict)
             else ""
         )
-        if status == "configured":
+        if status == "configured" and health_status == "auth_failed":
+            colour, label = "#b00020", "&#x1F534; RE-AUTHORISATION REQUIRED"
+            who = f" for <b>{escape(user_email)}</b>" if user_email else ""
+            detail = (
+                f"Google Drive tokens exist for profile <b>{escape(profile_name)}</b>{who}, "
+                "but the live OAuth refresh check failed. Submit the form below to replace "
+                "the revoked or expired tokens."
+            )
+        elif status == "configured" and health_status and health_status != "healthy":
+            colour, label = "#b07000", "&#x1F7E1; CHECK FAILED"
+            detail = (
+                f"Google Drive fields exist for profile <b>{escape(profile_name)}</b>, "
+                f"but endpoint health is <code>{escape(health_status)}</code>. "
+                "Submitting the form below re-authorises and replaces the stored tokens."
+            )
+        elif status == "configured":
             colour, label = "#0b8043", "&#x1F7E2; CONFIGURED"
             who = f" — last authorised <b>{escape(user_email)}</b>" if user_email else ""
             detail = (
@@ -3135,6 +3179,23 @@ class HealthCheckMiddleware:
             storage=storage if isinstance(storage, dict) else {},
             roots=roots,
         )
+        endpoint_health = self._profile_backend_health(profile_name=name, backend=backend)
+        health_status = str((endpoint_health or {}).get("status") or "").strip().lower()
+        if (
+            backend.strip().lower() in {"google_drive", "gdrive", "drive"}
+            and status_info["status"] == "configured"
+            and endpoint_health is not None
+            and health_status != "healthy"
+        ):
+            marker = (
+                "google_drive_reauthorisation_required"
+                if health_status == "auth_failed"
+                else "google_drive_endpoint_health_failed"
+            )
+            missing = list(status_info["missing"])
+            if marker not in missing:
+                missing.append(marker)
+            status_info = {"status": "partially_configured", "missing": missing}
         return {
             "name": name,
             "backend": backend,
@@ -3142,6 +3203,7 @@ class HealthCheckMiddleware:
             "api_keys_count": len(api_keys),
             "status": status_info["status"],
             "status_missing": status_info["missing"],
+            "endpoint_health": endpoint_health,
             "profile": normalized_profile,
         }
 
