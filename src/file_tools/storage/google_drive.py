@@ -43,6 +43,7 @@ from .base import (
 
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
+DEFAULT_UPLOAD_BASE_URI = "https://www.googleapis.com/upload/drive/v3"
 
 
 def _clean_posix(path: str) -> str:
@@ -153,13 +154,11 @@ class GoogleDriveStorage(StorageBackend):
             raise ValueError("Google Drive storage requires google_drive.token_uri")
         if not cfg.api_base_uri:
             raise ValueError("Google Drive storage requires google_drive.api_base_uri")
-        if not cfg.upload_base_uri:
-            raise ValueError(
-                "Google Drive storage requires google_drive.upload_base_uri"
-            )
         self._token_uri = cfg.token_uri.strip()
         self._api_base_uri = _normalise_base_uri(cfg.api_base_uri)
-        self._upload_base_uri = _normalise_base_uri(cfg.upload_base_uri)
+        self._upload_base_uri = _normalise_base_uri(
+            cfg.upload_base_uri or DEFAULT_UPLOAD_BASE_URI
+        )
         self._timeout_s = int(timeout_s) if timeout_s is not None else 30
         self._token_expires_at: float | None = None
 

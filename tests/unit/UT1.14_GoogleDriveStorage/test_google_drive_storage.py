@@ -77,6 +77,27 @@ def test_google_drive_requires_oauth_client() -> None:
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-021")
+def test_google_drive_defaults_upload_base_uri() -> None:
+    storage = StorageConfig(
+        backend="google_drive",
+        google_drive={
+            "folder_id": "folder",
+            "client_id": "id",
+            "client_secret": "secret",
+            "refresh_token": "refresh",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "api_base_uri": "https://www.googleapis.com/drive/v3",
+        },
+    )
+
+    backend = GoogleDriveStorage(storage)
+
+    assert backend._upload_base_uri == "https://www.googleapis.com/upload/drive/v3"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-021")
 def test_google_drive_token_refresh_surfaces_invalid_grant(monkeypatch) -> None:
     storage = StorageConfig(
         backend="google_drive",
