@@ -128,3 +128,67 @@ def test_google_drive_token_refresh_surfaces_invalid_grant(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="invalid_grant.*expired or revoked"):
         backend._token()
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-021")
+def test_google_drive_list_dir_exposes_drive_metadata(monkeypatch) -> None:
+    storage = StorageConfig(
+        backend="google_drive",
+        google_drive={
+            "folder_id": "folder",
+            "client_id": "id",
+            "client_secret": "secret",
+            "refresh_token": "refresh",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "api_base_uri": "https://www.googleapis.com/drive/v3",
+            "upload_base_uri": "https://www.googleapis.com/upload/drive/v3",
+        },
+    )
+    backend = GoogleDriveStorage(storage)
+
+    monkeypatch.setattr(
+        backend,
+        "_resolve_path",
+        lambda path: ("folder", True),
+    )
+
+    class _Response:
+        status_code = 200
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "files": [
+                    {
+                        "id": "drive-file-id",
+                        "name": "result.md",
+                        "mimeType": "text/markdown",
+                        "size": "42",
+                        "createdTime": "2026-06-17T09:00:00.000Z",
+                        "modifiedTime": "2026-06-17T09:01:00.000Z",
+                        "version": "7",
+                        "md5Checksum": "abc123",
+                        "webViewLink": "https://drive.google.com/file/d/drive-file-id/view",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(backend, "_request", lambda *_args, **_kwargs: _Response())
+
+    entries = backend.list_dir("/", recursive=False)
+
+    assert len(entries) == 1
+    assert entries[0].path == "/result.md"
+    assert entries[0].size == 42
+    assert entries[0].created_at == "2026-06-17T09:00:00.000Z"
+    assert entries[0].modified_at == "2026-06-17T09:01:00.000Z"
+    assert entries[0].metadata == {
+        "drive_file_id": "drive-file-id",
+        "drive_revision": "7",
+        "drive_md5_checksum": "abc123",
+        "drive_web_view_link": "https://drive.google.com/file/d/drive-file-id/view",
+    }

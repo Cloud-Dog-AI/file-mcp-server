@@ -6159,12 +6159,18 @@ def build_tool_registry(
             detail: dict[str, Any] = {
                 "path": entry.path,
                 "is_dir": bool(entry.is_dir),
-                "size": None,
-                "modified_at": None,
-                "created_at": None,
-                "accessed_at": None,
-                "owner": None,
+                "size": getattr(entry, "size", None),
+                "modified_at": getattr(entry, "modified_at", None),
+                "created_at": getattr(entry, "created_at", None),
+                "accessed_at": getattr(entry, "accessed_at", None),
+                "owner": getattr(entry, "owner", None),
             }
+            metadata = getattr(entry, "metadata", None)
+            if isinstance(metadata, dict):
+                detail["metadata"] = dict(metadata)
+                for key, value in metadata.items():
+                    if str(key).startswith("drive_"):
+                        detail[str(key)] = value
             if backend.backend_name == "local":
                 try:
                     stat_result = path_utils.file_stat(entry.path)

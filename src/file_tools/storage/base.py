@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 
 class NotSupportedError(RuntimeError):
@@ -54,6 +54,12 @@ class StorageStat:
 class StorageEntry:
     path: str
     is_dir: bool
+    size: int | None = None
+    modified_at: str | None = None
+    created_at: str | None = None
+    accessed_at: str | None = None
+    owner: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class StorageBackend(ABC):
