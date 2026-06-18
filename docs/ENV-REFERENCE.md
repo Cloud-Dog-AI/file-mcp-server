@@ -1,3 +1,22 @@
+---
+template-id: T-ENV
+template-version: 1.0
+applies-to: docs/ENV-REFERENCE.md
+registry: service
+required: must-have
+when-applicable: ""
+template-last-updated: 2026-06-12
+template-owner: platform-standards
+
+project: file-mcp-server
+doc-last-updated: 2026-06-18
+doc-git-commit: 24cd1ac046fd3b0da63e4dcfc9cbdc0188ca6947
+doc-git-branch: main
+doc-source-shas: []
+doc-age-policy: 90d
+doc-conformance-stamp: 2026-06-18T09:40:00Z
+---
+
 # Environment Reference
 
 This reference is generated from `defaults.yaml` and the standard Cloud-Dog environment override pattern.

@@ -1,3 +1,22 @@
+---
+template-id: T-PAR
+template-version: 1.0
+applies-to: docs/PARAMETERS.md
+registry: service
+required: must-have
+when-applicable: ""
+template-last-updated: 2026-06-12
+template-owner: platform-standards
+
+project: file-mcp-server
+doc-last-updated: 2026-06-18
+doc-git-commit: 24cd1ac046fd3b0da63e4dcfc9cbdc0188ca6947
+doc-git-branch: main
+doc-source-shas: []
+doc-age-policy: 90d
+doc-conformance-stamp: 2026-06-18T09:40:00Z
+---
+
 # Parameters
 
 This reference is generated from `defaults.yaml`. Each key can be overridden by the corresponding environment variable.

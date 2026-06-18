@@ -1,3 +1,22 @@
+---
+template-id: T-PRE
+template-version: 1.0
+applies-to: docs/PREPROD.md
+registry: service
+required: must-have
+when-applicable: ""
+template-last-updated: 2026-06-12
+template-owner: platform-standards
+
+project: file-mcp-server
+doc-last-updated: 2026-06-18
+doc-git-commit: 24cd1ac046fd3b0da63e4dcfc9cbdc0188ca6947
+doc-git-branch: main
+doc-source-shas: []
+doc-age-policy: 90d
+doc-conformance-stamp: 2026-06-18T09:40:00Z
+---
+
 # PREPROD Deployment — File MCP Server
 
 This document describes the pre-production operator/deployment overlay for this service. The Terraform container environment is the runtime source of truth, and `private/env-PREPROD` is the operator/test overlay used for local control commands and pytest runs against the deployed preprod service. Defaults and non-preprod settings remain documented in `docs/ENV-REFERENCE.md`, `docs/ARCHITECTURE.md`, and `defaults.yaml`.
