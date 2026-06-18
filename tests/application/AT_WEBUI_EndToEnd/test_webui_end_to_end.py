@@ -91,6 +91,7 @@ class UiSession:
     context: BrowserContext
     page: Page
     base_url: str
+    console_errors: list[str]
 
 
 NAV_LABELS = {
@@ -237,6 +238,7 @@ def _goto_authenticated(
 @pytest.fixture()
 def ui_session(request: pytest.FixtureRequest) -> UiSession:
     base_url = _web_base_url()
+    console_errors: list[str] = []
 
     playwright = sync_playwright().start()
     browser = playwright.chromium.launch(headless=True)
@@ -250,9 +252,26 @@ def ui_session(request: pytest.FixtureRequest) -> UiSession:
     )
     page = context.new_page()
 
+    # PS-77 W28C-1715: Collect browser console errors and uncaught page errors.
+    def _on_console(msg: Any) -> None:
+        if msg.type == "error":
+            console_errors.append(f"[console.error] {msg.text}")
+
+    def _on_pageerror(exc: Any) -> None:
+        console_errors.append(f"[pageerror] {exc}")
+
+    page.on("console", _on_console)
+    page.on("pageerror", _on_pageerror)
+
     try:
         _perform_login(page, base_url)
-        yield UiSession(browser=browser, context=context, page=page, base_url=base_url)
+        yield UiSession(
+            browser=browser,
+            context=context,
+            page=page,
+            base_url=base_url,
+            console_errors=console_errors,
+        )
     finally:
         status = "unknown"
         if hasattr(request.node, "rep_call"):
@@ -793,3 +812,46 @@ def test_webui_t11_edit_file(ui_session: UiSession) -> None:
             break
         page.wait_for_timeout(250)
     assert page.get_by_label("Inline editor").input_value() == updated_text
+
+
+@pytest.mark.AT
+@pytest.mark.webui
+@pytest.mark.req("FR-012")
+def test_webui_t12_console_error_gate(ui_session: UiSession) -> None:
+    """PS-77 W28C-1715: Hard gate — browser console/page errors must be zero during WebUI use.
+
+    Navigates the dashboard and verifies no uncaught JavaScript errors or console.error
+    calls were emitted from page load through login and dashboard render.
+    """
+    page = ui_session.page
+    _goto_authenticated(page, ui_session.base_url, "/dashboard", "Dashboard")
+    # Flush any deferred React renders.
+    page.wait_for_timeout(500)
+    errors = ui_session.console_errors[:]
+    assert errors == [], (
+        f"Browser reported {len(errors)} console/page error(s) during WebUI session:\n"
+        + "\n".join(f"  {e}" for e in errors)
+    )
+
+
+@pytest.mark.AT
+@pytest.mark.webui
+@pytest.mark.req("FR-012")
+def test_webui_t13_settings_page_testid(ui_session: UiSession) -> None:
+    """PS-77 W28C-1715: Assert actual data-testid present in rendered Settings page.
+
+    NOTE (UI-MONOREPO-GAP): The canonical PS-77 CW-T*/CW-F* data-testids (e.g. CW-T1, CW-F1)
+    are NOT implemented in the file-mcp ui-monorepo app
+    (cloud-dog-ai-ui-monorepo/apps/file-mcp/src/). The estate audit confirmed zero CW-*
+    testids across file-mcp source. This test therefore asserts the actual testid
+    'settings-page' which is present in SettingsPage.tsx. A ui-monorepo task is required
+    to add canonical CW-T*/CW-F* testids to file-mcp views.
+    """
+    page = ui_session.page
+    _goto_authenticated(page, ui_session.base_url, "/settings", "Settings")
+    settings_panel = page.locator("[data-testid='settings-page']")
+    assert settings_panel.count() > 0, (
+        "Expected data-testid='settings-page' element in rendered Settings view. "
+        "If the Settings route is not available, the ui-monorepo must add CW-T*/CW-F* testids."
+    )
+    assert settings_panel.first.is_visible(), "data-testid='settings-page' element is not visible."
