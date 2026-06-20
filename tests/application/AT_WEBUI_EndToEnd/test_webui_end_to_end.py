@@ -837,21 +837,31 @@ def test_webui_t12_console_error_gate(ui_session: UiSession) -> None:
 @pytest.mark.AT
 @pytest.mark.webui
 @pytest.mark.req("FR-012")
-def test_webui_t13_settings_page_testid(ui_session: UiSession) -> None:
-    """PS-77 W28C-1715: Assert actual data-testid present in rendered Settings page.
+def test_webui_t13_cw_canonical_testids(ui_session: UiSession) -> None:
+    """PS-77 W28C-1715: Assert the canonical CW-T*/CW-F* data-testid contract is rendered.
 
-    NOTE (UI-MONOREPO-GAP): The canonical PS-77 CW-T*/CW-F* data-testids (e.g. CW-T1, CW-F1)
-    are NOT implemented in the file-mcp ui-monorepo app
-    (cloud-dog-ai-ui-monorepo/apps/file-mcp/src/). The estate audit confirmed zero CW-*
-    testids across file-mcp source. This test therefore asserts the actual testid
-    'settings-page' which is present in SettingsPage.tsx. A ui-monorepo task is required
-    to add canonical CW-T*/CW-F* testids to file-mcp views.
+    The file-mcp WebUI renders the PS-77 canonical CW-T*/CW-F* data-testid contract
+    from @cloud-dog/ui (W28C-1715 redeploy). The DataTable root container carries
+    data-testid="CW-T1" and the EntityDialog (modal CRUD create/edit container)
+    carries data-testid="CW-F1".
+
+    CW-T1: the Dashboard "Recent file activity" panel renders a @cloud-dog/ui
+           DataTable, so the post-login dashboard exposes CW-T1.
+    CW-F1: opening the Add-User EntityDialog (modal CRUD container) renders CW-F1.
     """
     page = ui_session.page
-    _goto_authenticated(page, ui_session.base_url, "/settings", "Settings")
-    settings_panel = page.locator("[data-testid='settings-page']")
-    assert settings_panel.count() > 0, (
-        "Expected data-testid='settings-page' element in rendered Settings view. "
-        "If the Settings route is not available, the ui-monorepo must add CW-T*/CW-F* testids."
-    )
-    assert settings_panel.first.is_visible(), "data-testid='settings-page' element is not visible."
+
+    # (CW-T1) DataTable root on the dashboard (always rendered).
+    _goto_authenticated(page, ui_session.base_url, "/dashboard", "Dashboard")
+    cw_t1 = page.get_by_test_id("CW-T1")
+    cw_t1.first.wait_for(timeout=15_000)
+    assert cw_t1.count() > 0, "Expected canonical PS-77 data-testid='CW-T1' (DataTable root) on dashboard."
+    assert cw_t1.first.is_visible(), "data-testid='CW-T1' (DataTable root) element is not visible."
+
+    # (CW-F1) EntityDialog root — open the Add-User modal CRUD dialog.
+    _open_admin_section(page, ui_session.base_url, "/admin/users", "Users")
+    page.get_by_role("button", name="Add User").click()
+    cw_f1 = page.get_by_test_id("CW-F1")
+    cw_f1.first.wait_for(timeout=15_000)
+    assert cw_f1.count() > 0, "Expected canonical PS-77 data-testid='CW-F1' (EntityDialog root) when Add-User dialog opens."
+    assert cw_f1.first.is_visible(), "data-testid='CW-F1' (EntityDialog root) element is not visible."
