@@ -11,7 +11,7 @@
 #                      Single public index (PYPI_URL defaults to pypi.org),
 #                      no --extra-index-url, no internal-host default (W28A-861-R3 §4).
 #   --variant dev      builds the internal Dockerfile (Gitea/internal package
-#                      index default) for developer/preprod checkouts.
+#                      index default) for developer checkouts.
 #
 # Usage:
 #   docker-build.sh [VERSION] [--variant dev|public]

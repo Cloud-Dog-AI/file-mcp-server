@@ -61,7 +61,7 @@ COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
 # `index-url` for the public variant. We deliberately do NOT pass `--index-url`
 # on the pip CLI: a CLI `--index-url` overrides (and thus discards the credentials
 # in) the mounted pip.conf, which breaks authenticated boundary indexes such as
-# pypi.cloud-dog.net (W28A-861-R3 local-docker reproof). When no pip.conf is
+# the internal package index. When no pip.conf is
 # mounted, the PYPI_INDEX_URL build-arg below seeds a credential-less default.
 #
 # Note: pip precedence is CLI > env var (PIP_INDEX_URL) > config file. To let the

@@ -1,5 +1,0 @@
-https://openai.com
-https://www.anthropic.com
-https://ai.google
-https://www.microsoft.com
-https://www.nvidia.com

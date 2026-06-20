@@ -63,3 +63,10 @@ Runtime configuration is loaded from the env file passed to `server_control.sh`,
 ## Licence
 
 Apache-2.0 - Copyright (c) 2026 Cloud-Dog, Viewdeck Engineering Limited
+
+## Security & Publication Notes
+
+Authentication and authorisation use the platform IDAM credential/cert model; do not commit secrets.
+This public source mirror excludes internal operations material; build artefacts (e.g. the UI bundle) are regenerated at build time.
+
+See the `examples/` directory and the sample configuration for usage examples.
