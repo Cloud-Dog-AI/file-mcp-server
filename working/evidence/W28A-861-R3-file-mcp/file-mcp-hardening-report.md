@@ -41,7 +41,7 @@ path. No `--extra-index-url` on the public path (PS-97 §3.3).
 - Env prefix: `FILE_MCP_` (env-docker-defaults, docker-env.example) plus PS-92
   `CLOUD_DOG__*` port keys (defaults.yaml:133-156).
 - Install method DERIVED from existing Dockerfile: direct package list
-  (`cloud-dog-*` by name) + `REQUIREMENTS.txt` minus `cloud_dog_` lines +
+  (`cloud-dog-*` by name) + `requirements.txt` minus `cloud_dog_` lines +
   `redis>=5.0`. Replicated in Dockerfile.public.
 
 ## Files produced/changed (1 line each)

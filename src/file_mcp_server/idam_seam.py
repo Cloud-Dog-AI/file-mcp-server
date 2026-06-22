@@ -14,6 +14,8 @@
 
 """file-mcp-server — IDAM keystone seam (W28A-742).
 
+License: Apache 2.0
+
 The seam between the shared ``cloud_dog_idam`` 0.5.0 keystone and file-mcp's
 service-local identity storage. See ``IDAM-B2-IDENTITY-DOMAIN-WIRING-DESIGN``
 §2.2/§4.1 and the W28A-742 comparison map §3.2/§3.3/§3.5.

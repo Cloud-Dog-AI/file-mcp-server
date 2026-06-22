@@ -38,6 +38,7 @@ from cloud_dog_idam.storage.sqlalchemy.role_store import (  # type: ignore[impor
     SqlAlchemyRoleStore,
 )
 from cloud_dog_logging import get_logger  # type: ignore[import-not-found,import-untyped]
+from sqlalchemy.exc import IntegrityError
 
 from .db.models import (
     FileAdminApiKey,
@@ -136,8 +137,10 @@ class AdminIdentityService:
         return {
             "id": user.id,
             "username": user.username,
+            "name": user.display_name or user.username,
             "display_name": user.display_name,
             "is_active": bool(user.is_active),
+            "disabled": not bool(user.is_active),
             "groups": groups,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
@@ -209,17 +212,40 @@ class AdminIdentityService:
         """Ensure the canonical PS-71 bootstrap admin user/group rows exist."""
         clean_username = username.strip() or "admin"
         clean_group_name = group_name.strip() or "bootstrap-admin"
+        for attempt in range(2):
+            try:
+                return self._ensure_bootstrap_seed_once(
+                    username=clean_username,
+                    group_name=clean_group_name,
+                )
+            except IntegrityError:
+                if attempt:
+                    raise
+                self.logger.info(
+                    "Retrying bootstrap admin seed after concurrent insert",
+                    username=clean_username,
+                    group_name=clean_group_name,
+                )
+        raise AssertionError("unreachable bootstrap seed retry state")
+
+    def _ensure_bootstrap_seed_once(
+        self,
+        *,
+        username: str,
+        group_name: str,
+    ) -> dict[str, Any]:
+        """Run one bootstrap seed transaction."""
         with self.session_manager.session() as session:
             user = (
                 session.query(FileAdminUser)
-                .filter(FileAdminUser.username == clean_username)
+                .filter(FileAdminUser.username == username)
                 .one_or_none()
             )
             if user is None:
                 user = FileAdminUser(
                     id=self._new_id("usr"),
-                    username=clean_username,
-                    display_name=clean_username.title(),
+                    username=username,
+                    display_name=username.title(),
                     is_active=True,
                 )
                 session.add(user)
@@ -227,13 +253,13 @@ class AdminIdentityService:
 
             group = (
                 session.query(FileAdminGroup)
-                .filter(FileAdminGroup.name == clean_group_name)
+                .filter(FileAdminGroup.name == group_name)
                 .one_or_none()
             )
             if group is None:
                 group = FileAdminGroup(
                     id=self._new_id("grp"),
-                    name=clean_group_name,
+                    name=group_name,
                     description="Bootstrap administrators",
                     roles_json=self._dump_json_list(["admin"]),
                     is_active=True,
@@ -380,6 +406,7 @@ class AdminIdentityService:
                     .all()
                 ):
                     session.delete(membership)
+                session.flush()
                 group_names = [
                     str(item).strip()
                     for item in (data.get("groups") or [])

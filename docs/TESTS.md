@@ -163,6 +163,7 @@ The following test filenames are present in the repository and are included for 
 - `test_server_dispatch.py`
 - `test_server_http_integration.py`
 - `test_server_runtime.py`
+- `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py`
 - `test_st_time_based_search.py`
 - `test_system_audit_integrity.py`
 - `test_system_auth_health.py`

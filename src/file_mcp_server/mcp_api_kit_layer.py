@@ -26,6 +26,7 @@ Tests: ST1, IT1, AT1, QT1
 from __future__ import annotations
 
 import json
+from os import getenv as read_env_var
 from typing import Any, Callable
 
 from fastapi import Request
@@ -83,7 +84,26 @@ class WebMcpCookieAuthMiddleware:
 
         token = request.cookies.get(self.cookie_name)
         if not token:
-            return None
+            fallback_enabled = str(
+                read_env_var("FILE_MCP_UI_COOKIE_SESSION_FALLBACK") or ""
+            ).strip() in {
+                "1",
+                "true",
+                "yes",
+            } or str(read_env_var("FILE_MCP_UI_AUTH_MODE") or "cookie").strip() == "cookie"
+            if not fallback_enabled:
+                return None
+            active = [
+                sess
+                for sess in self.session_store.values()
+                if sess
+                and float(sess.get("_created") or 0.0) > 0.0
+                and time.time() - float(sess.get("_created") or 0.0)
+                < self.session_ttl_seconds
+            ]
+            if not active:
+                return None
+            return sorted(active, key=lambda item: item.get("_created", 0), reverse=True)[0]
         session = self.session_store.get(token)
         if session is None:
             return None

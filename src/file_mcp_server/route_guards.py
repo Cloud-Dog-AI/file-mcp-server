@@ -14,6 +14,8 @@
 
 """file-mcp-server — Route Guards Catalog (W28A-742).
 
+License: Apache 2.0
+
 The file-mcp-LOCAL method-aware route guard catalog. The central
 ``cloud_dog_idam.rbac.guard_registry`` is path-only (no method, no
 resource_id_param); file-mcp's bespoke ASGI dispatch needs method-aware

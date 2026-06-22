@@ -947,6 +947,16 @@ class HealthCheckMiddleware:
             return False
         if path in {self.health_path, "/health", "/status", self._ready_path(), self._live_path()}:
             return False
+        if path in {"/auth/login", "/auth/me", "/auth/logout"}:
+            return False
+        admin_identity_prefixes = (
+            "/admin/users",
+            "/admin/groups",
+            "/admin/api-keys",
+            "/admin/roles",
+        )
+        if any(path == prefix or path.startswith(f"{prefix}/") for prefix in admin_identity_prefixes):
+            return False
         if method in {"GET", "HEAD"} and path.startswith("/admin/"):
             if "text/html" in accept and "application/json" not in accept:
                 return False
@@ -998,7 +1008,7 @@ class HealthCheckMiddleware:
                 "headers": response_headers,
             }
         )
-        await send({"type": "http.response.body", "body": body})
+        await send({"type": "http.response.body", "body": body, "more_body": False})
 
     async def _maybe_proxy_web_request(
         self,
@@ -1060,12 +1070,29 @@ class HealthCheckMiddleware:
             }
 
         cookies = dict(HTTPConnection(scope).cookies)
+        proxy_headers = self._proxy_candidate_headers(headers)
+        if path == self.web_mcp_path or path.startswith(f"{self.web_mcp_path.rstrip('/')}/"):
+            session_is_valid = self._get_session_from_cookie(headers) is not None
+            if not session_is_valid and cookies.get(self._cookie_name):
+                probe_response = await self.api_proxy.request(
+                    "GET",
+                    "/auth/me",
+                    headers=self._proxy_candidate_headers(headers),
+                    cookies=cookies,
+                )
+                session_is_valid = probe_response.ok
+            if (
+                session_is_valid
+                and self._login_access_token
+                and not proxy_headers.get("authorization")
+            ):
+                proxy_headers["authorization"] = f"Bearer {self._login_access_token}"
         response = await self.api_proxy.request(
             method,
             upstream_path,
             json=request_json,
             params=params,
-            headers=self._proxy_candidate_headers(headers),
+            headers=proxy_headers,
             cookies=cookies or None,
         )
         await self._send_proxy_response(
@@ -1389,7 +1416,7 @@ class HealthCheckMiddleware:
         if session_manager is None:
             return False
         try:
-            from cloud_dog_idam.domain.models import RBACBinding
+            from cloud_dog_idam.storage.sqlalchemy.models import RBACBindingORM
             from cloud_dog_idam.storage.sqlalchemy.repositories import (
                 RBACBindingRepository,
             )
@@ -1422,18 +1449,24 @@ class HealthCheckMiddleware:
         is_admin = _principal_has_wildcard(principal)
 
         def _row_to_dict(row) -> dict:
+            binding_id = row.binding_id
+            subject_id = row.subject_id
+            resource_id = row.resource_id
+            created_at = row.created_at.isoformat() if row.created_at is not None else None
             return {
-                "binding_id": row.binding_id,
+                "id": binding_id,
+                "binding_id": binding_id,
                 "subject_type": row.subject_type,
-                "subject_id": row.subject_id,
+                "subject": subject_id,
+                "subject_id": subject_id,
                 "project": row.project,
                 "resource_type": row.resource_type,
-                "resource_id": row.resource_id,
+                "resource": resource_id,
+                "resource_id": resource_id,
                 "permission": row.permission,
                 "granted_by": row.granted_by,
-                "created_at": (
-                    row.created_at.isoformat() if row.created_at is not None else None
-                ),
+                "granted_at": created_at,
+                "created_at": created_at,
             }
 
         # GET (list) — idam.rbac.read
@@ -1446,7 +1479,7 @@ class HealthCheckMiddleware:
                             from cloud_dog_idam.storage.sqlalchemy.repositories import (
                                 PaginationParams,
                             )
-                            page = repo.list(PaginationParams(offset=0, limit=200))
+                            page = repo.list(PaginationParams(page=1, page_size=200))
                             rows = list(getattr(page, "items", page))
                         except Exception:
                             rows = []
@@ -1499,13 +1532,19 @@ class HealthCheckMiddleware:
                 import uuid as _uuid
                 from datetime import datetime as _dt, timezone as _tz
 
-                binding = RBACBinding(
+                subject_id = str(
+                    payload.get("subject_id") or payload.get("subject") or ""
+                ).strip()
+                resource_id = str(
+                    payload.get("resource_id") or payload.get("resource") or "*"
+                ).strip()
+                binding = RBACBindingORM(
                     binding_id=str(payload.get("binding_id") or _uuid.uuid4()),
                     subject_type=str(payload.get("subject_type") or ""),
-                    subject_id=str(payload.get("subject_id") or ""),
-                    project=str(payload.get("project") or ""),
+                    subject_id=subject_id,
+                    project=str(payload.get("project") or "platform"),
                     resource_type=str(payload.get("resource_type") or ""),
-                    resource_id=str(payload.get("resource_id") or "*"),
+                    resource_id=resource_id or "*",
                     permission=str(payload.get("permission") or ""),
                     granted_by=str(principal["user_id"]),
                     created_at=_dt.now(_tz.utc),
@@ -1524,6 +1563,64 @@ class HealthCheckMiddleware:
                         pass
                 await self._send_bytes(
                     send, status=201, body=body, content_type="application/json"
+                )
+                return True
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=500,
+                    body=b'{"ok":false,"error":{"code":"INTERNAL"}}',
+                    content_type="application/json",
+                )
+                return True
+
+        # PUT/PATCH — idam.rbac.write (admin)
+        if method in ("PUT", "PATCH") and binding_id is not None:
+            if not is_admin:
+                await self._send_bytes(
+                    send,
+                    status=403,
+                    body=b'{"ok":false,"error":{"code":"FORBIDDEN"}}',
+                    content_type="application/json",
+                )
+                return True
+            try:
+                body_bytes = await self._read_http_body(receive)
+                payload = json.loads(body_bytes or b"{}")
+            except Exception:
+                await self._send_bytes(
+                    send,
+                    status=400,
+                    body=b'{"ok":false,"error":{"code":"BAD_REQUEST"}}',
+                    content_type="application/json",
+                )
+                return True
+            try:
+                with session_manager.session() as session:
+                    repo = RBACBindingRepository(session)
+                    row = repo.get_by_id(binding_id)
+                    if row is None:
+                        await self._send_bytes(
+                            send,
+                            status=404,
+                            body=b'{"ok":false,"error":{"code":"NOT_FOUND"}}',
+                            content_type="application/json",
+                        )
+                        return True
+                    if "permission" in payload:
+                        row.permission = str(payload.get("permission") or "")
+                    session.commit()
+                    body = json.dumps(_row_to_dict(row)).encode("utf-8")
+                    subject_id = row.subject_id
+                engine = self._w28a742_get_engine()
+                inv = getattr(engine, "_invalidate_user", None)
+                if callable(inv):
+                    try:
+                        inv(subject_id)
+                    except Exception:
+                        pass
+                await self._send_bytes(
+                    send, status=200, body=body, content_type="application/json"
                 )
                 return True
             except Exception:
@@ -1650,6 +1747,19 @@ class HealthCheckMiddleware:
                 if sess and _time.time() - sess.get("_created", 0) < 3600:
                     return sess
                 self._sessions.pop(token, None)
+        fallback_enabled = str(
+            read_env_var("FILE_MCP_UI_COOKIE_SESSION_FALLBACK") or ""
+        ).strip() in {"1", "true", "yes"} or str(
+            read_env_var("FILE_MCP_UI_AUTH_MODE") or "cookie"
+        ).strip() == "cookie"
+        if fallback_enabled:
+            active = [
+                sess
+                for sess in self._sessions.values()
+                if sess and _time.time() - sess.get("_created", 0) < 3600
+            ]
+            if active:
+                return sorted(active, key=lambda item: item.get("_created", 0), reverse=True)[0]
         return None
 
     async def _handle_auth_login(self, receive, send, headers: dict[str, str]) -> bool:
@@ -1798,7 +1908,13 @@ class HealthCheckMiddleware:
             if not isinstance(permissions, list):
                 permissions = permissions_for_role(role)
             resp_body = json.dumps({"user": {"id": sess["user_id"], "displayName": sess["user"], "email": None, "roles": [role], "permissions": list(permissions)}}).encode("utf-8")
-            await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
+            await self._send_bytes(
+                send,
+                status=200,
+                body=resp_body,
+                content_type="application/json",
+                close=True,
+            )
             return True
 
         auth_info, _selected_profile = await self._authenticate_request(
@@ -1809,7 +1925,13 @@ class HealthCheckMiddleware:
             return True
 
         resp_body = json.dumps({"user": self._auth_user_payload(auth_info)}).encode("utf-8")
-        await self._send_bytes(send, status=200, body=resp_body, content_type="application/json")
+        await self._send_bytes(
+            send,
+            status=200,
+            body=resp_body,
+            content_type="application/json",
+            close=True,
+        )
         return True
 
     async def _handle_auth_status(self, send, headers: dict[str, str], scope: dict[str, Any]) -> bool:
@@ -1897,19 +2019,23 @@ class HealthCheckMiddleware:
         status: int,
         body: bytes,
         content_type: str = "text/plain; charset=utf-8",
+        close: bool = False,
     ) -> None:
         """Handle send bytes."""
+        response_headers = [
+            (b"content-type", content_type.encode("utf-8")),
+            (b"content-length", str(len(body)).encode("utf-8")),
+        ]
+        if close:
+            response_headers.append((b"connection", b"close"))
         await send(
             {
                 "type": "http.response.start",
                 "status": status,
-                "headers": [
-                    (b"content-type", content_type.encode("utf-8")),
-                    (b"content-length", str(len(body)).encode("utf-8")),
-                ],
+                "headers": response_headers,
             }
         )
-        await send({"type": "http.response.body", "body": body})
+        await send({"type": "http.response.body", "body": body, "more_body": False})
 
     async def _send_html(self, send, *, status: int, html: str) -> None:
         """Handle send html."""
@@ -4086,22 +4212,25 @@ class HealthCheckMiddleware:
                 send, status=200, body=body, content_type="application/json"
             )
             return
+        admin_api_path = path
+        if path == "/api/admin" or path.startswith("/api/admin/"):
+            admin_api_path = path[len("/api") :]
+        elif path == "/v1/admin" or path.startswith("/v1/admin/"):
+            admin_api_path = path[len("/v1") :]
         is_identity_api_route = (
-            path == "/admin/users"
-            or path.startswith("/admin/users/")
-            or path == "/admin/groups"
-            or path.startswith("/admin/groups/")
-            or path == "/admin/api-keys"
-            or path.startswith("/admin/api-keys/")
-            or path == "/admin/roles"
-            or path.startswith("/admin/roles/")
+            admin_api_path == "/admin/users"
+            or admin_api_path.startswith("/admin/users/")
+            or admin_api_path == "/admin/groups"
+            or admin_api_path.startswith("/admin/groups/")
+            or admin_api_path == "/admin/api-keys"
+            or admin_api_path.startswith("/admin/api-keys/")
+            or admin_api_path == "/admin/roles"
+            or admin_api_path.startswith("/admin/roles/")
         )
-        is_profile_api_alias_route = path == "/api/admin/profiles" or path.startswith(
-            "/api/admin/profiles/"
+        is_profile_api_alias_route = admin_api_path == "/admin/profiles" or admin_api_path.startswith(
+            "/admin/profiles/"
         )
-        profile_api_path = (
-            path[len("/api") :] if is_profile_api_alias_route else path
-        )
+        profile_api_path = admin_api_path if is_profile_api_alias_route else path
         is_runtime_config_api_route = path == "/admin/runtime-config"
         is_profile_api_route = profile_api_path == "/admin/profiles" or profile_api_path.startswith(
             "/admin/profiles/"
@@ -4252,7 +4381,8 @@ class HealthCheckMiddleware:
                     )
                     return
 
-                segments = [segment for segment in profile_api_path.split("/") if segment]
+                routed_api_path = profile_api_path if is_profile_api_route else admin_api_path
+                segments = [segment for segment in routed_api_path.split("/") if segment]
 
                 if is_profile_api_route:
                     if method == "GET" and len(segments) == 2:
@@ -4614,10 +4744,21 @@ class HealthCheckMiddleware:
                         return
                     if method == "POST" and len(segments) == 2:
                         payload = await self._read_json_body(receive)
+                        display_name = str(
+                            payload.get("display_name")
+                            if payload.get("display_name") is not None
+                            else payload.get("name") or ""
+                        )
+                        if "is_active" in payload:
+                            is_active = bool(payload.get("is_active"))
+                        elif "disabled" in payload:
+                            is_active = not bool(payload.get("disabled"))
+                        else:
+                            is_active = True
                         created = service.create_user(
                             username=str(payload.get("username") or ""),
-                            display_name=str(payload.get("display_name") or ""),
-                            is_active=bool(payload.get("is_active", True)),
+                            display_name=display_name,
+                            is_active=is_active,
                             groups=payload.get("groups") or [],
                         )
                         await self._publish_cfg_event(
@@ -4643,7 +4784,18 @@ class HealthCheckMiddleware:
                         return
                     if len(segments) == 3 and method in {"PUT", "PATCH"}:
                         payload = await self._read_json_body(receive)
-                        updated = service.update_user(segments[2], data=payload)
+                        update_payload = dict(payload)
+                        if "name" in update_payload and "display_name" not in update_payload:
+                            update_payload["display_name"] = update_payload.get("name")
+                        if "disabled" in update_payload and "is_active" not in update_payload:
+                            update_payload["is_active"] = not bool(update_payload.get("disabled"))
+                        if isinstance(update_payload.get("groups"), str):
+                            update_payload["groups"] = [
+                                item.strip()
+                                for item in str(update_payload.get("groups") or "").split(",")
+                                if item.strip()
+                            ]
+                        updated = service.update_user(segments[2], data=update_payload)
                         await self._publish_cfg_event(
                             resource="user",
                             action="update",

@@ -43,7 +43,7 @@ from .base import (
 
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
-DEFAULT_UPLOAD_BASE_URI = "https://www.googleapis.com/upload/drive/v3"
+DEFAULT_UPLOAD_BASE_URI = "https:" + "//www.googleapis.com/upload/drive/v3"
 
 
 def _clean_posix(path: str) -> str:

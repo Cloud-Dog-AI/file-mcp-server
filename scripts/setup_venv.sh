@@ -29,10 +29,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${VENV_DIR:-${ROOT_DIR}/.venv}"
-REQUIREMENTS_FILE="${REQUIREMENTS_FILE:-${ROOT_DIR}/REQUIREMENTS.txt}"
+REQUIREMENTS_FILE="${REQUIREMENTS_FILE:-${ROOT_DIR}/requirements.txt}"
 
 if [[ ! -f "${REQUIREMENTS_FILE}" ]]; then
-  echo "REQUIREMENTS.txt not found at ${REQUIREMENTS_FILE}" >&2
+  echo "requirements.txt not found at ${REQUIREMENTS_FILE}" >&2
   exit 1
 fi
 

@@ -14,6 +14,8 @@
 
 """file-mcp-server — ASGI route-guard chokepoint (W28A-742).
 
+License: Apache 2.0
+
 The chokepoint inserted near the top of
 ``HealthCheckMiddleware.__call__``. For each incoming HTTP request it
 classifies ``(method, path)`` against :mod:`file_mcp_server.route_guards`
@@ -199,7 +201,7 @@ def _resolve_principal_lightweight(
     except Exception:
         session = None
     if session is not None:
-        user_id = str(session.get("user") or "").strip()
+        user_id = str(session.get("user_id") or session.get("user") or "").strip()
         role = str(session.get("role") or "").strip()
         if user_id:
             return {
