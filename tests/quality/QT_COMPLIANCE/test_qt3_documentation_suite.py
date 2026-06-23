@@ -39,7 +39,7 @@ def _doc_path(name: str) -> Path | None:
     return None
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-004")  # W28E-1802A: documentation completeness & canonical doc set (rebound from W28C-1711-R3 probe)
 
 
 def test_qt3_1_required_files_exist() -> None:
@@ -54,7 +54,7 @@ def test_qt3_1_required_files_exist() -> None:
     assert not missing, "QT3.1 missing required files: " + ", ".join(missing)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-004")  # W28E-1802A: documentation completeness & canonical doc set (rebound from W28C-1711-R3 probe)
 
 
 def test_qt3_2_requirement_id_format() -> None:
@@ -66,7 +66,7 @@ def test_qt3_2_requirement_id_format() -> None:
     assert matches, "QT3.2 failed: REQUIREMENTS.md has no formal FR/NFR/R-DB IDs"
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-004")  # W28E-1802A: documentation completeness & canonical doc set (rebound from W28C-1711-R3 probe)
 
 
 def test_qt3_3_test_id_uniqueness() -> None:

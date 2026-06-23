@@ -75,7 +75,7 @@ def _is_placeholder(value: str) -> bool:
     return cleaned.lower() in placeholders
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-002")  # W28E-1802A: configuration & secret hygiene (no hard-coded values; Vault-backed; redaction) (rebound from W28C-1711-R3 probe)
 
 
 def test_qt2_6_no_hardcoded_secrets_in_source() -> None:
@@ -94,7 +94,7 @@ def test_qt2_6_no_hardcoded_secrets_in_source() -> None:
     assert not violations, "QT2.6 hardcoded source secret assignments:\n" + "\n".join(violations)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-002")  # W28E-1802A: configuration & secret hygiene (no hard-coded values; Vault-backed; redaction) (rebound from W28C-1711-R3 probe)
 
 
 def test_qt2_6_sensitive_env_values_use_vault_or_scoped_files() -> None:
@@ -129,7 +129,7 @@ def test_qt2_6_sensitive_env_values_use_vault_or_scoped_files() -> None:
     assert not violations, "QT2.6 env-value separation violations:\n" + "\n".join(violations)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-002")  # W28E-1802A: configuration & secret hygiene (no hard-coded values; Vault-backed; redaction) (rebound from W28C-1711-R3 probe)
 
 
 def test_qt2_6_defaults_config_do_not_embed_plain_secrets() -> None:

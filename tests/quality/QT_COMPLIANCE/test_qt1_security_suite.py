@@ -73,7 +73,7 @@ def _all_src_text() -> str:
     return "\n".join(_read(path) for path in _iter_py(src_root))
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-005")  # W28E-1802A: security posture & RULES.md compliance discipline (rebound from W28C-1711-R3 probe)
 
 
 def test_qt1_1_secrets_never_logged() -> None:
@@ -89,7 +89,7 @@ def test_qt1_1_secrets_never_logged() -> None:
     assert not violations, "QT1.1 violations found:\n" + "\n".join(violations)
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-005")  # W28E-1802A: security posture & RULES.md compliance discipline (rebound from W28C-1711-R3 probe)
 
 
 def test_qt1_2_path_traversal_prevention() -> None:
@@ -114,7 +114,7 @@ def test_qt1_2_path_traversal_prevention() -> None:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-005")  # W28E-1802A: security posture & RULES.md compliance discipline (rebound from W28C-1711-R3 probe)
 
 
 def test_qt1_3_domain_specific_safety() -> None:
@@ -209,7 +209,7 @@ def test_qt1_3_domain_specific_safety() -> None:
     raise AssertionError(f"QT1.3 has no domain safety rule for project: {project_name}")
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-005")  # W28E-1802A: security posture & RULES.md compliance discipline (rebound from W28C-1711-R3 probe)
 
 
 def test_qt1_4_uk_english_compliance() -> None:

@@ -3,13 +3,13 @@ template-id: T-REQ
 template-version: 1.1
 applies-to: docs/REQUIREMENTS.md
 project: file-mcp-server
-doc-last-updated: 2026-06-12T16:36:44Z
-doc-git-commit: 02b2e3c250769135eef5c087b4da824fa226d023
+doc-last-updated: 2026-06-23T14:02:08Z
+doc-git-commit: 157f34c69faf321586cdb0ec962c0f4a9d1a3f1b
 doc-git-branch: main
 doc-age-policy: indefinite
-doc-conformance-stamp: 2026-06-12T16:36:44Z
+doc-conformance-stamp: 2026-06-23T14:02:08Z
 req-trace-version: 1.0
-req-id-prefixes-used: [SV, BO, BR, FR, UC, CS, NF, R, F]
+req-id-prefixes-used: [SV, BO, BR, FR, UC, CS, NF, CFG, R, F]
 surface-coverage: [api, mcp, a2a, webui]
 ---
 
@@ -583,10 +583,10 @@ Mandatory schema per PS-REQ-TEST-TRACE v1.0 §3.4. Every project covers anon-den
 
 | ID | Threat / negative scenario | Surface | Role(s) attempted | Expected | Tests |
 |---|---|---|---|---|---|
-| `CS-001` | Anon attempts data read | `api`, `mcp`, `a2a`, `webui` | `anon` | `401` | (to be bound in Instruction 4 by operator) |
-| `CS-002` | read-only attempts write | `api`, `mcp` | `read-only` | `403` | (to be bound in Instruction 4 by operator) |
-| `CS-003` | Missing required param | `api` | `admin` | `422` | (to be bound in Instruction 4 by operator) |
-| `CS-004` | Wrong-role privileged op | `mcp` | `read-write` | `403` | (to be bound in Instruction 4 by operator) |
+| `CS-001` | Anon attempts data read | `api`, `mcp`, `a2a`, `webui` | `anon` | `401` | `UT1.35_FlatRoleLogin` |
+| `CS-002` | read-only attempts write | `api`, `mcp` | `read-only` | `403` | `UT1.35_FlatRoleLogin` |
+| `CS-003` | Missing required param | `api` | `admin` | `422` | `UT1.35_FlatRoleLogin` |
+| `CS-004` | Wrong-role privileged op | `mcp` | `read-write` | `403` | `UT1.35_FlatRoleLogin` |
 
 
 
@@ -724,53 +724,103 @@ Every project MUST have CS-NNN rows for `anon-denied`, `wrong-role-denied`, `mis
 | `CS-015` | missing-param-error | `a2a` | `422` | `*` |
 | `CS-016` | missing-param-error | `webui` | `422` | `*` |
 
-_These CS-NNN rows are pending W28C-1711 test binding. Each row binds to one or more `@pytest.mark.negative` tests with explicit expected denial code._
+_These CS-NNN rows are bound (W28E-1802A) by `@pytest.mark.req("CS-NNN")` negative tests with the explicit expected denial code shown above; see `docs/REQ-COVERAGE.md` for the full per-row binding._
 
 
-<!-- W28C-1711-R3 forensic: canonical FR-NNN rows derived from legacy R-NNN/FR1.NN test bindings (2026-06-15T15:21:28Z) -->
+<!-- W28E-1802A: de-mechanised canonical FR table. The W28C-1711-R3 stub descriptions and
+     tier-bucket placeholders were rewritten into semantic capability requirements. The immutable
+     FR-001..FR-029 IDs and their `@pytest.mark.req(...)` bindings are preserved verbatim
+     (PS-REQ-TEST-TRACE §2 Rule 1: IDs are immutable once published). -->
 
-## Functional Requirements (W28C-1711-R3 canonical-FR expansion)
+## 4.B Consolidated Functional Requirements table (canonical — PS-REQ-TEST-TRACE §3.3 schema)
 
-Per PS-REQ-TEST-TRACE §2: every test req() must reference a backtick-wrapped FR/CS/NF-NNN row. This section adds canonical FR-NNN rows derived from existing legacy R-NNN / FR1.NN bindings + ADD-REQ probe-test functional capabilities. Test bindings rewritten to use these canonical FR-NNN IDs.
+This is the canonical machine-readable FR table consumed by `scripts/generate-req-coverage.py` and
+`scripts/build-warranty-table.py`. The narrative `### FR1.x` sections in §4 above remain the
+human-readable design intent; the rows below give every capability a stable `FR-NNN` identifier,
+surface, priority, provenance (`Since` = git short-sha when the ID was published; `Source-evidence`
+= the §4 narrative requirement that drove it), the use-case it serves, and a representative bound
+test module. Full binding is enforced by `@pytest.mark.req("FR-NNN")` markers and `docs/REQ-COVERAGE.md`.
 
-| ID | Source (legacy) | Test count | Surface (inferred) | Priority | Description |
-|---|---|---:|---|---|---|
-| `FR-001` | FR-1.1 | 7 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.1` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-002` | FR-1.10 | 2 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.10` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-003` | FR-1.11 | 4 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.11` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-004` | FR-1.13 | 4 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.13` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-005` | FR-1.17 | 7 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.17` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-006` | FR-1.18 | 8 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.18` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-007` | FR-1.2 | 12 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.2` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-008` | FR-1.21 | 11 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.21` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-009` | FR-1.23 | 6 | `a2a` | `should` | Functional capability covered by legacy binding `FR-1.23` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-010` | FR-1.24 | 1 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.24` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-011` | FR-1.25 | 5 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.25` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-012` | FR-1.26 | 13 | `webui` | `should` | Functional capability covered by legacy binding `FR-1.26` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-013` | FR-1.3 | 25 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.3` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-014` | FR-1.30 | 1 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.30` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-015` | FR-1.32 | 13 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.32` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-016` | FR-1.36 | 5 | `webui` | `should` | Functional capability covered by legacy binding `FR-1.36` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-017` | FR-1.46 | 52 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.46` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-018` | FR-1.7 | 7 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.7` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-019` | FR-1.9 | 6 | `internal` | `should` | Functional capability covered by legacy binding `FR-1.9` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-020` | FR-2.4 | 4 | `internal` | `should` | Functional capability covered by legacy binding `FR-2.4` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-021` | FR-2.5 | 3 | `internal` | `should` | Functional capability covered by legacy binding `FR-2.5` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-022` | NF-1.3 | 3 | `internal` | `should` | Functional capability covered by legacy binding `NF-1.3` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-023` | R2 | 1 | `internal` | `should` | Functional capability covered by legacy binding `R2` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
-| `FR-024` | R4 | 8 | `internal` | `should` | Functional capability covered by legacy binding `R4` (W28C-1711-R3 derivation; see new-or-updated-tests.tsv for test list) |
+| ID | Requirement | Surface | Priority | Since | Source-evidence | Use cases | Tests |
+|---|---|---|---|---|---|---|---|
+| `FR-001` | Tool boundary & schema contract — language-neutral tool discovery and execution with JSON input/output, schema validation of inputs/outputs, and structured machine-readable error envelopes | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.1 | `UC-001` | `UT1.24_ToolsRegistry`, `UT1.36_ParamAliasFallback` |
+| `FR-002` | Base64 encode/decode for strings, bytes, and file-content round-trips over the tool surface | `mcp`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.10 | `UC-002` | `IT1.3_IntegrationBase64FileOps` |
+| `FR-003` | Unified-diff generation for strings, files, and dry-run edit previews with configurable context | `mcp`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.11 | `UC-005` | `UT1.6_Diff`, `IT1.5_IntegrationDiffFilesHttp` |
+| `FR-004` | Structured document CRUD across JSON/YAML/XML/HTML/Markdown — parse, deterministic change, serialize, preview-diff, with validation/snapshot/audit integration | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.13–FR1.16 | `UC-003` | `UT1.7_EditStructured`, `IT1.9_IntegrationJsonYamlGetMergeHttp` |
+| `FR-005` | Sed-like text editing — regex replace, insert before/after match, delete lines, replace ranges, and multi-operation atomic transactions | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.17 | `UC-003` | `UT1.20_Sedlike`, `IT1.17_IntegrationSedlikeFileHttp` |
+| `FR-006` | Content validation for JSON/YAML/XML/HTML/Markdown with strict/warn/ignore policy and pre/post-mutation checks | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.18 | `UC-003` | `UT1.25_Validate`, `ST1.16_SystemValidateFileTool` |
+| `FR-007` | Transport support — STDIO for MCP harnesses and HTTP where configured, integrating `cloud_dog_api_kit` (PS-20) health/readiness/liveness and error-envelope contracts | `api`, `mcp`, `internal` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.2 | `UC-001` | `UT1.1_ApiKitContract`, `IT1.23_ServerHttpIntegration` |
+| `FR-008` | Conversion pipeline — best-effort `convert_file` from PDF/Office formats to Markdown/text/JSON via pluggable, runtime-discovered backends with size/timeout limits | `mcp`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.21 | `UC-004` | `UT1.5_Convert`, `ST1.3_SystemConversionMatrix` |
+| `FR-009` | Health & readiness — `/health`, `/ready`, `/live` and the A2A health surface report status without disclosing secrets, aligned to PS-20 | `api`, `a2a` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.23 | `UC-010` | `ST1.2_SystemAuthHealth`, `IT1.25_IntegrationA2AAuthContract` |
+| `FR-010` | Library-first tool reuse — the `file_tools` library has no MCP-transport dependency and every handler is callable directly from Python; the server is a thin registry wrapper | `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.24 | `UC-002` | `UT1.23_ToolReuse` |
+| `FR-011` | POSIX compliance — correct operation on POSIX systems with no reliance on non-portable filesystem behaviours | `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.25 | `UC-001` | `UT1.17_Posix` |
+| `FR-012` | Remote storage backends — configurable `local`/`s3`/`webdav`/`ftp`/`google_drive` per profile, exposing the same MCP tool surface and returning deterministic `not supported for backend` errors where semantics do not apply | `mcp`, `api`, `webui` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.26–FR1.29 | `UC-008`, `UC-009` | `IT1.14_IntegrationRemoteStorageBackendsHttp` |
+| `FR-013` | Configuration precedence & zero hard-coding — `os.environ` → env file → `config.yaml` → `defaults.yaml`, delegated to `cloud_dog_config` (PS-80) with `${VAR}`/`${vault.*}` interpolation and no hard-coded keys/roots/paths | `internal`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.3 | `UC-002` | `UT1.4_ConfigLoader` |
+| `FR-014` | Endpoint health startup checks — probe configured storage endpoints at startup, record per-backend status (`healthy`/`temporary_unavailable`/`busy_temporary`/`auth_failed`/`failed`) with configurable retry behaviour | `internal`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.30 | `UC-010` | `UT1.9_EndpointHealth` |
+| `FR-015` | Google Drive OAuth & folder binding — configure Drive as a backend via OAuth credentials, resolve a folder id or URL, and provide an auth-helper flow; admin hot-reload applies the bound profile without restart | `api`, `webui`, `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.32, FR1.34 | `UC-011`, `UC-013` | `AT1.12_GoogleDriveOauthLive`, `UT1.12_GoogleDriveOauthHelper` |
+| `FR-016` | Single-server multi-profile routing — one process hosts multiple profiles concurrently, selects per request via query/header with deterministic fallback, and enforces profile-local controls (keys, scope roots, allow/deny, extensions, limits) | `api`, `mcp`, `webui` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.36 | `UC-014` | `IT1.12_IntegrationMultiProfileRoutingHttp` |
+| `FR-017` | Authentication & A2A health-auth contract — API key required on every tool call, profile-aware key validation (a key for profile A must not authenticate B), `GET /a2a/health` returns 401 anon / 200 with valid bearer, using the same API-key authority as MCP/API (no separate A2A key store); raw keys never logged | `api`, `mcp`, `a2a` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.5, FR1.46 | `UC-001` | `UT1.3_Auth`, `IT1.25_IntegrationA2AAuthContract` |
+| `FR-018` | File read operations — read text and binary files within scope, with encoding detection, explicit encoding hints, and partial (byte/line range) reads for large files | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.7 | `UC-001` | `UT1.10_Filesystem`, `ST1.11_SystemReadPartialRanges` |
+| `FR-019` | Search — filename/path glob+regex and content literal+regex search with context lines, honouring scope deny patterns, size limits, and optional traversal depth/timeout controls | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.9 | `UC-003` | `UT1.19_Search`, `IT1.16_IntegrationSearchHttp` |
+| `FR-020` | Endpoint health runtime classification & recovery — classify backend errors (busy/temporary/auth-failed), attempt recovery after a configurable cooldown, track consecutive failures and the restart-required threshold, and return deterministic backend-unavailable errors | `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.31, FR1.33 | `UC-010`, `UC-012` | `UT1.9_EndpointHealth` |
+| `FR-021` | Google Drive storage-backend semantics — extract folder id from a Drive URL, require a folder id-or-URL and an OAuth client, and treat backend `path` parameters as logical POSIX prefixes | `internal`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.26–FR1.27, FR1.32 | `UC-011` | `UT1.14_GoogleDriveStorage` |
+| `FR-022` | Observability / operational logging — operational logs separate from the audit log, configurable destinations, role-specific log files, delegated to `cloud_dog_logging` with structured output | `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §6 NF1.3 | `UC-006` | `UT1.16_Observability` |
+| `FR-023` | Authenticated session status probe — an auth-status endpoint reports the current principal/session validity so a WebUI session and API key can be re-verified without a privileged call | `api`, `webui` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.39 | `UC-001` | `IT1_30_AuthStatusProbe` |
+| `FR-024` | Flat-role login & anonymous access gating — static UI assets are public for anon, while data, MCP-discovery, and A2A surfaces are gated and return 401 to anon; flat-role login validates against a real backend call | `api`, `webui`, `mcp` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.39, §5 CS-001 | `UC-001` | `UT1.35_FlatRoleLogin` |
+| `FR-025` | Time-based search filters — `modified_after`/`modified_before` windows return and exclude files by modification time deterministically | `mcp`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.9 | `UC-003` | `ST1.18_TimeBasedSearch` |
+| `FR-026` | Unit-tier correctness of `file_tools` primitives and server seams not separately itemised in FR-001..FR-019 — parameter-alias fallback, tools-registry contract, server dispatch, jobs runtime, observability metadata, flat-role login, admin identity, audit-log format, A2A config-change events, DB abstraction, WebDAV storage, scope policy, and remote-env helpers | `api`, `internal` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.1–FR1.36; tests/unit/** | `UC-001` | `tests/unit/** (UT1.1, UT1.2, UT1.3, UT1.18, UT1.21, UT1.28, UT1.29, UT1.33, UT1.36)` |
+| `FR-027` | Application/acceptance workflow capabilities — end-to-end compound-release, conversion+edit, conversion+structured, multifile-transaction, safe-edit, search-edit-audit, security-boundary, lifecycle, dynamic-profile-CRUD, profile-CRUD, and A2A-auth workflows | `a2a`, `api`, `webui` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.8, FR1.34, FR1.47; tests/application/** | `UC-002`, `UC-008` | `tests/application/** (AT1.1–AT1.11, AT_ProfileCRUD)` |
+| `FR-028` | System-tier service contracts — dry-run no-write guarantee, error envelope, limits/timeouts, partial-range reads, sed transaction, snapshot retention, structured rollback, conversion matrices/optionality/real-backends, audit integrity, log rotation, structured-path edge cases, DB migration multibackend, endpoint restart threshold, and auth health | `internal`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.8, FR1.18–FR1.21, FR1.33; tests/system/** | `UC-006`, `UC-012` | `tests/system/** (ST1.1–ST1.17)` |
+| `FR-029` | Integration-tier HTTP/MCP/A2A flows — multi-profile routing, remote-backend tool matrix, structured-format HTTP ops, base64 file ops, JSON/YAML get/merge, advanced Markdown, sed-like file/transaction, scoped ops, diff files, search, story multitype CRUD, structured audit/snapshot, A2A auth contract, config-matrix harness, iterative-cycle guard, meld optionality, filesystem path tools, dockerised runtime/remote backends, server HTTP integration, and conversion-backend selection | `a2a`, `api`, `mcp` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.2, FR1.26, FR1.36, FR1.46; tests/integration/** | `UC-008`, `UC-009` | `tests/integration/** (IT1.1–IT1.26)` |
 
+<!-- W28E-1802A: machine-readable NF table. NF-001..NF-005 give the §7 non-functional narrative
+     stable identifiers bound to the quality (QT) suites whose W28C-1711-R3 probe markers were
+     rebound to semantic `@pytest.mark.req("NF-NNN")` in W28E-1802A. -->
 
-<!-- W28C-1711-R3 forensic: ADD-REQ FR rows derived from probe-test clusters (2026-06-15T15:21:28Z) -->
+## 6.B Non-Functional Requirements table (canonical — PS-REQ-TEST-TRACE §3.3 schema)
 
-## Functional Requirements (W28C-1711-R3 ADD-REQ derivation)
+The §7 narrative `### NF1.x` rows above state the non-functional intent; the rows below give that
+intent machine-checkable `NF-NNN` identifiers bound to the quality/compliance (`QT`) suites.
 
-Per W28C-1711 spec rule: ADD-REQ — create the requirement and bind the test. This section adds FR-NNN rows derived from functional probe-test clusters that had no matching FR in REQUIREMENTS.md. Each row's description is derived from the cluster's test names.
+| ID | Requirement | Surface | Priority | Since | Source-evidence | Use cases | Tests |
+|---|---|---|---|---|---|---|---|
+| `NF-001` | Platform-package adoption — config, logging, API-kit, identity, jobs, db, and storage go through the `cloud_dog_*` packages; no bespoke replacements; migration completeness | `internal` | `must` | `157f34c` | docs/REQUIREMENTS.md §7 NF1.7; PS-COMMON-SVC-REQ CSR-001 | `UC-002` | `test_package_compliance`, `test_qt27_bespoke_code_scan` |
+| `NF-002` | Configuration & secret hygiene — no hard-coded URLs/credentials/hostnames; secrets via Vault expressions or scoped private env files; defaults/config carry no plaintext secrets; sensitive fields redacted in logs | `internal` | `must` | `157f34c` | docs/REQUIREMENTS.md §6 CS1.3; PS-COMMON-SVC-REQ CSR-010 | `UC-002` | `test_qt26_secrets_separation` |
+| `NF-003` | Logging & audit compliance — PS-40/NIST AU-3 audit schema, append-only audit, and rotation/retention/integrity configuration present in `defaults.yaml` with an audit-events catalogue | `internal` | `must` | `157f34c` | docs/REQUIREMENTS.md §4 FR1.19; PS-AUDIT-LOG | `UC-006` | `test_logging_compliance` |
+| `NF-004` | Documentation completeness & canonical doc set — required canonical docs are present, current, and structured per PS-DOCS-CANONICAL | `internal` | `should` | `157f34c` | docs/REQUIREMENTS.md §7 NF1.3; PS-DOCS-CANONICAL | `UC-001` | `test_qt3_documentation_suite` |
+| `NF-005` | Security posture & RULES discipline — security suite (auth gating, scope enforcement, secret masking) and RULES.md engineering discipline (no skip/mock in IT/AT tiers; file headers and docstrings) | `internal` | `must` | `157f34c` | docs/REQUIREMENTS.md §6 CS1.1–CS1.2; RULES.md §5 | `UC-001` | `test_qt1_security_suite` |
 
-| ID | Cluster | Test count | Surface (inferred) | Priority | Description |
-|---|---|---:|---|---|---|
-| `FR-025` | test_st_time_based_search | 1 | `internal` | `should` | Test St Time Based Search (W28C-1711-R3 ADD-REQ cluster derivation) |
-| `FR-026` | unit | 14 | `api` | `should` | Unit (W28C-1711-R3 ADD-REQ cluster derivation) |
-| `FR-027` | application | 11 | `a2a` | `should` | Application (W28C-1711-R3 ADD-REQ cluster derivation) |
-| `FR-028` | system | 19 | `internal` | `should` | System (W28C-1711-R3 ADD-REQ cluster derivation) |
-| `FR-029` | integration | 23 | `a2a` | `should` | Integration (W28C-1711-R3 ADD-REQ cluster derivation) |
+<!-- W28E-1802A: PS-COMMON-SVC-REQ pinned by reference (not restated) per T-W28E-A D1. -->
+
+## Common Service Requirements — pinned to PS-COMMON-SVC-REQ (W28E-1822)
+
+Per PS-COMMON-SVC-REQ §4, this service consumes the common platform baseline by reference rather
+than restating it. file-mcp-server applicability (PS-COMMON-SVC-REQ §2): **API, MCP, A2A, file
+storage, temporary artifacts, audit**. The mapping below pins each applicable CSR row to the local
+FR/CS/NF capability that satisfies it; non-applicable rows are marked `N/A` with a reason. Downstream
+Stream-B emits `ps_common_svc_req_consumption.tsv` with per-CSR `FULL/PARTIAL/GAP/N/A` labels.
+
+| CSR | Common requirement (summary) | Local binding | Applicability |
+|---|---|---|---|
+| CSR-001 | Reuse approved platform packages (config/idam/jobs/storage/audit/logging/context) | `NF-001`, `FR-013`, `FR-022` | applicable |
+| CSR-004 | Request context (`correlation_id`, request id, actor) created and propagated | `FR-022`, `FR-029` | applicable |
+| CSR-005 | Authenticate every non-public surface before service logic | `FR-017`, `FR-024`, `CS-005`–`CS-008` | applicable |
+| CSR-006 | RBAC/ownership guards reads/writes/deletes/admin per surface | `FR-016`, `CS-009`–`CS-012`, `CFG-13` | applicable |
+| CSR-007 | Profiles stored through the platform config/profile path, scoped by owner | `FR-013`, `FR-016`, `CFG-01`–`CFG-04` | applicable |
+| CSR-009 | Config precedence chain (system→env→tenant→…→request override) | `FR-013` | applicable |
+| CSR-010 | Secrets from Vault-backed references; no secret values in evidence | `NF-002`, `CS1.3` | applicable |
+| CSR-011 | Health/readiness prove dependency, config, storage, connector usability | `FR-009`, `FR-014` | applicable |
+| CSR-012 | HTTP API publishes OpenAPI contract (auth/errors/schemas/health) | `FR-007` | applicable |
+| CSR-013 | Versioned routing, structured validation, common error envelopes, status codes | `FR-007`, `CS-013`–`CS-016` | applicable |
+| CSR-014 | MCP discoverable tools, JSON I/O, auth/RBAC, bounded outputs | `FR-001`, `FR-016`, `FR-017` | applicable |
+| CSR-015 | A2A agent card, authenticated tasks, correlation to result | `FR-009`, `FR-017`, `CFG-06` | applicable |
+| CSR-017 | Async/scheduled work conforms to PS-AJOBS canonical job states | `FR-027`, `FR-029` (jobs-managed file ops) | applicable |
+| CSR-018 | Files/artifacts go through the approved storage abstraction; no raw host paths | `FR-012`, `FR-021` | applicable |
+| CSR-023 | Audit events conform to PS-AUDIT-LOG (auth/denial/mutation/job/MCP/A2A) | `NF-003`, `FR-019` (audit), `CFG-12` | applicable |
+| CSR-025 | Inputs/outputs schema-validated, size-bounded, path-safe | `FR-006`, `FR-001`, `CS-013`–`CS-016` | applicable |
+| CSR-028 | Security outputs avoid path/stack/secret disclosure, unsafe extraction | `NF-005`, `FR-006` | applicable |
+| CSR-031 | Docs bind REQ↔UC↔TEST↔src↔warranty via PS-REQ-TEST-TRACE | `NF-004`, this doc set + REQ-COVERAGE | applicable |
+| CSR-035 | WebUI common operator taxonomy (login/nav/audit/admin/console/jobs/settings/about) | `FR-016`, FR1.37–FR1.47 (WebUI surfaces) | applicable |
+| CSR-021 | Cache helpers, scoped keys, TTL, invalidation | — | `N/A` — file-mcp has no application cache surface; storage reads are not cached |
+| CSR-029 | Deployment identity binds commit/version/artifact/digest/config/health | — | Stream-B/C (preprod) — design-only lane |
+| CSR-030 | Preprod digest equality + smoke per surface | — | Stream-B/C (preprod) — design-only lane |

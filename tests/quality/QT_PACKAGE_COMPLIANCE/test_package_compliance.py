@@ -36,7 +36,7 @@ class TestPackageCompliance:
     """Every test here MUST pass. Zero bespoke code allowed."""
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_bespoke_logging(self):
         """All logging must use cloud_dog_logging. Zero logging.getLogger calls."""
@@ -47,7 +47,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_bespoke_config_manager(self):
         """Config must use cloud_dog_config. Zero bespoke ConfigManager."""
@@ -59,7 +59,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_bespoke_auth(self):
         """Auth must use cloud_dog_idam. Zero bespoke auth imports outside the package."""
@@ -81,7 +81,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_memory_queue(self):
         """Jobs must use cloud_dog_jobs. Zero MemoryQueue/ThreadPoolExecutor."""
@@ -92,7 +92,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_direct_llm_calls(self):
         """LLM calls must use cloud_dog_llm. Zero direct httpx to ollama/openai."""
@@ -105,7 +105,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_hardcoded_secrets(self):
         """Zero hardcoded passwords or secrets in source."""
@@ -132,7 +132,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_no_internal_hostnames(self):
         """Zero internal hostnames in source (must use config/vault)."""
@@ -151,7 +151,7 @@ class TestPackageCompliance:
         )
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_ui_dist_exists(self):
         """PS-30: ui/dist/ must exist (SPA built and wired)."""
@@ -161,7 +161,7 @@ class TestPackageCompliance:
         assert ui_dist.exists(), "FAIL: ui/dist/ not found. SPA must be built."
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_runtime_config_endpoint(self):
         """PS-30: /runtime-config.js must be served by the web server."""
@@ -180,21 +180,21 @@ class TestPackageCompliance:
         assert has_runtime_config, "FAIL: No /runtime-config.js endpoint found in web server."
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_server_control_exists(self):
         """server_control.sh must exist."""
         assert (PROJECT_ROOT / "server_control.sh").exists(), "FAIL: server_control.sh missing."
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_licence_exists(self):
         """LICENCE file must exist."""
         assert (PROJECT_ROOT / "LICENCE").exists(), "FAIL: LICENCE file missing."
     @pytest.mark.QT
     @pytest.mark.mcp
-    @pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+    @pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption (cloud_dog_* packages; no bespoke replacements) (rebound from W28C-1711-R3 probe)
 
     def test_readme_exists(self):
         """README.md must exist."""

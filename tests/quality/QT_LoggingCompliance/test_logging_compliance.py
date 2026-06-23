@@ -27,7 +27,7 @@ def _defaults_path() -> Path:
     raise AssertionError("Missing defaults.yaml/default.yaml")
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-003")  # W28E-1802A: logging & audit compliance (PS-40/NIST AU-3 schema, rotation/retention/integrity) (rebound from W28C-1711-R3 probe)
 
 
 def test_defaults_yaml_has_integrity_config() -> None:
@@ -37,7 +37,7 @@ def test_defaults_yaml_has_integrity_config() -> None:
     assert "hash_algorithm" in text
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-003")  # W28E-1802A: logging & audit compliance (PS-40/NIST AU-3 schema, rotation/retention/integrity) (rebound from W28C-1711-R3 probe)
 
 
 def test_defaults_yaml_has_rotation_config() -> None:
@@ -47,7 +47,7 @@ def test_defaults_yaml_has_rotation_config() -> None:
     assert "backup_count" in text
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-003")  # W28E-1802A: logging & audit compliance (PS-40/NIST AU-3 schema, rotation/retention/integrity) (rebound from W28C-1711-R3 probe)
 
 
 def test_defaults_yaml_has_retention_config() -> None:
@@ -57,7 +57,7 @@ def test_defaults_yaml_has_retention_config() -> None:
     assert "cold_days" in text
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-003")  # W28E-1802A: logging & audit compliance (PS-40/NIST AU-3 schema, rotation/retention/integrity) (rebound from W28C-1711-R3 probe)
 
 
 def test_audit_events_doc_exists() -> None:

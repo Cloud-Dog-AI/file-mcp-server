@@ -149,7 +149,7 @@ def pytest_collection_modifyitems(config, items):
             if req_marker is None or not req_marker.args:
                 failures.append(
                     f"{item.nodeid}: missing @pytest.mark.req('FR-NNN') per PS-REQ-TEST-TRACE §6 "
-                    "(add @pytest.mark.probe to mark as orphan)"
+                    "(every test MUST bind a semantic requirement; the W28C-1711-R3 orphan exemption was retired in W28E-1802A)"
                 )
     if failures:
         msg = "PS-REQ-TEST-TRACE marker enforcement failed for " + str(len(failures)) + " test(s):\n  " + "\n  ".join(failures[:20])

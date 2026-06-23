@@ -43,7 +43,7 @@ def _iter_py(root: Path) -> list[Path]:
     )
 @pytest.mark.QT
 @pytest.mark.mcp
-@pytest.mark.probe  # rtt-2026-06-12 INST3: KEEP-AS-PROBE pending operator REQ-binding
+@pytest.mark.req("NF-001")  # W28E-1802A: platform-package adoption — no bespoke env/logging primitives (rebound from W28C-1711-R3 probe)
 
 
 def test_qt2_7_no_bespoke_platform_replacements(

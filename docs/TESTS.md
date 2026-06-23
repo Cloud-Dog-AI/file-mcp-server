@@ -3,14 +3,14 @@ template-id: T-TST
 template-version: 1.1
 applies-to: docs/TESTS.md
 project: file-mcp-server
-doc-last-updated: 2026-06-12T16:36:44Z
-doc-git-commit: 02b2e3c250769135eef5c087b4da824fa226d023
+doc-last-updated: 2026-06-23T14:02:08Z
+doc-git-commit: 157f34c69faf321586cdb0ec962c0f4a9d1a3f1b
 doc-git-branch: main
 doc-age-policy: 90d
-doc-conformance-stamp: 2026-06-12T16:36:44Z
+doc-conformance-stamp: 2026-06-23T14:02:08Z
 req-trace-version: 1.0
-total-tests: 0
-coverage-percent: 0
+total-tests: 388
+coverage-percent: 100
 ---
 
 # Tests
@@ -246,25 +246,93 @@ The following test filenames are present in the repository and are included for 
 
 ## 2. Coverage map
 
-Mandatory 10-column schema per PS-REQ-TEST-TRACE v1.0 §4.2. The per-test catalogue below will be populated by operator-driven Instruction 4 work that binds @pytest.mark.req() decorators to specific REQ-IDs. Until then, all tests carry @pytest.mark.probe (KEEP-AS-PROBE disposition per PS-REQ-TEST-TRACE §7).
+Mandatory 10-column schema per PS-REQ-TEST-TRACE v1.0 §4.2. Every test module binds to its semantic
+`@pytest.mark.req(...)` requirement(s); the W28C-1711-R3 `@pytest.mark.probe` placeholders were
+**retired and rebound** to capability requirements (`FR-001`..`FR-029`, `CS-001`..`CS-016`,
+`NF-001`..`NF-005`) in W28E-1802A — `grep -rn "@pytest.mark.probe" tests/` returns zero matches.
+`Last run commit` is `design-bound (run: Stream-B/C)` because Stream-A binds and designs; execution
+verdicts are produced by Stream-B (UT/IT/AT/ST/QT) and Stream-C (WebUI/E2E). Rows are keyed by test
+module; a module may contain several `def test_*` functions sharing the module's bindings
+(388 test functions across 117 modules).
 
 | Test ID | Tier | Use case | Requirement | Surface | Scenario | Variants | Env files | Known issue | Last run commit |
 |---|---|---|---|---|---|---|---|---|---|
+| `UT1.24_ToolsRegistry` | UT | UC-001 | `FR-001` | `mcp` | ToolBoundarySchemaContract | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.36_ParamAliasFallback` | UT | UC-001 | `FR-001` | `mcp` | ParamAliasFallback | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `IT1.3_IntegrationBase64FileOps` | IT | UC-002 | `FR-002` | `mcp` | Base64FileRoundtrip | — | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.6_Diff` | UT | UC-005 | `FR-003` | `mcp` | UnifiedDiffPreview | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.7_EditStructured` | UT | UC-003 | `FR-004` | `mcp` | StructuredCRUD | json/yaml/xml/html/md | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.20_Sedlike` | UT | UC-003 | `FR-005` | `mcp` | SedTransaction | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.25_Validate` | UT | UC-003 | `FR-006` | `mcp` | ValidationPolicy | strict/warn/ignore | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.1_ApiKitContract` | UT | UC-001 | `FR-007` | `api` | ApiKitTransportContract | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.5_Convert` | UT | UC-004 | `FR-008` | `mcp` | ConversionPipeline | pdf/docx/xlsx | tests/env-UT | — | design-bound (run: Stream-B) |
+| `ST1.2_SystemAuthHealth` | ST | UC-010 | `FR-009` | `api` | HealthReadinessLive | — | tests/env-ST | — | design-bound (run: Stream-B) |
+| `UT1.23_ToolReuse` | UT | UC-002 | `FR-010` | `internal` | LibraryFirstReuse | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.17_Posix` | UT | UC-001 | `FR-011` | `internal` | PosixCompliance | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `IT1.14_RemoteStorageBackendsHttp` | IT | UC-008 | `FR-012` | `mcp` | RemoteBackendMatrix | local/s3/webdav/ftp/gdrive | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.4_ConfigLoader` | UT | UC-002 | `FR-013` | `internal` | ConfigPrecedence | env/file/yaml/defaults | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.9_EndpointHealth` | UT | UC-010 | `FR-014`, `FR-020` | `internal` | EndpointHealthClassifyRecover | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `AT1.12_GoogleDriveOauthLive` | AT | UC-011 | `FR-015` | `api` | GoogleDriveOAuthBinding | — | tests/env-AT | — | design-bound (run: Stream-B) |
+| `IT1.12_IntegrationMultiProfileRoutingHttp` | IT | UC-014 | `FR-016` | `api` | MultiProfileRouting | query/header | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.3_Auth` | UT | UC-001 | `FR-017` | `api` | ApiKeyProfileAwareAuth | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `IT1.25_IntegrationA2AAuthContract` | IT | UC-001 | `FR-017` | `a2a` | A2AHealthAuthContract | 401/200 | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.10_Filesystem` | UT | UC-001 | `FR-018` | `mcp` | FileReadWriteAtomic | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `ST1.11_SystemReadPartialRanges` | ST | UC-001 | `FR-018` | `mcp` | PartialRangeRead | byte/line | tests/env-ST | — | design-bound (run: Stream-B) |
+| `IT1.16_IntegrationSearchHttp` | IT | UC-003 | `FR-019` | `mcp` | Search | glob/regex/content | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.14_GoogleDriveStorage` | UT | UC-011 | `FR-021` | `internal` | GoogleDriveBackendSemantics | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `UT1.16_Observability` | UT | UC-006 | `FR-022` | `internal` | OperationalLogging | — | tests/env-UT | — | design-bound (run: Stream-B) |
+| `IT1_30_AuthStatusProbe` | IT | UC-001 | `FR-023` | `api` | AuthStatusProbe | — | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.35_FlatRoleLogin` | UT | UC-022 | `FR-024`, `CS-001`, `CS-005`, `CS-009`, `CS-013` | `api` | AnonAndRoleGate | anon/read-only/missing | tests/env-UT | — | design-bound (run: Stream-B) |
+| `ST1.18_TimeBasedSearch` | ST | UC-003 | `FR-025` | `mcp` | TimeBasedSearchWindow | modified_after/before | tests/env-ST | — | design-bound (run: Stream-B) |
+| `tests/unit/** (cluster)` | UT | UC-001 | `FR-026` | `api` | UnitTierCorrectness | UT1.1–UT1.36 | tests/env-UT | — | design-bound (run: Stream-B) |
+| `tests/application/** (cluster)` | AT | UC-002 | `FR-027` | `a2a` | ApplicationWorkflows | AT1.1–AT1.11 | tests/env-AT | — | design-bound (run: Stream-B) |
+| `tests/system/** (cluster)` | ST | UC-006 | `FR-028` | `internal` | SystemContracts | ST1.1–ST1.17 | tests/env-ST | — | design-bound (run: Stream-B) |
+| `tests/integration/** (cluster)` | IT | UC-008 | `FR-029` | `mcp` | IntegrationFlows | IT1.1–IT1.26 | tests/env-IT | — | design-bound (run: Stream-B) |
+| `AT_ProfileCRUD` | AT | UC-015 | `FR-016` | `api` | ProfileCRUD | C/R/U/D | tests/env-AT | — | design-bound (run: Stream-B) |
+| `IT1.26_IntegrationConfigCrudIdentityWorkflow` | IT | UC-017 | `FR-016` | `api` | IdentityCRUDWorkflow | user/group/key | tests/env-IT | — | design-bound (run: Stream-B) |
+| `ST1.1_SystemAuditIntegrity` | ST | UC-018 | `NF-003` | `internal` | AuditAppendOnly | — | tests/env-ST | — | design-bound (run: Stream-B) |
+| `QT_PackageCompliance` | QT | UC-002 | `NF-001` | `mcp` | PlatformPackageAdoption | — | tests/env-QT | — | design-bound (run: Stream-B) |
+| `QT26_SecretsSeparation` | QT | UC-002 | `NF-002` | `mcp` | SecretConfigHygiene | — | tests/env-QT | — | design-bound (run: Stream-B) |
+| `QT_LoggingCompliance` | QT | UC-006 | `NF-003` | `mcp` | LoggingAuditCompliance | — | tests/env-QT | — | design-bound (run: Stream-B) |
+| `QT3_DocumentationSuite` | QT | UC-001 | `NF-004` | `mcp` | DocumentationCompleteness | — | tests/env-QT | — | design-bound (run: Stream-B) |
+| `QT1_SecuritySuite` | QT | UC-001 | `NF-005` | `mcp` | SecurityPostureRules | — | tests/env-QT | — | design-bound (run: Stream-B) |
+| `AT_WEBUI_EndToEnd` | AT | UC-019 | `FR-012`, `FR-016` | `webui` | WebUIBrowseSearch | — | tests/env-AT | — | design-bound (run: Stream-C) |
+| `AT1.13_ApplicationWebUiAdmin` | AT | UC-024 | `FR-016`, `FR-027` | `webui` | WebUIAdminTaxonomy | — | tests/env-AT | — | design-bound (run: Stream-C) |
 
+## 3. WebUI acceptance drive-out (Variant-V2 observations → Stream-C targets)
 
-<!-- W28C-1710b design-delta additions (2026-06-14T18:01:23Z) -->
+The W28A-651 file-mcp WebUI review (`GarysWorkingNotes.md` §"filemcpserver #2") and the
+Test-Design-Audit-Jun26 SUPPLEMENT dump files (`filemcpserver/WEBUI-REVIEW.md`,
+`E2E file-mcp-server.md`, `Create folder - doesnt appear.md`) carried **no ticked operator
+disposition box** at ingest. Per the accepted W28E Stream-A precedent (W28E-1803A), they are treated
+as **deferred WebUI feedback for Stream-C**, not as new Stream-A binding requirements — the WebUI
+capabilities already exist as `FR1.37`–`FR1.47` and `FR-012`/`FR-016`/`FR-023`/`FR-024`. They are
+recorded below as explicit acceptance drive-out targets so Stream-B/Stream-C have unambiguous
+Playwright/E2E targets. No Playwright is authored in Stream-A.
 
-## W28C-1710b design-delta — planned tests catalogue (T-TST v1.1 10-col schema)
+| Obs | Source | WebUI page | Drive-out acceptance condition | Requirement(s) | Stream-C target |
+|---|---|---|---|---|---|
+| `WUI-FM-01` | W28A-651 Dashboard | `/dashboard` | Recent-activity uses governed DataTable with multi-delete; audit rows carry NIST/PS-40 fields; uptime is relative; connection counts agree | `FR-016`, `NF-003`, FR1.41 | `AT_WEBUI` dashboard spec |
+| `WUI-FM-02` | W28A-651 / Create-folder | `/file-browser` | Storage-profile selector at top; folders/files distinguished by type icons; file metadata (size/created/modified); breadcrumb; governed bulk actions; create-file as a proper form | `FR-012`, `FR-016`, FR1.42 | `AT_WEBUI` file-browser spec |
+| `WUI-FM-03` | W28A-651 Storage Profiles | `/storage-profiles` | Profiles from env/config appear with real data; CRUD + test-connection; read-only user denied (403) | `FR-016`, `CS-009`, `CS-012`, FR1.43 | `AT_WEBUI` profiles spec |
+| `WUI-FM-04` | W28A-651 Search | `/search` | Profile-scoped search widget returns real path/content results; read-only cannot act beyond viewing | `FR-019`, `FR-016`, FR1.42 | `AT_WEBUI` search spec |
+| `WUI-FM-05` | E2E dump | `/google-drive-settings` | OAuth config fields + connection status; only admin can modify; non-admin view-only | `FR-015`, `CS-009`, FR1.47 | `AT_WEBUI` gdrive spec |
+| `WUI-FM-06` | W28A-651 MCP/A2A | `/mcp-console`, `/a2a-console` | Tool selection injects a parameter template; results connected to submit; API-key/auth clarity | FR1.47 | `AT_WEBUI` console specs |
+| `WUI-FM-07` | W28A-651 API Docs | `/api-docs` | OpenAPI rendered via Swagger/widget; MCP tool reference; service docs rendered inline | FR1.47 | `AT_WEBUI` api-docs spec |
+| `WUI-FM-08` | W28A-651 Admin | `/admin/users,/groups,/api-keys,/rbac` | Populated DataTables with real data; CRUD; RBAC-aware action visibility; denial 403 | `CFG-08`–`CFG-11`, `CS-009`, FR1.47 | `AT_WEBUI` admin specs |
+| `WUI-FM-09` | W28A-651 Settings | `/settings` | Full config shown via JsonExplorer/CodeEditor; secrets masked in inspect/edit/export | `NF-002`, FR1.47 | `AT_WEBUI` settings spec |
+| `WUI-FM-10` | W28A-651 About | `/about` | Dialog is escapable (ok/cancel works); description accurate | FR1.47 | `AT_WEBUI` about spec |
+| `WUI-FM-11` | E2E/Create-folder (CC) | `/audit-log`, Logs | File-ops audit and server logs on one governed Logs page with type filtering; NIST/PS-40 fields; 403 denials logged | `FR-022`, `NF-003` | `AT_WEBUI` logs spec; CC routed to W28E-1825 if cross-cutting |
+| `WUI-FM-12` | W28A-651 session | all | WebUI session does not die on key failure; 401/403 forces clean re-auth, never fake success | `FR-023`, `FR-024` | `AT_WEBUI` session-resilience spec |
 
-Per T-TST v1.1, the planned tests catalogue carries 10 columns: `test-id | tier | use-case | requirement | surface | scenario | variants | env-files | known-issue | last-run-commit`. Test binding (replacement of probe markers with `@pytest.mark.req("FR-NNN")`) is W28C-1711 work.
+## 4. Test-design rules (binding, applied in W28E-1802A)
 
-Consolidation rules (per W28C-1711):
-
-1. One primary test per FR-NNN; variants via `pytest.parametrize`.
-2. Common scenarios (login, RBAC matrix, anon-denied) in `tests/helpers/`.
-3. Cross-surface FR uses parametrized test file; not duplicate files.
-4. Every `surface: webui` FR has a Playwright test (cookie-login + RBAC matrix + screenshot + DOM-assert + console-error-gate + CW-pattern).
+1. One primary test per FR-NNN; variants via `pytest.parametrize` (recorded in the `Variants` column).
+2. Common scenarios (login, RBAC matrix, anon-denied) shared via helpers, not duplicated.
+3. Cross-surface FRs use parametrized test files, not duplicate files.
+4. Every `surface: webui` FR drives a Stream-C Playwright target (cookie-login + RBAC matrix + screenshot + DOM-assert + console-error-gate + CW-pattern) — see §3.
 5. Every `surface: api|mcp|a2a` FR has a protocol-level test.
-6. Every `CS-NNN` binds to `@pytest.mark.negative` test with expected denial code.
-7. CRUD-applicable entities have C/R/U/D coverage.
-8. Orphan retirement requires knowledge-extract worksheet.
+6. Every `CS-NNN` binds to a negative test with the expected denial code (see REQUIREMENTS.md §5).
+7. CRUD-applicable entities (storage profiles, users, groups, API keys) have C/R/U/D coverage.
+8. W28C-1711-R3 `@pytest.mark.probe` orphans were rebound to semantic `@pytest.mark.req(...)`;
+   no probe markers remain (`tests/conftest.py` enforces tier + surface + `req()` on every test).
