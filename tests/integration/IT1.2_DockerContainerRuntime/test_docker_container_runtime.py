@@ -33,6 +33,7 @@ from pathlib import Path
 from tests.path_helpers import project_root
 from urllib.request import urlopen
 
+import httpx
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
@@ -564,16 +565,26 @@ def test_container_multi_env_override_changes_root_and_api_key(
                         "read_file", {"path": "/workspace/team_a/a.txt"}
                     )
 
-            with pytest.raises(Exception):
-                async with Client(
-                    StreamableHttpTransport(
-                        f"http://127.0.0.1:{host_port}/mcp",
-                        headers={"Authorization": "Bearer base-key"},
-                    )
-                ) as client:
-                    await client.call_tool(
-                        "read_file", {"path": "/workspace/team_b/b.txt"}
-                    )
+            response = httpx.post(
+                f"http://127.0.0.1:{host_port}/mcp",
+                headers={
+                    "Authorization": "Bearer base-key",
+                    "Accept": "application/json, text/event-stream",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "base-key-rejected",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "read_file",
+                        "arguments": {"path": "/workspace/team_b/b.txt"},
+                    },
+                },
+                timeout=5.0,
+            )
+            assert response.status_code == 401
+            assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
         asyncio.run(_flow())
         _run(

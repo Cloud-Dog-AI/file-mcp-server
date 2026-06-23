@@ -590,7 +590,7 @@ def test_health_middleware_returns_status_metrics() -> None:
 @pytest.mark.req("FR-017")
 
 
-def test_a2a_health_is_public_without_auth() -> None:
+def test_a2a_health_requires_auth_without_credentials() -> None:
     """W28A-742 F-741-1 closure: anon ``GET /a2a/health`` MUST return 401.
 
     PS-82 FR1.46 says "GET /a2a/health without valid auth SHALL return
@@ -688,6 +688,50 @@ def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
     assert body["status"] == "ok"
     assert body["a2a"]["base_path"] == "/a2a"
     assert verifier.verify_calls == []
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_a2a_health_rejects_malformed_authorization_header() -> None:
+    """Malformed Authorization syntax must not satisfy the guarded-route gate."""
+    sent = []
+
+    async def fake_app(
+        scope, receive, send
+    ) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/a2a/health",
+            "headers": [(b"authorization", b"Authorization missing-scheme")],
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 401
+    body = json.loads(sent[1]["body"].decode("utf-8"))
+    assert body["errors"][0]["code"] == "UNAUTHENTICATED"
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

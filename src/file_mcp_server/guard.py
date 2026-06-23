@@ -36,7 +36,9 @@ classifies ``(method, path)`` against :mod:`file_mcp_server.route_guards`
        dispatch (cookie middleware + ``MultiProfileApiKeyTokenVerifier``
        + per-tool / per-route RBAC) to verify them and decide. This
        avoids duplicating verification logic and keeps the per-route
-       RBAC intact.
+       RBAC intact. A syntactically malformed ``Authorization`` header is
+       not counted as a credential carrier; otherwise some A2A health/event
+       routes can treat "auth header present" as sufficient and return 200.
 3. For ``"unknown"`` paths: returns ``False`` (fall through). The SM1.2
    meta-test is the structural catalogue-coverage gate; a runtime
    ``"unknown"`` for a path the meta-test missed would simply receive the
@@ -93,6 +95,7 @@ async def _send_status(send: Any, status: int, body: bytes) -> None:
     await send({"type": "http.response.body", "body": body, "more_body": False})
 
 
+# req: FR-017
 def _request_carries_credentials(
     runtime: Any, headers: dict[str, str]
 ) -> bool:
@@ -105,14 +108,21 @@ def _request_carries_credentials(
     no credentials at all are presented.
 
     Recognised credential carriers:
-      - ``Authorization`` header (Bearer / Basic / etc.)
+      - syntactically usable ``Authorization`` header (Bearer / Token / Basic)
       - ``X-API-Key`` header (file-mcp dynamic API keys)
       - ``X-Admin-Token`` header (file-mcp admin-reload custom header
         per ``server_runtime.py`` ``FILE_MCP_ADMIN_UI_TOKEN``)
       - session cookie (file-mcp ``file_web_session`` default)
     """
-    if headers.get("authorization"):
-        return True
+    raw_authorization = (headers.get("authorization") or "").strip()
+    if raw_authorization:
+        parts = raw_authorization.split(None, 1)
+        if (
+            len(parts) == 2
+            and parts[0].lower() in {"bearer", "token", "basic"}
+            and parts[1].strip()
+        ):
+            return True
     if headers.get("x-api-key"):
         return True
     if headers.get("x-admin-token"):

@@ -64,7 +64,8 @@ PIDFILE="${FILE_MCP_PIDFILE:-/app/.run/file-mcp-server.pid}"
 
 build_effective_env_file() {
   local source_paths="$1"
-  local output_path="/tmp/file-mcp-container.env"
+  # req: FR-013
+  local output_path="${FILE_MCP_EFFECTIVE_ENV_PATH:-/app/tmp/file-mcp-container.env}"
   local path=""
   local line=""
   local key=""
@@ -122,6 +123,7 @@ build_effective_env_file() {
     fi
   done < <(env)
 
+  mkdir -p "$(dirname "${output_path}")"
   : > "${output_path}"
   for key in "${ordered_keys[@]}"; do
     printf "%s=%s\n" "${key}" "${values["${key}"]}" >> "${output_path}"

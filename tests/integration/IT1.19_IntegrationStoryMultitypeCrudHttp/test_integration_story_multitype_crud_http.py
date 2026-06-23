@@ -24,7 +24,6 @@ import httpx
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
-from fastmcp.exceptions import ToolError
 
 from tests.http_integration_helpers import (
     pick_free_port,
@@ -422,14 +421,20 @@ def test_upload_download_cycle_with_invalid_key_rejected(tmp_path: Path) -> None
         value = asyncio.run(_flow())
         assert value == "naïve-✓"
 
-        async def _bad_key() -> None:
-            async with Client(
-                StreamableHttpTransport(
-                    f"http://127.0.0.1:{port}/mcp",
-                    headers={"Authorization": "Bearer wrong-key"},
-                )
-            ) as client:
-                await client.call_tool("read_file", {"path": str(target)})
-
-        with pytest.raises((ToolError, httpx.HTTPStatusError)):
-            asyncio.run(_bad_key())
+        response = httpx.post(
+            f"http://127.0.0.1:{port}/mcp",
+            headers={
+                "Authorization": "Bearer wrong-key",
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": "wrong-key",
+                "method": "tools/call",
+                "params": {"name": "read_file", "arguments": {"path": str(target)}},
+            },
+            timeout=5.0,
+        )
+        assert response.status_code == 401
+        assert response.json()["error"]["code"] == "UNAUTHENTICATED"

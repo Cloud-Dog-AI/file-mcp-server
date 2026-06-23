@@ -38,6 +38,7 @@ from html import escape
 from types import SimpleNamespace
 
 import asyncio
+import base64
 import inspect
 import json
 import mimetypes
@@ -977,6 +978,8 @@ class HealthCheckMiddleware:
             or path.startswith("/api/v1/logs/")
             or path == "/v1/logs"
             or path.startswith("/v1/logs/")
+            or path == "/files"
+            or path.startswith("/files/")
         )
 
     async def _send_proxy_response(self, send, *, status: int, data: Any, headers: dict[str, str]) -> None:
@@ -1352,6 +1355,334 @@ class HealthCheckMiddleware:
         registry = self.registry_provider()
         tools = [_tool_payload(tool) for tool in registry.list_tools()]
         return {"tools": tools}
+
+    @staticmethod
+    def _rest_file_id(path: str) -> str:
+        """Return a URL-safe lifecycle id for a scoped file path."""
+        raw = str(path or "").encode("utf-8")
+        return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    @staticmethod
+    def _rest_file_path_from_id(file_id: str) -> str:
+        """Decode a URL-safe lifecycle id back to the scoped file path."""
+        value = str(file_id or "").strip()
+        if not value:
+            raise ValueError("file id is required")
+        padding = "=" * (-len(value) % 4)
+        try:
+            return base64.urlsafe_b64decode((value + padding).encode("ascii")).decode(
+                "utf-8"
+            )
+        except Exception as exc:
+            raise ValueError("invalid file id") from exc
+
+    @staticmethod
+    def _rest_file_scope_allows(
+        *, required: str, scopes: set[str], profile_name: str
+    ) -> bool:
+        """Return whether API-key scopes allow the REST file operation."""
+        if "*" in scopes or "admin" in scopes or "admin:*" in scopes:
+            return True
+        if required in scopes:
+            return True
+        profile_tokens = {
+            "profile:*",
+            f"profile:{profile_name}",
+            f"profile:{profile_name}:write",
+        }
+        if required == "files.write":
+            return bool(
+                {
+                    "files.write",
+                    "file:write",
+                    "file:*",
+                    "profile:write",
+                }
+                & scopes
+                or profile_tokens & scopes
+            )
+        return bool(
+            {
+                "files.read",
+                "files.write",
+                "files.list",
+                "files.search",
+                "file:read",
+                "file:list",
+                "file:search",
+                "file:write",
+                "file:*",
+                "profile:read",
+                "profile:write",
+            }
+            & scopes
+            or profile_tokens & scopes
+            or f"profile:{profile_name}:read" in scopes
+        )
+
+    def _rest_file_registry(self, profile_name: str) -> ToolRegistry:
+        """Resolve the existing tool registry for a REST-selected profile."""
+        if not callable(self.registry_provider):
+            raise AdminIdentityError(
+                "INTERNAL_ERROR", "tool registry unavailable", status=500
+            )
+        try:
+            return self.registry_provider(profile_name)
+        except TypeError:
+            return self.registry_provider()
+
+    @staticmethod
+    def _rest_file_entry(path: str, *, profile_name: str, **extra: Any) -> dict[str, Any]:
+        """Build the common REST file metadata shape."""
+        payload = {
+            "id": HealthCheckMiddleware._rest_file_id(path),
+            "path": path,
+            "name": path.rsplit("/", 1)[-1] if path else "",
+            "profile": profile_name,
+        }
+        payload.update({key: value for key, value in extra.items() if value is not None})
+        return payload
+
+    # req: FR-012 FR-016 FR-017
+    async def _handle_rest_file_lifecycle(
+        self,
+        *,
+        scope: dict[str, Any],
+        receive,
+        send,
+        headers: dict[str, str],
+        path: str,
+        method: str,
+    ) -> bool:
+        """Serve the PS-78 REST file lifecycle contract through file tools."""
+        if path != "/files" and not path.startswith("/files/"):
+            return False
+
+        tail = path[len("/files") :].strip("/")
+        route: str
+        file_id: str | None = None
+        required = "files.read"
+        if tail == "":
+            if method != "GET":
+                return False
+            route = "list"
+        elif tail == "upload":
+            if method != "POST":
+                return False
+            route = "upload"
+            required = "files.write"
+        elif tail == "upload_base64":
+            if method != "POST":
+                return False
+            route = "upload_base64"
+            required = "files.write"
+        elif tail.endswith("/download"):
+            if method != "GET":
+                return False
+            route = "download"
+            file_id = tail[: -len("/download")].strip("/")
+        else:
+            if "/" in tail or method not in {"GET", "DELETE"}:
+                return False
+            route = "metadata" if method == "GET" else "delete"
+            file_id = tail
+            if method == "DELETE":
+                required = "files.write"
+
+        try:
+            auth_info, selected_profile = await self._authenticate_request(
+                scope=scope, headers=headers
+            )
+            scopes = self._token_scopes(auth_info)
+            if auth_info is None:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return True
+            if not self._rest_file_scope_allows(
+                required=required, scopes=scopes, profile_name=selected_profile
+            ):
+                await self._send_api_error(
+                    send,
+                    status=403,
+                    code="FORBIDDEN",
+                    message=f"Missing permission: {required}",
+                )
+                return True
+
+            registry = self._rest_file_registry(selected_profile)
+            query = parse_qs(scope.get("query_string", b"").decode("utf-8"))
+
+            if route == "list":
+                list_path = str((query.get("path") or ["."])[0] or ".")
+                recursive = str((query.get("recursive") or ["false"])[0]).lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                }
+                listed = registry.get("list_dir").handler(
+                    path=list_path, recursive=recursive
+                )
+                items = []
+                for entry in listed.get("entry_details", []):
+                    entry_path = str(entry.get("path") or "")
+                    item = self._rest_file_entry(
+                        entry_path,
+                        profile_name=selected_profile,
+                        is_dir=bool(entry.get("is_dir")),
+                        size=entry.get("size"),
+                        modified_at=entry.get("modified_at"),
+                        created_at=entry.get("created_at"),
+                    )
+                    items.append(item)
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload={
+                        "ok": True,
+                        "profile": selected_profile,
+                        "path": listed.get("path", list_path),
+                        "items": items,
+                    },
+                )
+                return True
+
+            if route in {"upload", "upload_base64"}:
+                payload = await self._read_json_body(receive)
+                target_path = str(payload.get("path") or "").strip()
+                if not target_path:
+                    raise AdminIdentityError(
+                        "VALIDATION_ERROR", "path is required", status=422
+                    )
+                overwrite = bool(payload.get("overwrite", True))
+                if route == "upload_base64":
+                    data = str(payload.get("data") or "")
+                    result = registry.get("b64_decode_to_file").handler(
+                        path=target_path,
+                        data=data,
+                        urlsafe=bool(payload.get("urlsafe", False)),
+                        overwrite=overwrite,
+                    )
+                    bytes_written = result.get("bytes_written")
+                else:
+                    if "content" not in payload:
+                        raise AdminIdentityError(
+                            "VALIDATION_ERROR", "content is required", status=422
+                        )
+                    content = str(payload.get("content") or "")
+                    result = registry.get("write_file").handler(
+                        path=target_path,
+                        content=content,
+                        encoding=str(payload.get("encoding") or "utf-8"),
+                        overwrite=overwrite,
+                    )
+                    bytes_written = len(content.encode(str(payload.get("encoding") or "utf-8")))
+                stored_path = str(result.get("path") or target_path)
+                await self._send_json(
+                    send,
+                    status=201,
+                    payload={
+                        "ok": True,
+                        "file": self._rest_file_entry(
+                            stored_path,
+                            profile_name=selected_profile,
+                            size=bytes_written,
+                        ),
+                    },
+                )
+                return True
+
+            if file_id is None:
+                raise AdminIdentityError("VALIDATION_ERROR", "file id is required")
+            target_path = self._rest_file_path_from_id(file_id)
+
+            if route == "metadata":
+                encoded = registry.get("b64_encode_file").handler(path=target_path)
+                raw = b64_decode(str(encoded.get("data") or ""))
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload={
+                        "ok": True,
+                        "file": self._rest_file_entry(
+                            target_path,
+                            profile_name=selected_profile,
+                            size=len(raw),
+                        ),
+                    },
+                )
+                return True
+
+            if route == "download":
+                encoded = registry.get("b64_encode_file").handler(path=target_path)
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload={
+                        "ok": True,
+                        "file": self._rest_file_entry(
+                            target_path, profile_name=selected_profile
+                        ),
+                        "encoding": "base64",
+                        "data": encoded.get("data", ""),
+                    },
+                )
+                return True
+
+            if route == "delete":
+                result = registry.get("delete_file").handler(
+                    path=target_path, missing_ok=False
+                )
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload={
+                        "ok": True,
+                        "deleted": True,
+                        "file": self._rest_file_entry(
+                            str(result.get("path") or target_path),
+                            profile_name=selected_profile,
+                        ),
+                    },
+                )
+                return True
+
+        except AdminIdentityError as exc:
+            await self._send_api_error(
+                send, status=exc.status, code=exc.code, message=str(exc)
+            )
+            return True
+        except FileNotFoundError:
+            await self._send_api_error(
+                send, status=404, code="NOT_FOUND", message="file not found"
+            )
+            return True
+        except PermissionError as exc:
+            await self._send_api_error(
+                send, status=403, code="FORBIDDEN", message=str(exc)
+            )
+            return True
+        except ValueError as exc:
+            await self._send_api_error(
+                send, status=422, code="VALIDATION_ERROR", message=str(exc)
+            )
+            return True
+        except Exception as exc:
+            message = str(exc)
+            if "no such file" in message.lower() or "not found" in message.lower():
+                await self._send_api_error(
+                    send, status=404, code="NOT_FOUND", message="file not found"
+                )
+                return True
+            await self._send_api_error(
+                send, status=500, code="INTERNAL_ERROR", message=message
+            )
+            return True
+
+        return False
 
     def _w28a742_session_manager(self):
         """Return the file-mcp DB session manager, or ``None`` when absent.
@@ -2243,6 +2574,7 @@ class HealthCheckMiddleware:
             "/admin",
             "/events",
             "/tasks",
+            "/files",
         )
         for prefix in gated_prefixes:
             if not prefix:
@@ -3944,6 +4276,16 @@ class HealthCheckMiddleware:
             path=path,
             method=method,
             accept=accept,
+        ):
+            return
+
+        if await self._handle_rest_file_lifecycle(
+            scope=scope,
+            receive=receive,
+            send=send,
+            headers=headers,
+            path=path,
+            method=method,
         ):
             return
 

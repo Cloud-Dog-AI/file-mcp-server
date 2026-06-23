@@ -117,6 +117,12 @@ PROBES = [
     ("POST", "/tasks",                            "guarded"),
     ("GET", "/api/v1/files",                      "guarded"),
     ("PUT", "/api/v1/files/some/path.txt",        "guarded"),
+    ("GET", "/files",                             "guarded"),
+    ("POST", "/files/upload",                     "guarded"),
+    ("POST", "/files/upload_base64",              "guarded"),
+    ("GET", "/files/c2NvcGVkLnR4dA",              "guarded"),
+    ("GET", "/files/c2NvcGVkLnR4dA/download",     "guarded"),
+    ("DELETE", "/files/c2NvcGVkLnR4dA",           "guarded"),
     ("GET", "/api/v1/profiles",                   "guarded"),
     ("POST", "/api/v1/profiles",                  "guarded"),
     ("PATCH", "/v1/profiles/profile-1",           "guarded"),
@@ -276,6 +282,28 @@ def test_a2a_events_endpoints_all_four_guarded() -> None:
         assert match_result is not None
         guard, _ = match_result
         assert guard.permission == "a2a.access"
+
+
+@pytest.mark.QT
+@pytest.mark.api
+@pytest.mark.req("FR-012")
+@pytest.mark.req("FR-017")
+def test_ps78_rest_file_lifecycle_routes_are_guarded() -> None:
+    """PS-78 REST lifecycle routes require file read/write permissions."""
+    expected = {
+        ("GET", "/files"): "files.read",
+        ("POST", "/files/upload"): "files.write",
+        ("POST", "/files/upload_base64"): "files.write",
+        ("GET", "/files/c2NvcGVkLnR4dA"): "files.read",
+        ("GET", "/files/c2NvcGVkLnR4dA/download"): "files.read",
+        ("DELETE", "/files/c2NvcGVkLnR4dA"): "files.write",
+    }
+    for (method, path), permission in expected.items():
+        match_result = match(method, path)
+        assert match_result is not None
+        guard, _ = match_result
+        assert guard.permission == permission
+        assert guard.resource_type == "storage_profile"
 @pytest.mark.QT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

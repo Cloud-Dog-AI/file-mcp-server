@@ -58,7 +58,7 @@ def _request_status(url: str, *, auth: str | None = None) -> tuple[int, dict]:
 @pytest.mark.req("FR-029")
 
 
-def test_a2a_health_auth_matrix_200_200_200(tmp_path: Path) -> None:
+def test_a2a_health_auth_matrix_401_401_200(tmp_path: Path) -> None:
     port = pick_free_port()
     root_dir = tmp_path / "scope"
     root_dir.mkdir(parents=True, exist_ok=True)
@@ -89,8 +89,8 @@ def test_a2a_health_auth_matrix_200_200_200(tmp_path: Path) -> None:
             endpoint, auth="Bearer 12345678"
         )
 
-        assert no_auth_status == 200
-        assert wrong_auth_status == 200
+        assert no_auth_status == 401
+        assert wrong_auth_status == 401
         assert valid_auth_status == 200
         assert valid_payload["status"] == "ok"
         assert valid_payload["service"] == "file-mcp-server"

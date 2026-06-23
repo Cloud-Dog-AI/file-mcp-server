@@ -104,11 +104,14 @@ def test_it_cfg06_admin_crud_publishes_events_to_a2a_events_history(
         assert health["status"] == "ok"
 
         admin_headers = {"x-admin-token": "admin-token"}
+        a2a_headers = {"Authorization": "Bearer bootstrap-key"}
         base_url = f"http://127.0.0.1:{port}"
 
         # 1) History is reachable from a cold start.
         status, payload = _json_request(
-            method="GET", url=f"{base_url}/a2a/events/history"
+            method="GET",
+            url=f"{base_url}/a2a/events/history",
+            headers=a2a_headers,
         )
         assert status == 200
         assert "events" in payload
@@ -158,6 +161,7 @@ def test_it_cfg06_admin_crud_publishes_events_to_a2a_events_history(
         status, history = _json_request(
             method="GET",
             url=f"{base_url}/a2a/events/history?limit=100",
+            headers=a2a_headers,
         )
         assert status == 200
         events = history["events"]

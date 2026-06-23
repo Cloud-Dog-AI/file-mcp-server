@@ -135,6 +135,7 @@ _UI_RESERVED_PREFIXES: tuple[str, ...] = (
     "/mcp",
     "/a2a",
     "/events",
+    "/files",
     "/.well-known",
     "/health",
     "/status",
@@ -345,6 +346,50 @@ ROUTE_GUARDS: tuple[RouteGuard, ...] = (
     RouteGuard(
         method="DELETE",
         pattern=_re(r"^/api/v1/files/(?P<path>.+)$"),
+        permission="files.write",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_arg("profile"),
+    ),
+    # req: FR-012 FR-017
+    # PS-78 canonical REST file lifecycle contract.
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^/files/?$"),
+        permission="files.read",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_arg("profile"),
+    ),
+    RouteGuard(
+        method="POST",
+        pattern=_re(r"^/files/upload/?$"),
+        permission="files.write",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_arg("profile"),
+    ),
+    RouteGuard(
+        method="POST",
+        pattern=_re(r"^/files/upload_base64/?$"),
+        permission="files.write",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_arg("profile"),
+    ),
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^/files/(?P<file_id>[^/]+)/?$"),
+        permission="files.read",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_arg("profile"),
+    ),
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^/files/(?P<file_id>[^/]+)/download/?$"),
+        permission="files.read",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_arg("profile"),
+    ),
+    RouteGuard(
+        method="DELETE",
+        pattern=_re(r"^/files/(?P<file_id>[^/]+)/?$"),
         permission="files.write",
         resource_type="storage_profile",
         resource_id_extractor=_extract_arg("profile"),

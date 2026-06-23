@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 from tests.path_helpers import project_root
 
+import httpx
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
@@ -317,16 +318,31 @@ def test_multi_profile_selection_auth_and_scope_controls(tmp_path: Path) -> None
                         "read_file", {"path": str(default_root / "outside.txt")}
                     )
 
-            # 6) Wrong key for selected profile must fail auth.
-            with pytest.raises(Exception):
-                async with Client(
-                    StreamableHttpTransport(
-                        f"http://127.0.0.1:{port}/mcp?profile=ftp",
-                        headers={"Authorization": "Bearer key-default"},
-                    )
-                ) as client:
-                    await client.call_tool(
-                        "list_dir", {"path": str(ftp_root), "recursive": False}
-                    )
+            # 6) Wrong key for selected profile must fail auth. Use a bounded
+            # raw MCP POST so rejected client initialization cannot wait
+            # indefinitely in the transport layer.
+            response = httpx.post(
+                f"http://127.0.0.1:{port}/mcp?profile=ftp",
+                headers={
+                    "Authorization": "Bearer key-default",
+                    "Accept": "application/json, text/event-stream",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "wrong-profile-key",
+                    "method": "tools/call",
+                    "params": {
+                        "name": "list_dir",
+                        "arguments": {
+                            "path": str(ftp_root),
+                            "recursive": False,
+                        },
+                    },
+                },
+                timeout=5.0,
+            )
+            assert response.status_code == 401
+            assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
         asyncio.run(_flow())
