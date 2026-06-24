@@ -1383,6 +1383,30 @@ def test_runtime_config_endpoint_returns_dynamic_script() -> None:
 @pytest.mark.req("FR-017")
 
 
+def test_version_endpoint_returns_service_version() -> None:
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    sent = _run_middleware_request(middleware, path="/version")
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["service"] == "file-mcp-server"
+    assert payload["version"] == middleware.version
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+
+
 def test_runtime_config_endpoint_scopes_audit_log_path_to_selected_profile_root() -> None:
     previous = {
         key: runtime_env.get(key)

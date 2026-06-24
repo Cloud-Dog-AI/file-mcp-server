@@ -2253,6 +2253,21 @@ class HealthCheckMiddleware:
             scope=scope, headers=headers
         )
         if auth_info is None:
+            query = parse_qs(
+                (scope.get("query_string") or b"").decode("utf-8", errors="ignore")
+            )
+            optional = str((query.get("optional") or [""])[0]).lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+            if optional:
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload={"user": None, "authenticated": False},
+                )
+                return True
             await self._send_bytes(send, status=401, body=b'{"detail":"Not authenticated"}', content_type="application/json")
             return True
 
@@ -4446,6 +4461,16 @@ class HealthCheckMiddleware:
         if scope.get("type") == "http" and method in {"GET", "HEAD"}:
             if path == "/runtime-config.js":
                 await self._serve_runtime_config(send, method=method)
+                return
+            if path == "/version":
+                payload = {"version": self.version, "service": "file-mcp-server"}
+                body = b"" if method == "HEAD" else json.dumps(payload).encode("utf-8")
+                await self._send_bytes(
+                    send,
+                    status=200,
+                    body=body,
+                    content_type="application/json",
+                )
                 return
             if path == "/openapi.json":
                 body = json.dumps(self._openapi_payload(), ensure_ascii=True).encode("utf-8")

@@ -70,6 +70,7 @@ FILE_MCP_PUBLIC_ALLOWLIST: frozenset[str] = frozenset({
     "/ready",
     "/live",
     "/status",
+    "/version",
     "/openapi.json",
     "/.well-known/agent.json",   # INTERNAL (Traefik also maps
                                   #   external /a2a/.well-known/agent.json

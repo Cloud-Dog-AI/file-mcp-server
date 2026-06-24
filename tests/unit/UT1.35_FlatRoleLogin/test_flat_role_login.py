@@ -255,3 +255,17 @@ def test_logout_clears_session(web_client: TestClient) -> None:
     web_client.post("/auth/logout", cookies=cookies)
     # After logout the in-memory token is dropped; reusing the stale cookie 401s.
     assert web_client.get("/auth/me", cookies=cookies).status_code == 401
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-024")
+
+
+def test_optional_auth_me_allows_cookie_adapter_restore_probe(web_client: TestClient) -> None:
+    strict = web_client.get("/auth/me")
+    assert strict.status_code == 401
+
+    optional = web_client.get("/auth/me?optional=1")
+    assert optional.status_code == 200
+    assert optional.json() == {"user": None, "authenticated": False}

@@ -59,6 +59,7 @@ PROBES = [
     ("GET", "/ready",                             "public"),
     ("GET", "/live",                              "public"),
     ("GET", "/status",                            "public"),
+    ("GET", "/version",                           "public"),
     ("GET", "/openapi.json",                      "public"),
     ("GET", "/.well-known/agent.json",            "public"),
 
