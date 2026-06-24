@@ -1549,6 +1549,7 @@ def test_legacy_webui_aliases_redirect_to_canonical_routes(tmp_path) -> None:
             ("/ui/login", "/login"),
             ("/idam/users", "/admin/users"),
             ("/api-docs", "/developer/api-docs"),
+            ("/-docs", "/developer/api-docs"),
             ("/mcp-console", "/developer/mcp-console"),
             ("/a2a-console", "/developer/a2a-console"),
             ("/jobs", "/system/jobs"),
