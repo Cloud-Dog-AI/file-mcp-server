@@ -121,29 +121,21 @@ def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> 
 @pytest.mark.req("FR-015")
 
 
-def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
+def test_complete_oauth_callback_persists_to_db_and_never_leaks_secrets_to_config(
     tmp_path: Path, monkeypatch
 ) -> None:
+    """W28M-1605-FIX: the callback (1) REFUSES without a durable DB store, and
+    (2) with the DB writes the OAuth secrets ONLY to the file_storage_profiles
+    row — config.yaml keeps the non-secret structure but never the secrets."""
+    import json as _json
+
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
         "profiles:\n  default:\n    storage:\n      backend: local\n", encoding="utf-8"
     )
-    state = "state123"
-    with admin._PENDING_LOCK:
-        admin._PENDING[state] = admin.PendingGoogleDriveAuth(
-            created_at=0.0,
-            profile="default",
-            user_email="u@example.com",
-            folder_input="test",
-            client_id="cid",
-            client_secret="secret",
-            oauth_scope="scope",
-            oauth_authorize_uri="https://accounts.google.test/auth",
-            api_base_uri="https://drive.googleapis.test/v3",
-            redirect_uri="http://localhost",
-            token_uri="https://oauth2.googleapis.com/token",
-        )
-    monkeypatch.setattr(admin, "_exchange_code", lambda pending, code: ("atok", "rtok"))
+    # distinctive secret values so a substring leak is unambiguous
+    A_TOK, R_TOK, C_SECRET = "ATOK_w28m1605_uniq", "RTOK_w28m1605_uniq", "CSECRET_w28m1605_uniq"
+    monkeypatch.setattr(admin, "_exchange_code", lambda pending, code: (A_TOK, R_TOK))
     monkeypatch.setattr(
         admin,
         "_fetch_folder",
@@ -153,11 +145,60 @@ def test_complete_oauth_callback_updates_config_with_monkeypatched_network(
             "https://drive.google.com/drive/folders/folder1",
         ),
     )
-    result = admin.complete_oauth_callback(state=state, code="code123", config_path=cfg)
+
+    def _seed_pending(state: str) -> None:
+        with admin._PENDING_LOCK:
+            admin._PENDING[state] = admin.PendingGoogleDriveAuth(
+                created_at=0.0,
+                profile="default",
+                user_email="u@example.com",
+                folder_input="test",
+                client_id="cid",
+                client_secret=C_SECRET,
+                oauth_scope="scope",
+                oauth_authorize_uri="https://accounts.google.test/auth",
+                api_base_uri="https://drive.googleapis.test/v3",
+                redirect_uri="http://localhost",
+                token_uri="https://oauth2.googleapis.com/token",
+            )
+
+    # 1) refuses to complete without a durable DB store (fails fast)
+    _seed_pending("state-nodb")
+    with pytest.raises(RuntimeError, match="durable database"):
+        admin.complete_oauth_callback(state="state-nodb", code="c", config_path=cfg)
+
+    # 2) with the DB: config.yaml gets the STRUCTURE but NO secrets; DB gets the creds
+    monkeypatch.setenv("FILE_MCP_DB_URL", f"sqlite:///{tmp_path}/db/file_mcp.db")
+    from file_mcp_server.db.runtime import initialise_database
+    from file_mcp_server.db.models import FileStorageProfile
+
+    rt = initialise_database(force_reinit=True)
+    _seed_pending("state-db")
+    result = admin.complete_oauth_callback(
+        state="state-db",
+        code="code123",
+        config_path=cfg,
+        db_session_manager=rt.session_manager,
+        file_storage_profile_model=FileStorageProfile,
+    )
     assert result.profile == "default"
     assert result.folder_id == "folder1"
+
     updated = cfg.read_text(encoding="utf-8")
-    assert "backend: google_drive" in updated
+    assert "backend: google_drive" in updated  # non-secret structure kept
+    for secret in (A_TOK, R_TOK, C_SECRET):
+        assert secret not in updated  # secrets NEVER written to config.yaml
+
+    with rt.session_manager.session() as session:
+        row = (
+            session.query(FileStorageProfile)
+            .filter_by(name="default", is_active=True)
+            .first()
+        )
+        drive = _json.loads(row.config_json)["storage"]["google_drive"]
+    assert drive["refresh_token"] == R_TOK
+    assert drive["access_token"] == A_TOK
+    assert drive["client_secret"] == C_SECRET
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-015")
