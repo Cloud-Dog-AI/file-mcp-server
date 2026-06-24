@@ -23,6 +23,11 @@ doc-conformance-stamp: 2026-06-12T12:00:00Z
 
 ## Runs (most recent first)
 
+### 2026-06-24T07:35:00+00:00
+- Commit: `9366506b497265613fd0775d207910d3b1b695bb` (main)
+- Totals: 21 / P 21 / F 0 / S 0
+- Delta: Stream-C WebUI proof expanded to 18 screenshots, 12 alias rows, and 16 axe page checks.
+
 ### 2026-06-17T11:09:42.839473+00:00
 - Commit: `cd8e9d759a1c30b5ea7a1e4b75b3389232c6658e` (W28C-1714-100pct-fix)
 - Totals: 8 / P 8 / F 0 / S 0

@@ -33,6 +33,16 @@ Deterministic file operations, structured edits, conversion, validation, and sto
 - Before release, rerun the relevant `QT`, `UT`, `ST`, `IT`, and `AT` tiers against the intended environment overlays.
 - This document records the current catalogue rather than claiming a release verdict.
 
+## W28E-1802C Stream-C Validation Snapshot
+- Date: `2026-06-24`
+- Local WebUI browser pack: `apps/file-mcp` Playwright `tests/smoke/all-pages.spec.ts`, `tests/e2e/routes.spec.ts`, `tests/a11y.spec.ts` via Vite/local backend -> `15 passed`.
+- Local Docker Stream-C proof: `tests/e2e/stream-c-proof.spec.ts` against image `sha256:0fe829ff00c043d98a27b344de72b78d14ae6c0ae55e61345734151907211719` -> `2 passed`.
+- Preprod Stream-C browser proof: `tests/e2e/stream-c-proof.spec.ts` against `https://filemcpserver0.cloud-dog.net` -> `2 passed`; 18 canonical screenshot rows and 12 alias rows all PASS.
+- Preprod smoke/routes/a11y pack: `tests/smoke/all-pages.spec.ts`, `tests/e2e/routes.spec.ts`, `tests/a11y.spec.ts` -> `19 passed`, including 16 axe WCAG2AA page checks.
+- Sibling browser smoke: target plus `chatclient0`, `expertagent0`, `notificationagent0`, and `filemcpserver0` sentinel -> all PASS in real Chromium.
+- Deployed image identity: image id `sha256:8d291fcedf7eb2710e8fe3d7e87935b82442a0f9ba1d08d5a660ee5c9b9c8032`; registry digest `sha256:c5d1fca676fa0497507b2c9a007550c4c613d2c77694380b18951c7b1a6cee68`.
+- Evidence: `cloud-dog-ai-platform-standards/working/evidence/W28E-1802C/current/`.
+
 ## W28A-961 Validation Snapshot
 - Date: `2026-04-16`
 - Unit: `.venv/bin/python -m pytest tests/unit --env tests/env-UT -q` → `177 passed in 22.19s`
