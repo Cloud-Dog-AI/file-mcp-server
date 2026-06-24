@@ -312,16 +312,16 @@ Playwright/E2E targets. No Playwright is authored in Stream-A.
 
 | Obs | Source | WebUI page | Drive-out acceptance condition | Requirement(s) | Stream-C target |
 |---|---|---|---|---|---|
-| `WUI-FM-01` | W28A-651 Dashboard | `/dashboard` | Recent-activity uses governed DataTable with multi-delete; audit rows carry NIST/PS-40 fields; uptime is relative; connection counts agree | `FR-016`, `NF-003`, FR1.41 | `AT_WEBUI` dashboard spec |
+| `WUI-FM-01` | W28A-651 Dashboard | `/` | Recent-activity uses governed DataTable with multi-delete; audit rows carry NIST/PS-40 fields; uptime is relative; connection counts agree | `FR-016`, `NF-003`, FR1.41 | `AT_WEBUI` dashboard spec |
 | `WUI-FM-02` | W28A-651 / Create-folder | `/file-browser` | Storage-profile selector at top; folders/files distinguished by type icons; file metadata (size/created/modified); breadcrumb; governed bulk actions; create-file as a proper form | `FR-012`, `FR-016`, FR1.42 | `AT_WEBUI` file-browser spec |
 | `WUI-FM-03` | W28A-651 Storage Profiles | `/storage-profiles` | Profiles from env/config appear with real data; CRUD + test-connection; read-only user denied (403) | `FR-016`, `CS-009`, `CS-012`, FR1.43 | `AT_WEBUI` profiles spec |
 | `WUI-FM-04` | W28A-651 Search | `/search` | Profile-scoped search widget returns real path/content results; read-only cannot act beyond viewing | `FR-019`, `FR-016`, FR1.42 | `AT_WEBUI` search spec |
 | `WUI-FM-05` | E2E dump | `/google-drive-settings` | OAuth config fields + connection status; only admin can modify; non-admin view-only | `FR-015`, `CS-009`, FR1.47 | `AT_WEBUI` gdrive spec |
-| `WUI-FM-06` | W28A-651 MCP/A2A | `/mcp-console`, `/a2a-console` | Tool selection injects a parameter template; results connected to submit; API-key/auth clarity | FR1.47 | `AT_WEBUI` console specs |
-| `WUI-FM-07` | W28A-651 API Docs | `/api-docs` | OpenAPI rendered via Swagger/widget; MCP tool reference; service docs rendered inline | FR1.47 | `AT_WEBUI` api-docs spec |
+| `WUI-FM-06` | W28A-651 MCP/A2A | `/developer/mcp-console`, `/developer/a2a-console` | Tool selection injects a parameter template; results connected to submit; API-key/auth clarity | FR1.47 | `AT_WEBUI` console specs |
+| `WUI-FM-07` | W28A-651 API Docs | `/developer/api-docs` | OpenAPI rendered via Swagger/widget; MCP tool reference; service docs rendered inline | FR1.47 | `AT_WEBUI` api-docs spec |
 | `WUI-FM-08` | W28A-651 Admin | `/admin/users,/groups,/api-keys,/rbac` | Populated DataTables with real data; CRUD; RBAC-aware action visibility; denial 403 | `CFG-08`–`CFG-11`, `CS-009`, FR1.47 | `AT_WEBUI` admin specs |
-| `WUI-FM-09` | W28A-651 Settings | `/settings` | Full config shown via JsonExplorer/CodeEditor; secrets masked in inspect/edit/export | `NF-002`, FR1.47 | `AT_WEBUI` settings spec |
-| `WUI-FM-10` | W28A-651 About | `/about` | Dialog is escapable (ok/cancel works); description accurate | FR1.47 | `AT_WEBUI` about spec |
+| `WUI-FM-09` | W28A-651 Settings | `/system/settings` | Full config shown via JsonExplorer/CodeEditor; secrets masked in inspect/edit/export | `NF-002`, FR1.47 | `AT_WEBUI` settings spec |
+| `WUI-FM-10` | W28A-651 About | `/system/about` | Dialog is escapable (ok/cancel works); description accurate | FR1.47 | `AT_WEBUI` about spec |
 | `WUI-FM-11` | E2E/Create-folder (CC) | `/audit-log`, Logs | File-ops audit and server logs on one governed Logs page with type filtering; NIST/PS-40 fields; 403 denials logged | `FR-022`, `NF-003` | `AT_WEBUI` logs spec; CC routed to W28E-1825 if cross-cutting |
 | `WUI-FM-12` | W28A-651 session | all | WebUI session does not die on key failure; 401/403 forces clean re-auth, never fake success | `FR-023`, `FR-024` | `AT_WEBUI` session-resilience spec |
 

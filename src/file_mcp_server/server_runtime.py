@@ -2394,12 +2394,12 @@ class HealthCheckMiddleware:
             send, status=status, body=body, content_type="application/json"
         )
 
-    async def _send_redirect(self, send, *, location: str) -> None:
+    async def _send_redirect(self, send, *, location: str, status: int = 302) -> None:
         """Handle send redirect."""
         await send(
             {
                 "type": "http.response.start",
-                "status": 302,
+                "status": status,
                 "headers": [(b"location", location.encode("utf-8"))],
             }
         )
@@ -2470,7 +2470,12 @@ class HealthCheckMiddleware:
             "/search",
             "/storage-profiles",
             "/audit-log",
-            "/api-docs",
+            "/developer/api-docs",
+            "/developer/mcp-console",
+            "/developer/a2a-console",
+            "/system/jobs",
+            "/system/settings",
+            "/system/about",
             "/idam",
             "/idam/users",
             "/idam/groups",
@@ -2485,11 +2490,57 @@ class HealthCheckMiddleware:
             "/admin/roles",
             "/admin/rbac",
             "/google-drive-settings",
+            "/api-docs",
             "/mcp-console",
             "/a2a-console",
+            "/jobs",
             "/settings",
             "/about",
         )
+
+    @staticmethod
+    def _canonical_ui_aliases() -> dict[str, str]:
+        """Return legacy WebUI aliases that must redirect to canonical routes."""
+        return {
+            "/ui/login": "/login",
+            "/auth/login": "/login",
+            "/dashboard": "/",
+            "/audit": "/audit-log",
+            "/diagnostics-audit": "/audit-log",
+            "/observability": "/audit-log",
+            "/logs": "/audit-log",
+            "/idam": "/admin/users",
+            "/idam/users": "/admin/users",
+            "/idam/groups": "/admin/groups",
+            "/idam/api-keys": "/admin/api-keys",
+            "/apikeys": "/admin/api-keys",
+            "/api-keys": "/admin/api-keys",
+            "/idam/roles": "/admin/roles",
+            "/idam/rbac": "/admin/rbac",
+            "/rbac": "/admin/rbac",
+            "/admin-identity": "/admin/users",
+            "/admin/identity": "/admin/users",
+            "/admin-rbac": "/admin/rbac",
+            "/api-docs": "/developer/api-docs",
+            "/docs": "/developer/api-docs",
+            "/openapi": "/developer/api-docs",
+            "/mcp": "/developer/mcp-console",
+            "/mcp-console": "/developer/mcp-console",
+            "/a2a": "/developer/a2a-console",
+            "/a2a-console": "/developer/a2a-console",
+            "/jobs": "/system/jobs",
+            "/settings": "/system/settings",
+            "/about": "/system/about",
+        }
+
+    def _canonical_ui_redirect_location(self, path: str, query_string: bytes) -> str | None:
+        """Return the 308 target for a legacy WebUI alias, preserving query strings."""
+        target = self._canonical_ui_aliases().get(path)
+        if target is None:
+            return None
+        if query_string:
+            return f"{target}?{query_string.decode('utf-8', errors='ignore')}"
+        return target
 
     def _is_ui_route(self, path: str) -> bool:
         """Return True if request path should serve the SPA entrypoint."""
@@ -2509,34 +2560,7 @@ class HealthCheckMiddleware:
     @staticmethod
     def _is_ui_fallback_route(path: str) -> bool:
         """Return True for non-API navigation paths that should fall back to SPA."""
-        if not path.startswith("/"):
-            return False
-        reserved_prefixes = (
-            "/api",
-            "/v1",
-            "/auth",
-            "/mcp",
-            "/a2a",
-            "/events",  # W28A-1002-APPLY-A — CFG-06 A2A events (Traefik-stripped of /a2a prefix)
-            "/.well-known",
-            "/health",
-            "/status",
-            "/openapi.json",
-            "/ready",
-            "/live",
-            "/runtime-config.js",
-            "/assets",
-            "/admin/profiles",
-            "/admin/google-drive",
-        )
-        for prefix in reserved_prefixes:
-            if path == prefix or path.startswith(f"{prefix}/"):
-                return False
-
-        last_segment = path.rsplit("/", 1)[-1]
-        if "." in last_segment:
-            return False
-        return True
+        return False
 
     def _is_write_gated_data_path(self, path: str) -> bool:
         """Return True for DATA surfaces a read-only flat role may not mutate.
@@ -4133,6 +4157,19 @@ class HealthCheckMiddleware:
             path = path[len("/v1"):]
         method = str(scope.get("method") or "").upper()
         accept = headers.get("accept", "")
+
+        if scope.get("type") == "http" and method in {"GET", "HEAD"}:
+            canonical_location = self._canonical_ui_redirect_location(
+                path,
+                scope.get("query_string", b""),
+            )
+            if canonical_location is not None:
+                await self._send_redirect(
+                    send,
+                    location=canonical_location,
+                    status=308,
+                )
+                return
 
         # Thread-a flat-role write-gate must fire before the generic
         # no-unguarded-route chokepoint so authenticated read-only users get

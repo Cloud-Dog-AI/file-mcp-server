@@ -9,12 +9,12 @@ template-last-updated: 2026-06-12
 template-owner: platform-standards
 
 project: file-mcp-server
-doc-last-updated: 2026-06-18
+doc-last-updated: 2026-06-24
 doc-git-commit: 24cd1ac046fd3b0da63e4dcfc9cbdc0188ca6947
 doc-git-branch: main
 doc-source-shas: []
 doc-age-policy: 90d
-doc-conformance-stamp: 2026-06-18T09:40:00Z
+doc-conformance-stamp: 2026-06-24T00:00:00Z
 ---
 
 # file-mcp-server — WEBUI-REFERENCE
@@ -25,7 +25,7 @@ Source files verified: `src/file_mcp_server/server_runtime.py` (`_ui_route_paths
 
 ## 1. Panel structure
 
-The SPA is served from `ui/dist/index.html`. The backend mounts it at the `/ui` base path (configurable via `FILE_MCP_HTTP_BASE_PATH`, default `/ui`) with SPA fallback for all registered client-side routes.
+The SPA is served from `ui/dist/index.html`. The backend mounts it at the `/ui` base path (configurable via `FILE_MCP_HTTP_BASE_PATH`, default `/ui`) and serves only registered client-side routes. Legacy WebUI aliases return HTTP `308` redirects to the canonical routes below.
 
 | Route | Panel | Roles | Backend route |
 |---|---|---|---|
@@ -35,20 +35,20 @@ The SPA is served from `ui/dist/index.html`. The backend mounts it at the `/ui` 
 | `/search` | Search — search paths and content | all authenticated | `POST /mcp` (`search_paths`, `search_content`) |
 | `/storage-profiles` | Storage Profiles — manage named storage backends | admin only | `GET/POST/PUT/DELETE /admin/profiles` |
 | `/audit-log` | Audit Log — read audit event stream | admin / read-write | `GET /api/v1/jobs` + audit log file |
-| `/jobs` | Jobs — view managed background jobs | all authenticated | `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}` |
-| `/api-docs` | API Docs — embedded OpenAPI explorer | all authenticated | `GET /openapi.json` |
-| `/mcp-console` | MCP Console — interactive MCP JSON-RPC testing | all authenticated | `POST /webmcp` |
-| `/a2a-console` | A2A Console — agent task submission | all authenticated | `POST /a2a/tasks` |
+| `/system/jobs` | Jobs — view managed background jobs | all authenticated | `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}` |
+| `/developer/api-docs` | API Docs — embedded OpenAPI explorer | all authenticated | `GET /openapi.json` |
+| `/developer/mcp-console` | MCP Console — interactive MCP JSON-RPC testing | all authenticated | `POST /webmcp` |
+| `/developer/a2a-console` | A2A Console — agent task submission | all authenticated | `POST /a2a/tasks` |
 | `/google-drive-settings` | Google Drive Settings — OAuth / credential config | admin only (requires `admin:google_drive` permission) | `GET/POST /admin/google-drive` |
-| `/idam/users` | Identity — Users | admin only | `GET/POST /admin/users` |
-| `/idam/groups` | Identity — Groups | admin only | `GET/POST /admin/groups` |
-| `/idam/api-keys` | Identity — API Keys | admin only | `GET/POST /admin/api-keys` |
-| `/idam/roles` | Identity — Roles | admin only | (read-only display) |
-| `/idam/rbac` | Identity — RBAC | admin only | (read-only display) |
-| `/settings` | Settings — session and UI preferences | all authenticated | client-side only |
-| `/about` | About — service version and info | all authenticated | `GET /health` |
+| `/admin/users` | Identity — Users | admin only | `GET/POST /admin/users` |
+| `/admin/groups` | Identity — Groups | admin only | `GET/POST /admin/groups` |
+| `/admin/api-keys` | Identity — API Keys | admin only | `GET/POST /admin/api-keys` |
+| `/admin/roles` | Identity — Roles | admin only | (read-only display) |
+| `/admin/rbac` | Identity — RBAC | admin only | (read-only display) |
+| `/system/settings` | Settings — session and UI preferences | all authenticated | client-side only |
+| `/system/about` | About — service version and info | all authenticated | `GET /health` |
 
-Legacy aliases (all redirect): `/dashboard` → `/`, `/admin-identity` → `/idam/users`, `/admin/identity` → `/idam/users`, `/admin/users` → `/idam/users`, `/admin/groups` → `/idam/groups`, `/admin/api-keys` → `/idam/api-keys`, `/admin/roles` → `/idam/roles`, `/admin/rbac` → `/idam/rbac`.
+Legacy aliases (all `308` redirect): `/ui/login` -> `/login`, `/dashboard` -> `/`, `/idam/users` -> `/admin/users`, `/idam/groups` -> `/admin/groups`, `/idam/api-keys` -> `/admin/api-keys`, `/idam/roles` -> `/admin/roles`, `/idam/rbac` -> `/admin/rbac`, `/admin-identity` -> `/admin/users`, `/admin/identity` -> `/admin/users`, `/api-docs` -> `/developer/api-docs`, `/mcp-console` -> `/developer/mcp-console`, `/a2a-console` -> `/developer/a2a-console`, `/jobs` -> `/system/jobs`, `/settings` -> `/system/settings`, and `/about` -> `/system/about`. Query strings are preserved.
 
 ## 2. Login
 
@@ -94,28 +94,21 @@ Registered in `server_runtime.py` `_ui_route_paths()`:
 /search
 /storage-profiles
 /audit-log
-/api-docs
-/idam
-/idam/users
-/idam/groups
-/idam/api-keys
-/idam/roles
-/idam/rbac
-/admin-identity
-/admin/identity
+/developer/api-docs
+/developer/mcp-console
+/developer/a2a-console
+/system/jobs
+/system/settings
+/system/about
 /admin/users
 /admin/groups
 /admin/api-keys
 /admin/roles
 /admin/rbac
 /google-drive-settings
-/mcp-console
-/a2a-console
-/settings
-/about
 ```
 
-Any path not in the above list, and not starting with a reserved API prefix (`/api`, `/v1`, `/auth`, `/mcp`, `/webmcp`, `/a2a`, `/health`, `/ready`, `/live`, `/status`, `/admin`, `/openapi.json`, `/runtime-config.js`, `/assets`), falls back to the SPA entry point via `_is_ui_fallback_route`.
+Unknown root-level paths do not fall back to the SPA entry point. This keeps API/admin typos visible as `404` and prevents accidental UI masking of unregistered routes.
 
 ## 5. Cross-references
 - [API-REFERENCE.md](API-REFERENCE.md)

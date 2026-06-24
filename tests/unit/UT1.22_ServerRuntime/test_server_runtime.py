@@ -232,7 +232,14 @@ profiles:
     )
 
 
-def _run_middleware_request(middleware, *, path: str, method: str = "GET", headers=None):
+def _run_middleware_request(
+    middleware,
+    *,
+    path: str,
+    method: str = "GET",
+    headers=None,
+    query_string: bytes = b"",
+):
     sent: list[dict] = []
 
     async def _run() -> None:
@@ -241,7 +248,7 @@ def _run_middleware_request(middleware, *, path: str, method: str = "GET", heade
             "method": method,
             "path": path,
             "headers": headers or [],
-            "query_string": b"",
+            "query_string": query_string,
         }
 
         async def receive():
@@ -1452,22 +1459,118 @@ def test_ui_routes_serve_spa_index_from_configured_dist(tmp_path) -> None:
     try:
         for route in (
             "/ui",
-            "/ui/dashboard",
-            "/dashboard",
-            "/unknown-route-that-does-not-exist",
-            "/jobs",
-            "/api-docs",
+            "/system/jobs",
+            "/developer/api-docs",
             "/admin/users",
             "/admin/groups",
             "/admin/api-keys",
-            "/mcp-console",
-            "/a2a-console",
+            "/developer/mcp-console",
+            "/developer/a2a-console",
+            "/system/settings",
+            "/system/about",
         ):
             sent = _run_middleware_request(
                 middleware, path=route, headers=[(b"accept", b"text/html")]
             )
             assert sent[0]["status"] == 200
             assert b"file-mcp-ui-shell" in sent[1]["body"]
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+
+
+def test_unknown_root_webui_route_does_not_fallback_to_spa(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        sent = _run_middleware_request(
+            middleware,
+            path="/unknown-route-that-does-not-exist",
+            headers=[(b"accept", b"text/html")],
+        )
+        assert sent[0]["status"] == 404
+        assert b"file-mcp-ui-shell" not in sent[1]["body"]
+    finally:
+        if prev_ui_dist is None:
+            runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)
+        else:
+            runtime_env["FILE_MCP_UI_DIST_PATH"] = prev_ui_dist
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+
+
+def test_legacy_webui_aliases_redirect_to_canonical_routes(tmp_path) -> None:
+    prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
+    dist = tmp_path / "ui-dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        "<!doctype html><html><body>file-mcp-ui-shell</body></html>",
+        encoding="utf-8",
+    )
+    runtime_env["FILE_MCP_UI_DIST_PATH"] = str(dist)
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+
+    try:
+        for route, target in (
+            ("/ui/login", "/login"),
+            ("/idam/users", "/admin/users"),
+            ("/api-docs", "/developer/api-docs"),
+            ("/mcp-console", "/developer/mcp-console"),
+            ("/a2a-console", "/developer/a2a-console"),
+            ("/jobs", "/system/jobs"),
+            ("/settings", "/system/settings"),
+            ("/about", "/system/about"),
+        ):
+            sent = _run_middleware_request(
+                middleware,
+                path=route,
+                headers=[(b"accept", b"text/html")],
+            )
+            assert sent[0]["status"] == 308
+            assert dict(sent[0]["headers"])[b"location"] == target.encode("utf-8")
+
+        sent = _run_middleware_request(
+            middleware,
+            path="/mcp-console",
+            headers=[(b"accept", b"text/html")],
+            query_string=b"profile=google_drive",
+        )
+        assert sent[0]["status"] == 308
+        assert dict(sent[0]["headers"])[b"location"] == b"/developer/mcp-console?profile=google_drive"
     finally:
         if prev_ui_dist is None:
             runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)

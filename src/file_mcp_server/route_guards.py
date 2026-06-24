@@ -103,24 +103,22 @@ FILE_MCP_AUTH_PATHS: frozenset[tuple[str, str]] = frozenset({
 _FILE_MCP_UI_STATIC_PATHS: frozenset[str] = frozenset({
     "/",
     "/runtime-config.js",
-    "/dashboard",
     "/search",
-    "/settings",
-    "/about",
+    "/system/settings",
+    "/system/about",
     "/file-browser",
     "/storage-profiles",
     "/audit-log",
-    "/api-docs",
-    "/mcp-console",
-    "/a2a-console",
+    "/developer/api-docs",
+    "/developer/mcp-console",
+    "/developer/a2a-console",
+    "/system/jobs",
     "/google-drive-settings",
-    "/admin-identity",
-    "/idam",
-    "/idam/users",
-    "/idam/groups",
-    "/idam/roles",
-    "/idam/rbac",
-    "/idam/api-keys",
+    "/admin/users",
+    "/admin/groups",
+    "/admin/roles",
+    "/admin/rbac",
+    "/admin/api-keys",
     "/login",
     "/logout",
 })
@@ -164,18 +162,7 @@ def _is_ui_path(path: str, *, ui_base_path: str = "/ui") -> bool:
         path == ui_base_path or path.startswith(f"{ui_base_path}/")
     ):
         return True
-    # UI fallback route: any path that does NOT start with a reserved prefix
-    # AND whose last segment contains no ``.`` (per server_runtime.py
-    # _is_ui_fallback_route).
-    if not path.startswith("/"):
-        return False
-    for prefix in _UI_RESERVED_PREFIXES:
-        if path == prefix or path.startswith(f"{prefix}/"):
-            return False
-    last_segment = path.rsplit("/", 1)[-1]
-    if "." in last_segment:
-        return False
-    return True
+    return False
 
 
 # ───────────────────────── (4) IDAM-V1 PATHS ─────────────────────────
