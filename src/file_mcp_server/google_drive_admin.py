@@ -488,6 +488,24 @@ def _merge_google_drive_into_profile(
     return profile_mapping
 
 
+# OAuth secret fields that MUST never be written to config.yaml (operator mandate
+# / RULES §1.4 §2.3). Their sole durable home is the file_storage_profiles DB row.
+_GDRIVE_SECRET_FIELDS = ("refresh_token", "access_token", "client_secret")
+
+
+def _strip_google_drive_secrets(profile_mapping: Dict) -> Dict:
+    """Remove OAuth secrets from a profile mapping IN-PLACE before it is written
+    to config.yaml. The DB row keeps the full credential set; config.yaml keeps
+    only the non-secret structure."""
+    storage = profile_mapping.get("storage") if isinstance(profile_mapping, dict) else None
+    if isinstance(storage, dict):
+        drive = storage.get("google_drive")
+        if isinstance(drive, dict):
+            for key in _GDRIVE_SECRET_FIELDS:
+                drive.pop(key, None)
+    return profile_mapping
+
+
 def _update_profile_google_drive(
     *,
     config_path: Path,
@@ -502,14 +520,17 @@ def _update_profile_google_drive(
     redirect_uri: str,
     token_uri: str,
 ) -> None:
-    """Update the in-image config.yaml (in-flight diagnostic ONLY).
+    """Update the in-image config.yaml profile STRUCTURE (no secrets).
 
-    W28C-1702 (FM8): the canonical durable home for these tokens is the
+    W28C-1702 (FM8) + W28M-1605-FIX (operator mandate / RULES §1.4 §2.3): OAuth
+    secrets (``refresh_token`` / ``access_token`` / ``client_secret``) are NEVER
+    written to config.yaml — config.yaml is the ephemeral image layer, lost on
+    every container recreate. The SOLE durable home for the secrets is the
     ``file_storage_profiles`` DB row written by
-    ``_persist_profile_google_drive_to_db``. This config.yaml update is a
-    convenience for in-flight inspection (``grep google_drive
-    /app/config.yaml``) and is OVERWRITTEN on every container recreate — DO
-    NOT rely on it for durability.
+    ``_persist_profile_google_drive_to_db`` (on the bind-mounted ``/workspace``
+    volume). This function only records the non-secret profile structure
+    (backend, folder, user_email, client_id, redirect/token URIs) so the profile
+    is visible/inspectable; the secrets are stripped before the file is written.
     """
     raw = load_yaml(str(config_path), missing_ok=True)
     raw.setdefault("profiles", {})
@@ -532,6 +553,8 @@ def _update_profile_google_drive(
         redirect_uri=redirect_uri,
         token_uri=token_uri,
     )
+    # NEVER persist OAuth secrets to config.yaml — strip them before writing.
+    _strip_google_drive_secrets(prof)
     config_path.write_text(safe_dump(raw, sort_keys=False), encoding="utf-8")
 
 
@@ -647,18 +670,28 @@ def complete_oauth_callback(
 
     W28C-1702 (FM8): callers SHOULD supply ``db_session_manager`` +
     ``file_storage_profile_model`` + ``reload_callback`` so captured OAuth
-    tokens persist to the DB (the only durable home — ``/app/config.yaml`` is
-    ephemeral and lost on container recreate) and the runtime backend refreshes
-    live without a container restart. When the DB args are omitted the function
-    falls back to the legacy config.yaml-only behaviour for backward compat, but
-    the caller MUST surface that the tokens are NOT durable.
+    tokens persist to the DB (the ONLY durable home — ``/app/config.yaml`` is
+    ephemeral and lost on container recreate, and OAuth secrets are never written
+    there). W28M-1605-FIX: the durable DB store is now MANDATORY — the callback
+    refuses to complete without ``db_session_manager`` + ``file_storage_profile_model``
+    rather than silently leaving the credentials non-durable.
     """
+    # W28M-1605-FIX: fail fast — the DB is the SOLE durable credential store.
+    # config.yaml never holds the secrets, so without the DB the tokens would not
+    # persist at all. Refuse BEFORE consuming the one-time OAuth code.
+    if db_session_manager is None or file_storage_profile_model is None:
+        raise RuntimeError(
+            "Google Drive OAuth completion requires a durable database store "
+            "(db_session_manager + file_storage_profile_model). Refusing to complete: "
+            "OAuth secrets are never written to config.yaml, so without the DB the "
+            "captured credentials would be lost on container recreate."
+        )
     pending = _take_pending(state)
     access_token, refresh_token = _exchange_code(pending, code)
     folder_id, folder_name, folder_url = _fetch_folder(
         access_token, pending.folder_input, api_base_uri=pending.api_base_uri
     )
-    # In-image config.yaml: in-flight diagnostic / inspection (ephemeral).
+    # In-image config.yaml: NON-SECRET profile structure only (secrets stripped).
     _update_profile_google_drive(
         config_path=config_path,
         profile=pending.profile,
@@ -674,6 +707,7 @@ def complete_oauth_callback(
     )
     # DURABLE persistence: DB row (the only path that survives container
     # recreate — RULES §0A.WS bind-mounted /workspace volume + W28M-1603 brief).
+    # Guaranteed present by the guard above.
     db_row_id = None
     if db_session_manager is not None and file_storage_profile_model is not None:
         db_row_id = _persist_profile_google_drive_to_db(

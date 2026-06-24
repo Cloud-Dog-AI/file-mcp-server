@@ -3299,6 +3299,36 @@ class HealthCheckMiddleware:
             except Exception:
                 return empty_values
 
+    def _db_google_profile_presence(self, profile_name: str) -> tuple[bool, bool]:
+        """Return ``(auth_present, setup_present)`` for a Google Drive profile from
+        the durable ``file_storage_profiles`` DB row — the SOLE home for the OAuth
+        secrets after W28M-1605-FIX (config.yaml no longer stores them). Returns
+        ``(False, False)`` when the DB or row is unavailable."""
+        if self.db_runtime is None:
+            return (False, False)
+        try:
+            with self.db_runtime.session_manager.session() as session:
+                row = (
+                    session.query(FileStorageProfile)
+                    .filter_by(name=profile_name, is_active=True)
+                    .first()
+                )
+                if row is None or not row.config_json:
+                    return (False, False)
+                cfg = json.loads(row.config_json)
+                drive = ((cfg.get("storage") or {}).get("google_drive")) or {}
+                if not isinstance(drive, dict):
+                    return (False, False)
+                auth_present = bool(drive.get("refresh_token") or drive.get("access_token"))
+                setup_present = bool(
+                    drive.get("client_id")
+                    and drive.get("client_secret")
+                    and (drive.get("folder_id") or drive.get("folder_url"))
+                )
+                return (auth_present, setup_present)
+        except Exception:
+            return (False, False)
+
     def _read_profile_metadata(self) -> dict[str, dict[str, Any]]:
         """Handle read profile metadata."""
         config_path_str = self.active_config
@@ -3342,10 +3372,16 @@ class HealthCheckMiddleware:
                     )
                     access_token = self._resolve_config_value(gcfg.get("access_token"))
                     auth_present = bool(refresh_token or access_token)
-                    metadata["google_auth_required"] = not auth_present
-                    metadata["google_setup_present"] = bool(
+                    setup_present = bool(
                         client_id and client_secret and (folder_id or folder_url)
                     )
+                    # W28M-1605-FIX: OAuth secrets (refresh/access token,
+                    # client_secret) live ONLY in the durable DB row now — never
+                    # in config.yaml. Consult the DB so the status reflects the
+                    # real credential state instead of falsely demanding re-auth.
+                    db_auth, db_setup = self._db_google_profile_presence(str(name))
+                    metadata["google_auth_required"] = not (auth_present or db_auth)
+                    metadata["google_setup_present"] = setup_present or db_setup
             summary[str(name)] = metadata
         return summary
 
