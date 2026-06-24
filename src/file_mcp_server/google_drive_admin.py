@@ -16,7 +16,7 @@
 
 License: Apache 2.0
 Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
-Description: Handles OAuth start/callback, folder validation, and profile config updates.
+Description: Handles OAuth start/callback, folder validation, and DB-backed profile updates.
 """
 
 from __future__ import annotations
@@ -30,10 +30,8 @@ import secrets
 from typing import Dict
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
 from file_tools.adapters import get as http_get
 from file_tools.adapters import post as http_post
-from file_tools.adapters import safe_dump
 
 
 MASKED_CLIENT_SECRET = "********"
@@ -573,8 +571,8 @@ def _merge_google_drive_into_profile(
 ) -> Dict:
     """In-place: set the google_drive storage block on a profile mapping.
 
-    W28C-1702 (FM8): shared by the ephemeral config.yaml writer and the durable
-    DB-row persister so both produce the same google_drive block.
+    W28C-1702 (FM8): used by the durable DB-row persister so Google Drive
+    profile material is stored outside immutable runtime YAML config files.
     """
     storage = profile_mapping.setdefault("storage", {})
     if not isinstance(storage, dict):
@@ -593,77 +591,6 @@ def _merge_google_drive_into_profile(
     drive["redirect_uri"] = redirect_uri
     drive["token_uri"] = token_uri
     return profile_mapping
-
-
-# OAuth secret fields that MUST never be written to config.yaml (operator mandate
-# / RULES §1.4 §2.3). Their sole durable home is the file_storage_profiles DB row.
-_GDRIVE_SECRET_FIELDS = ("refresh_token", "access_token", "client_secret")
-
-
-def _strip_google_drive_secrets(profile_mapping: Dict) -> Dict:
-    """Remove OAuth secrets from a profile mapping IN-PLACE before it is written
-    to config.yaml. The DB row keeps the full credential set; config.yaml keeps
-    only the non-secret structure."""
-    storage = profile_mapping.get("storage") if isinstance(profile_mapping, dict) else None
-    if isinstance(storage, dict):
-        drive = storage.get("google_drive")
-        if isinstance(drive, dict):
-            for key in _GDRIVE_SECRET_FIELDS:
-                drive.pop(key, None)
-    return profile_mapping
-
-
-def _update_profile_google_drive(
-    *,
-    config_path: Path,
-    profile: str,
-    user_email: str,
-    folder_id: str,
-    folder_url: str,
-    client_id: str,
-    client_secret: str,
-    refresh_token: str,
-    access_token: str,
-    redirect_uri: str,
-    token_uri: str,
-) -> None:
-    """Update the in-image config.yaml profile STRUCTURE (no secrets).
-
-    W28C-1702 (FM8) + W28M-1605-FIX (operator mandate / RULES §1.4 §2.3): OAuth
-    secrets (``refresh_token`` / ``access_token`` / ``client_secret``) are NEVER
-    written to config.yaml — config.yaml is the ephemeral image layer, lost on
-    every container recreate. The SOLE durable home for the secrets is the
-    ``file_storage_profiles`` DB row written by
-    ``_persist_profile_google_drive_to_db`` (on the bind-mounted ``/workspace``
-    volume). This function only records the non-secret profile structure
-    (backend, folder, user_email, client_id, redirect/token URIs) so the profile
-    is visible/inspectable; the secrets are stripped before the file is written.
-    """
-    raw = load_yaml(str(config_path), missing_ok=True)
-    raw.setdefault("profiles", {})
-    profiles = raw["profiles"]
-    if not isinstance(profiles, dict):
-        raise RuntimeError("profiles is not a mapping")
-    profiles.setdefault(profile, {})
-    prof = profiles[profile]
-    if not isinstance(prof, dict):
-        raise RuntimeError(f"profile {profile} is not a mapping")
-    _merge_google_drive_into_profile(
-        prof,
-        user_email=user_email,
-        folder_id=folder_id,
-        folder_url=folder_url,
-        client_id=client_id,
-        client_secret=client_secret,
-        refresh_token=refresh_token,
-        access_token=access_token,
-        redirect_uri=redirect_uri,
-        token_uri=token_uri,
-    )
-    # NEVER persist OAuth secrets to config.yaml — strip them before writing.
-    _strip_google_drive_secrets(prof)
-    config_path.write_text(safe_dump(raw, sort_keys=False), encoding="utf-8")
-
 
 def _persist_profile_google_drive_to_db(
     *,
@@ -798,22 +725,10 @@ def complete_oauth_callback(
     folder_id, folder_name, folder_url = _fetch_folder(
         access_token, pending.folder_input, api_base_uri=pending.api_base_uri
     )
-    # In-image config.yaml: NON-SECRET profile structure only (secrets stripped).
-    _update_profile_google_drive(
-        config_path=config_path,
-        profile=pending.profile,
-        user_email=pending.user_email,
-        folder_id=folder_id,
-        folder_url=folder_url,
-        client_id=pending.client_id,
-        client_secret=pending.client_secret,
-        refresh_token=refresh_token,
-        access_token=access_token,
-        redirect_uri=pending.redirect_uri,
-        token_uri=pending.token_uri,
-    )
     # DURABLE persistence: DB row (the only path that survives container
     # recreate — RULES §0A.WS bind-mounted /workspace volume + W28M-1603 brief).
+    # config.yaml/default.yaml/defaults.yaml are immutable runtime inputs and are
+    # not updated by the OAuth callback.
     # Guaranteed present by the guard above.
     db_row_id = None
     if db_session_manager is not None and file_storage_profile_model is not None:

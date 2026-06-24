@@ -142,7 +142,6 @@ from file_tools.convert import (
 )
 from file_tools.limits import LimitError, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
-from file_tools.adapters.yaml_codec import safe_dump
 from starlette.requests import HTTPConnection
 from mcp.server.auth.middleware.auth_context import get_access_token
 
@@ -3163,15 +3162,6 @@ class HealthCheckMiddleware:
         if not isinstance(parsed.get("profiles"), dict):
             parsed["profiles"] = {}
         return parsed
-
-    def _write_config_document(self, document: dict[str, Any]) -> None:
-        """Persist active config YAML document."""
-        config_path_str = self.active_config
-        path_utils.mkdir(path_utils.parent(config_path_str))
-        path_utils.write_text(
-            config_path_str,
-            safe_dump(document, sort_keys=False),
-        )
 
     async def _is_a2a_authorized(
         self, *, scope: dict[str, Any], headers: dict[str, str]

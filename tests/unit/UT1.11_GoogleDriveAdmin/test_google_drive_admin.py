@@ -92,15 +92,10 @@ def test_render_setup_page_prefills_values_and_masks_stored_secret() -> None:
 @pytest.mark.req("FR-015")
 
 
-def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> None:
-    cfg = tmp_path / "config.yaml"
-    cfg.write_text(
-        "profiles:\n  default:\n    storage:\n      backend: local\n  profile2:\n    storage:\n      backend: local\n",
-        encoding="utf-8",
-    )
-    admin._update_profile_google_drive(
-        config_path=cfg,
-        profile="profile2",
+def test_merge_google_drive_into_profile_builds_db_profile_payload() -> None:
+    profile = {"storage": {"backend": "local"}}
+    admin._merge_google_drive_into_profile(
+        profile,
         user_email="u@example.com",
         folder_id="folder123",
         folder_url="https://drive.google.com/drive/folders/folder123",
@@ -111,28 +106,30 @@ def test_update_profile_google_drive_writes_selected_profile(tmp_path: Path) -> 
         redirect_uri="http://localhost",
         token_uri="https://oauth2.googleapis.com/token",
     )
-    content = cfg.read_text(encoding="utf-8")
-    assert "profile2" in content
-    assert "backend: google_drive" in content
-    assert "folder123" in content
-    assert "client_id: cid" in content
+    storage = profile["storage"]
+    assert storage["backend"] == "google_drive"
+    drive = storage["google_drive"]
+    assert drive["folder_id"] == "folder123"
+    assert drive["client_id"] == "cid"
+    assert drive["refresh_token"] == "rtok"
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-015")
 
 
-def test_complete_oauth_callback_persists_to_db_and_never_leaks_secrets_to_config(
+def test_complete_oauth_callback_persists_to_db_and_does_not_mutate_config_yaml(
     tmp_path: Path, monkeypatch
 ) -> None:
     """W28M-1605-FIX: the callback (1) REFUSES without a durable DB store, and
-    (2) with the DB writes the OAuth secrets ONLY to the file_storage_profiles
-    row — config.yaml keeps the non-secret structure but never the secrets."""
+    (2) with the DB writes Google Drive profile material ONLY to the
+    file_storage_profiles row. Runtime config.yaml remains immutable."""
     import json as _json
 
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
         "profiles:\n  default:\n    storage:\n      backend: local\n", encoding="utf-8"
     )
+    original_config = cfg.read_text(encoding="utf-8")
     # distinctive secret values so a substring leak is unambiguous
     A_TOK, R_TOK, C_SECRET = "ATOK_w28m1605_uniq", "RTOK_w28m1605_uniq", "CSECRET_w28m1605_uniq"
     monkeypatch.setattr(admin, "_exchange_code", lambda pending, code: (A_TOK, R_TOK))
@@ -167,7 +164,7 @@ def test_complete_oauth_callback_persists_to_db_and_never_leaks_secrets_to_confi
     with pytest.raises(RuntimeError, match="durable database"):
         admin.complete_oauth_callback(state="state-nodb", code="c", config_path=cfg)
 
-    # 2) with the DB: config.yaml gets the STRUCTURE but NO secrets; DB gets the creds
+    # 2) with the DB: config.yaml is unchanged; DB gets the full profile material.
     monkeypatch.setenv("FILE_MCP_DB_URL", f"sqlite:///{tmp_path}/db/file_mcp.db")
     from file_mcp_server.db.runtime import initialise_database
     from file_mcp_server.db.models import FileStorageProfile
@@ -185,9 +182,9 @@ def test_complete_oauth_callback_persists_to_db_and_never_leaks_secrets_to_confi
     assert result.folder_id == "folder1"
 
     updated = cfg.read_text(encoding="utf-8")
-    assert "backend: google_drive" in updated  # non-secret structure kept
+    assert updated == original_config
     for secret in (A_TOK, R_TOK, C_SECRET):
-        assert secret not in updated  # secrets NEVER written to config.yaml
+        assert secret not in updated
 
     with rt.session_manager.session() as session:
         row = (
