@@ -136,6 +136,113 @@ def parse_form_urlencoded(body: bytes) -> dict[str, str]:
     return {k: (v[0] if v else "") for k, v in parsed.items()}
 
 
+# Shared admin-page styling (platform-consistent: clean card on the Cloud-Dog
+# gradient, system font stack, accessible focus/contrast). Used by the setup and
+# link-success pages so the server-rendered admin flow matches the platform UI.
+_ADMIN_PAGE_CSS = """
+  :root{--bg1:#0b1220;--bg2:#1e293b;--card:#ffffff;--fg:#1f2933;--muted:#5b6675;
+        --border:#e3e8ef;--accent:#2563eb;--accent-d:#1d4ed8;--ok:#15803d;--ok-bg:#ecfdf3;--ok-bd:#abefc6;}
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       margin:0;min-height:100vh;color:var(--fg);background:linear-gradient(135deg,var(--bg1),var(--bg2));
+       display:flex;align-items:center;justify-content:center;padding:24px;line-height:1.5;}
+  .card{background:var(--card);width:100%;max-width:600px;border-radius:16px;
+        box-shadow:0 24px 60px rgba(2,6,23,.45);overflow:hidden;}
+  .card__body{padding:36px 40px 40px;}
+  .brand{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .badge{width:64px;height:64px;border-radius:50%;background:var(--ok-bg);border:1px solid var(--ok-bd);
+         display:flex;align-items:center;justify-content:center;margin:18px 0 8px;}
+  .badge svg{width:32px;height:32px;color:var(--ok);}
+  h1{font-size:1.5rem;margin:.3rem 0 .4rem;}
+  .muted{color:var(--muted);}
+  dl{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:22px 0 10px;
+     padding:16px 18px;background:#f8fafc;border:1px solid var(--border);border-radius:12px;font-size:.95rem;}
+  dt{color:var(--muted);font-weight:600;} dd{margin:0;font-weight:600;word-break:break-word;}
+  .note{display:flex;gap:10px;align-items:flex-start;margin-top:16px;padding:12px 14px;border-radius:10px;
+        background:var(--ok-bg);border:1px solid var(--ok-bd);color:#14532d;font-size:.9rem;}
+  .note svg{flex:none;margin-top:1px;color:var(--ok);}
+  .actions{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;}
+  .btn{appearance:none;border:0;cursor:pointer;text-decoration:none;font-weight:600;font-size:.95rem;
+       padding:11px 18px;border-radius:10px;display:inline-flex;align-items:center;gap:8px;}
+  .btn--primary{background:var(--accent);color:#fff;} .btn--primary:hover{background:var(--accent-d);}
+  .btn--ghost{background:#fff;color:var(--fg);border:1px solid var(--border);} .btn--ghost:hover{background:#f1f5f9;}
+  a.link{color:var(--accent);text-decoration:none;font-weight:600;} a.link:hover{text-decoration:underline;}
+  a:focus-visible,button:focus-visible{outline:3px solid #93c5fd;outline-offset:2px;}
+"""
+
+
+def render_link_success_page(
+    result: "GoogleDriveBindResult",
+    *,
+    continue_url: str = "/admin/google-drive",
+    persisted: bool = True,
+) -> str:
+    """Render the styled, platform-consistent Google Drive link-success page.
+
+    Operator/client-facing: shows the linked folder + a durable-storage assurance
+    and clear continue links. It NEVER exposes internal paths (config.yaml) or DB
+    row ids — those remain server-side audit detail only (logged, not rendered)."""
+    profile = escape(result.profile or "google_drive")
+    folder = escape(result.folder_name or "Google Drive folder")
+    folder_url = (result.folder_url or "").strip()
+    safe_url = escape(folder_url)
+    open_btn = (
+        f'<a class="btn btn--ghost" href="{safe_url}" target="_blank" rel="noopener">Open in Drive</a>'
+        if folder_url
+        else ""
+    )
+    folder_link = (
+        f'<p style="margin:.2rem 0 0"><a class="link" href="{safe_url}" target="_blank" '
+        f'rel="noopener">Open folder in Google Drive &#8599;</a></p>'
+        if folder_url
+        else ""
+    )
+    note = (
+        "Saved securely. Your Google Drive connection is stored in the server database "
+        "and will persist across restarts and container recreates."
+        if persisted
+        else "Connection applied for this session, but it was NOT saved durably. "
+        "Please contact an administrator."
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google Drive linked</title>
+  <style>{_ADMIN_PAGE_CSS}</style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="card__body">
+      <div class="brand">Cloud-Dog &middot; File MCP</div>
+      <div class="badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+      <h1>Google Drive linked successfully</h1>
+      <p class="muted">Your Google Drive folder is now connected to the <b>{profile}</b> profile.</p>
+      <dl>
+        <dt>Profile</dt><dd>{profile}</dd>
+        <dt>Folder</dt><dd>{folder}</dd>
+      </dl>
+      {folder_link}
+      <div class="note" role="status">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11"
+             width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>{escape(note)}</span>
+      </div>
+      <div class="actions">
+        <a class="btn btn--primary" href="{escape(continue_url)}">Continue</a>
+        {open_btn}
+      </div>
+    </div>
+  </main>
+</body>
+</html>"""
+
+
 def render_setup_page(
     *,
     callback_url: str,

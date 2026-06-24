@@ -161,6 +161,7 @@ from .google_drive_admin import (
     begin_oauth,
     complete_oauth_callback,
     parse_form_urlencoded,
+    render_link_success_page,
     render_setup_page,
 )
 from .admin_identity import AdminIdentityError, AdminIdentityService
@@ -5657,14 +5658,13 @@ class HealthCheckMiddleware:
                         reload_message = f"Config written but hot-reload failed: {exc}"
                 else:
                     reload_message = "Restart server to apply updated config."
-                html = (
-                    "<h1>Google Drive linked successfully</h1>"
-                    f"<p>Profile: <b>{result.profile}</b></p>"
-                    f"<p>Folder: <b>{result.folder_name}</b> ({result.folder_id})</p>"
-                    f"<p>Config updated: <code>{result.config_path}</code></p>"
-                    f"<p>DB row: <code>{result.db_row_id or '(not persisted)'}</code></p>"
-                    f'<p>Folder URL: <a href="{result.folder_url}">{result.folder_url}</a></p>'
-                    f"<p>{escape(reload_message)}</p>"
+                # Styled, platform-consistent success page. Internal detail
+                # (config.yaml path, DB row id, durability narration) is logged
+                # server-side for audit but NEVER rendered to the user.
+                html = render_link_success_page(
+                    result,
+                    continue_url="/admin/google-drive",
+                    persisted=result.db_row_id is not None,
                 )
                 self.logger.info(
                     "admin_google_drive_callback_success",
@@ -5673,6 +5673,7 @@ class HealthCheckMiddleware:
                         "folder_id": result.folder_id,
                         "config_path": result.config_path,
                         "db_row_id": result.db_row_id,
+                        "reload_message": reload_message,
                     },
                 )
                 await self._send_html(send, status=200, html=html)

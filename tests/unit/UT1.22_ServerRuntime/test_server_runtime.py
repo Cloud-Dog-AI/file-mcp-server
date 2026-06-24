@@ -2221,7 +2221,11 @@ def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
         assert sent[0]["status"] == 200
         body = sent[1]["body"].decode("utf-8")
         assert "Google Drive linked successfully" in body
-        assert "hot-reloaded" in body
+        # W28M-1605-FIX: styled success page (full HTML doc, continue link) that
+        # leaks NO internal detail (config.yaml path / DB row id) to the user.
+        assert body.lstrip().startswith("<!doctype html>")
+        assert 'href="/admin/google-drive"' in body
+        assert "config.yaml" not in body
         assert len(reload_calls) == 1
     finally:
         if prev_enabled is None:

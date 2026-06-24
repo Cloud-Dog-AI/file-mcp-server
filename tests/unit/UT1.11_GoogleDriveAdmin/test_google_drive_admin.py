@@ -245,3 +245,40 @@ def test_fetch_folder_falls_back_to_name_lookup_on_404(monkeypatch) -> None:
     assert folder_name == "Test"
     assert "folder123" in folder_url
     assert calls["n"] == 2
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-015")
+def test_render_link_success_page_is_styled_linked_and_leak_free() -> None:
+    """W28M-1605-FIX: the Google Drive link-success page is a full, styled HTML
+    document with continue links and NO internal leaks (config.yaml path / DB row id)."""
+    result = admin.GoogleDriveBindResult(
+        profile="google_drive",
+        user_email="demo@cloud-dog.net",
+        folder_id="FID-123",
+        folder_name="tests",
+        folder_url="https://drive.google.com/drive/folders/FID-123",
+        config_path="/app/config.yaml",
+        db_row_id="prof_225287ce97c9",
+    )
+    html = admin.render_link_success_page(result, continue_url="/admin/google-drive")
+    # styled, rendered full document
+    assert html.lstrip().startswith("<!doctype html>")
+    assert "<style>" in html and "</style>" in html
+    assert "<title>" in html
+    # continue link present
+    assert 'href="/admin/google-drive"' in html
+    assert "Continue" in html
+    # surfaces the linked folder + folder link
+    assert "tests" in html
+    assert "https://drive.google.com/drive/folders/FID-123" in html
+    # NEVER leaks internal detail
+    assert "/app/config.yaml" not in html
+    assert "prof_225287ce97c9" not in html
+    assert "DB row" not in html
+    # not-persisted variant warns (still no leaks)
+    result.db_row_id = None
+    warn_html = admin.render_link_success_page(result, persisted=False)
+    assert "not saved durably" in warn_html.lower()
+    assert "/app/config.yaml" not in warn_html
