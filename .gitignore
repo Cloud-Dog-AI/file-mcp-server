@@ -41,3 +41,7 @@ node_modules
 *.tfstate
 working/w28a-*-screenshots/
 node_modules/
+tests/private/
+docker-env.local
+*.env.resolved
+**/.session_secret
