@@ -111,7 +111,7 @@ if [[ -n "${PYPI_URL:-}" ]]; then
 elif [[ "${VARIANT}" == "public" ]]; then
   PYPI_URL="https://pypi.org/simple"
 else
-  PYPI_URL="https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple"
+  PYPI_URL="https://pypi.cloud-dog.net/simple"
 fi
 PYPI_USERNAME="${PYPI_USERNAME:-}"
 PYPI_PASSWORD="${PYPI_PASSWORD:-}"

@@ -2078,19 +2078,15 @@ class HealthCheckMiddleware:
                 if sess and _time.time() - sess.get("_created", 0) < 3600:
                     return sess
                 self._sessions.pop(token, None)
-        fallback_enabled = str(
-            read_env_var("FILE_MCP_UI_COOKIE_SESSION_FALLBACK") or ""
-        ).strip() in {"1", "true", "yes"} or str(
-            read_env_var("FILE_MCP_UI_AUTH_MODE") or "cookie"
-        ).strip() == "cookie"
-        if fallback_enabled:
-            active = [
-                sess
-                for sess in self._sessions.values()
-                if sess and _time.time() - sess.get("_created", 0) < 3600
-            ]
-            if active:
-                return sorted(active, key=lambda item: item.get("_created", 0), reverse=True)[0]
+        # W28E-1837 SECURITY FIX: a request whose cookie does not match a stored,
+        # unexpired session is ANONYMOUS. The previous "cookie session fallback"
+        # (which returned the most-recent active session to ANY cookieless caller
+        # whenever auth_mode defaulted to "cookie") leaked the last-authenticated
+        # principal — e.g. /auth/me returned an admin principal to an anonymous
+        # caller after any admin login. Per route_guards.py and PS-82 §3.1, an
+        # unauthenticated caller MUST resolve to None (-> 401 / {user:null}); a
+        # session is only ever returned when the caller presents its own valid
+        # session cookie token (matched above). No global-session fallback.
         return None
 
     async def _handle_auth_login(self, receive, send, headers: dict[str, str]) -> bool:

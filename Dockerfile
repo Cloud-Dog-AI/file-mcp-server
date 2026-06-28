@@ -38,12 +38,13 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
-# Install platform packages from public Gitea PyPI per §3.2.0, then remaining deps from REQUIREMENTS.
-ARG PYPI_URL=https://gitea.cloud-dog.net/api/packages/Cloud-Dog-External/pypi/simple
+# Install platform packages from the internal package index per §3.2.0, then remaining deps from REQUIREMENTS.
+ARG PYPI_URL=https://pypi.cloud-dog.net/simple
+ARG PYPI_TRUSTED_HOST=pypi.cloud-dog.net
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir \
       --extra-index-url ${PYPI_URL} \
-      --trusted-host gitea.cloud-dog.net \
+      --trusted-host ${PYPI_TRUSTED_HOST} \
       --trusted-host files.pythonhosted.org \
       cloud-dog-config \
       cloud-dog-logging \
