@@ -346,3 +346,37 @@ Playwright/E2E targets. No Playwright is authored in Stream-A.
 7. CRUD-applicable entities (storage profiles, users, groups, API keys) have C/R/U/D coverage.
 8. W28C-1711-R3 `@pytest.mark.probe` orphans were rebound to semantic `@pytest.mark.req(...)`;
    no probe markers remain (`tests/conftest.py` enforces tier + surface + `req()` on every test).
+
+
+<!-- W28E-1854 PS-PREPROD-DEPLOY-SMOKE rollout (2026-06-29) -->
+
+## W28E-1854 — PS-PREPROD-DEPLOY-SMOKE (preprod deployment smoke)
+
+Binding standard: `cloud-dog-ai-platform-standards/docs/standards/PS-PREPROD-DEPLOY-SMOKE.md`
+(PDS-001..PDS-013 + sibling sentinels). Lesson origin: AGENT-LESSONS §6.157 — a
+deployed service can answer health checks while its WebUI login flow crashes blank
+post-login. Health-only / route-only / local-only proof is NOT acceptance; this
+gate runs a real browser AFTER the final deployed digest is live.
+
+- **Smoke command (service entry point):**
+  `E2E_WEB_PASSWORD="<approved preprod admin password>" bash tests/smoke/run-preprod-deploy-smoke.sh`
+- **SSOT spec:** `cloud-dog-ai-ui-monorepo/apps/file-mcp/tests/e2e/preprod-deploy-smoke.spec.ts`
+- **Dedicated Playwright config (no local webServer):** `cloud-dog-ai-ui-monorepo/apps/file-mcp/playwright.preprod-smoke.config.ts`
+- **Required config keys (no hardcoded secrets):** `E2E_BASE_URL`
+  (default `https://filemcpserver0.cloud-dog.net`), `E2E_WEB_USERNAME` (default `admin`),
+  `E2E_WEB_PASSWORD` / `CLOUD_DOG_WEB_LOGIN_PASSWORD` (approved preprod env / Vault
+  `cloud_dog_ai/config:dev.services.filemcpserver0.web_password`).
+- **Expected auth mode:** cookie session login at canonical `/login`
+  (`/ui/login` → 308 → `/login`); anonymous `/auth/me` → 401 or `{user:null}` (no principal leak).
+- **Canonical page inventory (PDS-009):** `/`, `/admin/users`, `/admin/groups`,
+  `/admin/api-keys`, `/admin/roles`, `/admin/rbac`, `/audit-log`, `/system/settings`,
+  `/system/jobs`, `/developer/api-docs`, `/developer/mcp-console`,
+  `/developer/a2a-console`, `/system/about`.
+- **Service-specific page inventory (PDS-010, hard-navigated — the crash-class guard):**
+  `/file-browser`, `/storage-profiles`, `/search`, `/google-drive-settings`.
+- **Cleanliness bar (PDS-012):** zero uncaught page errors, zero fatal console
+  errors, zero 5xx, zero unexpected 4xx (shared `@cloud-dog/idam` best-effort
+  capability probes are the only tolerated 4xx; the crash discriminator
+  pageerror + blank `#root` + 5xx is asserted with zero tolerance).
+- **Evidence output location:** `working/preprod-deploy-smoke/` (gitignored test
+  output: JUnit `preprod-deploy-smoke.junit.xml`, HTML report, traces, screenshots).
