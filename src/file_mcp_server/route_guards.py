@@ -109,6 +109,8 @@ _FILE_MCP_UI_STATIC_PATHS: frozenset[str] = frozenset({
     "/system/about",
     "/file-browser",
     "/storage-profiles",
+    "/profiles",
+    "/source-connections",
     "/audit-log",
     "/developer/api-docs",
     "/developer/mcp-console",
