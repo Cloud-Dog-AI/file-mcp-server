@@ -8898,11 +8898,6 @@ def build_mcp_server(
             raise ValueError(f"No API keys configured for profile '{name}'")
 
     admin_api_keys: list[str] = []
-    primary_admin_key = _resolve_auth_api_key_value(
-        str(read_env_var("FILE_MCP_API_KEY_PRIMARY") or "").strip()
-    )
-    if primary_admin_key:
-        admin_api_keys.append(primary_admin_key)
     extra_admin_keys = str(read_env_var("FILE_MCP_ADMIN_API_KEYS") or "").strip()
     if extra_admin_keys:
         for candidate in extra_admin_keys.split(","):

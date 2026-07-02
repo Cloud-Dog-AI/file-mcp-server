@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from tests.env_runtime import runtime_env  # noqa: F401  (autouse env loader)
 
+import asyncio
 import time
 
 import pytest
@@ -14,6 +15,8 @@ from fastapi.testclient import TestClient
 
 from file_mcp_server.auth import MultiProfileApiKeyTokenVerifier
 from file_mcp_server.mcp_api_kit_layer import build_mcp_fastapi_application
+from file_mcp_server.server_runtime import HttpRuntimeSettings, build_mcp_server
+from file_tools.config.models import ProfileConfig, ServerConfig
 from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry
 
 
@@ -92,6 +95,58 @@ def test_non_admin_api_key_gets_http_403_for_admin_mcp_tool() -> None:
 
     assert response.status_code == 403
     assert "admin:*" in response.text
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("CS-010")
+def test_primary_profile_api_key_is_not_promoted_to_admin() -> None:
+    previous = runtime_env.get("FILE_MCP_API_KEY_PRIMARY")
+    runtime_env["FILE_MCP_API_KEY_PRIMARY"] = "profile-api-key"
+    try:
+        config = ServerConfig(
+            profiles={
+                "default": ProfileConfig.model_validate(
+                    {
+                        "auth": {
+                            "api_keys": ["${FILE_MCP_API_KEY_PRIMARY}"],
+                            "header_name": "Authorization",
+                            "header_scheme": "Bearer",
+                        },
+                        "storage": {"backend": "local"},
+                        "scope": {"roots": ["/workspace"]},
+                    }
+                )
+            }
+        )
+        server = build_mcp_server(
+            "default",
+            config,
+            HttpRuntimeSettings(
+                transport="streamable-http",
+                host="127.0.0.1",
+                port=8080,
+                mcp_path="/mcp",
+                health_path="/health",
+                events_path="/events",
+                stateless_http=True,
+            ),
+        )
+        verifier = server._file_mcp_auth_verifier
+        token = asyncio.run(
+            verifier.verify_token_for_profile("profile-api-key", "default")
+        )
+    finally:
+        if previous is None:
+            runtime_env.pop("FILE_MCP_API_KEY_PRIMARY", None)
+        else:
+            runtime_env["FILE_MCP_API_KEY_PRIMARY"] = previous
+
+    assert token is not None
+    assert "*" not in set(token.scopes)
+    assert "admin:*" not in set(token.scopes)
+    assert token.claims.get("role") != "admin"
+    assert "profile:default" in set(token.scopes)
 
 
 @pytest.mark.UT
