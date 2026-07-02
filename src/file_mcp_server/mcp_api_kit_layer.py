@@ -53,6 +53,8 @@ except ImportError:
 
 from file_tools.tools.registry import ToolRegistry
 
+from .web_flat_roles import permissions_for_role
+
 from .auth import (
     AccessToken,
     MultiProfileApiKeyTokenVerifier,
@@ -151,10 +153,11 @@ class WebMcpCookieAuthMiddleware:
         # guard's wildcard short-circuit).
         _claim_role = str(session.get("role") or "").strip()
         _claim_user = str(session.get("user") or "").strip()
+        flat_permissions = permissions_for_role(_claim_role)
         access_token = AccessToken(
             token=_WEB_COOKIE_AUTH_SUBJECT,
             client_id=str(session.get("user_id") or _claim_user or "1"),
-            scopes=["*"] if _claim_role == "admin" else [],
+            scopes=flat_permissions,
             claims={
                 "auth_mode": "cookie",
                 "role": _claim_role,
@@ -173,7 +176,7 @@ def tool_required_permission(tool_name: str) -> str:
     if n.startswith("gdrive_"):
         return "file:gdrive:write" if "upload" in n else "file:gdrive:read"
     if n.startswith("admin_"):
-        return "file:read"
+        return "admin:*"
     if any(
         x in n
         for x in (
@@ -209,7 +212,11 @@ _EXTRA_AUDIT_REDACT: frozenset[str] = frozenset(
 
 def _scopes_allow(required: str, scopes: list[str] | None) -> bool:
     s = set(scopes or [])
-    if "*" in s or "file:*" in s or required in s:
+    if "*" in s or required in s:
+        return True
+    if required.startswith("admin"):
+        return bool({"admin", "admin:*", "role:admin"} & s)
+    if "file:*" in s:
         return True
     write_required = required == "file:write"
     if write_required and (

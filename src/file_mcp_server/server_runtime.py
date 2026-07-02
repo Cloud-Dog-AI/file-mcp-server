@@ -2612,8 +2612,6 @@ class HealthCheckMiddleware:
             "/webapi",
             "/weba2a",
             "/a2a",
-            self.mcp_path,
-            self.web_mcp_path,
             "/admin",
             "/events",
             "/tasks",

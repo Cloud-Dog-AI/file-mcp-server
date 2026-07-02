@@ -108,10 +108,14 @@ FLAT_ROLES: tuple[str, ...] = (ADMIN_ROLE, READ_WRITE_ROLE, READ_ONLY_ROLE)
 # §7.2 user baseline (these are the strings the file service authorises on —
 # see auth.py / admin_identity.py). Kept minimal and flat; Thread b adds
 # granularity.
-_FILE_USE_PERMISSIONS: set[str] = {
+_FILE_READ_PERMISSIONS: set[str] = {
     "file:read",
     "file:list",
     "file:search",
+}
+
+_FILE_USE_PERMISSIONS: set[str] = {
+    *_FILE_READ_PERMISSIONS,
     "file:write",
     "profile:write",
 }
@@ -128,7 +132,7 @@ FLAT_ROLE_PERMISSIONS: dict[str, set[str]] = {
         | _shared_write_permissions()
         | _FILE_USE_PERMISSIONS
     ),
-    READ_ONLY_ROLE: _shared_user_baseline(),
+    READ_ONLY_ROLE: _shared_user_baseline() | _FILE_READ_PERMISSIONS,
 }
 
 

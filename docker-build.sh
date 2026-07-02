@@ -74,6 +74,8 @@ VERSION="${1:-latest}"
 CONTAINER="file-mcp-server"
 FOLDER="cloud-dog"
 REGISTRY="${REGISTRY:-}"
+SOURCE_COMMIT="$(git rev-parse HEAD)"
+SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 PIP_CONF=".pip.conf.build"
 CA_BUNDLE_FILE=".ca-bundle.build"
 
@@ -179,6 +181,8 @@ DOCKER_BUILDKIT=1 docker buildx build \
   --secret id=ca_bundle,src="${CA_BUNDLE_FILE}" \
   --build-arg PYPI_INDEX_URL="${PYPI_URL}" \
   --build-arg PYPI_URL="${PYPI_URL}" \
+  --build-arg SOURCE_COMMIT="${SOURCE_COMMIT}" \
+  --build-arg SOURCE_BRANCH="${SOURCE_BRANCH}" \
   --build-arg HTTP_PROXY="${HTTP_PROXY:-}" \
   --build-arg HTTPS_PROXY="${HTTPS_PROXY:-}" \
   --build-arg NO_PROXY="${NO_PROXY:-}" \
