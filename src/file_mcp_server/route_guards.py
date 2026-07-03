@@ -72,6 +72,13 @@ FILE_MCP_PUBLIC_ALLOWLIST: frozenset[str] = frozenset({
     "/status",
     "/version",
     "/openapi.json",
+    # Google OAuth redirect target. Google redirects the operator's browser here
+    # cross-site, so the admin session cookie is NOT sent (SameSite) — requiring
+    # admin auth on this route makes the callback fail with UNAUTHENTICATED, which is
+    # exactly what blocked Drive setup. It is anon-OK because the callback handler
+    # validates the OAuth ``state`` CSRF token (minted only by the admin-authed
+    # /admin/google-drive/start), so the token exchange only proceeds for a pending state.
+    "/admin/google-drive/callback",
     "/.well-known/agent.json",   # INTERNAL (Traefik also maps
                                   #   external /a2a/.well-known/agent.json
                                   #   to this same handler — see
