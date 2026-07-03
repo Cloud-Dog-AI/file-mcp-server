@@ -21,6 +21,7 @@ dependencies = [
   "cloud_dog_config==0.3.4",
   "cloud_dog_db>=0.1.0",
   "cloud_dog_idam==0.5.3",
+  "cloud_dog_llm==0.4.0",
   "cloud_dog_jobs>=0.3.0",
   "cloud_dog_logging>=0.3.3",
   "cloud_dog_storage>=0.1.4",
