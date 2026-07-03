@@ -4730,15 +4730,33 @@ class HealthCheckMiddleware:
             await self._send_html(send, status=200, html=self._render_identity_admin_html())
             return
 
-        # W28C-1702 (FM6): gate ALL four google-drive admin surfaces with the
-        # canonical admin check (the one /admin/profiles uses). Previously only
-        # /admin/google-drive + /start were checked, and even those allowed a
-        # `legacy_open_access` anon bypass that leaked the OAuth client_id; the
-        # /callback and /google-drive-settings surfaces were ungated entirely.
-        if scope.get("type") == "http" and path in {
+        # /admin/google-drive/callback is the OAuth redirect target. Google redirects the
+        # operator's browser here CROSS-SITE, so the admin session cookie is NOT sent — the
+        # route therefore CANNOT be admin-gated (that returned UNAUTHENTICATED and blocked
+        # Drive setup). Security is the OAuth `state` token: it is minted ONLY by the
+        # admin-authed /start and tracked in `_oauth_state_principal`, so require a KNOWN
+        # issued state here instead of the admin session. `complete_oauth_callback` then
+        # further validates the pending state (single-use, expiry) and exchanges the code.
+        if scope.get("type") == "http" and path == "/admin/google-drive/callback":
+            _cb_query = parse_qs(
+                scope.get("query_string", b"").decode("utf-8"),
+                keep_blank_values=True,
+            )
+            _cb_state = (_cb_query.get("state") or [""])[0]
+            if not _cb_state or _cb_state not in self._oauth_state_principal:
+                await self._send_api_error(
+                    send,
+                    status=403,
+                    code="FORBIDDEN",
+                    message="Invalid or unknown OAuth state",
+                )
+                return
+        # W28C-1702 (FM6): gate the other three google-drive admin surfaces with the
+        # canonical admin check (the one /admin/profiles uses). These are reached directly
+        # by the operator's browser WITH the admin session, so admin-gating them is correct.
+        elif scope.get("type") == "http" and path in {
             "/admin/google-drive",
             "/admin/google-drive/start",
-            "/admin/google-drive/callback",
             "/google-drive-settings",
         }:
             gd_authenticated, gd_admin, gd_principal = await self._admin_gate(
@@ -4755,23 +4773,6 @@ class HealthCheckMiddleware:
                     message="Missing permission: admin:google_drive",
                 )
                 return
-            # State-replay: on /callback, the OAuth `state` must have been issued
-            # to THIS principal on /start.
-            if path == "/admin/google-drive/callback":
-                _cb_query = parse_qs(
-                    scope.get("query_string", b"").decode("utf-8"),
-                    keep_blank_values=True,
-                )
-                _cb_state = (_cb_query.get("state") or [""])[0]
-                _bound = self._oauth_state_principal.get(_cb_state)
-                if _bound is not None and gd_principal and _bound != gd_principal:
-                    await self._send_api_error(
-                        send,
-                        status=403,
-                        code="FORBIDDEN",
-                        message="OAuth state does not belong to this principal",
-                    )
-                    return
 
         if scope.get("type") == "http" and (
             is_identity_api_route or is_profile_api_route or is_runtime_config_api_route
