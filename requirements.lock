@@ -72,7 +72,7 @@ cryptography==48.0.0
     #   cloud-dog-idam
     #   pdfminer-six
     #   pyjwt
-deepdiff==7.0.1
+deepdiff==8.6.2
     # via -r /tmp/REQUIREMENTS.txt
 et-xmlfile==2.0.0
     # via openpyxl
@@ -116,7 +116,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 librt==0.11.0
     # via mypy
-lxml==5.4.0
+lxml==6.1.0
     # via
     #   -r /tmp/REQUIREMENTS.txt
     #   python-docx
@@ -138,7 +138,7 @@ mypy-extensions==1.1.0
     # via mypy
 openpyxl==3.1.5
     # via -r /tmp/REQUIREMENTS.txt
-ordered-set==4.1.0
+orderly-set==5.5.0
     # via deepdiff
 packaging==26.2
     # via pytest
