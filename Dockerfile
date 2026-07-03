@@ -21,7 +21,8 @@ ENV no_proxy=${no_proxy}
 WORKDIR /app
 
 ARG CUSTOM_CA_CERT
-RUN if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
+RUN set -e; \
+    if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
       cp "${CUSTOM_CA_CERT}" /usr/local/share/ca-certificates/custom-ca.crt && \
       update-ca-certificates; \
     fi
@@ -82,7 +83,8 @@ ENV no_proxy=${no_proxy}
 WORKDIR /app
 
 ARG CUSTOM_CA_CERT
-RUN if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
+RUN set -e; \
+    if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
       cp "${CUSTOM_CA_CERT}" /usr/local/share/ca-certificates/custom-ca.crt && \
       update-ca-certificates; \
     fi
