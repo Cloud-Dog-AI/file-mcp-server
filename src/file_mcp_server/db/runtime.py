@@ -137,6 +137,49 @@ def _migration_script_location() -> str:
     return path_utils.resolve_path(str(_project_root() / "database" / "migrations" / "cloud_dog_db"))
 
 
+def _ensure_additive_columns(engine: Engine) -> None:
+    """Add optional columns to already-created tables (idempotent, additive).
+
+    Only ever ADDs a nullable/defaulted column when it is missing; never drops
+    or alters existing data. Safe to run on every start-up.
+    """
+    from sqlalchemy import inspect as _sa_inspect, text as _sa_text
+
+    # (table, column, DDL type + default) — keep in sync with the ORM models.
+    additive_columns: list[tuple[str, str, str]] = [
+        (
+            "file_storage_profiles",
+            "description",
+            "VARCHAR(512) NOT NULL DEFAULT ''",
+        ),
+    ]
+    try:
+        inspector = _sa_inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+    except Exception:  # noqa: BLE001 — inspection best-effort; ORM create_all is the fallback
+        return
+    for table_name, column_name, column_ddl in additive_columns:
+        if table_name not in existing_tables:
+            # Table not created yet — create_all/ORM will include the column.
+            continue
+        try:
+            columns = {col["name"] for col in inspector.get_columns(table_name)}
+        except Exception:  # noqa: BLE001
+            continue
+        if column_name in columns:
+            continue
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    _sa_text(
+                        f'ALTER TABLE {table_name} '
+                        f'ADD COLUMN {column_name} {column_ddl}'
+                    )
+                )
+        except Exception:  # noqa: BLE001 — never fail start-up on an additive back-fill
+            pass
+
+
 def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntime:
     """Initialise engine/session/migrations through cloud_dog_db."""
     global _RUNTIME
@@ -163,6 +206,14 @@ def initialise_database(*, force_reinit: bool = False) -> PlatformDatabaseRuntim
         # when no Alembic migration script has been generated yet.
         from .models import PlatformBase as _ModelBase
         _ModelBase.metadata.create_all(bind=engine, checkfirst=True)
+
+        # Additive, idempotent column back-fill for tables that were created by
+        # a prior create_all() before a new optional column landed on the ORM
+        # model. create_all(checkfirst=True) is a no-op when the table already
+        # exists, so it never adds columns to a live table. This keeps the
+        # platform-wide "every config carries a human description" rollout fully
+        # additive: pre-existing file_storage_profiles rows simply read "".
+        _ensure_additive_columns(engine)
 
         # W28A-876: ensure the canonical cloud_dog_idam role tables exist so the
         # PS-71 §IW3A Roles page (/api/v1/admin/roles) is backed by the shared

@@ -3698,6 +3698,12 @@ class HealthCheckMiddleware:
         api_keys = []
         if isinstance(auth, dict):
             api_keys = [str(item) for item in (auth.get("api_keys") or [])]
+        # Platform-wide config-description rollout: first-class human
+        # description sourced from the JSON store schema (config top-level key).
+        # Pre-existing profiles without the key surface "" (additive, safe).
+        description = ""
+        if isinstance(normalized_profile, dict):
+            description = str(normalized_profile.get("description") or "")
         # W28C-1702 (FM1): per-row 'configured' status so the SPA badge has a
         # server-computed single source of truth (was always not_configured).
         status_info = self._compute_profile_status(
@@ -3724,6 +3730,7 @@ class HealthCheckMiddleware:
             status_info = {"status": "partially_configured", "missing": missing}
         return {
             "name": name,
+            "description": description,
             "backend": backend,
             "roots": roots,
             "api_keys_count": len(api_keys),
@@ -3750,6 +3757,12 @@ class HealthCheckMiddleware:
                     config = json.loads(row.config_json) if row.config_json else {}
                 except Exception:
                     config = {}
+                # First-class description column is authoritative when the JSON
+                # store schema lacks the key (older rows). Additive back-fill.
+                if isinstance(config, dict) and not str(config.get("description") or ""):
+                    row_description = str(getattr(row, "description", "") or "")
+                    if row_description:
+                        config["description"] = row_description
                 payloads.append(self._profile_payload(name=row.name, profile=config))
         return payloads
 
@@ -4891,6 +4904,18 @@ class HealthCheckMiddleware:
                             profile,
                             default_profile=(self.config.profiles.get("default") if self.config else None),
                         )
+                        # Platform-wide config-description rollout: accept an
+                        # optional human `description` on the profile. Persist it
+                        # in BOTH the JSON store schema (top-level key on the
+                        # config, survives normalisation) and the first-class
+                        # column. Additive — omitting it defaults to "".
+                        description = str(
+                            payload.get("description")
+                            if payload.get("description") is not None
+                            else (profile.get("description") if isinstance(profile, dict) else "")
+                        ).strip()
+                        if isinstance(profile, dict):
+                            profile["description"] = description
                         backend_value = "local"
                         if isinstance(profile.get("storage"), dict):
                             backend_value = str(profile["storage"].get("backend") or "local")
@@ -4899,6 +4924,7 @@ class HealthCheckMiddleware:
                             id=f"prof_{uuid.uuid4().hex[:12]}",
                             name=profile_name,
                             display_name=display_name,
+                            description=description,
                             backend=backend_value,
                             config_json=json.dumps(profile),
                             is_active=True,
@@ -5018,6 +5044,13 @@ class HealthCheckMiddleware:
                                 profile = json.loads(row.config_json) if row.config_json else {}
                             except Exception:
                                 profile = {}
+                            # First-class description column is authoritative
+                            # when the JSON store schema lacks the key (older
+                            # rows). Additive back-fill.
+                            if isinstance(profile, dict) and not str(profile.get("description") or ""):
+                                row_description = str(getattr(row, "description", "") or "")
+                                if row_description:
+                                    profile["description"] = row_description
 
                         if method == "GET":
                             await self._send_json(
@@ -5066,6 +5099,17 @@ class HealthCheckMiddleware:
                             if isinstance(candidate.get("storage"), dict):
                                 backend_value = str(candidate["storage"].get("backend") or "local")
                             display_name = str(payload.get("display_name") or "").strip()
+                            # Platform-wide config-description rollout: allow the
+                            # human `description` to be set/cleared on update.
+                            # Only touched when the key is present so unrelated
+                            # PATCHes preserve the existing description.
+                            description_provided = "description" in payload
+                            description = str(payload.get("description") or "").strip()
+                            if isinstance(candidate, dict):
+                                if description_provided:
+                                    candidate["description"] = description
+                                elif "description" not in candidate:
+                                    candidate["description"] = ""
                             with self.db_runtime.session_manager.session() as session:
                                 row = (
                                     session.query(FileStorageProfile)
@@ -5082,6 +5126,8 @@ class HealthCheckMiddleware:
                                 row.backend = backend_value
                                 if display_name:
                                     row.display_name = display_name
+                                if description_provided:
+                                    row.description = description
                                 session.commit()
                             reload_result = None
                             if callable(self.reload_callback):

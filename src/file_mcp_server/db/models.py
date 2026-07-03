@@ -92,6 +92,10 @@ class FileStorageProfile(PlatformBase, TimestampMixin):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     display_name: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    # Human-readable description of the storage profile (platform-wide config
+    # description rollout). Optional and additive — pre-existing rows default to
+    # "" so profiles created before this column keep working unchanged.
+    description: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     backend: Mapped[str] = mapped_column(String(32), nullable=False, default="local")
     config_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
