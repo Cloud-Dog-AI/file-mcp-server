@@ -13,11 +13,11 @@ filelock>=3.15,<4.0
 python-dotenv>=1.0,<2.0
 typing-extensions>=4.10,<5.0
 requests>=2.31,<3.0
-cloud_dog_config>=0.3.1
+cloud_dog_config==0.3.3
 hvac>=2.0
 cloud_dog_logging>=0.3.3
 cloud_dog_api_kit==0.13.0
-cloud_dog_idam>=0.5.2,<0.6
+cloud_dog_idam==0.5.3
 cloud_dog_jobs>=0.3.0
 cloud_dog_db>=0.1.0
 cloud_dog_storage>=0.1.4
