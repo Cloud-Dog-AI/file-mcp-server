@@ -21,7 +21,8 @@ ENV no_proxy=${no_proxy}
 WORKDIR /app
 
 ARG CUSTOM_CA_CERT
-RUN if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
+RUN set -e; \
+    if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
       cp "${CUSTOM_CA_CERT}" /usr/local/share/ca-certificates/custom-ca.crt && \
       update-ca-certificates; \
     fi
@@ -46,10 +47,11 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       --extra-index-url ${PYPI_URL} \
       --trusted-host ${PYPI_TRUSTED_HOST} \
       --trusted-host files.pythonhosted.org \
-      cloud-dog-config \
+      "cloud-dog-config==0.3.4" \
       cloud-dog-logging \
       cloud-dog-api-kit==0.13.0 \
-      "cloud-dog-idam>=0.5.2,<0.6" \
+      "cloud-dog-idam==0.5.3" \
+      "cloud-dog-llm==0.4.0" \
       cloud-dog-db \
       cloud-dog-jobs \
       cloud-dog-storage
@@ -82,7 +84,8 @@ ENV no_proxy=${no_proxy}
 WORKDIR /app
 
 ARG CUSTOM_CA_CERT
-RUN if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
+RUN set -e; \
+    if [ -n "${CUSTOM_CA_CERT}" ] && [ -f "${CUSTOM_CA_CERT}" ]; then \
       cp "${CUSTOM_CA_CERT}" /usr/local/share/ca-certificates/custom-ca.crt && \
       update-ca-certificates; \
     fi
