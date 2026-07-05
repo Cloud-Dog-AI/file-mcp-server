@@ -172,7 +172,13 @@ done
 chmod 600 "${CA_BUNDLE_FILE}"
 
 # ── Build ────────────────────────────────────────────────────────
+# ── W28C-1719 publish-before-pin guard + build-provenance revision label (fail-closed) ──
+_PBP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+"${_PBP_DIR}/scripts/publish-before-pin-guard.sh" "${_PBP_DIR}" || exit $?
+_PBP_REV="$(git -C "${_PBP_DIR}" rev-parse HEAD 2>/dev/null || echo unknown)"
+
 DOCKER_BUILDKIT=1 docker buildx build \
+  --label "org.opencontainers.image.revision=${_PBP_REV}" \
   --progress=plain \
   --network=host \
   --load \
