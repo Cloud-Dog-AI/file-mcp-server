@@ -590,6 +590,96 @@ class StdioServer:
             out_stream.flush()
 
 
+# W28E-1863 fix-wave-b (CC-401 for file-mcp): reserved server-side path prefixes /
+# exact paths that MUST NOT be served the SPA shell. These proxy to the API / MCP /
+# A2A upstreams, are health/readiness probes, static assets, or auth/bootstrap
+# endpoints. Everything ELSE that is a browser DOCUMENT navigation (an extensionless
+# GET/HEAD) resolves — as the fallback of LAST RESORT — to the SPA index.html shell
+# so React renders the requested route (or its own login gate for an anonymous
+# visitor) instead of the inner ASGI app's raw 404 JSON. Adapted from the deployed,
+# smoke-green chat-client ``ui_spa.is_spa_document_navigation`` BLOCKLIST (commit
+# 2156ef9) and the sql-agent / search-mcp true-catch-all pattern (AGENT-LESSONS §2.4).
+#
+# CRITICAL (why this is a blocklist wired at the terminal fallthrough, NOT an
+# Accept-header carve-out in mid-flow like the reverted fix-wave-a 85eb744): the
+# fix-wave-a Accept approach let the backend API 401/404 SHADOW the SPA and produced
+# a post-login BLANK render (smoke PDS-007). Here the check runs ONLY after every
+# explicit API / MCP / A2A / health / auth / admin-gate / asset handler has had its
+# chance to ``return`` — so it can never shadow them; it only catches paths that
+# would otherwise fall through to the inner-app 404.
+_RESERVED_NON_SPA_PREFIXES: frozenset[str] = frozenset(
+    {
+        "api",
+        "v1",
+        "webapi",
+        "webmcp",
+        "mcp",
+        "messages",
+        "weba2a",
+        "a2a",
+        "events",
+        "tasks",
+        "sessions",
+        "auth",
+        "assets",
+        "files",
+        "idam",
+        ".well-known",
+        # /login itself is an explicit SPA route (served above); /login/<x> bootstrap
+        # is auth. Reserving the prefix keeps the SPA /login handled by its own route.
+        "login",
+    }
+)
+_RESERVED_NON_SPA_EXACT: frozenset[str] = frozenset(
+    {
+        "health",
+        "ready",
+        "live",
+        "status",
+        "version",
+        "openapi",
+        "runtime-config.js",
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "apple-touch-icon-precomposed.png",
+        "robots.txt",
+        "sitemap.xml",
+    }
+)
+
+
+def is_spa_document_navigation(path: str) -> bool:
+    """Return True when a browser GET/HEAD for ``path`` should serve the SPA shell.
+
+    A path is a SPA document navigation when it is NOT one of the reserved
+    server-side surfaces (API / MCP / A2A proxy paths, health/readiness probes,
+    auth/bootstrap endpoints, static assets) and does NOT look like a static file
+    request (no ``.`` in the final path segment — those are asset/file GETs handled
+    by the dedicated asset routes or a genuine 404). This is the fallback of last
+    resort that guarantees every React history route — including ones not present in
+    the enumerated ``_ui_route_paths`` allowlist (e.g. bare ``/admin``,
+    ``/system/preferences``, ``/research``) — resolves to ``index.html`` on a hard
+    navigation / refresh / bookmark, so the SPA renders (unauthenticated -> its own
+    login gate) rather than leaking the inner ASGI app's raw 404 JSON body.
+    """
+    cleaned = str(path or "").strip().strip("/")
+    if not cleaned:
+        # Bare "/" is served by the explicit UI-route handler above; treat as
+        # non-doc here so this fallback never double-handles the root.
+        return False
+    first_segment = cleaned.split("/", 1)[0]
+    if first_segment in _RESERVED_NON_SPA_PREFIXES:
+        return False
+    if cleaned in _RESERVED_NON_SPA_EXACT or first_segment in _RESERVED_NON_SPA_EXACT:
+        return False
+    # A dot in the LAST segment indicates a static file request (e.g. foo.js,
+    # sitemap.xml) — never serve those the HTML shell; let the asset routes or a
+    # genuine 404 handle them.
+    if "." in cleaned.rsplit("/", 1)[-1]:
+        return False
+    return True
+
+
 class HealthCheckMiddleware:
     """Minimal unauthenticated health endpoint for transport app."""
 
@@ -869,6 +959,59 @@ class HealthCheckMiddleware:
             return str(data.get("project", {}).get("version", ""))
         except Exception:
             return ""
+
+    def _build_identity(self) -> dict[str, str]:
+        """Return build/deploy identity for WSC-014 / PS-30 UI-R7.3.
+
+        Source of truth is the container build (docker-build.sh stamps the image
+        OCI ``org.opencontainers.image.revision`` label AND injects the matching
+        runtime ENV: ``FILE_MCP_SOURCE_COMMIT`` / ``FILE_MCP_SOURCE_BRANCH`` /
+        ``FILE_MCP_BUILD_DATE`` / ``FILE_MCP_CONTAINER_DIGEST``). All values are
+        read config-routed via ``read_env_var`` (RULES §1.4.1 — no direct-env).
+        For a dev/source run (no container ENV) ``source_commit`` falls back to the
+        working-tree git HEAD so the About page is still populated locally.
+        Modelled on search-mcp's build-identity reference. W28E-1863 fix-wave-b.
+        """
+        commit = str(read_env_var("FILE_MCP_SOURCE_COMMIT") or "").strip()
+        if not commit or commit == "unknown":
+            commit = self._git_head_commit()
+        branch = str(read_env_var("FILE_MCP_SOURCE_BRANCH") or "").strip()
+        if branch == "unknown":
+            branch = ""
+        build_date = str(read_env_var("FILE_MCP_BUILD_DATE") or "").strip()
+        digest = str(read_env_var("FILE_MCP_CONTAINER_DIGEST") or "").strip()
+        env_name = str(
+            read_env_var("FILE_MCP_UI_ENV") or read_env_var("CLOUD_DOG_ENV") or ""
+        ).strip()
+        return {
+            "source_commit": commit,
+            "source_branch": branch,
+            "build_date": build_date,
+            "container_digest": digest,
+            "environment": env_name,
+        }
+
+    @staticmethod
+    def _git_head_commit() -> str:
+        """Best-effort git HEAD for dev/source runs (empty if unavailable)."""
+        try:
+            import subprocess
+
+            repo_root = path_utils.as_path(
+                path_utils.resolve_path(__file__)
+            ).parents[2]
+            out = subprocess.run(
+                ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                check=False,
+            )
+            if out.returncode == 0:
+                return out.stdout.strip()
+        except Exception:
+            return ""
+        return ""
 
     def _resolve_login_access_token(self) -> str:
         """Resolve the login bootstrap access token from active profile config."""
@@ -2728,6 +2871,9 @@ class HealthCheckMiddleware:
             read_env_var("CLOUD_DOG_SESSION_TIMEOUT_MINUTES"), default=30
         )
         app_version = str(read_env_var("FILE_MCP_VERSION") or "").strip() or self._read_pyproject_version() or "0.0.0"
+        # W28E-1863 fix-wave-b (WSC-014 / PS-30 UI-R7.3): surface build identity to
+        # the WebUI bootstrap so the shared AboutPage can render commit/build-date.
+        _build = self._build_identity()
 
         return {
             "ENV": env_name,
@@ -2737,6 +2883,10 @@ class HealthCheckMiddleware:
             "AUTH_MODE": auth_mode,
             "SESSION_TIMEOUT_MINUTES": str(session_timeout),
             "APP_VERSION": app_version,
+            "APP_COMMIT": _build["source_commit"],
+            "APP_BUILD_DATE": _build["build_date"],
+            "APP_CONTAINER_DIGEST": _build["container_digest"],
+            "APP_ENV": _build["environment"],
             "AUDIT_LOG_PATH": audit_log_path,
             "DEFAULT_BROWSE_PATH": default_browse_path,
             "PROFILE_STORE_PATH": profile_store_path,
@@ -2890,6 +3040,10 @@ class HealthCheckMiddleware:
             f'    "AUTH_MODE": {json.dumps(payload.get("AUTH_MODE", "cookie"))},\n'
             f'    "SESSION_TIMEOUT_MINUTES": {json.dumps(_to_int(payload.get("SESSION_TIMEOUT_MINUTES"), default=30))},\n'
             f'    "APP_VERSION": {json.dumps(payload.get("APP_VERSION", "0.0.0"))},\n'
+            f'    "APP_COMMIT": {json.dumps(payload.get("APP_COMMIT", ""))},\n'
+            f'    "APP_BUILD_DATE": {json.dumps(payload.get("APP_BUILD_DATE", ""))},\n'
+            f'    "APP_CONTAINER_DIGEST": {json.dumps(payload.get("APP_CONTAINER_DIGEST", ""))},\n'
+            f'    "APP_ENV": {json.dumps(payload.get("APP_ENV", ""))},\n'
             f'    "AUDIT_LOG_PATH": {json.dumps(payload.get("AUDIT_LOG_PATH", ""))},\n'
             f'    "DEFAULT_BROWSE_PATH": {json.dumps(payload.get("DEFAULT_BROWSE_PATH", "src"))},\n'
             f'    "PROFILE_STORE_PATH": {json.dumps(payload.get("PROFILE_STORE_PATH", ""))},\n'
@@ -4466,7 +4620,21 @@ class HealthCheckMiddleware:
                 await self._serve_runtime_config(send, method=method)
                 return
             if path == "/version":
-                payload = {"version": self.version, "service": "file-mcp-server"}
+                # W28E-1863 fix-wave-b (WSC-014 / PS-30 UI-R7.3): expose source
+                # commit + build date + deployment identity, not just version, so
+                # the WebUI About page can render build provenance.
+                _build = self._build_identity()
+                payload = {
+                    "version": self.version,
+                    "service": "file-mcp-server",
+                    "source_commit": _build["source_commit"],
+                    "source_branch": _build["source_branch"],
+                    "build_date": _build["build_date"],
+                    "container_digest": _build["container_digest"],
+                    "environment": _build["environment"],
+                    # legacy field name the DashboardPage VersionInfo already reads
+                    "commit": _build["source_commit"],
+                }
                 body = b"" if method == "HEAD" else json.dumps(payload).encode("utf-8")
                 await self._send_bytes(
                     send,
@@ -5779,6 +5947,32 @@ class HealthCheckMiddleware:
                     message=str(exc),
                 )
                 return
+
+        # W28E-1863 fix-wave-b (CC-401): SPA deep-link fallback of LAST RESORT.
+        # A browser hard-navigation / refresh / bookmark of a React history route
+        # that is NOT in the enumerated ``_ui_route_paths`` allowlist (e.g. bare
+        # ``/admin``, ``/system/preferences``, ``/research``) previously fell through
+        # to the inner ASGI app below and returned a raw 404 JSON body instead of the
+        # SPA shell. Serve index.html for any GET/HEAD document navigation to a
+        # non-reserved, extensionless path so React renders the requested route — or,
+        # for an anonymous visitor, its own login gate — instead of a raw error.
+        #
+        # This sits at the VERY END of dispatch, AFTER every explicit
+        # API / MCP / A2A / health / auth / admin-gate / asset handler has already had
+        # its chance to ``return``. So it can NEVER shadow those surfaces (the failure
+        # mode of the reverted, Accept-driven mid-flow fix-wave-a, smoke PDS-007): an
+        # unauthenticated API path (``/api/...``, ``/admin/users`` with a JSON Accept,
+        # ``/google-drive-settings`` non-browser) has already been answered with its
+        # 401 JSON above and never reaches here — the FM6 OAuth-leak contract is
+        # untouched. Matches chat-client ``is_spa_document_navigation`` (2156ef9) +
+        # sql-agent / search-mcp catch-all (AGENT-LESSONS §2.4).
+        if (
+            scope.get("type") == "http"
+            and method in {"GET", "HEAD"}
+            and is_spa_document_navigation(path)
+        ):
+            await self._serve_spa_index(send, method=method)
+            return
 
         await self.app(scope, receive, send)
 

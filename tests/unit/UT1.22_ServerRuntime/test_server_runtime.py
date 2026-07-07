@@ -1508,7 +1508,18 @@ def test_ui_routes_serve_spa_index_from_configured_dist(tmp_path) -> None:
 @pytest.mark.req("FR-017")
 
 
-def test_unknown_root_webui_route_does_not_fallback_to_spa(tmp_path) -> None:
+def test_unknown_root_webui_route_falls_back_to_spa(tmp_path) -> None:
+    # W28E-1863 fix-wave-b (CC-401) SUPERSEDES the W28E-1802C allowlist contract
+    # (was ``..._does_not_fallback_to_spa``). Adopting the deployed, smoke-green
+    # chat-client BLOCKLIST (``is_spa_document_navigation``, commit 2156ef9), an
+    # extensionless browser DOCUMENT navigation to ANY non-reserved route — including
+    # one not present in the enumerated ``_ui_route_paths`` allowlist — now serves the
+    # SPA index.html shell as the fallback of last resort. React's own client router
+    # then renders its ``<Route path="*">`` NotFound page INSIDE the shell, rather than
+    # the server leaking the inner ASGI app's raw 404 JSON. Reserved API / MCP / A2A /
+    # health / auth / asset surfaces are unaffected (they ``return`` before this
+    # fallback — see ``is_spa_document_navigation`` + the chat-client parity test
+    # ``test_other_missing_react_route_serves_spa_shell``).
     prev_ui_dist = runtime_env.get("FILE_MCP_UI_DIST_PATH")
     dist = tmp_path / "ui-dist"
     dist.mkdir(parents=True, exist_ok=True)
@@ -1535,8 +1546,11 @@ def test_unknown_root_webui_route_does_not_fallback_to_spa(tmp_path) -> None:
             path="/unknown-route-that-does-not-exist",
             headers=[(b"accept", b"text/html")],
         )
-        assert sent[0]["status"] == 404
-        assert b"file-mcp-ui-shell" not in sent[1]["body"]
+        # Blocklist fallback: extensionless non-reserved route -> SPA shell (200),
+        # NOT the inner-app 404. React renders its own NotFound inside this shell.
+        assert sent[0]["status"] == 200
+        assert b"file-mcp-ui-shell" in sent[1]["body"]
+        assert b"not-found" not in sent[1]["body"]
     finally:
         if prev_ui_dist is None:
             runtime_env.pop("FILE_MCP_UI_DIST_PATH", None)

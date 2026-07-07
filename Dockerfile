@@ -62,10 +62,20 @@ RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
 FROM python:3.12-slim
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_BRANCH=unknown
+# W28E-1863 fix-wave-b (WSC-014): build timestamp for build-identity provenance.
+ARG BUILD_DATE=""
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.vendor="Cloud-Dog, Viewdeck Engineering Limited"
 LABEL org.opencontainers.image.revision="${SOURCE_COMMIT}"
 LABEL org.opencontainers.image.ref.name="${SOURCE_BRANCH}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+
+# W28E-1863 fix-wave-b (WSC-014): surface build identity to the RUNTIME so the
+# server's _build_identity() (read config-routed via read_env_var, RULES §1.4.1)
+# can populate /version + /runtime-config.js for the WebUI About page.
+ENV FILE_MCP_SOURCE_COMMIT=${SOURCE_COMMIT}
+ENV FILE_MCP_SOURCE_BRANCH=${SOURCE_BRANCH}
+ENV FILE_MCP_BUILD_DATE=${BUILD_DATE}
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
