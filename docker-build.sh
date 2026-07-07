@@ -76,8 +76,6 @@ FOLDER="cloud-dog"
 REGISTRY="${REGISTRY:-}"
 SOURCE_COMMIT="$(git rev-parse HEAD)"
 SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-# W28E-1863 fix-wave-a: build timestamp for WSC-014 build identity.
-BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 PIP_CONF=".pip.conf.build"
 CA_BUNDLE_FILE=".ca-bundle.build"
 
@@ -191,7 +189,6 @@ DOCKER_BUILDKIT=1 docker buildx build \
   --build-arg PYPI_URL="${PYPI_URL}" \
   --build-arg SOURCE_COMMIT="${SOURCE_COMMIT}" \
   --build-arg SOURCE_BRANCH="${SOURCE_BRANCH}" \
-  --build-arg BUILD_DATE="${BUILD_DATE}" \
   --build-arg HTTP_PROXY="${HTTP_PROXY:-}" \
   --build-arg HTTPS_PROXY="${HTTPS_PROXY:-}" \
   --build-arg NO_PROXY="${NO_PROXY:-}" \

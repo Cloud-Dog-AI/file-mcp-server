@@ -870,57 +870,6 @@ class HealthCheckMiddleware:
         except Exception:
             return ""
 
-    def _build_identity(self) -> dict[str, str]:
-        """Return build/deploy identity for WSC-014 / PS-30 UI-R7.3.
-
-        Source of truth is the container build (docker-build.sh stamps the
-        image OCI ``org.opencontainers.image.revision`` label AND injects the
-        matching runtime ENV: ``FILE_MCP_SOURCE_COMMIT`` / ``FILE_MCP_SOURCE_BRANCH``
-        / ``FILE_MCP_BUILD_DATE`` / ``FILE_MCP_CONTAINER_DIGEST``). All values are
-        read config-routed via ``read_env_var`` (RULES §1.4.1 — no direct-env).
-        For a dev/source run (no container ENV) ``source_commit`` falls back to
-        the working-tree git HEAD so the About page is still populated locally.
-        W28E-1863 fix-wave-a.
-        """
-        commit = str(read_env_var("FILE_MCP_SOURCE_COMMIT") or "").strip()
-        if not commit or commit == "unknown":
-            commit = self._git_head_commit()
-        branch = str(read_env_var("FILE_MCP_SOURCE_BRANCH") or "").strip()
-        build_date = str(read_env_var("FILE_MCP_BUILD_DATE") or "").strip()
-        digest = str(read_env_var("FILE_MCP_CONTAINER_DIGEST") or "").strip()
-        env_name = str(
-            read_env_var("FILE_MCP_UI_ENV") or read_env_var("CLOUD_DOG_ENV") or ""
-        ).strip()
-        return {
-            "source_commit": commit,
-            "source_branch": branch,
-            "build_date": build_date,
-            "container_digest": digest,
-            "environment": env_name,
-        }
-
-    @staticmethod
-    def _git_head_commit() -> str:
-        """Best-effort git HEAD for dev/source runs (empty if unavailable)."""
-        try:
-            import subprocess
-
-            repo_root = path_utils.as_path(
-                path_utils.resolve_path(__file__)
-            ).parents[2]
-            out = subprocess.run(
-                ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                check=False,
-            )
-            if out.returncode == 0:
-                return out.stdout.strip()
-        except Exception:
-            return ""
-        return ""
-
     def _resolve_login_access_token(self) -> str:
         """Resolve the login bootstrap access token from active profile config."""
         direct = _resolve_auth_api_key_value(
@@ -2549,13 +2498,6 @@ class HealthCheckMiddleware:
             "/idam/rbac",
             "/admin-identity",
             "/admin/identity",
-            # W28E-1863 fix-wave-a: bare /admin is a client-side SPA route
-            # (App.tsx redirects /admin -> /admin/users). Without it here, an
-            # unauthenticated hard-nav/refresh of /admin fell through to the
-            # 404 JSON path (uvicorn) instead of the SPA login gate. There is
-            # no bare-/admin API endpoint (only /admin/<sub> APIs), so serving
-            # the SPA shell here shadows nothing.
-            "/admin",
             "/admin/users",
             "/admin/groups",
             "/admin/api-keys",
@@ -2786,9 +2728,6 @@ class HealthCheckMiddleware:
             read_env_var("CLOUD_DOG_SESSION_TIMEOUT_MINUTES"), default=30
         )
         app_version = str(read_env_var("FILE_MCP_VERSION") or "").strip() or self._read_pyproject_version() or "0.0.0"
-        # W28E-1863 fix-wave-a: surface build identity to the WebUI bootstrap
-        # so the shared AboutPage can render commit/build-date (WSC-014).
-        _build = self._build_identity()
 
         return {
             "ENV": env_name,
@@ -2798,10 +2737,6 @@ class HealthCheckMiddleware:
             "AUTH_MODE": auth_mode,
             "SESSION_TIMEOUT_MINUTES": str(session_timeout),
             "APP_VERSION": app_version,
-            "APP_COMMIT": _build["source_commit"],
-            "APP_BUILD_DATE": _build["build_date"],
-            "APP_CONTAINER_DIGEST": _build["container_digest"],
-            "APP_ENV": _build["environment"],
             "AUDIT_LOG_PATH": audit_log_path,
             "DEFAULT_BROWSE_PATH": default_browse_path,
             "PROFILE_STORE_PATH": profile_store_path,
@@ -2955,10 +2890,6 @@ class HealthCheckMiddleware:
             f'    "AUTH_MODE": {json.dumps(payload.get("AUTH_MODE", "cookie"))},\n'
             f'    "SESSION_TIMEOUT_MINUTES": {json.dumps(_to_int(payload.get("SESSION_TIMEOUT_MINUTES"), default=30))},\n'
             f'    "APP_VERSION": {json.dumps(payload.get("APP_VERSION", "0.0.0"))},\n'
-            f'    "APP_COMMIT": {json.dumps(payload.get("APP_COMMIT", ""))},\n'
-            f'    "APP_BUILD_DATE": {json.dumps(payload.get("APP_BUILD_DATE", ""))},\n'
-            f'    "APP_CONTAINER_DIGEST": {json.dumps(payload.get("APP_CONTAINER_DIGEST", ""))},\n'
-            f'    "APP_ENV": {json.dumps(payload.get("APP_ENV", ""))},\n'
             f'    "AUDIT_LOG_PATH": {json.dumps(payload.get("AUDIT_LOG_PATH", ""))},\n'
             f'    "DEFAULT_BROWSE_PATH": {json.dumps(payload.get("DEFAULT_BROWSE_PATH", "src"))},\n'
             f'    "PROFILE_STORE_PATH": {json.dumps(payload.get("PROFILE_STORE_PATH", ""))},\n'
@@ -4535,21 +4466,7 @@ class HealthCheckMiddleware:
                 await self._serve_runtime_config(send, method=method)
                 return
             if path == "/version":
-                # W28E-1863 fix-wave-a (WSC-014 / PS-30 UI-R7.3): expose
-                # source commit + build date + deployment identity, not just
-                # version, so the WebUI About page can render build provenance.
-                _build = self._build_identity()
-                payload = {
-                    "version": self.version,
-                    "service": "file-mcp-server",
-                    "source_commit": _build["source_commit"],
-                    "source_branch": _build["source_branch"],
-                    "build_date": _build["build_date"],
-                    "container_digest": _build["container_digest"],
-                    "environment": _build["environment"],
-                    # legacy field name the DashboardPage VersionInfo already reads
-                    "commit": _build["source_commit"],
-                }
+                payload = {"version": self.version, "service": "file-mcp-server"}
                 body = b"" if method == "HEAD" else json.dumps(payload).encode("utf-8")
                 await self._send_bytes(
                     send,
@@ -4571,22 +4488,14 @@ class HealthCheckMiddleware:
                 return
 
             if self._is_ui_route(path):
-                # W28C-1702 (FM6): the google-drive setup APIs are admin-only.
-                # The gate below protects the *API* surface (/admin/google-drive*)
-                # which leaked the OAuth client_id. For the SPA client-route
-                # /google-drive-settings we DENY anon API clients (401 JSON) but
-                # W28E-1863 fix-wave-a: an unauthenticated *browser* (Accept:
-                # text/html) must receive the SPA shell (200 index.html), the same
-                # as every other admin SPA route (/admin/users, ...). The SPA then
-                # renders its own <LoginPage> (App.tsx: !auth.isAuthenticated).
-                # Serving static index.html exposes NO admin data (the API stays
-                # 401-gated), so this preserves the FM6 anon-gate contract while
-                # ending the raw-JSON-401 deep-link shadow for logged-out users.
+                # W28C-1702 (FM6): the google-drive setup SPA route is admin-only.
+                # Deny anon BEFORE serving the shell (302→login for a browser,
+                # 401 otherwise) so it matches the gated /admin/google-drive* APIs.
                 if scope.get("type") == "http" and path == "/google-drive-settings":
                     _gd_authed, _gd_admin, _ = await self._admin_gate(
                         scope=scope, headers=headers
                     )
-                    if not _gd_authed and "text/html" not in accept:
+                    if not _gd_authed:
                         await self._deny_admin_access(send, headers=headers)
                         return
                 admin_api_get_candidates = (
