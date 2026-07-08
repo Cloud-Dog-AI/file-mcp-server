@@ -38,7 +38,7 @@ async def _noop_app(scope, receive, send) -> None:  # pragma: no cover
     await send({"type": "http.response.body", "body": b""})
 
 
-def _run(mw, *, method, path, headers=None, body=b""):
+def _run(mw, *, method, path, headers=None, body=b"", query_string=b""):
     sent: list[dict] = []
 
     async def _go() -> None:
@@ -47,7 +47,7 @@ def _run(mw, *, method, path, headers=None, body=b""):
             "method": method,
             "path": path,
             "headers": headers or [],
-            "query_string": b"",
+            "query_string": query_string,
         }
 
         async def receive():
@@ -91,7 +91,16 @@ def test_fm6_anonymous_denied_on_all_four_gdrive_surfaces() -> None:
     for method, path in GDRIVE_PATHS:
         sent = _run(mw, method=method, path=path)  # no auth headers, no Accept
         status = sent[0]["status"]
-        assert status == 401, f"anon {method} {path} -> {status}, expected 401"
+        if path == "/admin/google-drive/callback":
+            # W28C-1702/5c1dbe6: the OAuth callback is NOT admin-session-gated
+            # (Google's cross-site redirect cannot carry the admin cookie). It is
+            # instead gated on a KNOWN OAuth `state` minted by the admin-authed
+            # /start. An anonymous caller supplies no (or an unknown) state, so the
+            # callback denies with 403 FORBIDDEN ("Invalid or unknown OAuth state").
+            # That still denies the anonymous caller and leaks no client_id.
+            assert status == 403, f"anon {method} {path} -> {status}, expected 403"
+        else:
+            assert status == 401, f"anon {method} {path} -> {status}, expected 401"
         # No client_id must appear in any anonymous response body.
         body = b"".join(
             m.get("body", b"") for m in sent if m.get("type") == "http.response.body"
@@ -110,9 +119,16 @@ def test_fm6_admin_cookie_session_admitted() -> None:
         "role": "admin",
         "_created": time.time(),
     }
+    # W28C-1702/5c1dbe6: the callback is gated on a KNOWN OAuth `state` (minted by
+    # the admin-authed /start), NOT on the admin cookie — Google's cross-site
+    # redirect cannot carry the cookie. Register a legitimate issued state so the
+    # admin-initiated callback clears the state gate, mirroring the real /start.
+    mw._oauth_state_principal["w28c1702-state"] = "admin"
     cookie = [(b"cookie", b"file_web_session=w28c1702-sess")]
     for method, path in GDRIVE_PATHS:
-        sent = _run(mw, method=method, path=path, headers=cookie)
+        qs = b"state=w28c1702-state&code=c" if path.endswith("/callback") else b""
+        sent = _run(mw, method=method, path=path, headers=cookie, query_string=qs)
         status = sent[0]["status"]
-        # The admin session must clear the gate (no 401/403 denial).
+        # The admin session (or, for the callback, a known issued state) must clear
+        # the gate (no 401/403 denial).
         assert status not in (401, 403), f"admin {method} {path} -> {status}"

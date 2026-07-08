@@ -2,11 +2,11 @@
 template-id: T-TSS
 template-version: 1.0
 project: file-mcp-server
-doc-last-updated: 2026-06-24T07:35:00+00:00
-doc-git-commit: 9366506b497265613fd0775d207910d3b1b695bb
+doc-last-updated: 2026-07-08T00:00:00+00:00
+doc-git-commit: 9bc504326de4aaec8644ec575a58b268503f9af3
 doc-git-branch: main
 doc-age-policy: 30d
-doc-conformance-stamp: 2026-06-17T11:09:42.839473+00:00
+doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 ---
 
 # file-mcp-server — TEST-STATUS
@@ -15,9 +15,25 @@ doc-conformance-stamp: 2026-06-17T11:09:42.839473+00:00
 
 ## 1. Latest run
 
-- **Run timestamp:** 2026-06-24T07:35:00+00:00
-- **Commit:** `9366506b497265613fd0775d207910d3b1b695bb` (`main`)
-- **Totals:** 21 tests | 21 passed | 0 failed | 0 skipped
+- **Run timestamp:** 2026-07-08T00:00:00+00:00
+- **Commit:** `9bc504326de4aaec8644ec575a58b268503f9af3` (`main`)
+- **Environment:** CPython 3.12.13 (verified `python -VV`); Vault-unlocked (env-vault) for IT/AT/ST ${vault..} resolution.
+- **Python-tier totals (this run):** 539 node-ids | 521 passed | 9 failed | 7 blocked | 2 skipped
+- **Per-tier:** UT 269 pass / 0 fail · IT 43 pass / 7 blocked (docker-build private-PyPI) / 1 skip · AT 21 pass / 8 fail (WebUI live-stack) / 1 skip · QT 61 pass / 0 fail · ST 30 pass / 1 fail (NFS clock-skew) · smoke 97 pass / 0 fail
+- **WebUI/E2E/a11y (monorepo Playwright, prior run):** 21 passed (unchanged, retained below)
+- **Grand total:** 560 node-ids | 542 passed | 9 failed | 7 blocked | 2 skipped
+
+### 1.1 Non-passing summary (all honest, all real findings)
+
+- **7 IT blocked** — `IT1.1_DockerContainerRemoteStorageBackends` (webdav/ftp/s3) + `IT1.2_DockerContainerRuntime` (4 tests): `docker build` fails because the Dockerfile's `--mount=type=secret,id=pip_conf` private-PyPI credential is not supplied by the test harness (pip EOFError at auth prompt). Environment/auth precondition per AGENT-LESSONS (Infrastructure §1), not a code defect.
+- **2 skip** — GDrive live OAuth (`IT1.7`, `AT1.12`): deferred, requires interactive web OAuth interface (W28A-121).
+- **8 AT fail** — `AT_WEBUI_EndToEnd` (t1,t2,t4,t6,t7,t11,t12,t13): FR-012 open WebUI item. Root cause verified: `GET /file-browser` returns HTTP 308 → `/catalogue` (route rename); the SPA serves under `/catalogue` but the E2E expects the "File Browser" heading/nav under `/file-browser`; admin user/api-key CRUD rows also time out. 5 of 13 WebUI tests pass (dashboard, audit-log, storage-profiles, groups, RBAC) against a clean render-verified stack (fresh vendored bundle `index-2bMvFI6H.js`).
+- **1 ST fail** — `test_st1_18_time_based_search` (FR-025): NFS4 mount (server2.viewdeck.com) file-server clock runs ~186s ahead of the host; freshly-created file mtime lands after the test's `modified_before = now + 60s` bound, so the file is (correctly) excluded. Search filter logic verified correct in `src/file_tools/search/find.py`; this is an infra/clock-skew issue, not a code defect.
+
+### 1.2 Green-ing fixes applied this run (no weakened assertions)
+
+- **UT** — 3 stale google-drive callback tests updated to the current W28C-1702/5c1dbe6 contract (callback is state-token-gated, not admin-session-gated): `test_fm6_anonymous_denied_on_all_four_gdrive_surfaces`, `test_fm6_admin_cookie_session_admitted` (tests/unit/UT1.12...), `test_google_drive_callback_applies_reload_when_enabled` (tests/unit/UT1.22...). Assertions strengthened to the real state-gated contract.
+- **QT** — `docs/MCP-REFERENCE.md` US→UK spelling (Authorisation) to match repo convention; `docs/TESTS.md` traceability drift fixed: dedup cluster-range test-IDs, added FR1.47 req-ref for IT1.26, registered 7 previously-orphan test files (UT1.36/1.37/1.38/1.39/1.41, IT1.27, AT1.14).
 
 ## 2. Per-test status
 
@@ -44,7 +60,548 @@ doc-conformance-stamp: 2026-06-17T11:09:42.839473+00:00
 | `apps.file-mcp.tests.e2e.routes::canonical-routes-and-aliases` | WebUI/E2E | pass | 2026-06-24 | `9366506` | |
 | `apps.file-mcp.tests.e2e.routes::unknown-route` | WebUI/E2E | pass | 2026-06-24 | `9366506` | |
 | `apps.file-mcp.tests.smoke.all-pages::main-navigation` | WebUI/smoke | pass | 2026-06-24 | `9366506` | |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_atomic_write_and_read` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_atomic_write_respects_overwrite` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_write_text_and_copy_move` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_delete_file_missing_ok` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_list_dir` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_create_dir_and_move_rename_with_utf8_names` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.10_Filesystem/test_filesystem.py::test_chmod_path_updates_mode_for_file` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_render_setup_page_contains_form_and_profiles` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_render_setup_page_locks_profile_when_requested` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_render_setup_page_prefills_values_and_masks_stored_secret` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_merge_google_drive_into_profile_builds_db_profile_payload` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_complete_oauth_callback_persists_to_db_and_does_not_mutate_config_yaml` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_fetch_folder_falls_back_to_name_lookup_on_404` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.11_GoogleDriveAdmin/test_google_drive_admin.py::test_render_link_success_page_is_styled_linked_and_leak_free` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.12_GoogleDriveOauthHelper/test_google_drive_oauth_helper.py::test_build_auth_url_contains_required_params` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.12_GoogleDriveOauthHelper/test_google_drive_oauth_helper.py::test_helper_cli_prints_auth_url_without_code` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.12_GoogleDriveOauthHelper/test_w28c_1702_fm6_anon_gate.py::test_fm6_anonymous_denied_on_all_four_gdrive_surfaces` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.12_GoogleDriveOauthHelper/test_w28c_1702_fm6_anon_gate.py::test_fm6_admin_cookie_session_admitted` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.13_GoogleDriveSetupScript/test_google_drive_setup_script.py::test_extract_folder_id_from_share_url` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.13_GoogleDriveSetupScript/test_google_drive_setup_script.py::test_extract_folder_id_from_literal_id` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.13_GoogleDriveSetupScript/test_google_drive_setup_script.py::test_write_env_values_updates_existing_and_appends_new` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.13_GoogleDriveSetupScript/test_google_drive_setup_script.py::test_load_google_defaults_from_credentials_file` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.14_GoogleDriveStorage/test_google_drive_storage.py::test_extract_folder_id_from_drive_url` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.14_GoogleDriveStorage/test_google_drive_storage.py::test_google_drive_requires_folder_id_or_url` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.14_GoogleDriveStorage/test_google_drive_storage.py::test_google_drive_requires_oauth_client` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.14_GoogleDriveStorage/test_google_drive_storage.py::test_google_drive_defaults_upload_base_uri` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.14_GoogleDriveStorage/test_google_drive_storage.py::test_google_drive_token_refresh_surfaces_invalid_grant` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.14_GoogleDriveStorage/test_google_drive_storage.py::test_google_drive_list_dir_exposes_drive_metadata` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.15_Lifecycle/test_lifecycle.py::test_pidfile_lifecycle` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.15_Lifecycle/test_lifecycle.py::test_stop_pidfile_without_pid` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.16_Observability/test_observability.py::test_operational_logger_writes_file` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.16_Observability/test_observability.py::test_operational_logger_disabled` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.16_Observability/test_observability.py::test_configure_logging_for_profile_uses_role_specific_log_file` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.17_Posix/test_posix.py::test_is_posix_path` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.17_Posix/test_posix.py::test_normalize_and_to_posix` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.17_Posix/test_posix.py::test_safe_join` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.17_Posix/test_posix.py::test_require_relative` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.17_Posix/test_posix.py::test_filter_posix_paths` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_scope_denies_outside_root` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_scope_denies_glob` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_scope_allows_glob` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_scope_denies_extension` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_scope_denies_read_only_on_write` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_scope_allows_root_directory_for_recursive_glob` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.18_ScopePolicy/test_scope_policy.py::test_posix_scope_allows_root_directory_for_recursive_glob` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.19_Search/test_search.py::test_search_paths` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.19_Search/test_search.py::test_search_paths_glob` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.19_Search/test_search.py::test_search_content` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.19_Search/test_search.py::test_search_content_regex` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.19_Search/test_search.py::test_search_content_max_results` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.19_Search/test_search.py::test_search_content_max_file_mb` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.1_ApiKitContract/test_api_kit_contract.py::test_health_middleware_exposes_ready_and_live` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.1_ApiKitContract/test_api_kit_contract.py::test_admin_query_token_is_rejected_with_error_envelope` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_replace_regex` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_insert_before_after_line` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_delete_matching_lines` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_replace_line_range` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_insert_invalid_line_raises` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_apply_edits_atomic_on_error` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.20_Sedlike/test_sedlike.py::test_apply_edits_success` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.21_ServerDispatch/test_server_dispatch.py::test_tools_list` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.21_ServerDispatch/test_server_dispatch.py::test_tools_call` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.21_ServerDispatch/test_server_dispatch.py::test_unknown_method` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_resolve_http_settings_with_base_path` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_deleted_profile_name_preserves_uniqueness_budget` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_merge_active_db_profiles_into_config_overrides_file_seed` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_normalise_profile_mapping_inherits_default_auth_when_missing` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_supports_legacy_api_alias_path` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_supports_legacy_root_alias_path` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_build_tool_registry_wires_real_handlers` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_build_tool_registry_includes_backend_status` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_build_tool_registry_passes_max_results_to_local_search` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_returns_ok` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_returns_status_metrics` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_a2a_health_requires_auth_without_credentials` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_a2a_health_ignores_auth_header_verifier_contract` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_a2a_health_rejects_malformed_authorization_header` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_admin_profiles_api_route_supports_api_prefix_alias` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_jobs_route_lists_jobs` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_jobs_route_reads_single_job` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_web_proxy_preserves_api_prefix_for_jobs_routes` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_logs_route_returns_structured_rows` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_web_proxy_preserves_api_prefix_for_logs_routes` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_build_tool_registry_convert_file_reports_job_id` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_streamable_http_accept_compatibility_middleware_patches_json_only_accept` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_resolve_auth_api_key_value_unwraps_nested_env_placeholders` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_resolve_auth_api_key_value_returns_empty_for_unresolved_placeholder` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_root_route_serves_spa_index_from_configured_dist` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_root_route_with_api_accept_serves_spa_index` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_google_drive_page_locks_profile_from_query` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_runtime_config_endpoint_returns_dynamic_script` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_version_endpoint_returns_service_version` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_runtime_config_endpoint_scopes_audit_log_path_to_selected_profile_root` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_ui_routes_serve_spa_index_from_configured_dist` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_unknown_root_webui_route_falls_back_to_spa` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_legacy_webui_aliases_redirect_to_canonical_routes` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_non_ui_api_paths_do_not_fallback_to_spa` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_legacy_v1_jobs_paths_do_not_fallback_to_spa` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_legacy_v1_logs_paths_do_not_fallback_to_spa` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_ui_assets_are_served_from_dist` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_serves_google_drive_admin_page` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_google_drive_page_uses_forwarded_proto` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_google_drive_page_prefills_config_and_masks_secret` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_google_drive_start_reuses_masked_secret` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_reload_requires_admin_gate` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_reload_enforces_token_and_returns_json` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_google_drive_callback_applies_reload_when_enabled` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.23_ToolReuse/test_tool_reuse.py::test_file_tools_helpers_reusable` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.24_ToolsRegistry/test_tools_registry.py::test_registry_register_and_get` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.24_ToolsRegistry/test_tools_registry.py::test_registry_duplicate_registration` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.24_ToolsRegistry/test_tools_registry.py::test_build_registry` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.24_ToolsRegistry/test_tools_registry.py::test_registry_list_deterministic` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validate_json` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validate_yaml` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validate_xml` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validate_html` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validate_markdown` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validation_strict_mode` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validation_warn_mode` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.25_Validate/test_validate.py::test_validation_ignore_mode` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.26_WebdavStorage/test_webdav_storage.py::test_webdav_move_retries_transient_then_succeeds` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.26_WebdavStorage/test_webdav_storage.py::test_webdav_move_treats_already_applied_as_success` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.26_WebdavStorage/test_webdav_storage.py::test_webdav_move_non_transient_raises` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.26_WebdavStorage/test_webdav_storage.py::test_webdav_retry_config_is_read_from_storage_model` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.26_WebdavStorage/test_webdav_storage.py::test_parse_retry_statuses_falls_back_for_invalid_input` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.27_RemoteStoragePlaceholderValidation/test_remote_storage_placeholder_validation.py::test_s3_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.27_RemoteStoragePlaceholderValidation/test_remote_storage_placeholder_validation.py::test_webdav_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.27_RemoteStoragePlaceholderValidation/test_remote_storage_placeholder_validation.py::test_ftp_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.27_RemoteStoragePlaceholderValidation/test_remote_storage_placeholder_validation.py::test_google_drive_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.28_RemoteEnvHelpers/test_remote_env_helpers.py::test_merged_remote_env_reads_google_oauth_from_profile_config` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.29_DatabaseAbstraction/test_database_abstraction.py::test_ut_db_01_engine_factory_creates_sqlite_engine` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.29_DatabaseAbstraction/test_database_abstraction.py::test_ut_db_02_session_manager_roundtrip` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.29_DatabaseAbstraction/test_database_abstraction.py::test_ut_db_03_probe_database_reports_healthy` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.2_Audit/test_audit.py::test_build_event` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.2_Audit/test_audit.py::test_audit_logger_writes` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.2_Audit/test_audit.py::test_audit_logger_uses_explicit_actor_identity` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.2_Audit/test_audit.py::test_create_snapshot` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.30_AdminIdentity/test_admin_identity.py::test_create_group_user_and_dynamic_api_key_resolution` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.30_AdminIdentity/test_admin_identity.py::test_revoke_api_key_blocks_future_resolution` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.31_JobsRuntime/test_jobs_runtime.py::test_jobs_runtime_memory_lifecycle` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.31_JobsRuntime/test_jobs_runtime.py::test_jobs_runtime_sql_backend_uses_fallback_db_url` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.31_JobsRuntime/test_lifecycle_simulation.py::test_lifecycle_create_queue_run_succeed` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.31_JobsRuntime/test_lifecycle_simulation.py::test_lifecycle_create_queue_run_fail` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.31_JobsRuntime/test_lifecycle_simulation.py::test_lifecycle_create_queue_cancel` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.31_JobsRuntime/test_lifecycle_simulation.py::test_lifecycle_create_queue_run_fail_retryable` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm5_profile_names_reflect_db_merged_config_not_collapsed_env` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm5_status_profile_count_matches_active_profiles` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm3_explicit_profile_arg_routes_to_named_registry` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm3_build_tool_contracts_advertise_profile` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm7_search_paths_input_advertises_query` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm7_search_paths_and_alias_registered_with_schema` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm8_gdrive_tokens_persist_across_new_session_manager` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm8_complete_oauth_callback_accepts_db_injection_kwargs` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm1_compute_profile_status_per_backend` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm1_gdrive_auth_failed_health_demotes_configured` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm9_localstorage_narrowed_to_operator_defaults` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm9_status_banner_is_rendered` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm4_factory_passes_folder_id_to_google_drive_backend` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm2_redact_profile_secrets_masks_all_secret_values` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.33_W28C1702/test_w28c_1702_forensic_fixes.py::test_fm2_admin_gate_denies_anonymous` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_static_ui_is_public_for_anon` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_data_surfaces_gated_for_anon` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_mcp_discovery_gated_for_anon` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_each_flat_role_logs_in_with_expected_role` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_read_only_writes_are_denied_inline_403` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_read_write_writes_are_not_pre_gated` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_bad_credentials_rejected` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_logout_clears_session` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.35_FlatRoleLogin/test_flat_role_login.py::test_optional_auth_me_allows_cookie_adapter_restore_probe` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_CookieSessionIsolation/test_cookie_session_isolation.py::test_cookieless_request_is_anonymous_even_with_active_admin_session` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_CookieSessionIsolation/test_cookie_session_isolation.py::test_explicit_fallback_flag_does_not_reintroduce_anon_leak` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_CookieSessionIsolation/test_cookie_session_isolation.py::test_valid_matching_cookie_returns_own_session` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_CookieSessionIsolation/test_cookie_session_isolation.py::test_expired_matching_cookie_is_anonymous` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_ParamAliasFallback/test_param_alias_fallback.py::test_b64_decode_to_file_accepts_path_and_data` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_ParamAliasFallback/test_param_alias_fallback.py::test_b64_decode_to_file_accepts_path_and_content` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_ParamAliasFallback/test_param_alias_fallback.py::test_admin_create_group_accepts_name_collision_source` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_ParamAliasFallback/test_param_alias_fallback.py::test_filepath_alias_to_path_still_works` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.36_ParamAliasFallback/test_param_alias_fallback.py::test_text_alias_to_content_still_works` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.37_RestFileLifecycle/test_rest_file_lifecycle_helpers.py::test_rest_file_id_round_trips_absolute_scoped_path` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.37_RestFileLifecycle/test_rest_file_lifecycle_helpers.py::test_rest_file_scope_allows_read_but_denies_write_for_read_only_profile` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.38_McpRoleGuards/test_mcp_role_guards.py::test_non_admin_api_key_gets_http_403_for_admin_mcp_tool` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.38_McpRoleGuards/test_mcp_role_guards.py::test_primary_profile_api_key_is_not_promoted_to_admin` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.38_McpRoleGuards/test_mcp_role_guards.py::test_read_only_webmcp_can_read_but_cannot_write` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.39_W28E1846WebUiAliases/test_webui_aliases.py::test_profile_connection_aliases_route_to_storage_profiles` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_key_fingerprint_format` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_auth_rejects_missing_keys` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_auth_rejects_missing_token` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_auth_accepts_valid_key` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_auth_rejects_invalid_key` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_token_verifier_accepts_valid_bearer_token` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_header_backend_accepts_custom_header_and_scheme` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_header_backend_rejects_wrong_scheme` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_token_verifier_ignores_unexpanded_env_placeholders` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_multi_profile_verifier_query_profile_and_key_routing` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_multi_profile_verifier_rejects_wrong_profile_key` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.3_Auth/test_auth.py::test_multi_profile_verifier_admin_api_key_gets_admin_scope` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/admin]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/admin/preferences]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/admin/some-future-tab]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/system/preferences]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/research]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/catalogue]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_spa_document_navigations[/dashboard/insights]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/api]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/api/v1/users]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/v1/admin/users]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/webmcp]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/webmcp/tools]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/weba2a/events]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/a2a/tasks]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/auth/login]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/assets/index-abc.js]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/files/report]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/idam/users]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/.well-known/agent.json]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/health]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/ready]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/live]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/status]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/version]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/openapi]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/runtime-config.js]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/favicon.ico]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/foo.js]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/sitemap.xml]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[/]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_blocklist_reserved_and_static_paths_excluded[]` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_unauth_browser_deeplink_serves_spa_shell_not_404` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_head_deeplink_serves_spa_shell` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_unauth_api_paths_not_shadowed_by_spa_fallback` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_fm6_google_drive_settings_browser_gate_preserved` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_version_endpoint_exposes_build_identity` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py::test_runtime_config_exposes_build_identity` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_env_precedence` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_os_environ_precedence` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_env_overrides_literal_config_values` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_os_environ_overrides_env_file_and_config` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_defaults_only` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_coerces_numeric_api_keys_to_strings` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.4_ConfigLoader/test_config_loader.py::test_load_config_env_override_precedence` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.5_Convert/test_convert.py::test_convert_file_with_dummy_backend` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.5_Convert/test_convert.py::test_convert_file_no_backend` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.5_Convert/test_convert.py::test_convert_file_max_input_mb` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.5_Convert/test_convert.py::test_convert_file_timeout` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.6_Diff/test_diff.py::test_diff_text_contains_changes` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.6_Diff/test_diff.py::test_diff_files` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.6_Diff/test_diff.py::test_meld_available_returns_bool` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.6_Diff/test_diff.py::test_meld_unavailable_returns_warning` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.7_EditStructured/test_edit_structured.py::test_json_yaml_crud` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.7_EditStructured/test_edit_structured.py::test_json_yaml_move_copy_merge_matrix` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.7_EditStructured/test_edit_structured.py::test_xml_html_edits` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.7_EditStructured/test_edit_structured.py::test_markdown_section_edits` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.8_Encoding/test_encoding.py::test_b64_encode_decode_roundtrip` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.8_Encoding/test_encoding.py::test_b64_urlsafe_roundtrip` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py::test_run_startup_checks_marks_local_healthy` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py::test_classify_http_error_503_as_busy_temporary` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py::test_classify_google_invalid_grant_as_auth_failed` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py::test_classify_google_oauth_token_400_as_auth_failed` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py::test_recover_backend_after_failure` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.9_EndpointHealth/test_endpoint_health.py::test_configured_backends_ignores_unresolved_placeholders` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_AuditLogFormat/test_audit_log_format.py::test_audit_event_has_all_au3_fields` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_AuditLogFormat/test_audit_log_format.py::test_audit_event_timestamp_format` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_AuditLogFormat/test_audit_log_format.py::test_audit_event_outcome_values` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_AuditLogFormat/test_audit_log_format.py::test_audit_event_no_secrets` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py::test_broadcaster_is_event_broadcaster_protocol` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py::test_event_shape_for_user_crud` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py::test_router_mounts_history_and_stream_when_broadcaster_provided` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py::test_history_filter_and_limit_work_end_to_end` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT_CFG06_A2AEvents/test_config_change_events.py::test_api_key_event_does_not_leak_secret` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.10_IntegrationMarkdownAdvancedHttp/test_integration_markdown_advanced_http.py::test_markdown_heading_path_slug_and_frontmatter_workflow` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.11_IntegrationMeldOptionalityHttp/test_integration_meld_optionality_http.py::test_meld_optional_unavailable_returns_warning` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.12_IntegrationMultiProfileRoutingHttp/test_integration_multi_profile_routing_http.py::test_multi_profile_selection_auth_and_scope_controls` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.13_IntegrationRemoteBackendToolMatrixHttp/test_integration_remote_backend_tool_matrix_http.py::test_remote_backend_tool_matrix[webdav]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.13_IntegrationRemoteBackendToolMatrixHttp/test_integration_remote_backend_tool_matrix_http.py::test_remote_backend_tool_matrix[ftp]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.13_IntegrationRemoteBackendToolMatrixHttp/test_integration_remote_backend_tool_matrix_http.py::test_remote_backend_tool_matrix[s3]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.14_IntegrationRemoteStorageBackendsHttp/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[webdav]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.14_IntegrationRemoteStorageBackendsHttp/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[ftp]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.14_IntegrationRemoteStorageBackendsHttp/test_integration_remote_storage_backends_http.py::test_remote_storage_backend_end_to_end[s3]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.15_IntegrationScopedOps/test_integration_scoped_ops.py::test_scoped_file_operations_over_http` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.16_IntegrationSearchHttp/test_integration_search_http.py::test_search_http_honors_scope_deny_and_limits` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.17_IntegrationSedlikeFileHttp/test_integration_sedlike_file_http.py::test_sedlike_file_edit_flow_over_http` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.18_IntegrationSedlikeTransactionHttp/test_integration_sedlike_transaction_http.py::test_sedlike_transaction_atomicity_over_http` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.18_IntegrationSedlikeTransactionHttp/test_integration_sedlike_transaction_http.py::test_sedlike_transaction_validation_failure_rolls_back` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.19_IntegrationStoryMultitypeCrudHttp/test_integration_story_multitype_crud_http.py::test_story_multitype_upload_search_update_retrieve_delete_with_audit` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.19_IntegrationStoryMultitypeCrudHttp/test_integration_story_multitype_crud_http.py::test_story_upload_pdf_convert_update_find_return_with_audit` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.19_IntegrationStoryMultitypeCrudHttp/test_integration_story_multitype_crud_http.py::test_upload_download_cycle_with_invalid_key_rejected` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.20_IntegrationStructuredAuditSnapshot/test_integration_structured_audit_snapshot.py::test_structured_edit_with_audit_and_snapshot` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.21_IntegrationStructuredFormats/test_integration_structured_formats.py::test_structured_file_edits_xml_html_markdown` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.22_IntegrationYamlFileStructuredOps/test_integration_yaml_file_structured_ops.py::test_yaml_file_structured_crud_with_audit_snapshot` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.23_ServerHttpIntegration/test_server_http_integration.py::test_http_health_and_authenticated_tool_call` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.24_SystemConversionBackendSelection/test_system_conversion_backend_selection.py::test_conversion_backend_selection_and_fallback_metadata` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.24_SystemConversionBackendSelection/test_system_conversion_backend_selection.py::test_conversion_explicit_external_backend_when_available` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.24_SystemConversionBackendSelection/test_system_conversion_backend_selection.py::test_conversion_explicit_libreoffice_backend_when_available` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.24_SystemConversionBackendSelection/test_system_conversion_backend_selection.py::test_conversion_explicit_backend_unavailable_and_unsupported_codes` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.25_IntegrationA2AAuthContract/test_integration_a2a_auth_contract.py::test_a2a_health_auth_matrix_401_401_200` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py::test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.27_IntegrationJobsManagedFileOps/test_integration_jobs_managed_file_ops.py::test_conversion_operation_is_tracked_as_managed_job` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.27_RestFileLifecycle/test_rest_file_lifecycle_http.py::test_ps78_rest_file_lifecycle_uses_profile_scope_and_audit` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.27_RestFileLifecycle/test_rest_file_lifecycle_http.py::test_ps78_rest_file_lifecycle_rejects_read_only_scope` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_docker_command_builder_supports_remote_host_flag` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_docker_command_builder_defaults_to_local_daemon` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_docker_remote_host_exec_path_if_enabled` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.3_IntegrationBase64FileOps/test_integration_base64_file_ops.py::test_base64_file_roundtrip_over_http` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.4_IntegrationConfigMatrixHarnessHttp/test_integration_config_matrix_harness_http.py::test_config_matrix_harness_validates_scope_limits_auth_and_audit[variant0]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.4_IntegrationConfigMatrixHarnessHttp/test_integration_config_matrix_harness_http.py::test_config_matrix_harness_validates_scope_limits_auth_and_audit[variant1]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.4_IntegrationConfigMatrixHarnessHttp/test_integration_config_matrix_harness_http.py::test_config_matrix_harness_validates_scope_limits_auth_and_audit[variant2]` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.5_IntegrationDiffFilesHttp/test_integration_diff_files_http.py::test_diff_files_over_http` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.6_IntegrationFilesystemPathToolsHttp/test_integration_filesystem_path_tools_http.py::test_filesystem_path_tools_cover_files_dirs_and_utf8` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.8_IntegrationIterativeCycleGuardHttp/test_integration_iterative_cycle_guard_http.py::test_iterative_search_update_retrieve_cycle_is_bounded_and_audited` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.9_IntegrationJsonYamlGetMergeHttp/test_integration_json_yaml_get_merge_http.py::test_json_yaml_file_level_operation_matrix_depth` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1_30_AuthStatusProbe/test_auth_status_probe.py::test_auth_status_unauth_denied_authed_capability` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT_CFG06_A2AEvents/test_a2a_events_integration.py::test_it_cfg06_admin_crud_publishes_events_to_a2a_events_history` | IT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/integration/IT1.7_IntegrationGoogleDriveLiveHttp/test_integration_google_drive_live_http.py` | IT | skip | 2026-07-08 | `9bc5043` | SKIP: GDrive deferred: requires web OAuth interface (W28A-121) |
+| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[webdav]` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[ftp]` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[s3]` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_smoke_with_host_network_and_mcp_call` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_smoke_with_bridge_network_port_publish` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_multi_env_override_changes_root_and_api_key` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_multi_folder_scope_controls_and_audit_logs` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/application/AT1.10_ApplicationA2AAuthWorkflow/test_application_a2a_auth_workflow.py::test_application_a2a_health_flow_uses_test_a2a_api_key` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.11_DynamicProfileCRUDLifecycle/test_dynamic_profile_crud_lifecycle.py::test_at1_11_dynamic_profile_crud_lifecycle` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py::test_at1_13_webui_admin_pages_render_profile_and_identity_data` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.14_RestFileLifecycle/test_application_rest_file_lifecycle.py::test_application_rest_file_lifecycle_base64_roundtrip` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.14_RestFileLifecycle/test_application_rest_file_lifecycle.py::test_application_a2a_file_management_transfers_base64_file` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.1_ApplicationCompoundReleaseWorkflow/test_application_compound_release_workflow.py::test_application_compound_release_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.2_ApplicationConversionEditWorkflow/test_application_conversion_edit_workflow.py::test_conversion_plus_markdown_edit_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.3_ApplicationConversionStructuredWorkflow/test_application_conversion_structured_workflow.py::test_application_conversion_structured_diff_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.4_ApplicationLifecycleWorkflow/test_application_lifecycle_workflow.py::test_operator_lifecycle_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.5_ApplicationMultifileTransactionWorkflow/test_application_multifile_transaction_workflow.py::test_application_multifile_transaction_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.6_ApplicationPreprodProfileChainHttp/test_application_preprod_profile_chain_http.py::test_application_preprod_profile_chain_flow_live` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.7_ApplicationSafeEditWorkflow/test_application_safe_edit_workflow.py::test_end_to_end_safe_edit_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.8_ApplicationSearchEditAuditWorkflow/test_application_search_edit_audit_workflow.py::test_application_search_edit_audit_workflow` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.9_ApplicationSecurityBoundary/test_application_security_boundary.py::test_security_boundary_enforcement_with_audit` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_PROFILE_LIFECYCLE/test_profile_lifecycle.py::test_profile_lifecycle_project_folder_with_dated_content` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_ProfileCRUD/test_profile_crud.py::test_at_profile_crud_lifecycle` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT1.12_GoogleDriveOauthLive/test_google_drive_oauth_live.py` | AT | skip | 2026-07-08 | `9bc5043` | SKIP: GDrive deferred: requires web OAuth interface (W28A-121) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t3_group_crud` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t5_rbac_assign_verify_remove` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t8_audit_log` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t9_storage_profile_crud` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t10_dashboard` | AT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t1_api_key_login` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t2_user_crud` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t4_api_key_crud` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t6_read_file` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t7_search` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t11_edit_file` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t12_console_error_gate` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t13_cw_canonical_testids` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_1_secrets_never_logged` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_2_path_traversal_prevention` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_3_domain_specific_safety` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_4_uk_english_compliance` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt26_secrets_separation.py::test_qt2_6_no_hardcoded_secrets_in_source` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt26_secrets_separation.py::test_qt2_6_sensitive_env_values_use_vault_or_scoped_files` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt26_secrets_separation.py::test_qt2_6_defaults_config_do_not_embed_plain_secrets` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt27_bespoke_code_scan.py::test_qt2_7_no_bespoke_platform_replacements` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt3_documentation_suite.py::test_qt3_1_required_files_exist` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt3_documentation_suite.py::test_qt3_2_requirement_id_format` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt3_documentation_suite.py::test_qt3_3_test_id_uniqueness` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_config_yaml_immutable.py::test_runtime_source_does_not_write_immutable_config_yaml_files` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_migration_completeness.py::test_no_yaml_safe_load_for_config` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_migration_completeness.py::test_no_raw_fastapi` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_migration_completeness.py::test_no_bespoke_auth` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_migration_completeness.py::test_no_os_environ_for_config` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_config_uses_cloud_dog_config` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_logging_uses_cloud_dog_logging` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_api_uses_cloud_dog_api_kit` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_auth_uses_cloud_dog_idam` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_no_bespoke_db_access` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_no_bespoke_llm_calls` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_no_bespoke_vdb_calls` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_package_adoption.py::test_pyproject_declares_platform_packages` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py::test_manifest_covers_all_requirements` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py::test_manifest_mapped_paths_exist` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_requirement_traceability_manifest.py::test_manifest_entries_not_empty` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_no_hardcoded_urls` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_no_hardcoded_credentials` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_no_direct_external_imports` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_no_skip_calls_in_it_at` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_no_mock_in_it_at` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_file_headers_present` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_rules_compliance.py::test_functions_have_docstrings` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_traceability.py::test_all_requirements_have_tests` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_traceability.py::test_all_tests_have_requirements` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_traceability.py::test_all_requirements_have_code` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_traceability.py::test_delivery_matrix_complete` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_traceability.py::test_no_orphan_test_files` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py::test_defaults_yaml_exists` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py::test_defaults_yaml_no_secrets` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py::test_config_yaml_no_secrets` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py::test_env_files_use_vault_expressions` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py::test_no_secrets_in_source` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_COMPLIANCE/test_qt_vault_config_contract.py::test_env_files_exist_per_tier` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_LoggingCompliance/test_logging_compliance.py::test_defaults_yaml_has_integrity_config` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_LoggingCompliance/test_logging_compliance.py::test_defaults_yaml_has_rotation_config` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_LoggingCompliance/test_logging_compliance.py::test_defaults_yaml_has_retention_config` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_LoggingCompliance/test_logging_compliance.py::test_audit_events_doc_exists` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_bespoke_logging` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_bespoke_config_manager` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_bespoke_auth` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_memory_queue` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_direct_llm_calls` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_hardcoded_secrets` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_no_internal_hostnames` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_ui_dist_exists` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_runtime_config_endpoint` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_server_control_exists` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_licence_exists` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/quality/QT_PACKAGE_COMPLIANCE/test_package_compliance.py::TestPackageCompliance::test_readme_exists` | QT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.10_SystemLimitsTimeout/test_system_limits_timeout.py::test_limits_timeout_path_for_conversion` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.11_SystemReadPartialRanges/test_system_read_partial_ranges.py::test_read_file_partial_line_and_byte_ranges` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.11_SystemReadPartialRanges/test_system_read_partial_ranges.py::test_read_file_rejects_mixed_line_and_byte_ranges` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.12_SystemSedTransactionContract/test_system_sed_transaction_contract.py::test_sed_transaction_contract_validation_and_noop` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.12_SystemSedTransactionContract/test_system_sed_transaction_contract.py::test_sed_transaction_ordering_and_policy_variants` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.13_SystemSnapshotRetention/test_system_snapshot_retention.py::test_snapshot_retention_prunes_old_snapshot_dirs` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.14_SystemStructuredPathEdgeCases/test_system_structured_path_edge_cases.py::test_structured_path_edge_cases_and_negative_contract` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.14_SystemStructuredPathEdgeCases/test_system_structured_path_edge_cases.py::test_structured_nested_list_dict_and_root_merge_paths` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.15_SystemStructuredRollbackContract/test_system_structured_rollback_contract.py::test_structured_failed_mutation_is_rolled_back_and_audited` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.16_SystemValidateFileTool/test_system_validate_file_tool.py::test_validate_file_tool_success_and_type_inference` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.16_SystemValidateFileTool/test_system_validate_file_tool.py::test_validate_file_tool_unsupported_extension_fails` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration.py::test_st_db_01_migration_upgrade_on_fresh_sqlite` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration.py::test_st_db_02_crud_via_session_manager` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration_multibackend.py::test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration_multibackend.py::test_st_db_04_schema_versioning_simulation` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.1_SystemAuditIntegrity/test_system_audit_integrity.py::test_audit_log_integrity_append_only` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.2_SystemAuthHealth/test_system_auth_health.py::test_auth_enforcement_and_health` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.3_SystemConversionMatrix/test_system_conversion_matrix.py::test_conversion_response_matrix_fields` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.4_SystemConversionOptionality/test_system_conversion_optionality.py::test_conversion_missing_backend_returns_warning` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.5_SystemConversionRealBackends/test_system_conversion_real_backends.py::test_real_pandoc_backend_conversion` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.5_SystemConversionRealBackends/test_system_conversion_real_backends.py::test_real_libreoffice_backend_conversion` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.6_SystemDryRunContract/test_system_dry_run_contract.py::test_dry_run_mutations_do_not_change_files_and_are_audited` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.7_SystemEndpointRestartThreshold/test_system_endpoint_restart_threshold.py::test_server_exits_when_restart_threshold_reached` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.8_SystemErrorContract/test_system_error_contract.py::test_error_contract_for_expected_operational_failures` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST1.9_SystemLimits/test_system_limits.py::test_limits_search_and_conversion_size` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST_IntegrityVerifier/test_integrity_running.py::test_integrity_verifier_starts_with_server` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST_IntegrityVerifier/test_integrity_running.py::test_integrity_log_file_populated` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST_IntegrityVerifier/test_integrity_running.py::test_integrity_record_fields` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST_LogRotation/test_rotation_config.py::test_rotation_handler_configured` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/system/ST_LogRotation/test_rotation_config.py::test_rotation_parameters_from_config` | ST | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/test_st_time_based_search.py::test_st1_18_time_based_search_filters_honor_modified_window` | ST | fail | 2026-07-08 | `9bc5043` | FAIL: NFS mtime clock-skew (~186s) exceeds test 60s future margin; file mtime lands after modified_before bound. Search filter logic verified correct — infra/env issue, not a code defect |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/health-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/ready-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/live-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/status-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/version-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/openapi.json-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/.well-known/agent.json-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/auth/login-auth]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/auth/me-auth]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/auth/logout-auth]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/auth/status-auth]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/auth/status-auth]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/ui-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/ui/anything-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/runtime-config.js-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/search-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/system/settings-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/system/about-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/file-browser-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/storage-profiles-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/audit-log-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/developer/api-docs-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/developer/mcp-console-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/developer/a2a-console-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/system/jobs-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/google-drive-settings-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/assets/foo.js-ui]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/idam/v1/resource-registry-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/idam/v1/rbac/bindings-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/idam/v1/rbac-bindings-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/idam/v1/rbac/bindings-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[DELETE-/idam/v1/rbac/bindings/b-001-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/v1/idam/v1/rbac/bindings-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/v1/idam/v1/rbac-bindings-idam_v1]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/a2a/health-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/mcp-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/webmcp-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/mcp/tools-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/webmcp/tools-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/a2a/events-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/a2a/events/history-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/events-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/events/history-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/a2a/tasks-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/tasks-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/v1/files-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[PUT-/api/v1/files/some/path.txt-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/files-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/files/upload-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/files/upload_base64-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/files/c2NvcGVkLnR4dA-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/files/c2NvcGVkLnR4dA/download-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[DELETE-/files/c2NvcGVkLnR4dA-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/v1/profiles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/api/v1/profiles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[PATCH-/v1/profiles/profile-1-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/v1/jobs-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/v1/jobs/abc123-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/v1/jobs/queue/status-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/v1/logs-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/users-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/users-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[PUT-/admin/users/u-001-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[DELETE-/admin/users/u-001-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/groups-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/groups/g-001-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/groups/g-001/members-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[DELETE-/admin/groups/g-001/members/u-1-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/api-keys-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/api-keys-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[DELETE-/admin/api-keys/k-001-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/roles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/roles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/profiles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/profiles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/api/admin/profiles-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/reload-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/runtime-config-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/identity-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/google-drive-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[POST-/admin/google-drive/start-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/admin/rbac-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/v1/admin-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/v1/admin/users-guarded]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_no_unguarded_route_for_canonical_probes` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_public_allowlist_includes_required_anon_endpoints` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_public_allowlist_excludes_a2a_health` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_auth_paths_include_login_me_logout` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_idam_v1_pattern_matches_canonical_and_v1_prefix` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_a2a_health_is_guarded` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_mcp_tools_get_routes_are_guarded` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_a2a_events_endpoints_all_four_guarded` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_ps78_rest_file_lifecycle_routes_are_guarded` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_route_guards_have_no_duplicate_keys` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_route_guards_minimum_coverage` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_resource_id_extractor_for_user_route` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
 
 ## 3. Failures (detail)
 
-_None._
+- **AT_WEBUI_EndToEnd (8 fail, FR-012):** `/file-browser` deep-link 308-redirects to `/catalogue` (backend route rename). SPA serves under `/catalogue`; E2E asserts "File Browser" heading/nav at `/file-browser`. Admin user/api-key CRUD row locators also time out. Verified against a clean worktree stack serving the fresh render-verified bundle `index-2bMvFI6H.js`; 5/13 WebUI tests pass. Open WebUI live-stack item at HEAD — recorded honestly, not papered over.
+- **ST test_st1_18_time_based_search (1 fail, FR-025):** NFS4 mount clock ~186s ahead of host; file mtime exceeds the test's `now + 60s` `modified_before` bound. `src/file_tools/search/find.py` time-window filter verified correct. Infra/clock-skew, not a code defect.
+- **IT docker-container (7 blocked, FR-029):** `docker build` needs the private-PyPI `pip_conf` secret mount not supplied by the harness (pip EOFError). Environment/auth precondition.

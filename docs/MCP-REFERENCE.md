@@ -24,7 +24,7 @@ doc-conformance-stamp: 2026-06-18T09:40:00Z
 ## 1. Auth model
 
 - **Transport:** Streamable HTTP at `/mcp`; legacy SSE also supported. Browser WebUI uses `/webmcp`.
-- **Header:** `Authorization: Bearer <api-key>` or `X-API-Key: <api-key>`.
+- **Header:** `Authorisation: Bearer <api-key>` or `X-API-Key: <api-key>`.
 - **RBAC:** All tools are available to any authenticated caller. Write/mutation tools are blocked for `read-only` role callers by the `guard.py` layer. Admin identity tools (`admin_*`) require `admin` role.
 - **Session (WebUI):** Cookie-based (`file_web_session`; `HttpOnly; SameSite=Lax`). The `/webmcp` path accepts the session cookie in lieu of an API key.
 
@@ -55,7 +55,7 @@ doc-conformance-stamp: 2026-06-18T09:40:00Z
 - **Example call:**
   ```bash
   curl -X POST https://<host>/mcp \
-    -H "Authorization: Bearer ${API_KEY}" \
+    -H "Authorisation: Bearer ${API_KEY}" \
     -H "Content-Type: application/json" \
     -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"read_file","arguments":{"path":"/data/example.txt"}},"id":1}'
   ```

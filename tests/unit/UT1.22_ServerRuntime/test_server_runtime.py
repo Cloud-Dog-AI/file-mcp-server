@@ -2236,6 +2236,12 @@ def test_google_drive_callback_applies_reload_when_enabled(monkeypatch) -> None:
         reload_callback=_reload,
     )
     _w28c1702_cookie = _w28c1702_admin_cookie(middleware)
+    # W28C-1702/5c1dbe6: the callback is no longer admin-session-gated (Google's
+    # cross-site redirect cannot carry the admin cookie). Instead it requires a
+    # KNOWN OAuth `state` that was minted by the admin-authed /start and tracked
+    # in `_oauth_state_principal`. Register the state the same way /start does so
+    # the callback passes state validation and reaches complete_oauth_callback.
+    middleware._oauth_state_principal["s123"] = "admin"
 
     async def _run() -> None:
         scope = {

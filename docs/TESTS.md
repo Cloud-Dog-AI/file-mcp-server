@@ -245,7 +245,7 @@ The following test filenames are present in the repository and are included for 
 | R-DB-08 / NF1.7 (Multi-dialect versioning) | `tests/system/ST1.17_SystemDatabaseMigration/test_database_migration_multibackend.py` | ST1.17 suite | COVERED |
 | CFG-01..CFG-04 (Profile CRUD) | `tests/application/AT_ProfileCRUD/test_profile_crud.py` | AT_ProfileCRUD suite | COVERED |
 | CFG-01..CFG-04 / FR1.47 (Dynamic Profile CRUD) | `tests/application/AT1.11_DynamicProfileCRUDLifecycle/test_dynamic_profile_crud_lifecycle.py` | AT1.11 suite | COVERED |
-| CFG-08..CFG-11 (User/Group/Key mgmt) | `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | `test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` | COVERED |
+| CFG-08..CFG-11 / FR1.47 (User/Group/Key mgmt) | `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | `test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` | COVERED |
 | CFG-13 (Admin-only CRUD) | `tests/integration/IT1.26_IntegrationConfigCrudIdentityWorkflow/test_integration_config_crud_identity_workflow.py` | (admin gating verified in lifecycle workflow) | COVERED |
 | FR1.37 (Web UI Routes) | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py` | AT_WEBUI suite | COVERED |
 | FR1.44 (Web UI Accessibility) | `tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py` | AT1.13 suite | COVERED |
@@ -294,12 +294,19 @@ module; a module may contain several `def test_*` functions sharing the module's
 | `IT1_30_AuthStatusProbe` | IT | UC-001 | `FR-023` | `api` | AuthStatusProbe | — | tests/env-IT | — | design-bound (run: Stream-B) |
 | `UT1.35_FlatRoleLogin` | UT | UC-022 | `FR-024`, `CS-001`, `CS-005`, `CS-009`, `CS-013` | `api` | AnonAndRoleGate | anon/read-only/missing | tests/env-UT | — | design-bound (run: Stream-B) |
 | `ST1.18_TimeBasedSearch` | ST | UC-003 | `FR-025` | `mcp` | TimeBasedSearchWindow | modified_after/before | tests/env-ST | — | design-bound (run: Stream-B) |
-| `tests/unit/** (cluster)` | UT | UC-001 | `FR-026` | `api` | UnitTierCorrectness | UT1.1–UT1.36 | tests/env-UT | — | design-bound (run: Stream-B) |
-| `tests/application/** (cluster)` | AT | UC-002 | `FR-027` | `a2a` | ApplicationWorkflows | AT1.1–AT1.11 | tests/env-AT | — | design-bound (run: Stream-B) |
-| `tests/system/** (cluster)` | ST | UC-006 | `FR-028` | `internal` | SystemContracts | ST1.1–ST1.17 | tests/env-ST | — | design-bound (run: Stream-B) |
-| `tests/integration/** (cluster)` | IT | UC-008 | `FR-029` | `mcp` | IntegrationFlows | IT1.1–IT1.26 | tests/env-IT | — | design-bound (run: Stream-B) |
+| `tests/unit/** (cluster)` | UT | UC-001 | `FR-026` | `api` | UnitTierCorrectness | whole unit dir | tests/env-UT | — | design-bound (run: Stream-B) |
+| `tests/application/** (cluster)` | AT | UC-002 | `FR-027` | `a2a` | ApplicationWorkflows | whole application dir | tests/env-AT | — | design-bound (run: Stream-B) |
+| `tests/system/** (cluster)` | ST | UC-006 | `FR-028` | `internal` | SystemContracts | whole system dir | tests/env-ST | — | design-bound (run: Stream-B) |
+| `tests/integration/** (cluster)` | IT | UC-008 | `FR-029` | `mcp` | IntegrationFlows | whole integration dir | tests/env-IT | — | design-bound (run: Stream-B) |
 | `AT_ProfileCRUD` | AT | UC-015 | `FR-016` | `api` | ProfileCRUD | C/R/U/D | tests/env-AT | — | design-bound (run: Stream-B) |
 | `IT1.26_IntegrationConfigCrudIdentityWorkflow` | IT | UC-017 | `FR-016` | `api` | IdentityCRUDWorkflow | user/group/key | tests/env-IT | — | design-bound (run: Stream-B) |
+| `tests/unit/UT1.36_CookieSessionIsolation/test_cookie_session_isolation.py` | UT | UC-001 | `FR-024`, `CS-001` | `webui` | CookieSessionIsolation | session/anon | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT1.37_RestFileLifecycle/test_rest_file_lifecycle_helpers.py` | UT | UC-001 | `FR-012`, `FR-017`, `CS-002` | `api` | RestFileLifecycleHelpers | upload/list/download | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT1.38_McpRoleGuards/test_mcp_role_guards.py` | UT | UC-001 | `CS-010` | `mcp` | McpRoleGuards | read-write/read-only | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT1.39_W28E1846WebUiAliases/test_webui_aliases.py` | UT | UC-001 | `FR-022` | `webui` | WebUiRouteAliases | route redirects | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py` | UT | UC-001 | `FR-017`, `FR-026` | `webui` | DeepLinkBlocklistBuildIdentity | SPA deep-link gate | tests/env-UT | — | run: WS-A |
+| `tests/integration/IT1.27_RestFileLifecycle/test_rest_file_lifecycle_http.py` | IT | UC-008 | `FR-012`, `FR-016`, `FR-017`, `FR-029`, `CS-002`, `CS-009` | `api` | RestFileLifecycleHttp | REST file contract | tests/env-IT | — | run: WS-A |
+| `tests/application/AT1.14_RestFileLifecycle/test_application_rest_file_lifecycle.py` | AT | UC-002 | `FR-012`, `FR-016`, `FR-027`, `FR-029` | `api` | RestFileLifecycleWorkflow | end-to-end REST files | tests/env-AT | — | run: WS-A |
 | `ST1.1_SystemAuditIntegrity` | ST | UC-018 | `NF-003` | `internal` | AuditAppendOnly | — | tests/env-ST | — | design-bound (run: Stream-B) |
 | `QT_PackageCompliance` | QT | UC-002 | `NF-001` | `mcp` | PlatformPackageAdoption | — | tests/env-QT | — | design-bound (run: Stream-B) |
 | `QT26_SecretsSeparation` | QT | UC-002 | `NF-002` | `mcp` | SecretConfigHygiene | — | tests/env-QT | — | design-bound (run: Stream-B) |
