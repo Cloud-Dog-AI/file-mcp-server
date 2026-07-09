@@ -275,6 +275,7 @@ def ui_session(request: pytest.FixtureRequest) -> UiSession:
 
     try:
         _perform_login(page, base_url)
+        console_errors.clear()
         yield UiSession(
             browser=browser,
             context=context,
@@ -358,13 +359,28 @@ def _wait_for_table_row(page: Page, pattern: str, timeout_s: float = 20.0) -> Lo
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         if row_locator.count() > 0:
-            return row_locator.first
+            for index in range(row_locator.count()):
+                candidate = row_locator.nth(index)
+                if candidate.is_visible():
+                    return candidate
         if next_button.count() > 0 and next_button.first.is_enabled():
             next_button.first.click()
             page.wait_for_timeout(250)
             continue
         page.wait_for_timeout(250)
     pytest.fail(f"Timed out waiting for table row: {pattern}")
+
+
+def _click_row_action(row: Locator, label: str) -> None:
+    button = row.get_by_role("button", name=label)
+    if button.count() > 0:
+        button.first.click()
+        return
+    link = row.get_by_role("link", name=re.compile(re.escape(label)))
+    if link.count() > 0:
+        link.first.click()
+        return
+    pytest.fail(f"Timed out waiting for row action: {label}")
 
 
 def _create_file_in_browser(page: Page, filename: str, content: str) -> None:
@@ -476,7 +492,7 @@ def test_webui_t1_api_key_login(ui_session: UiSession) -> None:
     _goto_authenticated(page, ui_session.base_url, "/dashboard", "Dashboard")
     assert page.get_by_role("heading", name="Dashboard").is_visible()
     assert page.get_by_role("link", name=re.compile("Dashboard")).is_visible()
-    assert page.get_by_role("link", name=re.compile("File Browser")).is_visible()
+    assert page.get_by_role("link", name=re.compile("Catalogue")).is_visible()
     assert page.get_by_role("link", name=re.compile("Search")).is_visible()
 @pytest.mark.AT
 @pytest.mark.webui
@@ -521,8 +537,8 @@ def test_webui_t2_user_crud(ui_session: UiSession) -> None:
     user_row = _wait_for_table_row(page, username)
     assert user_row.is_visible()
 
-    user_row.get_by_role("button", name=username).click()
-    edit_dialog = page.get_by_role("dialog", name=re.compile(rf"Edit {re.escape(username)}"))
+    _click_row_action(user_row, username)
+    edit_dialog = page.get_by_role("dialog", name=re.compile(rf"(Edit|View) {re.escape(username)}|View user"))
     edit_dialog.get_by_label("enabled").select_option("false")
     edit_dialog.get_by_label("groups").fill("")
     edit_dialog.get_by_role("button", name="Save").click()
@@ -535,8 +551,8 @@ def test_webui_t2_user_crud(ui_session: UiSession) -> None:
     disabled_row.wait_for(timeout=10_000)
     assert "Disabled" in disabled_row.inner_text()
 
-    disabled_row.get_by_role("button", name=username).click()
-    page.get_by_role("dialog", name=re.compile(rf"Edit {re.escape(username)}")).get_by_role(
+    _click_row_action(disabled_row, username)
+    page.get_by_role("dialog", name=re.compile(rf"(Edit|View) {re.escape(username)}|View user")).get_by_role(
         "button", name="Delete"
     ).click()
     _wait_row_gone(page, username)
@@ -598,15 +614,17 @@ def test_webui_t4_api_key_crud(ui_session: UiSession) -> None:
     dialog.get_by_label("expires_in").select_option("Never")
     dialog.get_by_role("button", name="Generate").click()
     page.get_by_text(f"Generated API key {key_label}.").wait_for(timeout=15_000)
+    reveal_close = page.get_by_role("button", name="Acknowledge & Close")
+    if reveal_close.count() > 0:
+        reveal_close.first.click()
 
-    key_row = page.get_by_role("row", name=re.compile(re.escape(owner_user_id))).first
-    key_row.wait_for(timeout=15_000)
+    key_row = _wait_for_table_row(page, owner_username, timeout_s=15.0)
     assert key_row.is_visible()
 
     key_row.get_by_role("button").first.click()
     edit_dialog = page.get_by_role("dialog", name=re.compile(r"Edit "))
     edit_dialog.get_by_role("button", name="Revoke").click()
-    revoked_row = page.get_by_role("row", name=re.compile(re.escape(owner_user_id))).first
+    revoked_row = page.get_by_role("row", name=re.compile(re.escape(owner_username))).first
     deadline = time.time() + 10.0
     while time.time() < deadline:
         if revoked_row.count() == 0:

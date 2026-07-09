@@ -136,7 +136,9 @@ if [[ "$ACTION" == "serve" && "$COMPONENT" == "all" ]]; then
 fi
 
 PYTHON_BIN="python3"
-if [[ -x ".venv/bin/python" ]]; then
+if [[ -n "${GUARD_PYTHON:-}" ]]; then
+  PYTHON_BIN="${GUARD_PYTHON}"
+elif [[ -x ".venv/bin/python" ]]; then
   PYTHON_BIN=".venv/bin/python"
 fi
 

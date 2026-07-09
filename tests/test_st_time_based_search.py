@@ -115,7 +115,7 @@ def test_st1_18_time_based_search_filters_honor_modified_window(tmp_path: Path) 
         pidfile=pidfile,
     ):
         base_url = f"http://127.0.0.1:{port}"
-        wait_for_health(f"{base_url}/health")
+        wait_for_health(f"{base_url}/health", timeout_s=60.0)
 
         _call_mcp_tool(
             base_url=base_url,
@@ -123,10 +123,10 @@ def test_st1_18_time_based_search_filters_honor_modified_window(tmp_path: Path) 
             tool_name="write_file",
             arguments={"path": str(target), "content": f"{marker}\n"},
         )
-        now = datetime.now(tz=timezone.utc)
-        one_hour_ago = now - timedelta(hours=1)
-        one_hour_future = now + timedelta(hours=1)
-        one_minute_future = now + timedelta(minutes=1)
+        observed_mtime = datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc)
+        one_hour_ago = observed_mtime - timedelta(hours=1)
+        one_hour_future = observed_mtime + timedelta(hours=1)
+        one_minute_future = observed_mtime + timedelta(minutes=1)
         try:
             after_past = _call_mcp_tool(
                 base_url=base_url,

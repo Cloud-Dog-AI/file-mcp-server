@@ -18,6 +18,7 @@ from tests.env_runtime import env_get, runtime_env
 
 from contextlib import contextmanager
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -324,7 +325,10 @@ def running_server(
         if not (key.startswith("FILE_MCP_") or key.startswith("CLOUD_DOG__"))
     }
     env.update(_load_env_file_values(env_path))
-    env["PYTHONPATH"] = "src"
+    inherited_pythonpath = os.environ.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        f"src{os.pathsep}{inherited_pythonpath}" if inherited_pythonpath else "src"
+    )
     if extra_env:
         env.update(extra_env)
 

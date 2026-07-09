@@ -1217,7 +1217,21 @@ class HealthCheckMiddleware:
 
         cookies = dict(HTTPConnection(scope).cookies)
         proxy_headers = self._proxy_candidate_headers(headers)
-        if path == self.web_mcp_path or path.startswith(f"{self.web_mcp_path.rstrip('/')}/"):
+        cookie_api_path = (
+            path == "/api/v1/jobs"
+            or path.startswith("/api/v1/jobs/")
+            or path == "/v1/jobs"
+            or path.startswith("/v1/jobs/")
+            or path == "/api/v1/logs"
+            or path.startswith("/api/v1/logs/")
+            or path == "/v1/logs"
+            or path.startswith("/v1/logs/")
+        )
+        if (
+            path == self.web_mcp_path
+            or path.startswith(f"{self.web_mcp_path.rstrip('/')}/")
+            or cookie_api_path
+        ):
             session_is_valid = self._get_session_from_cookie(headers) is not None
             if not session_is_valid and cookies.get(self._cookie_name):
                 probe_response = await self.api_proxy.request(

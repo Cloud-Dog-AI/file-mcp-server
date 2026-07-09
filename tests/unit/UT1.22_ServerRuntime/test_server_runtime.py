@@ -19,6 +19,7 @@ from tests.env_runtime import runtime_env
 import asyncio
 import json
 import re
+import time
 from types import SimpleNamespace
 
 from tests.config_helpers import build_profile
@@ -1051,6 +1052,70 @@ def test_web_proxy_preserves_api_prefix_for_logs_routes() -> None:
     assert sent[0]["status"] == 200
     payload = json.loads(sent[1]["body"].decode("utf-8"))
     assert payload["proxied_path"] == "/api/v1/logs"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_web_proxy_cookie_session_adds_login_token_for_logs_routes() -> None:
+    proxy = _StubWebApiProxy()
+    token = "session-token"
+    prev_api_key = runtime_env.get("FILE_MCP_API_KEY_PRIMARY")
+    runtime_env["FILE_MCP_API_KEY_PRIMARY"] = "secret"
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        web_sessions={
+            token: {
+                "user": "admin",
+                "user_id": "1",
+                "role": "admin",
+                "_created": time.time(),
+            }
+        },
+    )
+    middleware.api_proxy = proxy
+    middleware._login_access_token = "secret"
+
+    try:
+        sent = _run_middleware_request(
+            middleware,
+            path="/v1/logs",
+            headers=[
+                (b"cookie", f"file_web_session={token}".encode("utf-8")),
+                (b"accept", b"application/json"),
+            ],
+            query_string=b"type=audit&limit=500",
+        )
+    finally:
+        if prev_api_key is None:
+            runtime_env.pop("FILE_MCP_API_KEY_PRIMARY", None)
+        else:
+            runtime_env["FILE_MCP_API_KEY_PRIMARY"] = prev_api_key
+
+    assert proxy.calls == [
+        {
+            "method": "GET",
+            "path": "/v1/logs",
+            "json": None,
+            "params": {"type": "audit", "limit": "500"},
+            "headers": {
+                "accept": "application/json",
+                "authorization": "Bearer secret",
+            },
+            "cookies": {"file_web_session": token},
+        }
+    ]
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["proxied_path"] == "/v1/logs"
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")
