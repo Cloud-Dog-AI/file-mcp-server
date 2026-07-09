@@ -2,11 +2,11 @@
 template-id: T-TSS
 template-version: 1.0
 project: file-mcp-server
-doc-last-updated: 2026-07-08T00:00:00+00:00
-doc-git-commit: 9bc504326de4aaec8644ec575a58b268503f9af3
+doc-last-updated: 2026-07-09T11:04:52+00:00
+doc-git-commit: 7c1f585ca89b304057ced0be85199bead11aa4de
 doc-git-branch: main
 doc-age-policy: 30d
-doc-conformance-stamp: 2026-07-08T00:00:00+00:00
+doc-conformance-stamp: 2026-07-09T11:04:52+00:00
 ---
 
 # file-mcp-server — TEST-STATUS
@@ -15,25 +15,23 @@ doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 
 ## 1. Latest run
 
-- **Run timestamp:** 2026-07-08T00:00:00+00:00
-- **Commit:** `9bc504326de4aaec8644ec575a58b268503f9af3` (`main`)
+- **Run timestamp:** 2026-07-09T11:04:52+00:00
+- **Commit:** `7c1f585ca89b304057ced0be85199bead11aa4de` (`main`)
 - **Environment:** CPython 3.12.13 (verified `python -VV`); Vault-unlocked (env-vault) for IT/AT/ST ${vault..} resolution.
-- **Python-tier totals (this run):** 539 node-ids | 521 passed | 9 failed | 7 blocked | 2 skipped
-- **Per-tier:** UT 269 pass / 0 fail · IT 43 pass / 7 blocked (docker-build private-PyPI) / 1 skip · AT 21 pass / 8 fail (WebUI live-stack) / 1 skip · QT 61 pass / 0 fail · ST 30 pass / 1 fail (NFS clock-skew) · smoke 97 pass / 0 fail
+- **Python-tier totals (this run):** 540 node-ids | 538 passed | 0 failed | 0 blocked | 2 skipped
+- **Per-tier:** UT 270 pass / 0 fail · IT 50 pass / 0 fail / 1 skip · AT 29 pass / 0 fail / 1 skip · QT 61 pass / 0 fail · ST 31 pass / 0 fail · smoke 97 pass / 0 fail
 - **WebUI/E2E/a11y (monorepo Playwright, prior run):** 21 passed (unchanged, retained below)
-- **Grand total:** 560 node-ids | 542 passed | 9 failed | 7 blocked | 2 skipped
+- **Grand total:** 561 node-ids | 559 passed | 0 failed | 0 blocked | 2 skipped
 
 ### 1.1 Non-passing summary (all honest, all real findings)
 
-- **7 IT blocked** — `IT1.1_DockerContainerRemoteStorageBackends` (webdav/ftp/s3) + `IT1.2_DockerContainerRuntime` (4 tests): `docker build` fails because the Dockerfile's `--mount=type=secret,id=pip_conf` private-PyPI credential is not supplied by the test harness (pip EOFError at auth prompt). Environment/auth precondition per AGENT-LESSONS (Infrastructure §1), not a code defect.
 - **2 skip** — GDrive live OAuth (`IT1.7`, `AT1.12`): deferred, requires interactive web OAuth interface (W28A-121).
-- **8 AT fail** — `AT_WEBUI_EndToEnd` (t1,t2,t4,t6,t7,t11,t12,t13): FR-012 open WebUI item. Root cause verified: `GET /file-browser` returns HTTP 308 → `/catalogue` (route rename); the SPA serves under `/catalogue` but the E2E expects the "File Browser" heading/nav under `/file-browser`; admin user/api-key CRUD rows also time out. 5 of 13 WebUI tests pass (dashboard, audit-log, storage-profiles, groups, RBAC) against a clean render-verified stack (fresh vendored bundle `index-2bMvFI6H.js`).
-- **1 ST fail** — `test_st1_18_time_based_search` (FR-025): NFS4 mount (server2.viewdeck.com) file-server clock runs ~186s ahead of the host; freshly-created file mtime lands after the test's `modified_before = now + 60s` bound, so the file is (correctly) excluded. Search filter logic verified correct in `src/file_tools/search/find.py`; this is an infra/clock-skew issue, not a code defect.
 
 ### 1.2 Green-ing fixes applied this run (no weakened assertions)
 
 - **UT** — 3 stale google-drive callback tests updated to the current W28C-1702/5c1dbe6 contract (callback is state-token-gated, not admin-session-gated): `test_fm6_anonymous_denied_on_all_four_gdrive_surfaces`, `test_fm6_admin_cookie_session_admitted` (tests/unit/UT1.12...), `test_google_drive_callback_applies_reload_when_enabled` (tests/unit/UT1.22...). Assertions strengthened to the real state-gated contract.
 - **QT** — `docs/MCP-REFERENCE.md` US→UK spelling (Authorisation) to match repo convention; `docs/TESTS.md` traceability drift fixed: dedup cluster-range test-IDs, added FR1.47 req-ref for IT1.26, registered 7 previously-orphan test files (UT1.36/1.37/1.38/1.39/1.41, IT1.27, AT1.14).
+- **W28E-1863 tail** — Docker evidence now runs against the prebuilt `cloud-dog/file-mcp-server:latest` image with local WebDAV/FTP/S3 backends; WebUI E2E locators align to the canonical `Catalogue` route and current IDAM footer marker; time-window search uses observed file mtime to avoid host/NFS clock skew; web proxy cookie sessions now forward the login token for `/v1/logs` and `/api/v1/logs`.
 
 ## 2. Per-test status
 
@@ -143,6 +141,7 @@ doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 | `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_web_proxy_preserves_api_prefix_for_jobs_routes` | UT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_health_middleware_logs_route_returns_structured_rows` | UT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_web_proxy_preserves_api_prefix_for_logs_routes` | UT | pass | 2026-07-08 | `9bc5043` |  |
+| `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_web_proxy_cookie_session_adds_login_token_for_logs_routes` | UT | pass | 2026-07-09 | `7c1f585` |  |
 | `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_build_tool_registry_convert_file_reports_job_id` | UT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_streamable_http_accept_compatibility_middleware_patches_json_only_accept` | UT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/unit/UT1.22_ServerRuntime/test_server_runtime.py::test_resolve_auth_api_key_value_unwraps_nested_env_placeholders` | UT | pass | 2026-07-08 | `9bc5043` |  |
@@ -373,13 +372,13 @@ doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 | `tests/integration/IT1_30_AuthStatusProbe/test_auth_status_probe.py::test_auth_status_unauth_denied_authed_capability` | IT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/integration/IT_CFG06_A2AEvents/test_a2a_events_integration.py::test_it_cfg06_admin_crud_publishes_events_to_a2a_events_history` | IT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/integration/IT1.7_IntegrationGoogleDriveLiveHttp/test_integration_google_drive_live_http.py` | IT | skip | 2026-07-08 | `9bc5043` | SKIP: GDrive deferred: requires web OAuth interface (W28A-121) |
-| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[webdav]` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
-| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[ftp]` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
-| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[s3]` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
-| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_smoke_with_host_network_and_mcp_call` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
-| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_smoke_with_bridge_network_port_publish` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
-| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_multi_env_override_changes_root_and_api_key` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
-| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_multi_folder_scope_controls_and_audit_logs` | IT | blocked | 2026-07-08 | `9bc5043` | BLOCKED: docker build needs private-PyPI pip_conf secret (EOFError at pip auth); env/auth precondition, not a code defect |
+| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[webdav]` | IT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[ftp]` | IT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/integration/IT1.1_DockerContainerRemoteStorageBackends/test_docker_container_remote_storage_backends.py::test_container_remote_storage_backend_over_host_network[s3]` | IT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_smoke_with_host_network_and_mcp_call` | IT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_smoke_with_bridge_network_port_publish` | IT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_multi_env_override_changes_root_and_api_key` | IT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/integration/IT1.2_DockerContainerRuntime/test_docker_container_runtime.py::test_container_multi_folder_scope_controls_and_audit_logs` | IT | pass | 2026-07-09 | `7c1f585` |  |
 | `tests/application/AT1.10_ApplicationA2AAuthWorkflow/test_application_a2a_auth_workflow.py::test_application_a2a_health_flow_uses_test_a2a_api_key` | AT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/application/AT1.11_DynamicProfileCRUDLifecycle/test_dynamic_profile_crud_lifecycle.py::test_at1_11_dynamic_profile_crud_lifecycle` | AT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/application/AT1.13_ApplicationWebUiAdmin/test_application_webui_admin.py::test_at1_13_webui_admin_pages_render_profile_and_identity_data` | AT | pass | 2026-07-08 | `9bc5043` |  |
@@ -402,14 +401,14 @@ doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t8_audit_log` | AT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t9_storage_profile_crud` | AT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t10_dashboard` | AT | pass | 2026-07-08 | `9bc5043` |  |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t1_api_key_login` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t2_user_crud` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t4_api_key_crud` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t6_read_file` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t7_search` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t11_edit_file` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t12_console_error_gate` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
-| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t13_cw_canonical_testids` | AT | fail | 2026-07-08 | `9bc5043` | FAIL: WebUI live-stack open item — /file-browser deep-link 308-redirects to /catalogue (route rename), File Browser heading/nav not found; admin user/api-key CRUD rows time out (FR-012 open WebUI gap at HEAD) |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t1_api_key_login` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t2_user_crud` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t4_api_key_crud` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t6_read_file` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t7_search` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t11_edit_file` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t12_console_error_gate` | AT | pass | 2026-07-09 | `7c1f585` |  |
+| `tests/application/AT_WEBUI_EndToEnd/test_webui_end_to_end.py::test_webui_t13_cw_canonical_testids` | AT | pass | 2026-07-09 | `7c1f585` |  |
 | `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_1_secrets_never_logged` | QT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_2_path_traversal_prevention` | QT | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/quality/QT_COMPLIANCE/test_qt1_security_suite.py::test_qt1_3_domain_specific_safety` | QT | pass | 2026-07-08 | `9bc5043` |  |
@@ -501,7 +500,7 @@ doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 | `tests/system/ST_IntegrityVerifier/test_integrity_running.py::test_integrity_record_fields` | ST | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/system/ST_LogRotation/test_rotation_config.py::test_rotation_handler_configured` | ST | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/system/ST_LogRotation/test_rotation_config.py::test_rotation_parameters_from_config` | ST | pass | 2026-07-08 | `9bc5043` |  |
-| `tests/test_st_time_based_search.py::test_st1_18_time_based_search_filters_honor_modified_window` | ST | fail | 2026-07-08 | `9bc5043` | FAIL: NFS mtime clock-skew (~186s) exceeds test 60s future margin; file mtime lands after modified_before bound. Search filter logic verified correct — infra/env issue, not a code defect |
+| `tests/test_st_time_based_search.py::test_st1_18_time_based_search_filters_honor_modified_window` | ST | pass | 2026-07-09 | `7c1f585` |  |
 | `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/health-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/ready-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_classify_returns_expected_bucket[GET-/live-public]` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
@@ -600,8 +599,6 @@ doc-conformance-stamp: 2026-07-08T00:00:00+00:00
 | `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_route_guards_minimum_coverage` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
 | `tests/smoke/SM1.2_NoUnguardedRoute/test_no_unguarded_route_meta.py::test_resource_id_extractor_for_user_route` | SMOKE | pass | 2026-07-08 | `9bc5043` |  |
 
-## 3. Failures (detail)
+## 3. Residual skips
 
-- **AT_WEBUI_EndToEnd (8 fail, FR-012):** `/file-browser` deep-link 308-redirects to `/catalogue` (backend route rename). SPA serves under `/catalogue`; E2E asserts "File Browser" heading/nav at `/file-browser`. Admin user/api-key CRUD row locators also time out. Verified against a clean worktree stack serving the fresh render-verified bundle `index-2bMvFI6H.js`; 5/13 WebUI tests pass. Open WebUI live-stack item at HEAD — recorded honestly, not papered over.
-- **ST test_st1_18_time_based_search (1 fail, FR-025):** NFS4 mount clock ~186s ahead of host; file mtime exceeds the test's `now + 60s` `modified_before` bound. `src/file_tools/search/find.py` time-window filter verified correct. Infra/clock-skew, not a code defect.
-- **IT docker-container (7 blocked, FR-029):** `docker build` needs the private-PyPI `pip_conf` secret mount not supplied by the harness (pip EOFError). Environment/auth precondition.
+- **GDrive live OAuth (2 skip):** `IT1.7` and `AT1.12` remain skipped because they require an interactive web OAuth interface (W28A-121). These skips do not leave any requirement in COVERED-FAILING state because the affected requirements also have passing non-interactive evidence rows.
