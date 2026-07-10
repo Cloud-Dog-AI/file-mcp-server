@@ -432,6 +432,52 @@ ROUTE_GUARDS: tuple[RouteGuard, ...] = (
         resource_type="storage_profile",
         resource_id_extractor=_extract_group("profile_id"),
     ),
+    # ── Row 15b: /v1/watches* storage change-watch (W28E-1870-B, PS-102 §5.5) ──
+    # Read verbs (list/get/status/events) require files.read; lifecycle/mutating
+    # verbs (create/ack/recover/pause/resume/test-event/delete) require
+    # files.write — mirroring the storage read/write split. Scoped to the
+    # storage_profile the watch is bound to. The inline handler
+    # (server_runtime._handle_watches) enforces tenant/profile ownership on top.
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^(?:/api)?/v1/watches/?$"),
+        permission="files.read",
+        resource_type="storage_profile",
+    ),
+    RouteGuard(
+        method="POST",
+        pattern=_re(r"^(?:/api)?/v1/watches/?$"),
+        permission="files.write",
+        resource_type="storage_profile",
+    ),
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^(?:/api)?/v1/watches/(?P<watch_id>[^/]+)(?:/(?:status|events))?/?$"),
+        permission="files.read",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_group("watch_id"),
+    ),
+    RouteGuard(
+        method="POST",
+        pattern=_re(r"^(?:/api)?/v1/watches/(?P<watch_id>[^/]+)/(?:ack|recover)/?$"),
+        permission="files.read",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_group("watch_id"),
+    ),
+    RouteGuard(
+        method="POST",
+        pattern=_re(r"^(?:/api)?/v1/watches/(?P<watch_id>[^/]+)/(?:pause|resume|test-event|test_event)/?$"),
+        permission="files.write",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_group("watch_id"),
+    ),
+    RouteGuard(
+        method="DELETE",
+        pattern=_re(r"^(?:/api)?/v1/watches/(?P<watch_id>[^/]+)/?$"),
+        permission="files.write",
+        resource_type="storage_profile",
+        resource_id_extractor=_extract_group("watch_id"),
+    ),
     # ── Row 16-19: jobs ──
     RouteGuard(
         method="GET",

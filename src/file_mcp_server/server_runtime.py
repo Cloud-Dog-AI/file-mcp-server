@@ -183,6 +183,33 @@ _REQUEST_CLIENT_IP: ContextVar[str | None] = ContextVar(
 )
 
 
+# ── W28E-1870-B: process-shared storage change-watch adapter ────────────────
+# The MCP ``file_watch_*`` tools (built into the per-profile seed registry) and
+# the REST ``/v1/watches*`` surface + server-mediated capture shim (on the ASGI
+# middleware) MUST operate on the SAME set of watches. The middleware owns the
+# fully-wired instance (durable SqlJournal engine + a2a.events broadcaster +
+# audit sink) and publishes it here; the registry tools read it back. Until the
+# middleware publishes one, a lazily-built in-memory fallback keeps the MCP
+# tools functional (e.g. stdio-only deployments with no HTTP server).
+_SHARED_WATCH_SERVICE: Any | None = None
+
+
+def set_shared_watch_service(service: Any) -> None:
+    """Publish the fully-wired WatchService for the MCP tool family to consume."""
+    global _SHARED_WATCH_SERVICE
+    _SHARED_WATCH_SERVICE = service
+
+
+def get_shared_watch_service() -> Any:
+    """Return the process-shared WatchService (lazily building an in-memory one)."""
+    global _SHARED_WATCH_SERVICE
+    if _SHARED_WATCH_SERVICE is None:
+        from file_tools.change_stream import WatchService
+
+        _SHARED_WATCH_SERVICE = WatchService()
+    return _SHARED_WATCH_SERVICE
+
+
 def get_request_session_id() -> str | None:
     """Return request session id."""
     return _REQUEST_SESSION_ID.get()
@@ -885,6 +912,34 @@ class HealthCheckMiddleware:
             except Exception as exc:
                 return f"Error: {exc}"
 
+        def _a2a_change_watch(text: str) -> str:
+            """Storage change-watch — JSON {"op":"create|list|status|get_batch|ack|
+            recover|pause|resume|delete|test_event","arguments":{...}} (PS-102 §5.4).
+
+            One A2A skill per MCP verb: a listening agent creates a watch and
+            consumes agent-consumable batches. Dispatches onto the process-shared
+            WatchService (durable journal). Never blocks a worker (CSTREAM-002).
+            """
+            try:
+                raw = text.strip()
+                payload = json.loads(raw) if raw.startswith("{") else {}
+            except Exception as exc:
+                return f"Invalid JSON: {exc}"
+            if not isinstance(payload, dict):
+                return "Payload must be a JSON object"
+            op = str(payload.get("op") or "list").strip()
+            args = payload.get("arguments") if isinstance(payload.get("arguments"), dict) else {}
+            tool_name = f"file_watch_{op}"
+            if not callable(self.registry_provider):
+                return "Error: tool registry unavailable"
+            try:
+                reg = self.registry_provider()
+                tool_def = reg.get(tool_name)
+                result = tool_def.handler(**args)
+                return json.dumps(result, default=str)[:24000]
+            except Exception as exc:
+                return f"Error: {exc}"
+
         # A2A agent card and task submission
         self._a2a_skills = [
             A2ASkill(
@@ -904,6 +959,15 @@ class HealthCheckMiddleware:
                 name="gdrive-sync",
                 description="Upload/download files from Google Drive",
                 handler=_a2a_gdrive_sync,
+            ),
+            A2ASkill(
+                id="change-watch",
+                name="change-watch",
+                description=(
+                    "Subscribe to storage-profile changes: create/list/status/"
+                    "get_batch/ack/recover/pause/resume/delete/test_event (PS-102)"
+                ),
+                handler=_a2a_change_watch,
             ),
         ]
         self._a2a_card = {
@@ -942,6 +1006,88 @@ class HealthCheckMiddleware:
         self._status_roots = self._resolve_status_roots()
         self._login_access_token = self._resolve_login_access_token()
         self.web_mcp_path = "/webmcp"
+        # ── W28E-1870-B storage change-watch adapter (PS-102 §4.1 / CSTREAM-FILE) ──
+        # A thin adapter over the common cloud_dog_api_kit.change_stream foundation.
+        # Journal is the durable SqlJournal on the service's cloud_dog_db engine so a
+        # watch backlog survives restart (CSTREAM-007); live SSE fan-out reuses the
+        # existing a2a.events broadcaster via make_broadcast_hook (no bespoke
+        # broadcaster); audit rows land in the same stream as the rest of the service.
+        self._watch_service = None  # lazily built on first access
+
+    @property
+    def watch_service(self):
+        """Return the storage change-watch adapter (lazily built) — PS-102 §4.1.
+
+        Built once, bound to the live cloud_dog_db engine + the existing a2a.events
+        broadcaster + audit logger. Consumes the published change-stream foundation
+        (RULES §1.4); this runtime holds no bespoke journal/cursor/queue.
+        """
+        if self._watch_service is None:
+            from file_tools.change_stream import WatchService, make_audit_sink
+
+            engine = None
+            if self.db_runtime is not None:
+                engine = getattr(self.db_runtime, "engine", None)
+            audit_sink = None
+            try:
+                audit_sink = make_audit_sink(self.logger)
+            except Exception:  # pragma: no cover - audit wiring must never block startup
+                audit_sink = None
+            self._watch_service = WatchService(
+                engine=engine,
+                broadcaster=self.config_event_broadcaster,
+                audit_sink=audit_sink,
+            )
+            # Publish so the MCP file_watch_* tools operate on the same watches.
+            set_shared_watch_service(self._watch_service)
+        return self._watch_service
+
+    def capture_storage_mutation(
+        self,
+        tool_name: str,
+        arguments: dict,
+        *,
+        actor: str | None = None,
+        correlation_id: str | None = None,
+        profile_id: str = "default",
+        backend: str = "",
+    ) -> None:
+        """Server-mediated capture hook for changes made THROUGH file-mcp.
+
+        Called by the tool-dispatch shim after a mutation tool succeeds. Translates
+        the tool verb into a canonical ChangeEvent candidate and fans it to matching
+        live watches (PS-102 §6 native-first: no polling/scan, no busy-wait). Capture
+        MUST NEVER crash the mutating request path — all errors are swallowed.
+        """
+        try:
+            from file_tools.change_stream import TOOL_ACTION_MAP
+
+            action = TOOL_ACTION_MAP.get(tool_name)
+            if action is None:
+                return
+            path = str(
+                arguments.get("path")
+                or arguments.get("dst")
+                or arguments.get("target")
+                or arguments.get("dest")
+                or ""
+            )
+            if not path:
+                return
+            old_path = str(arguments.get("src") or arguments.get("source") or "")
+            self.watch_service.observe_change(
+                tenant_id=str(profile_id or "default"),
+                profile_id=str(profile_id or "default"),
+                path=path,
+                action=action,
+                backend=str(backend or ""),
+                old_path=old_path if action in {"renamed", "moved"} else "",
+                actor=actor,
+                correlation_id=correlation_id,
+                capture="server_mediated",
+            )
+        except Exception:  # pragma: no cover - capture is best-effort, never fatal
+            return
 
     @staticmethod
     def _read_pyproject_version() -> str:
@@ -2579,6 +2725,236 @@ class HealthCheckMiddleware:
         await self._send_bytes(
             send, status=status, body=body, content_type="application/json"
         )
+
+    # ── W28E-1870-B storage change-watch REST surface (PS-102 §5.5) ──────────
+    @staticmethod
+    def _is_watches_path(path: str) -> bool:
+        """Return True for a /v1/watches* (or /api/v1/watches*) REST path."""
+        norm = path
+        if norm.startswith("/api/v1/watches"):
+            norm = norm[len("/api"):]
+        return norm == "/v1/watches" or norm.startswith("/v1/watches/") or norm == "/v1/watches/"
+
+    @staticmethod
+    def _watch_error_status(exc: Exception) -> int:
+        """Map a change-stream error to a truthful HTTP status (PS-102 §5.6)."""
+        try:
+            from cloud_dog_api_kit.change_stream.errors import (
+                CursorExpired,
+                JournalTrimmed,
+                RateLimited,
+                Unauthorised as _CSUnauthorised,
+                UnsupportedBackend,
+                WatchNotFound,
+                WatchPaused,
+            )
+        except Exception:  # pragma: no cover - foundation always present
+            return 400
+        if isinstance(exc, WatchNotFound):
+            return 404
+        if isinstance(exc, _CSUnauthorised):
+            return 403
+        if isinstance(exc, RateLimited):
+            return 429
+        if isinstance(exc, (CursorExpired, JournalTrimmed, WatchPaused)):
+            return 409
+        if isinstance(exc, UnsupportedBackend):
+            return 422
+        return 400
+
+    async def _handle_watches(
+        self, scope, receive, send, *, method: str, path: str, headers: dict[str, str]
+    ) -> bool:
+        """Dispatch the /v1/watches* REST contract (PS-102 §5.5). Returns True if handled."""
+        from urllib.parse import parse_qs, unquote
+
+        from cloud_dog_api_kit.change_stream.errors import ChangeStreamError
+
+        from .guard import _resolve_principal_lightweight
+
+        norm = path
+        if norm.startswith("/api/v1/watches"):
+            norm = norm[len("/api"):]
+        # strip /v1/watches prefix -> the sub-path (id + action)
+        sub = norm[len("/v1/watches"):].strip("/")
+        qs = parse_qs((scope.get("query_string") or b"").decode("latin-1"))
+
+        def _q(name: str, default: str = "") -> str:
+            vals = qs.get(name)
+            return vals[0] if vals else default
+
+        principal = _resolve_principal_lightweight(self, scope, headers)
+        if principal is None:
+            await self._send_json(
+                send,
+                status=401,
+                payload={"code": "unauthorised", "message": "authentication required"},
+            )
+            return True
+        actor = str(principal.get("user_id") or "")
+        can_write = role_can_write(principal.get("role"))
+
+        def _deny_write() -> bool:
+            return not can_write
+
+        async def _write_denied() -> None:
+            await self._send_json(
+                send,
+                status=403,
+                payload={"code": "unauthorised", "message": "write permission required"},
+            )
+
+        ws = self.watch_service
+
+        async def _body() -> dict[str, Any]:
+            try:
+                return await self._read_json_body(receive)
+            except Exception:
+                return {}
+
+        def _tenant(payload: dict[str, Any]) -> str:
+            return str(
+                payload.get("tenant_id")
+                or _q("tenant_id")
+                or payload.get("profile")
+                or _q("profile")
+                or "default"
+            )
+
+        try:
+            # --- collection routes: /v1/watches ---
+            if sub == "":
+                if method == "POST":
+                    if _deny_write():
+                        await _write_denied()
+                        return True
+                    payload = await _body()
+                    result = ws.create_watch(
+                        profile_id=str(payload.get("profile") or payload.get("profile_id") or "default"),
+                        tenant_id=_tenant(payload),
+                        actor=actor,
+                        backend=str(payload.get("backend") or ""),
+                        criteria=payload.get("criteria") if isinstance(payload.get("criteria"), dict) else None,
+                        max_batch=int(payload.get("max_batch", 100)),
+                        max_inflight=int(payload.get("max_inflight", 4)),
+                        journal_max=int(payload.get("journal_max", 1000)),
+                        journal_ttl_seconds=(
+                            float(payload["journal_ttl_seconds"])
+                            if payload.get("journal_ttl_seconds") not in (None, "")
+                            else None
+                        ),
+                    )
+                    await self._send_json(send, status=201, payload=result)
+                    return True
+                if method == "GET":
+                    tenant = str(_q("tenant_id") or _q("profile") or "default")
+                    await self._send_json(
+                        send, status=200, payload={"watches": ws.list_watches(tenant_id=tenant)}
+                    )
+                    return True
+                await self._send_json(send, status=405, payload={"code": "error", "message": "method not allowed"})
+                return True
+
+            # --- item routes: /v1/watches/{id}[/action] ---
+            parts = [unquote(p) for p in sub.split("/")]
+            watch_id = parts[0]
+            action = parts[1] if len(parts) > 1 else ""
+
+            if action == "" and method == "GET":
+                tenant = str(_q("tenant_id") or _q("profile") or "default")
+                await self._send_json(send, status=200, payload=ws.get_watch(watch_id, tenant_id=tenant))
+                return True
+            if action == "" and method == "DELETE":
+                if _deny_write():
+                    await _write_denied()
+                    return True
+                tenant = str(_q("tenant_id") or _q("profile") or "default")
+                await self._send_json(send, status=200, payload=ws.delete(watch_id, tenant_id=tenant))
+                return True
+            if action == "status" and method == "GET":
+                tenant = str(_q("tenant_id") or _q("profile") or "default")
+                await self._send_json(send, status=200, payload=ws.get_status(watch_id, tenant_id=tenant))
+                return True
+            if action == "events" and method == "GET":
+                tenant = str(_q("tenant_id") or _q("profile") or "default")
+                mb = _q("max_batch")
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload=ws.get_batch(
+                        watch_id,
+                        tenant_id=tenant,
+                        since_cursor=_q("since_cursor") or None,
+                        max_batch=int(mb) if mb else None,
+                    ),
+                )
+                return True
+            if action == "ack" and method == "POST":
+                payload = await _body()
+                tenant = _tenant(payload)
+                if "ack_cursor" not in payload:
+                    await self._send_json(send, status=422, payload={"code": "error", "message": "ack_cursor is required"})
+                    return True
+                await self._send_json(
+                    send, status=200, payload=ws.ack(watch_id, tenant_id=tenant, ack_cursor=str(payload["ack_cursor"]))
+                )
+                return True
+            if action == "recover" and method == "POST":
+                payload = await _body()
+                tenant = _tenant(payload)
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload=ws.recover(watch_id, tenant_id=tenant, since_cursor=payload.get("since_cursor") or None),
+                )
+                return True
+            if action == "pause" and method == "POST":
+                if _deny_write():
+                    await _write_denied()
+                    return True
+                payload = await _body()
+                await self._send_json(send, status=200, payload=ws.pause(watch_id, tenant_id=_tenant(payload)))
+                return True
+            if action == "resume" and method == "POST":
+                if _deny_write():
+                    await _write_denied()
+                    return True
+                payload = await _body()
+                await self._send_json(send, status=200, payload=ws.resume(watch_id, tenant_id=_tenant(payload)))
+                return True
+            if action in {"test-event", "test_event"} and method == "POST":
+                if _deny_write():
+                    await _write_denied()
+                    return True
+                payload = await _body()
+                tenant = _tenant(payload)
+                extra = {
+                    k: v
+                    for k, v in payload.items()
+                    if k not in {"tenant_id", "profile", "profile_id", "action", "object_ref"}
+                }
+                await self._send_json(
+                    send,
+                    status=200,
+                    payload=ws.test_event(
+                        watch_id,
+                        tenant_id=tenant,
+                        action=str(payload.get("action", "created")),
+                        object_ref=str(payload.get("object_ref", "test")),
+                        **extra,
+                    ),
+                )
+                return True
+
+            await self._send_json(send, status=404, payload={"code": "error", "message": "unknown watch route"})
+            return True
+        except ChangeStreamError as exc:
+            detail = getattr(exc, "to_dict", lambda: {"code": "error", "message": str(exc)})()
+            await self._send_json(send, status=self._watch_error_status(exc), payload=detail)
+            return True
+        except Exception as exc:  # pragma: no cover - defensive; never leak a 500 stack
+            await self._send_json(send, status=400, payload={"code": "error", "message": str(exc)})
+            return True
 
     async def _publish_cfg_event(
         self,
@@ -4453,6 +4829,16 @@ class HealthCheckMiddleware:
             # the chokepoint is logged downstream by the existing handlers
             # (which will then enforce their own auth as before).
             pass
+
+        # ── W28E-1870-B storage change-watch REST surface (PS-102 §5.5) ──
+        # /v1/watches* — create/list/status/events(get_batch)/ack/recover/
+        # pause/resume/test-event/delete. Nonblocking pull-batch base mode
+        # (CSTREAM-002). RBAC is enforced inside the handler via the
+        # lightweight principal resolver; the chokepoint classifies these as
+        # guarded and has already resolved/denied anonymous callers above.
+        if scope.get("type") == "http" and self._is_watches_path(path):
+            if await self._handle_watches(scope, receive, send, method=method, path=path, headers=headers):
+                return
 
         # W28A-876: serve the canonical SHARED cloud_dog_idam /idam/v1 surface
         # (resource-registry + rbac-bindings) — the RBAC page calls /v1/idam/v1/<x>.
@@ -8903,6 +9289,186 @@ def build_tool_registry(
                 handler=admin_revoke_api_key,
             )
         )
+    # ── W28E-1870-B server-mediated capture (CSTREAM-FILE-002, PS-102 §6) ──
+    # Wrap every mutation tool handler so a change made THROUGH file-mcp is
+    # captured natively (no polling/scan, no busy-wait) and fanned to matching
+    # live watches, regardless of the transport (stdio / HTTP MCP / A2A / REST)
+    # — they all resolve through this registry. Capture is best-effort and MUST
+    # NOT change the tool result or crash the mutating request path.
+    from file_tools.change_stream import TOOL_ACTION_MAP as _WATCH_TOOL_ACTIONS
+
+    def _wrap_capture(tool_name: str, action: str, inner: Callable[..., Any]) -> Callable[..., Any]:
+        import functools
+        import inspect
+
+        try:
+            _inner_sig = inspect.signature(inner)
+        except (TypeError, ValueError):  # pragma: no cover - builtins etc.
+            _inner_sig = None
+
+        def _wrapped(*args: Any, **kwargs: Any) -> Any:
+            # forward args verbatim so positional AND keyword callers are unchanged
+            result = inner(*args, **kwargs)
+            try:
+                # bind to the inner signature to resolve path/src regardless of how
+                # the caller passed them (positional or keyword).
+                bound: dict[str, Any] = dict(kwargs)
+                if _inner_sig is not None and args:
+                    ba = _inner_sig.bind_partial(*args, **kwargs)
+                    bound = dict(ba.arguments)
+                path = str(
+                    bound.get("path")
+                    or bound.get("dst")
+                    or bound.get("target")
+                    or bound.get("dest")
+                    or ""
+                )
+                if path:
+                    old_path = str(bound.get("src") or bound.get("source") or "")
+                    get_shared_watch_service().observe_change(
+                        tenant_id=str(profile_name or "default"),
+                        profile_id=str(profile_name or "default"),
+                        path=path,
+                        action=action,
+                        backend=str(active_backend or ""),
+                        old_path=old_path if action in {"renamed", "moved"} else "",
+                        capture="server_mediated",
+                    )
+            except Exception:  # pragma: no cover - capture never breaks the mutation
+                pass
+            return result
+
+        # preserve the wrapped signature so normalize_and_filter_tool_args + the
+        # tools/list schema builder + positional callers all see the real handler.
+        try:
+            functools.update_wrapper(_wrapped, inner)
+        except Exception:  # pragma: no cover
+            _wrapped.__name__ = getattr(inner, "__name__", tool_name)
+        return _wrapped
+
+    for _mut_name, _mut_action in _WATCH_TOOL_ACTIONS.items():
+        try:
+            _existing = tools.get(_mut_name)
+        except Exception:
+            continue
+        _wrapped_def = _existing.model_copy(
+            update={"handler": _wrap_capture(_mut_name, _mut_action, _existing.handler)}
+        )
+        # Replace in place — ToolRegistry.register refuses duplicate names.
+        tools._tools[_mut_name] = _wrapped_def  # noqa: SLF001
+
+    # ── W28E-1870-B storage change-watch MCP tools (PS-102 §5.3 / CSTREAM-FILE) ──
+    # file_watch_{create,list,status,get_batch,ack,recover,pause,resume,delete,
+    # test_event} + file_watch_backend_support. Dispatched onto the process-shared
+    # WatchService (durable journal + broadcaster owned by the ASGI middleware).
+    # MCP transport requires the `initialize` handshake before dispatch (the
+    # api-kit MCP layer enforces this); these tools re-implement no journal/cursor.
+    _watch_default_tenant = profile_name or "default"
+
+    def _watch_tenant(arguments: dict[str, Any]) -> str:
+        return str(arguments.get("tenant_id") or arguments.get("profile") or _watch_default_tenant)
+
+    def file_watch_create(**arguments: Any) -> dict[str, Any]:
+        ws = get_shared_watch_service()
+        return ws.create_watch(
+            profile_id=str(arguments.get("profile") or arguments.get("profile_id") or profile_name),
+            tenant_id=_watch_tenant(arguments),
+            actor=str(arguments.get("actor") or "mcp"),
+            backend=str(arguments.get("backend") or active_backend),
+            criteria=arguments.get("criteria") if isinstance(arguments.get("criteria"), dict) else None,
+            max_batch=int(arguments.get("max_batch", 100)),
+            max_inflight=int(arguments.get("max_inflight", 4)),
+            journal_max=int(arguments.get("journal_max", 1000)),
+            journal_ttl_seconds=(
+                float(arguments["journal_ttl_seconds"])
+                if arguments.get("journal_ttl_seconds") not in (None, "")
+                else None
+            ),
+        )
+
+    def file_watch_list(**arguments: Any) -> dict[str, Any]:
+        return {"watches": get_shared_watch_service().list_watches(tenant_id=_watch_tenant(arguments))}
+
+    def file_watch_status(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().get_status(
+            str(arguments["watch_id"]), tenant_id=_watch_tenant(arguments)
+        )
+
+    def file_watch_get_batch(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().get_batch(
+            str(arguments["watch_id"]),
+            tenant_id=_watch_tenant(arguments),
+            since_cursor=arguments.get("since_cursor") or None,
+            max_batch=int(arguments["max_batch"]) if arguments.get("max_batch") else None,
+        )
+
+    def file_watch_ack(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().ack(
+            str(arguments["watch_id"]),
+            tenant_id=_watch_tenant(arguments),
+            ack_cursor=str(arguments["ack_cursor"]),
+        )
+
+    def file_watch_recover(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().recover(
+            str(arguments["watch_id"]),
+            tenant_id=_watch_tenant(arguments),
+            since_cursor=arguments.get("since_cursor") or None,
+        )
+
+    def file_watch_pause(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().pause(
+            str(arguments["watch_id"]), tenant_id=_watch_tenant(arguments)
+        )
+
+    def file_watch_resume(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().resume(
+            str(arguments["watch_id"]), tenant_id=_watch_tenant(arguments)
+        )
+
+    def file_watch_delete(**arguments: Any) -> dict[str, Any]:
+        return get_shared_watch_service().delete(
+            str(arguments["watch_id"]), tenant_id=_watch_tenant(arguments)
+        )
+
+    def file_watch_test_event(**arguments: Any) -> dict[str, Any]:
+        extra = {
+            k: v
+            for k, v in arguments.items()
+            if k not in {"watch_id", "tenant_id", "profile", "profile_id", "actor", "action", "object_ref"}
+        }
+        return get_shared_watch_service().test_event(
+            str(arguments["watch_id"]),
+            tenant_id=_watch_tenant(arguments),
+            action=str(arguments.get("action", "created")),
+            object_ref=str(arguments.get("object_ref", "test")),
+            **extra,
+        )
+
+    def file_watch_backend_support(**arguments: Any) -> dict[str, Any]:
+        backend = arguments.get("backend")
+        return {"backend_support": get_shared_watch_service().backend_support(backend)}
+
+    for _wt_name, _wt_handler, _wt_desc, _wt_mut in (
+        ("file_watch_create", file_watch_create, "Create a storage change-watch (glob/regex criteria)", True),
+        ("file_watch_list", file_watch_list, "List storage change-watches for the tenant/profile", False),
+        ("file_watch_status", file_watch_status, "Get a storage change-watch status", False),
+        ("file_watch_get_batch", file_watch_get_batch, "Get a bounded batch of change events (pull-batch)", False),
+        ("file_watch_ack", file_watch_ack, "Acknowledge a change-watch cursor", False),
+        ("file_watch_recover", file_watch_recover, "Recover/re-enquire a change-watch from a cursor", False),
+        ("file_watch_pause", file_watch_pause, "Pause a storage change-watch", True),
+        ("file_watch_resume", file_watch_resume, "Resume a storage change-watch", True),
+        ("file_watch_delete", file_watch_delete, "Delete a storage change-watch and its journal", True),
+        ("file_watch_test_event", file_watch_test_event, "Inject a deterministic synthetic change event", True),
+        ("file_watch_backend_support", file_watch_backend_support, "Report change-watch backend support matrix", False),
+    ):
+        tools.register(
+            ToolDefinition(
+                meta=ToolMeta(name=_wt_name, description=_wt_desc, mutating=_wt_mut),
+                handler=_wt_handler,
+            )
+        )
+
     setattr(tools, "profile_config", profile)
     setattr(tools, "profile_name", profile_name)
     setattr(tools, "storage_backend_name", active_backend)

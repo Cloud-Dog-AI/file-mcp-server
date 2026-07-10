@@ -16,11 +16,11 @@ requests>=2.31,<3.0
 cloud_dog_config==0.3.4
 hvac>=2.0
 cloud_dog_logging>=0.3.3
-cloud_dog_api_kit==0.13.0
+cloud_dog_api_kit[change-stream-db]>=0.14.0
 cloud_dog_idam==0.5.3
 cloud_dog_llm==0.4.0
 cloud_dog_jobs>=0.3.0
-cloud_dog_db>=0.1.0
+cloud_dog_db>=0.2.0
 cloud_dog_storage>=0.1.4
 alembic>=1.13
 argon2-cffi>=23.0
