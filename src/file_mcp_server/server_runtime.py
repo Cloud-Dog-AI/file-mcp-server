@@ -70,6 +70,96 @@ _CFG06_REDACT_KEYS = frozenset({"api_key", "secret", "token", "password", "acces
 def _redact_secrets(payload: dict[str, Any]) -> dict[str, Any]:
     """CFG-06: redact secret-like keys before broadcasting a change event."""
     return {k: v for k, v in payload.items() if k not in _CFG06_REDACT_KEYS}
+
+
+def _jsonish_model_dump(value: Any) -> Any:
+    """Return a JSON-like representation for Pydantic models and containers."""
+    if hasattr(value, "model_dump") and callable(getattr(value, "model_dump")):
+        try:
+            return value.model_dump(mode="json", exclude_none=False)
+        except Exception:
+            return {}
+    if isinstance(value, dict):
+        return {str(k): _jsonish_model_dump(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonish_model_dump(v) for v in value]
+    return value
+
+
+def _effective_config_leaf_paths(value: Any, path: str = "") -> list[str]:
+    """Return public JsonExplorer key paths for all effective config leaves."""
+    if isinstance(value, dict):
+        paths: list[str] = []
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            paths.extend(_effective_config_leaf_paths(child, child_path))
+        return paths
+    if isinstance(value, list):
+        paths = []
+        for index, child in enumerate(value):
+            child_path = f"{path}[{index}]"
+            paths.extend(_effective_config_leaf_paths(child, child_path))
+        return paths
+    return [path]
+
+
+def _effective_config_path_segments(path: str) -> list[str]:
+    return [
+        segment
+        for segment in re.split(r"\.|\[\d+\]", path)
+        if segment
+    ]
+
+
+def _effective_config_is_secret_path(path: str) -> bool:
+    segments = _effective_config_path_segments(path)
+    secret_names = {
+        "api_keys",
+        "access_key",
+        "secret_key",
+        "password",
+        "client_secret",
+        "refresh_token",
+        "access_token",
+        "token",
+        "api_key",
+        "secret",
+    }
+    return any(segment.lower() in secret_names for segment in segments)
+
+
+def _effective_config_redact(value: Any, sources: dict[str, dict[str, Any]], path: str = "") -> Any:
+    """Mask secret leaves while preserving the config tree shape."""
+    if isinstance(value, dict):
+        return {
+            str(key): _effective_config_redact(
+                child,
+                sources,
+                f"{path}.{key}" if path else str(key),
+            )
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _effective_config_redact(child, sources, f"{path}[{index}]")
+            for index, child in enumerate(value)
+        ]
+    if sources.get(path, {}).get("secret"):
+        return "--------"
+    return value
+
+
+def _effective_config_server_scope(path: str) -> list[str]:
+    first = path.split(".", 1)[0]
+    if first == "api_server":
+        return ["api"]
+    if first == "web_server":
+        return ["webui"]
+    if first == "mcp_server":
+        return ["mcp"]
+    if first == "a2a_server":
+        return ["a2a"]
+    return ["shared"]
 from cloud_dog_api_kit.web.proxy import WebApiProxy
 from cloud_dog_idam.audit.emitter import AuditEmitter  # type: ignore[import-not-found,import-untyped]
 from cloud_dog_config.yaml_loader import load_yaml  # type: ignore[import-untyped]
@@ -3316,6 +3406,82 @@ class HealthCheckMiddleware:
             "selected_profile": selected_profile,
         }
 
+    def _effective_config_payload(self, *, reveal: bool = False) -> dict[str, Any]:
+        """Return the PS-73 effective config tree with PS-81 source metadata."""
+        if self.config is not None:
+            config_payload = _jsonish_model_dump(self.config)
+        else:
+            defaults_path = str(read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "").strip()
+            try:
+                loaded = load_config(
+                    env_path=self.env_file,
+                    config_path=self.active_config,
+                    defaults_path=defaults_path or None,
+                )
+                config_payload = _jsonish_model_dump(loaded)
+            except Exception:
+                config_payload = self._load_config_document()
+
+        if not isinstance(config_payload, dict):
+            config_payload = {"profiles": {}}
+        config_payload = self._deep_copy_jsonish(config_payload)
+
+        profiles = config_payload.setdefault("profiles", {})
+        if isinstance(profiles, dict):
+            for profile_payload in self._list_profile_payloads():
+                name = str(profile_payload.get("name") or "").strip()
+                profile = profile_payload.get("profile")
+                if name and isinstance(profile, dict):
+                    profiles[name] = self._deep_copy_jsonish(profile)
+
+        raw_config = self._load_config_document()
+        raw_config_paths = set(_effective_config_leaf_paths(raw_config))
+        default_config_paths = set(_effective_config_leaf_paths(self._load_defaults_document()))
+        sources: dict[str, dict[str, Any]] = {}
+        for key_path in _effective_config_leaf_paths(config_payload):
+            from_config = key_path in raw_config_paths
+            origin = "default"
+            source = "default"
+            if from_config:
+                source = "config"
+                origin = "config-addition" if key_path not in default_config_paths else "config"
+            sources[key_path] = {
+                "source": source,
+                "source_detail": self.active_config if from_config else "defaults.yaml",
+                "origin": origin,
+                "secret": _effective_config_is_secret_path(key_path),
+                "servers": _effective_config_server_scope(key_path),
+            }
+
+        redacted_config = (
+            config_payload
+            if reveal
+            else _effective_config_redact(config_payload, sources)
+        )
+        total_keys = len(sources)
+        secret_keys = sum(1 for item in sources.values() if item.get("secret"))
+        per_server: dict[str, int] = {}
+        for meta in sources.values():
+            for server in meta.get("servers") or ["shared"]:
+                server_name = str(server)
+                per_server[server_name] = per_server.get(server_name, 0) + 1
+
+        return {
+            "ok": True,
+            "config": redacted_config,
+            "sources": sources,
+            "servers": ["all", "api", "mcp", "a2a", "webui"],
+            "counts": {
+                "total_keys": total_keys,
+                "secret_keys": secret_keys,
+                "config_only_additions": sum(
+                    1 for item in sources.values() if item.get("origin") == "config-addition"
+                ),
+                "per_server": per_server,
+            },
+            "secrets_redacted": not reveal,
+        }
+
     def _openapi_payload(self) -> dict[str, Any]:
         """Return a compact OpenAPI description for the Web UI docs page."""
         return {
@@ -3381,6 +3547,12 @@ class HealthCheckMiddleware:
                     "get": {
                         "summary": "Read-only runtime config snapshot",
                         "responses": {"200": {"description": "Runtime config"}},
+                    }
+                },
+                "/admin/effective-config": {
+                    "get": {
+                        "summary": "PS-73 effective config with source attribution",
+                        "responses": {"200": {"description": "Effective config"}},
                     }
                 },
                 "/admin/reload": {
@@ -3705,6 +3877,21 @@ class HealthCheckMiddleware:
             return {"profiles": {}}
         if not isinstance(parsed.get("profiles"), dict):
             parsed["profiles"] = {}
+        return parsed
+
+    def _load_defaults_document(self) -> dict[str, Any]:
+        """Load defaults YAML for effective-config source attribution."""
+        defaults_path_str = str(
+            read_env_var("FILE_MCP_ACTIVE_DEFAULTS_PATH") or "defaults.yaml"
+        ).strip()
+        if not defaults_path_str or not path_utils.exists(defaults_path_str):
+            return {}
+        try:
+            parsed = load_yaml(defaults_path_str, missing_ok=True)
+        except Exception:
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
         return parsed
 
     async def _is_a2a_authorized(
@@ -5078,6 +5265,7 @@ class HealthCheckMiddleware:
                     or path == "/admin/profiles"
                     or path.startswith("/admin/profiles/")
                     or path == "/admin/runtime-config"
+                    or path == "/admin/effective-config"
                 )
                 # Keep browser navigations on SPA routes while allowing API clients
                 # (fetch/curl with non-HTML Accept) to hit JSON admin endpoints.
@@ -5246,6 +5434,7 @@ class HealthCheckMiddleware:
         )
         profile_api_path = admin_api_path if is_profile_api_alias_route else path
         is_runtime_config_api_route = path == "/admin/runtime-config"
+        is_effective_config_api_route = path == "/admin/effective-config"
         is_profile_api_route = profile_api_path == "/admin/profiles" or profile_api_path.startswith(
             "/admin/profiles/"
         )
@@ -5343,7 +5532,10 @@ class HealthCheckMiddleware:
                 return
 
         if scope.get("type") == "http" and (
-            is_identity_api_route or is_profile_api_route or is_runtime_config_api_route
+            is_identity_api_route
+            or is_profile_api_route
+            or is_runtime_config_api_route
+            or is_effective_config_api_route
         ):
             method = str(scope.get("method") or "GET").upper()
             supplied_admin_token = headers.get("x-admin-token", "")
@@ -5393,6 +5585,41 @@ class HealthCheckMiddleware:
                         payload=self._redact_profile_secrets(
                             self._admin_runtime_config_payload()
                         ),
+                    )
+                    return
+
+                if is_effective_config_api_route:
+                    if method != "GET":
+                        await self._send_api_error(
+                            send,
+                            status=405,
+                            code="METHOD_NOT_ALLOWED",
+                            message=f"Unsupported method for {path}: {method}",
+                        )
+                        return
+                    raw_query = scope.get("query_string") or b""
+                    query = parse_qs(
+                        raw_query.decode("utf-8", errors="ignore")
+                        if isinstance(raw_query, (bytes, bytearray))
+                        else str(raw_query)
+                    )
+                    reveal = str((query.get("reveal") or [""])[0]).lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                    }
+                    if reveal and not (ui_admin or cookie_admin or token_admin):
+                        await self._send_api_error(
+                            send,
+                            status=403,
+                            code="FORBIDDEN",
+                            message="Admin access required to reveal secrets",
+                        )
+                        return
+                    await self._send_json(
+                        send,
+                        status=200,
+                        payload=self._effective_config_payload(reveal=reveal),
                     )
                     return
 

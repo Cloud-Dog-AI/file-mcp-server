@@ -262,11 +262,146 @@ def _run_middleware_request(
 
     asyncio.run(_run())
     return sent
+
+
+def _effective_config_middleware(tmp_path, monkeypatch):
+    defaults_path = tmp_path / "defaults.yaml"
+    defaults_path.write_text(
+        """
+profiles:
+  default:
+    auth:
+      api_keys: []
+    storage:
+      backend: local
+""".lstrip(),
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+profiles:
+  default:
+    auth:
+      api_keys:
+        - config-secret
+    storage:
+      backend: local
+      s3:
+        secret_key: s3-secret
+      webdav:
+        password: webdav-secret
+      ftp:
+        password: ftp-secret
+      google_drive:
+        client_secret: gdrive-client-secret
+        refresh_token: gdrive-refresh-token
+        access_token: gdrive-access-token
+    scope:
+      roots:
+        - /workspace
+""".lstrip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FILE_MCP_ADMIN_UI_TOKEN", "admin-token")
+    monkeypatch.setenv("FILE_MCP_ACTIVE_CONFIG_PATH", str(config_path))
+    monkeypatch.setenv("FILE_MCP_ACTIVE_DEFAULTS_PATH", str(defaults_path))
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    return HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        config=ServerConfig(
+            profiles={
+                "default": ProfileConfig(
+                    auth={"api_keys": ["runtime-secret"]},
+                    storage={
+                        "backend": "local",
+                        "s3": {"secret_key": "runtime-s3-secret"},
+                        "webdav": {"password": "runtime-webdav-secret"},
+                        "ftp": {"password": "runtime-ftp-secret"},
+                        "google_drive": {
+                            "client_secret": "runtime-gdrive-client-secret",
+                            "refresh_token": "runtime-gdrive-refresh-token",
+                            "access_token": "runtime-gdrive-access-token",
+                        },
+                    },
+                    scope={"roots": ["/workspace"]},
+                )
+            }
+        ),
+    )
+
+
+@pytest.mark.UT
+@pytest.mark.api
+@pytest.mark.req("FR-013")
+def test_effective_config_masks_secrets_and_reports_sources(tmp_path, monkeypatch) -> None:
+    middleware = _effective_config_middleware(tmp_path, monkeypatch)
+
+    sent = _run_middleware_request(
+        middleware,
+        path="/admin/effective-config",
+        headers=[(b"x-admin-token", b"admin-token")],
+    )
+
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["ok"] is True
+    assert payload["secrets_redacted"] is True
+    assert payload["config"]["profiles"]["default"]["auth"]["api_keys"][0] == "--------"
+    assert (
+        payload["sources"]["profiles.default.storage.google_drive.client_secret"]["secret"]
+        is True
+    )
+    assert (
+        payload["sources"]["profiles.default.storage.google_drive.client_secret"]["origin"]
+        == "config-addition"
+    )
+    assert payload["counts"]["secret_keys"] >= 5
+    assert payload["counts"]["config_only_additions"] > 0
+
+
+@pytest.mark.UT
+@pytest.mark.api
+@pytest.mark.req("FR-013")
+def test_effective_config_reveal_requires_admin_and_returns_unmasked_values(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    middleware = _effective_config_middleware(tmp_path, monkeypatch)
+
+    denied = _run_middleware_request(
+        middleware,
+        path="/admin/effective-config",
+        query_string=b"reveal=1",
+    )
+    assert denied[0]["status"] == 401
+
+    revealed = _run_middleware_request(
+        middleware,
+        path="/admin/effective-config",
+        headers=[(b"x-admin-token", b"admin-token")],
+        query_string=b"reveal=1",
+    )
+
+    assert revealed[0]["status"] == 200
+    payload = json.loads(revealed[1]["body"].decode("utf-8"))
+    assert payload["secrets_redacted"] is False
+    assert (
+        payload["config"]["profiles"]["default"]["storage"]["google_drive"]["client_secret"]
+        == "runtime-gdrive-client-secret"
+    )
+
+
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")
-
-
 def test_resolve_http_settings_with_base_path() -> None:
     config = HttpServerConfig(
         transport="streamable-http",
