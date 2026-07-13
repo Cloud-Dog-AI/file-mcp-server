@@ -23,7 +23,7 @@ dependencies = [
   "cloud_dog_idam==0.5.3",
   "cloud_dog_llm==0.4.0",
   "cloud_dog_jobs>=0.3.0",
-  "cloud_dog_logging>=0.3.3",
+  "cloud_dog_logging>=0.4.1",
   "cloud_dog_storage>=0.1.8",
   "cryptography>=42.0",
   "deepdiff>=8.6.2,<9.0",

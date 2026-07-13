@@ -109,13 +109,14 @@ echo "=========================================="
 # ── PyPI Configuration ───────────────────────────────────────────
 # Default index depends on variant:
 #   public → public PyPI (single index, no extra-index-url; PS-97 §3.3 / §4).
-#   dev    → internal Gitea PyPI mirror.
+#   dev    → caller-supplied approved development index.
 if [[ -n "${PYPI_URL:-}" ]]; then
   : # honour caller override
 elif [[ "${VARIANT}" == "public" ]]; then
   PYPI_URL="https://pypi.org/simple"
 else
-  PYPI_URL="https://pypi.cloud-dog.net/simple"
+  echo "ERROR: --variant dev requires an explicit PYPI_URL" >&2
+  exit 2
 fi
 PYPI_USERNAME="${PYPI_USERNAME:-}"
 PYPI_PASSWORD="${PYPI_PASSWORD:-}"
@@ -124,13 +125,9 @@ PYPI_HOST="$(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PY
 
 if [[ "${VARIANT}" == "public" ]]; then
   # Single strict index — no extra-index-url (PS-97 §3.3 / §4).
-  if [[ -n "${PYPI_USERNAME}" ]] && [[ -n "${PYPI_PASSWORD}" ]]; then
-    cat > "${PIP_CONF}" << EOF
-[global]
-index-url = https://${PYPI_USERNAME}:${PYPI_PASSWORD}@${PYPI_URL#https://}
-trusted-host = ${PYPI_HOST}
-EOF
-    echo "pip.conf: public variant, authenticated single-index access (${PYPI_HOST})."
+  if [[ -n "${PYPI_USERNAME}" ]] || [[ -n "${PYPI_PASSWORD}" ]]; then
+    echo "ERROR: use an external pip auth helper; credentials must not be embedded in index URLs" >&2
+    exit 2
   else
     cat > "${PIP_CONF}" << EOF
 [global]
@@ -140,24 +137,17 @@ EOF
     echo "pip.conf: public variant, anonymous single-index access (${PYPI_HOST})."
   fi
 else
-  # Dev variant — internal Dockerfile uses public PyPI as primary index plus the
-  # internal mirror as extra-index-url for platform packages.
-  if [[ -n "${PYPI_USERNAME}" ]] && [[ -n "${PYPI_PASSWORD}" ]]; then
-    cat > "${PIP_CONF}" << EOF
-[global]
-extra-index-url = https://${PYPI_USERNAME}:${PYPI_PASSWORD}@${PYPI_URL#https://}
-trusted-host = ${PYPI_HOST}
-               files.pythonhosted.org
-EOF
-    echo "pip.conf: dev variant, authenticated mirror access (${PYPI_HOST})."
+  # Dev variant uses the explicit caller-selected single index.
+  if [[ -n "${PYPI_USERNAME}" ]] || [[ -n "${PYPI_PASSWORD}" ]]; then
+    echo "ERROR: use an external pip auth helper; credentials must not be embedded in index URLs" >&2
+    exit 2
   else
     cat > "${PIP_CONF}" << EOF
 [global]
-extra-index-url = ${PYPI_URL}
+index-url = ${PYPI_URL}
 trusted-host = ${PYPI_HOST}
-               files.pythonhosted.org
 EOF
-    echo "pip.conf: dev variant, anonymous mirror access (${PYPI_HOST})."
+    echo "pip.conf: dev variant, anonymous single-index access (${PYPI_HOST})."
   fi
 fi
 chmod 600 "${PIP_CONF}"

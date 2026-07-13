@@ -54,13 +54,13 @@ cloud-dog-api-kit==0.13.0
     # via -r /tmp/REQUIREMENTS.txt
 cloud-dog-config==0.3.2
     # via -r /tmp/REQUIREMENTS.txt
-cloud-dog-db==0.3.0
+cloud-dog-db==0.3.2
     # via -r /tmp/REQUIREMENTS.txt
 cloud-dog-idam==0.5.2
     # via -r /tmp/REQUIREMENTS.txt
-cloud-dog-jobs==0.4.1
+cloud-dog-jobs==0.4.2
     # via -r /tmp/REQUIREMENTS.txt
-cloud-dog-logging==0.4.0
+cloud-dog-logging==0.4.1
     # via -r /tmp/REQUIREMENTS.txt
 cloud-dog-storage==0.1.6
     # via -r /tmp/REQUIREMENTS.txt
