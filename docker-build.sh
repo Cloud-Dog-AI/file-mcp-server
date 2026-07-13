@@ -3,7 +3,8 @@
 # Licensed under the Apache License, Version 2.0
 
 # file-mcp-server — Docker Build Script (PS-91 / PS-97 v1.1 §1.1.3)
-# Uses BuildKit secret mount for PyPI auth — credentials never enter image layers.
+# Uses a BuildKit secret mount for PyPI auth — credentials never enter build args
+# or image layers.
 # Pattern: identical to git-mcp-server (the reference).
 #
 # Variant selector (PS-97 v1.1 §1.1.3):
@@ -139,8 +140,36 @@ EOF
 else
   # Dev variant uses the explicit caller-selected single index.
   if [[ -n "${PYPI_USERNAME}" ]] || [[ -n "${PYPI_PASSWORD}" ]]; then
-    echo "ERROR: use an external pip auth helper; credentials must not be embedded in index URLs" >&2
-    exit 2
+    if [[ -z "${PYPI_USERNAME}" ]] || [[ -z "${PYPI_PASSWORD}" ]]; then
+      echo "ERROR: dev index authentication requires both PYPI_USERNAME and PYPI_PASSWORD" >&2
+      exit 2
+    fi
+    PIP_AUTH_URL="$(
+      PYPI_BASE_URL="${PYPI_URL}" \
+      PYPI_AUTH_USERNAME="${PYPI_USERNAME}" \
+      PYPI_AUTH_PASSWORD="${PYPI_PASSWORD}" \
+      python3 - <<'PY'
+import os
+from urllib.parse import quote, urlsplit, urlunsplit
+
+parts = urlsplit(os.environ["PYPI_BASE_URL"])
+if not parts.hostname:
+    raise SystemExit("PYPI_URL must include a hostname")
+username = quote(os.environ["PYPI_AUTH_USERNAME"], safe="")
+password = quote(os.environ["PYPI_AUTH_PASSWORD"], safe="")
+host = parts.hostname
+if parts.port is not None:
+    host = f"{host}:{parts.port}"
+print(urlunsplit((parts.scheme, f"{username}:{password}@{host}", parts.path, parts.query, parts.fragment)))
+PY
+    )"
+    cat > "${PIP_CONF}" << EOF
+[global]
+index-url = ${PIP_AUTH_URL}
+trusted-host = ${PYPI_HOST}
+EOF
+    unset PIP_AUTH_URL
+    echo "pip.conf: dev variant, authenticated single-index secret (${PYPI_HOST})."
   else
     cat > "${PIP_CONF}" << EOF
 [global]
