@@ -125,7 +125,7 @@ class _StubA2AVerifier:
     async def verify_token_for_profile(self, token: str, profile_name: str):
         self.verify_calls.append((token, profile_name))
         if token == self.valid_token and profile_name == "default":
-            return object()
+            return SimpleNamespace(subject="admin", scopes=["*"], roles=["admin"])
         return None
 
 
@@ -148,8 +148,9 @@ class _StubJobsRuntime:
         status: str | None = None,
         session_id: str | None = None,
         job_type: str | None = None,
+        user_id: str | None = None,
     ) -> list[dict]:
-        del session_id
+        del session_id, user_id
         jobs = list(self._jobs.values())
         if status:
             jobs = [job for job in jobs if job.get("status") == status]
@@ -162,6 +163,24 @@ class _StubJobsRuntime:
 
     def get_job(self, job_id: str) -> dict | None:
         return self._jobs.get(job_id)
+
+    def cancel(self, job_id: str) -> bool:
+        if job_id not in self._jobs:
+            return False
+        self._jobs[job_id]["status"] = "cancelled"
+        return True
+
+    def retry(self, job_id: str) -> bool:
+        if job_id not in self._jobs:
+            return False
+        self._jobs[job_id]["status"] = "retry_wait"
+        return True
+
+    def archive(self, job_id: str) -> bool:
+        if job_id not in self._jobs:
+            return False
+        self._jobs[job_id]["status"] = "archived"
+        return True
 
 
 class _StubWebApiProxy:
@@ -1007,6 +1026,60 @@ def test_health_middleware_jobs_route_reads_single_job() -> None:
     payload = json.loads(sent[1]["body"].decode("utf-8"))
     assert payload["ok"] is True
     assert payload["job"]["job_id"] == "job-1"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+@pytest.mark.parametrize(
+    ("route", "response_key", "status"),
+    [
+        ("cancel", "cancelled", "cancelled"),
+        ("retry", "retried", "retry_wait"),
+        ("delete", "deleted", "archived"),
+    ],
+)
+def test_health_middleware_jobs_route_controls_job(
+    route: str, response_key: str, status: str
+) -> None:
+    sent = []
+    runtime = _StubJobsRuntime()
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=_StubA2AVerifier(valid_token="12345678"),
+        jobs_runtime_provider=lambda _profile_name: runtime,
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": f"/v1/jobs/job-1/{route}",
+            "headers": [(b"authorization", b"Bearer 12345678")],
+            "query_string": b"",
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload[response_key] is True
+    assert runtime.get_job("job-1")["status"] == status
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

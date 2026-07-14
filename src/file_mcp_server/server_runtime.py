@@ -1483,6 +1483,16 @@ class HealthCheckMiddleware:
                 and not proxy_headers.get("authorization")
             ):
                 proxy_headers["authorization"] = f"Bearer {self._login_access_token}"
+            session = self._get_session_from_cookie(headers)
+            if (
+                session is not None
+                and session.get("role") == "admin"
+                and self.admin_ui_token
+            ):
+                # The API role cannot read the web role's in-memory session.
+                # Forward the existing internal admin credential only after the
+                # web role has validated the HttpOnly session cookie.
+                proxy_headers["x-admin-token"] = self.admin_ui_token
         response = await self.api_proxy.request(
             method,
             upstream_path,
@@ -4761,7 +4771,7 @@ class HealthCheckMiddleware:
         path: str,
         send,
     ) -> bool:
-        """Handle read-only jobs status API routes."""
+        """Handle authenticated PS-75/PS-76 job query and control routes."""
         if scope.get("type") != "http":
             return False
         method = str(scope.get("method") or "").upper()
@@ -4769,26 +4779,18 @@ class HealthCheckMiddleware:
                 or path == "/v1/jobs" or path.startswith("/v1/jobs/")):
             return False
 
-        supplied_admin_token = headers.get("x-admin-token", "")
-        ui_admin = bool(self.admin_ui_token and supplied_admin_token == self.admin_ui_token)
-        auth_info, selected_profile = await self._authenticate_request(
+        is_authenticated, is_admin, principal_id = await self._admin_gate(
             scope=scope, headers=headers
         )
-        if not ui_admin and auth_info is None:
+        _auth_info, selected_profile = await self._authenticate_request(
+            scope=scope, headers=headers
+        )
+        if not is_authenticated:
             await self._send_api_error(
                 send,
                 status=401,
                 code="UNAUTHENTICATED",
                 message="Unauthorised",
-            )
-            return True
-
-        if method != "GET":
-            await self._send_api_error(
-                send,
-                status=405,
-                code="METHOD_NOT_ALLOWED",
-                message=f"Unsupported method for {path}: {method}",
             )
             return True
 
@@ -4821,6 +4823,7 @@ class HealthCheckMiddleware:
                         status=status,
                         session_id=session_id,
                         job_type=job_type,
+                        user_id=None if is_admin else principal_id,
                     ),
                 },
             )
@@ -4841,8 +4844,10 @@ class HealthCheckMiddleware:
             return True
 
         segments = [segment for segment in path.split("/") if segment]
-        if len(segments) == 4:
-            job_id = segments[3]
+        if segments and segments[0] == "api":
+            segments = segments[1:]
+        if len(segments) == 3 and method == "GET":
+            job_id = segments[2]
             payload = runtime.get_job(job_id)
             if payload is None:
                 await self._send_api_error(
@@ -4852,7 +4857,62 @@ class HealthCheckMiddleware:
                     message=f"Job not found: {job_id}",
                 )
                 return True
+            if not is_admin and str(payload.get("user_id") or "") != principal_id:
+                await self._send_api_error(
+                    send,
+                    status=403,
+                    code="FORBIDDEN",
+                    message="Permission denied: job ownership required",
+                )
+                return True
             await self._send_json(send, status=200, payload={"ok": True, "job": payload})
+            return True
+
+        if len(segments) == 4 and method == "POST":
+            job_id, action = segments[2], segments[3]
+            payload = runtime.get_job(job_id)
+            if payload is None:
+                await self._send_api_error(
+                    send, status=404, code="NOT_FOUND", message=f"Job not found: {job_id}"
+                )
+                return True
+            owns_job = str(payload.get("user_id") or "") == principal_id
+            if action in {"cancel", "retry"} and not (is_admin or owns_job):
+                await self._send_api_error(
+                    send, status=403, code="FORBIDDEN", message="Permission denied: job ownership required"
+                )
+                return True
+            if action == "delete" and not is_admin:
+                await self._send_api_error(
+                    send, status=403, code="FORBIDDEN", message="Permission denied: admin required"
+                )
+                return True
+            actions = {
+                "cancel": (runtime.cancel, "cancelled"),
+                "retry": (runtime.retry, "retried"),
+                "delete": (runtime.archive, "deleted"),
+            }
+            selected = actions.get(action)
+            if selected is None:
+                await self._send_api_error(
+                    send, status=404, code="NOT_FOUND", message="Not Found"
+                )
+                return True
+            operation, response_key = selected
+            changed = bool(operation(job_id))
+            if not changed:
+                await self._send_api_error(
+                    send,
+                    status=409,
+                    code="CONFLICT",
+                    message=f"Job is not eligible for {action}",
+                )
+                return True
+            await self._send_json(
+                send,
+                status=200,
+                payload={"ok": True, response_key: True, "job_id": job_id},
+            )
             return True
 
         await self._send_api_error(
@@ -6998,7 +7058,12 @@ def build_tool_registry(
                     error_message = str(warnings[0])
                 else:
                     error_message = str(result.get("error_code") or "job_failed")
-                jobs_runtime.mark_failed(job_id, error=error_message)
+                error_code = str(result.get("error_code") or "").strip().lower()
+                jobs_runtime.mark_failed(
+                    job_id,
+                    error=error_message,
+                    retryable=error_code in {"backend_unavailable", "timeout"},
+                )
         except Exception as exc:
             if logger is not None:
                 logger.warning(

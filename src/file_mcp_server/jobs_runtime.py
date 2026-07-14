@@ -363,6 +363,8 @@ class FileMcpJobsRuntime:
         from_state = ""
         if job is not None:
             from_state = str(job.status.value if hasattr(job.status, "value") else job.status)
+            if from_state in {"cancelled", "failed", "succeeded", "dead_lettered", "archived"}:
+                return False
         worker_id = f"{self.server_id}-inline"
         claimed = bool(self.backend.claim(job_id, self.server_id, worker_id))
         if not claimed:
@@ -548,6 +550,54 @@ class FileMcpJobsRuntime:
             )
         return result
 
+    def retry(self, job_id: str) -> bool:
+        """Move an eligible terminal job into retry_wait (PS-75 JQ7.2)."""
+        job = self.backend.get(job_id)
+        if job is None:
+            return False
+        from_state = str(job.status.value if hasattr(job.status, "value") else job.status)
+        if from_state not in {"failed", "cancelled", "timeout", "timed_out", "dead_lettered"}:
+            return False
+        attempt = int(getattr(job, "attempt", 0) or 0) + 1
+        self._increment_attempt(job_id, attempt)
+        result = bool(self.backend.update_status(job_id, JobStatus.RETRY_WAIT.value))
+        if result:
+            _emit_job_audit(
+                self.audit_emitter,
+                "job.retry",
+                "success",
+                job_id=job_id,
+                job_type=str(job.job_type),
+                from_state=from_state,
+                to_state="retry_wait",
+                extra={"attempt": attempt},
+            )
+        return result
+
+    def archive(self, job_id: str) -> bool:
+        """Soft-delete an eligible terminal job by archiving it."""
+        job = self.backend.get(job_id)
+        if job is None:
+            return False
+        from_state = str(job.status.value if hasattr(job.status, "value") else job.status)
+        if from_state not in {
+            "succeeded", "failed", "cancelled", "timeout", "timed_out",
+            "dead_lettered", "ttl_expired",
+        }:
+            return False
+        result = bool(self.backend.update_status(job_id, "archived"))
+        if result:
+            _emit_job_audit(
+                self.audit_emitter,
+                "job.archive",
+                "success",
+                job_id=job_id,
+                job_type=str(job.job_type),
+                from_state=from_state,
+                to_state="archived",
+            )
+        return result
+
     def _update_finished_at(self, job_id: str, when: datetime) -> None:
         """Set finished_at on the job row if the column exists."""
         repo = getattr(self.backend, "_repo", None)
@@ -640,6 +690,7 @@ class FileMcpJobsRuntime:
         status: str | None = None,
         session_id: str | None = None,
         job_type: str | None = None,
+        user_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """List jobs with optional filters."""
         items = [self.serialise_job(job) for job in self.backend.all_jobs()]
@@ -663,6 +714,13 @@ class FileMcpJobsRuntime:
                 item
                 for item in items
                 if str(item.get("job_type") or "").strip().lower() == expected_type
+            ]
+        if user_id is not None:
+            expected_user = str(user_id).strip()
+            items = [
+                item
+                for item in items
+                if str(item.get("user_id") or "").strip() == expected_user
             ]
         bounded = max(1, min(int(limit or 100), 500))
         items.sort(
