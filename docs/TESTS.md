@@ -15,6 +15,35 @@ coverage-percent: 100
 
 # Tests
 
+## 2026-07-14 Group B test-state backfill
+
+The retained `W28R-3013` evidence is useful test truth but is not eligible for
+generated state import: its pytest logs do not retain original UTC timestamps or
+JUnit XML. The outcomes below are copied without converting lane-level PASS labels
+into test success.
+
+| Lane | Runtime | Scope / retained command | Tested source | Totals | Evidence | Import state |
+|---|---|---|---|---|---|---|
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest tests/unit --env tests/env-UT` | raw ledger records `edited` rather than an immutable tested commit | 326 passed, 0 failed, 0 errors, 0 skipped | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/ut-3.13.tail.log` | **NOT IMPORTED - original UTC and immutable tested commit not retained** |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest tests/quality --env tests/env-QT` | same provenance gap | 61 passed, 0 failed, 0 errors, 0 skipped | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/qt-3.13-rerun.tail.log` | **NOT IMPORTED - original UTC and immutable tested commit not retained** |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest tests/system --env tests/env-ST` | same provenance gap | 30 passed, 0 failed, 0 errors, 0 skipped | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/st-3.13.tail.log` | **NOT IMPORTED - original UTC and immutable tested commit not retained** |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest tests/integration --env tests/env-IT` | same provenance gap | 43 passed, 0 failed, 7 errors, 1 skipped | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/it-3.13.tail.log` | **NOT IMPORTED - failing run; original UTC and immutable tested commit not retained** |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest tests/application --env tests/env-AT` | same provenance gap | 25 passed, 4 failed, 0 errors, 1 skipped | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/at-3.13.tail.log` | **NOT IMPORTED - failing run; original UTC and immutable tested commit not retained** |
+| `W28R-3013` | CPython 3.13.14 | retained Docker integration rerun | same provenance gap | 9 passed, 1 failed, 0 errors, 0 skipped | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/it-docker-3.13.tail.log` | **NOT IMPORTED - failing run; original UTC and exact command not retained** |
+| `W28R-3013` | N/A (Node/Playwright) | initial deployed full E2E | deployed `e15ae78a` | 97 passed, 8 failed, 10 skipped, 50 did not run | `W28R-3013-FINAL-PROOF-R2:working/evidence/W28R-3013/current/working/deployed-e2e-full.log` | **NOT IMPORTED - failing run; original UTC and exact command not retained** |
+
+The evidence summary claims a later 165/165 browser pass, but the referenced raw
+retry transcript and JUnit are absent from the immutable R2 tag. That summary was
+not imported. The W28E-1882 candidate at commit
+`84a9aa8725166695733ec8be7ebe4a4434c911f9` contains a 165/165 final JUnit, but no
+exact command transcript or corrected `W28E-1882-*-R2` tag; it is also **NOT
+IMPORTED**. The full CPython 3.12 suite was **NOT RUN**. Runtime-guard negatives
+for below-minimum interpreters are not CPython 3.12 suite evidence.
+
+Because no qualifying JUnit with complete provenance exists, generated
+`TEST-STATUS.md` and append-only `TEST-HISTORY.md` were not changed for these
+lanes.
+
 ## Service Scope
 Deterministic file operations, structured edits, conversion, validation, and storage-backend actions exposed through profile-governed HTTP and MCP surfaces.
 
