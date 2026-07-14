@@ -69,6 +69,7 @@ class ValidateFileInput(BaseModel):
 
 class SearchContentInput(BaseModel):
     query: str = Field(..., description="Search text or pattern")
+    path: Optional[str] = Field(None, description="Directory subtree to search")
     glob: Optional[str] = Field(None, description="Glob pattern to filter files (e.g. '*.md', 'docs/**')")
     regex: bool = Field(False, description="Treat query as regex")
     max_results: Optional[int] = Field(None, description="Maximum results to return")
@@ -84,6 +85,7 @@ class SearchPathsInput(BaseModel):
     """
 
     query: str = Field(..., description="Filename/path pattern to search for")
+    path: Optional[str] = Field(None, description="Directory subtree to search")
     glob: Optional[str] = Field(None, description="Glob pattern to filter files (e.g. '*.md')")
     regex: bool = Field(False, description="Treat query as a regular expression")
     max_results: Optional[int] = Field(None, description="Maximum number of matches to return")

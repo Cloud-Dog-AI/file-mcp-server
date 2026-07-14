@@ -269,6 +269,7 @@ def test_api_kit_tool_contract_offloads_blocking_handler() -> None:
 def test_fm7_search_paths_input_advertises_query() -> None:
     schema = SearchPathsInput.model_json_schema()
     assert "query" in schema["properties"]
+    assert "path" in schema["properties"]
     assert "query" in schema.get("required", [])
 @pytest.mark.UT
 @pytest.mark.mcp

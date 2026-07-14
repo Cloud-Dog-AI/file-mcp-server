@@ -383,12 +383,18 @@ def test_container_remote_storage_backend_over_host_network(
                 search_timeout = 30 if backend == "webdav" else 10
                 await client.call_tool(
                     "search_paths",
-                    {"query": run_id, "max_depth": 3, "timeout_s": search_timeout},
+                    {
+                        "query": run_id,
+                        "path": base_dir,
+                        "max_depth": 3,
+                        "timeout_s": search_timeout,
+                    },
                 )
                 await client.call_tool(
                     "search_content",
                     {
                         "query": run_id,
+                        "path": base_dir,
                         "max_depth": 3,
                         "timeout_s": search_timeout,
                         "max_results": 5,
@@ -404,6 +410,18 @@ def test_container_remote_storage_backend_over_host_network(
                 await client.call_tool(
                     "delete_file", {"path": path_txt, "missing_ok": True}
                 )
+                for cleanup_path in (
+                    f"{base_dir}/renamed.txt",
+                    f"{base_dir}/x.json",
+                    f"{base_dir}/b64.txt",
+                ):
+                    await client.call_tool(
+                        "delete_file", {"path": cleanup_path, "missing_ok": True}
+                    )
+                if backend != "s3":
+                    await client.call_tool(
+                        "delete_file", {"path": base_dir, "missing_ok": True}
+                    )
 
         asyncio.run(_flow())
 

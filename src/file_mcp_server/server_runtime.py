@@ -7768,6 +7768,7 @@ def build_tool_registry(
 
     def search_path_names(
         query: str,
+        path: str | None = None,
         glob: str | None = None,
         regex: bool = False,
         max_results: int | None = None,
@@ -7822,9 +7823,16 @@ def build_tool_registry(
         import re
 
         pattern = re.compile(query) if regex else None
-        remote_roots: list[str] = [
-            str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots
-        ]
+        remote_roots: list[str]
+        if path is not None:
+            requested_root = str(PosixScopePolicy.normalize(path))
+            assert isinstance(policy, PosixScopePolicy)
+            policy.require(requested_root, operation="read")
+            remote_roots = [requested_root]
+        else:
+            remote_roots = [
+                str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots
+            ]
 
         def _depth_ok(root: str, candidate: str) -> bool:
             """Handle depth ok."""
@@ -7951,9 +7959,16 @@ def build_tool_registry(
         import re
 
         regex_pattern = re.compile(query) if regex else None
-        remote_roots: list[str] = [
-            str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots
-        ]
+        remote_roots: list[str]
+        if path is not None:
+            requested_root = str(PosixScopePolicy.normalize(path))
+            assert isinstance(policy, PosixScopePolicy)
+            policy.require(requested_root, operation="read")
+            remote_roots = [requested_root]
+        else:
+            remote_roots = [
+                str(PosixScopePolicy.normalize(root)) for root in profile.scope.roots
+            ]
         results: list[dict[str, Any]] = []
 
         def _depth_ok(root: str, candidate: str) -> bool:
@@ -9117,7 +9132,7 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="search_paths",
-                description="Search file paths by name. Parameters: query (required, filename pattern), glob (optional), regex (optional), max_results (optional)",
+                description="Search file paths by name. Parameters: query (required, filename pattern), path (optional, directory subtree), glob (optional), regex (optional), max_results (optional)",
             ),
             schema_def=ToolSchema(input_model=SearchPathsInput),
             handler=search_path_names,
@@ -9127,7 +9142,7 @@ def build_tool_registry(
         ToolDefinition(
             meta=ToolMeta(
                 name="search_path_names",
-                description="Alias of search_paths. Search file paths by name. Parameters: query (required), glob, regex, max_results.",
+                description="Alias of search_paths. Search file paths by name. Parameters: query (required), path (optional, directory subtree), glob, regex, max_results.",
             ),
             schema_def=ToolSchema(input_model=SearchPathsInput),
             handler=search_path_names,

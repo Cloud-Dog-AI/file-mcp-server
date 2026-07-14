@@ -394,10 +394,10 @@ def test_container_smoke_with_host_network_and_mcp_call(
         assert health["status"] == "ok"
         assert health["service"] == "file-mcp-server"
 
-        async def _call_read_file() -> str:
+        async def _call_read_file(headers: dict[str, str]) -> str:
             transport = StreamableHttpTransport(
                 f"http://127.0.0.1:{host_port}/mcp",
-                headers={"Authorization": "Bearer secret"},
+                headers=headers,
             )
             async with Client(transport) as client:
                 result = await client.call_tool(
@@ -408,8 +408,31 @@ def test_container_smoke_with_host_network_and_mcp_call(
                 ]
                 return "\n".join(text_blocks)
 
-        response_text = asyncio.run(_call_read_file())
-        assert "hello from docker host network" in response_text
+        for auth_headers in (
+            {"Authorization": "Bearer secret"},
+            {"X-API-Key": "secret"},
+        ):
+            response_text = asyncio.run(_call_read_file(auth_headers))
+            assert "hello from docker host network" in response_text
+            with httpx.Client(timeout=10.0) as http_client:
+                auth_response = http_client.get(
+                    f"http://127.0.0.1:{host_port}/auth/me", headers=auth_headers
+                )
+                a2a_response = http_client.get(
+                    f"http://127.0.0.1:{host_port}/a2a/health", headers=auth_headers
+                )
+            assert auth_response.status_code == 200
+            assert a2a_response.status_code == 200
+
+        with httpx.Client(timeout=10.0) as http_client:
+            assert http_client.get(
+                f"http://127.0.0.1:{host_port}/auth/me",
+                headers={"X-API-Key": "wrong"},
+            ).status_code == 401
+            assert http_client.get(
+                f"http://127.0.0.1:{host_port}/a2a/health",
+                headers={"X-API-Key": "wrong"},
+            ).status_code == 401
     finally:
         _rm_container(repo_root, container_name)
 @pytest.mark.IT
