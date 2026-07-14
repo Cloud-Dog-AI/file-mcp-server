@@ -8207,7 +8207,7 @@ def build_tool_registry(
             dry_run=dry_run,
         )
 
-    def convert_file_tool(
+    def _convert_file_tool_sync(
         path: str,
         target_format: str,
         output_path: str | None = None,
@@ -8404,6 +8404,27 @@ def build_tool_registry(
             return _done(_fail(str(exc), code="timeout"))
         except LimitError as exc:
             return _done(_fail(str(exc), code="limit_exceeded"))
+
+    async def convert_file_tool(
+        path: str,
+        target_format: str,
+        output_path: str | None = None,
+        max_input_mb: int | None = None,
+        timeout_s: int | None = None,
+        simulate_delay_s: float | None = None,
+        backend: str | None = None,
+    ) -> Dict[str, Any]:
+        """Run blocking conversion work off the request loop so job control stays responsive."""
+        return await asyncio.to_thread(
+            _convert_file_tool_sync,
+            path=path,
+            target_format=target_format,
+            output_path=output_path,
+            max_input_mb=max_input_mb,
+            timeout_s=timeout_s,
+            simulate_delay_s=simulate_delay_s,
+            backend=backend,
+        )
 
     def meld_files_tool(path_a: str, path_b: str) -> Dict[str, Any]:
         """Execute meld files tool."""
