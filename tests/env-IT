@@ -49,6 +49,8 @@ TEST_A2A_BASE_PATH=/a2a
 TEST_A2A_API_KEY=12345678
 E2E_BASE_URL=https://filemcpserver0.cloud-dog.net
 E2E_FILE_MCP_API_KEY=${vault.dev.services.filemcpserver0.api_key}
+E2E_FILE_MCP_WEB_USERNAME=${vault.dev.services.filemcpserver0.web_username}
+E2E_FILE_MCP_WEB_PASSWORD=${vault.dev.services.filemcpserver0.web_password}
 
 FILE_MCP_S3_ENDPOINT=${vault.dev.storage.s3.endpoint}
 FILE_MCP_S3_BUCKET=test

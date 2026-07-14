@@ -17,8 +17,10 @@
 The shared @cloud-dog/idam Users page calls /auth/status (and the legacy
 /api/auth/status alias). Before this fix file-mcp returned 404, which the Users
 page surfaced as a "Not Found" error banner. The handler must:
-  * 401 for an unauthenticated caller (no populated/admin principal — §0C);
-  * 200 with {is_system_admin, username, authenticated} for the cookie-authed admin.
+  * return 401 for an unauthenticated caller;
+  * authenticate X-API-Key and Bearer carriers without escalating a
+    file-scoped key to system administrator;
+  * report system-admin capability for the real cookie-authenticated admin.
 
 Runs against a live base URL (E2E_BASE_URL, default preprod filemcpserver0).
 """
@@ -37,8 +39,13 @@ from tests.env_runtime import env_get
 def test_auth_status_unauth_denied_authed_capability() -> None:
     base_url = env_get("E2E_BASE_URL").strip()
     api_key = env_get("E2E_FILE_MCP_API_KEY").strip()
-    if not base_url or not api_key:
-        pytest.fail("E2E_BASE_URL and E2E_FILE_MCP_API_KEY are required")
+    web_username = env_get("E2E_FILE_MCP_WEB_USERNAME").strip()
+    web_password = env_get("E2E_FILE_MCP_WEB_PASSWORD").strip()
+    if not all((base_url, api_key, web_username, web_password)):
+        pytest.fail(
+            "E2E_BASE_URL, E2E_FILE_MCP_API_KEY, "
+            "E2E_FILE_MCP_WEB_USERNAME and E2E_FILE_MCP_WEB_PASSWORD are required"
+        )
 
     with httpx.Client(base_url=base_url, timeout=30.0) as client:
         # §0C: unauthenticated principal probe is denied (never an admin principal)
@@ -49,6 +56,7 @@ def test_auth_status_unauth_denied_authed_capability() -> None:
 
         # File MCP is API-key authenticated. Both supported carriers must
         # resolve to the same authenticated capability response.
+        carrier_capabilities = []
         for headers in (
             {"Authorization": f"Bearer {api_key}"},
             {"X-API-Key": api_key},
@@ -60,8 +68,19 @@ def test_auth_status_unauth_denied_authed_capability() -> None:
                 )
                 body = r.json()
                 assert body.get("authenticated") is True
-                assert body.get("is_system_admin") is True
+                assert body.get("is_system_admin") is False
                 assert body.get("username")
+                permissions = body.get("permissions") or []
+                assert "*" not in permissions and "admin:*" not in permissions
+                carrier_capabilities.append(
+                    (
+                        path,
+                        body.get("is_system_admin"),
+                        tuple(sorted(permissions)),
+                    )
+                )
+
+        assert carrier_capabilities[0:2] == carrier_capabilities[2:4]
 
         assert client.get(
             "/auth/status", headers={"X-API-Key": "invalid"}
@@ -73,3 +92,16 @@ def test_auth_status_unauth_denied_authed_capability() -> None:
                 "X-API-Key": "conflicting-invalid",
             },
         ).status_code == 401
+
+        login = client.post(
+            "/auth/login",
+            json={"username": web_username, "password": web_password},
+        )
+        assert login.status_code == 200, login.text[:120]
+        for path in ("/auth/status", "/api/auth/status"):
+            cookie_status = client.get(path)
+            assert cookie_status.status_code == 200, cookie_status.text[:120]
+            body = cookie_status.json()
+            assert body.get("authenticated") is True
+            assert body.get("is_system_admin") is True
+            assert body.get("username") == web_username
