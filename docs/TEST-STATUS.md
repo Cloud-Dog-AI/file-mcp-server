@@ -1,526 +1,198 @@
 ---
 template-id: T-TSS
 template-version: 1.0
-project: file-mcp-server
-doc-last-updated: 2026-07-14T20:33:09.159075+00:00
-doc-git-commit: 610d6dfad271e3b547ae6be57c96e86dd713357e
+project: file-mcp
+doc-last-updated: 2026-07-14T14:04:18.739Z
+doc-git-commit: 2285536dc3e19489a133bd69509db2834695685b
 doc-git-branch: main
 doc-age-policy: 30d
-doc-conformance-stamp: 2026-07-14T20:33:09.159075+00:00
+doc-conformance-stamp: 2026-07-14T14:04:18.739Z
 ---
 
-# file-mcp-server — TEST-STATUS
+# file-mcp — TEST-STATUS
 
 > **Template version:** T-TSS v1.0 — overwritten by `scripts/update-test-state.py`. Do not hand-edit.
 
 ## 1. Latest run
 
-- **Run timestamp:** 2026-07-14T20:33:09.159075+00:00
-- **Commit:** `610d6dfad271e3b547ae6be57c96e86dd713357e` (`main`)
-- **Runtime:** CPython 3.13.14
-- **Lane:** `W28R-3013`
-- **Environment:** `tests/env-{UT,QT,ST,AT-lane-r3,IT-lane-r3}`
-- **Command:** `.venv/bin/python -m pytest -p no:cacheprovider tests/{unit,quality,system,application,integration}/  (consolidated local Python suite; deployed 166 tracked separately as N/A Playwright)`
-- **Evidence:** `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/ (consolidated local Python suite UT+QT+ST+AT+IT)`
-- **Totals:** 493 tests | 492 passed | 0 failed | 0 errors | 1 skipped
+- **Run timestamp:** 2026-07-14T14:04:18.739Z
+- **Commit:** `2285536dc3e19489a133bd69509db2834695685b` (`main`)
+- **Runtime:** N/A (Node/Playwright)
+- **Lane:** `W28E-1882`
+- **Environment:** `deployed preprod; approved runtime/Vault credentials; service E2E_BASE_URL`
+- **Command:** `bash /opt/iac/Development/cloud-dog-ai/tmp/W28E-1882/run-filemcp-e2e.sh FINAL`
+- **Evidence:** `W28E-1882-FINAL-PROOF-R2:working/evidence/W28E-1882/current/raw/file-mcp/file-mcp-server.FINAL.junit.xml`
+- **Totals:** 165 tests | 165 passed | 0 failed | 0 errors | 0 skipped
 
 ## 2. Per-test status
 
 | Test ID | Tier | Status | Last run | Commit | Known issue |
 |---|---|---|---|---|---|
-| `tests.application.AT1.13_ApplicationWebUiAdmin.test_application_webui_admin::test_at1_13_webui_admin_pages_render_profile_and_identity_data` | AT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t10_dashboard` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t11_edit_file` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t12_console_error_gate` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t13_cw_canonical_testids` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t14_watches_crud_manage` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t1_api_key_login` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t2_user_crud` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t3_group_crud` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t4_api_key_crud` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t5_rbac_assign_verify_remove` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t6_read_file` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t7_search` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t8_audit_log` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.application.AT_WEBUI_EndToEnd.test_webui_end_to_end::test_webui_t9_storage_profile_crud` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.10_IntegrationMarkdownAdvancedHttp.test_integration_markdown_advanced_http::test_markdown_heading_path_slug_and_frontmatter_workflow` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.11_IntegrationMeldOptionalityHttp.test_integration_meld_optionality_http::test_meld_optional_unavailable_returns_warning` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.12_IntegrationMultiProfileRoutingHttp.test_integration_multi_profile_routing_http::test_multi_profile_selection_auth_and_scope_controls` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.13_IntegrationRemoteBackendToolMatrixHttp.test_integration_remote_backend_tool_matrix_http::test_remote_backend_tool_matrix[ftp]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.13_IntegrationRemoteBackendToolMatrixHttp.test_integration_remote_backend_tool_matrix_http::test_remote_backend_tool_matrix[s3]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.13_IntegrationRemoteBackendToolMatrixHttp.test_integration_remote_backend_tool_matrix_http::test_remote_backend_tool_matrix[webdav]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.14_IntegrationRemoteStorageBackendsHttp.test_integration_remote_storage_backends_http::test_remote_storage_backend_end_to_end[ftp]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.14_IntegrationRemoteStorageBackendsHttp.test_integration_remote_storage_backends_http::test_remote_storage_backend_end_to_end[s3]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.14_IntegrationRemoteStorageBackendsHttp.test_integration_remote_storage_backends_http::test_remote_storage_backend_end_to_end[webdav]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.15_IntegrationScopedOps.test_integration_scoped_ops::test_scoped_file_operations_over_http` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.16_IntegrationSearchHttp.test_integration_search_http::test_search_http_honors_scope_deny_and_limits` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.17_IntegrationSedlikeFileHttp.test_integration_sedlike_file_http::test_sedlike_file_edit_flow_over_http` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.18_IntegrationSedlikeTransactionHttp.test_integration_sedlike_transaction_http::test_sedlike_transaction_atomicity_over_http` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.18_IntegrationSedlikeTransactionHttp.test_integration_sedlike_transaction_http::test_sedlike_transaction_validation_failure_rolls_back` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.19_IntegrationStoryMultitypeCrudHttp.test_integration_story_multitype_crud_http::test_story_multitype_upload_search_update_retrieve_delete_with_audit` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.19_IntegrationStoryMultitypeCrudHttp.test_integration_story_multitype_crud_http::test_story_upload_pdf_convert_update_find_return_with_audit` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.19_IntegrationStoryMultitypeCrudHttp.test_integration_story_multitype_crud_http::test_upload_download_cycle_with_invalid_key_rejected` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.1_DockerContainerRemoteStorageBackends.test_docker_container_remote_storage_backends::test_container_remote_storage_backend_over_host_network[ftp]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.1_DockerContainerRemoteStorageBackends.test_docker_container_remote_storage_backends::test_container_remote_storage_backend_over_host_network[s3]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.1_DockerContainerRemoteStorageBackends.test_docker_container_remote_storage_backends::test_container_remote_storage_backend_over_host_network[webdav]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.20_IntegrationStructuredAuditSnapshot.test_integration_structured_audit_snapshot::test_structured_edit_with_audit_and_snapshot` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.21_IntegrationStructuredFormats.test_integration_structured_formats::test_structured_file_edits_xml_html_markdown` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.22_IntegrationYamlFileStructuredOps.test_integration_yaml_file_structured_ops::test_yaml_file_structured_crud_with_audit_snapshot` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.23_ServerHttpIntegration.test_server_http_integration::test_http_health_and_authenticated_tool_call` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.24_SystemConversionBackendSelection.test_system_conversion_backend_selection::test_conversion_backend_selection_and_fallback_metadata` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.24_SystemConversionBackendSelection.test_system_conversion_backend_selection::test_conversion_explicit_backend_unavailable_and_unsupported_codes` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.24_SystemConversionBackendSelection.test_system_conversion_backend_selection::test_conversion_explicit_external_backend_when_available` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.24_SystemConversionBackendSelection.test_system_conversion_backend_selection::test_conversion_explicit_libreoffice_backend_when_available` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.25_IntegrationA2AAuthContract.test_integration_a2a_auth_contract::test_a2a_health_auth_matrix_401_401_200` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.26_IntegrationConfigCrudIdentityWorkflow.test_integration_config_crud_identity_workflow::test_it1_26_user_key_profile_lifecycle_supports_mcp_file_operations` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.27_IntegrationJobsManagedFileOps.test_integration_jobs_managed_file_ops::test_conversion_operation_is_tracked_as_managed_job` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.27_RestFileLifecycle.test_rest_file_lifecycle_http::test_ps78_rest_file_lifecycle_rejects_read_only_scope` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.27_RestFileLifecycle.test_rest_file_lifecycle_http::test_ps78_rest_file_lifecycle_uses_profile_scope_and_audit` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_container_multi_env_override_changes_root_and_api_key` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_container_multi_folder_scope_controls_and_audit_logs` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_container_smoke_with_bridge_network_port_publish` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_container_smoke_with_host_network_and_mcp_call` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_docker_command_builder_defaults_to_local_daemon` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_docker_command_builder_supports_remote_host_flag` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.2_DockerContainerRuntime.test_docker_container_runtime::test_docker_remote_host_exec_path_if_enabled` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.3_IntegrationBase64FileOps.test_integration_base64_file_ops::test_base64_file_roundtrip_over_http` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.4_IntegrationConfigMatrixHarnessHttp.test_integration_config_matrix_harness_http::test_config_matrix_harness_validates_scope_limits_auth_and_audit[variant0]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.4_IntegrationConfigMatrixHarnessHttp.test_integration_config_matrix_harness_http::test_config_matrix_harness_validates_scope_limits_auth_and_audit[variant1]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.4_IntegrationConfigMatrixHarnessHttp.test_integration_config_matrix_harness_http::test_config_matrix_harness_validates_scope_limits_auth_and_audit[variant2]` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.5_IntegrationDiffFilesHttp.test_integration_diff_files_http::test_diff_files_over_http` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.6_IntegrationFilesystemPathToolsHttp.test_integration_filesystem_path_tools_http::test_filesystem_path_tools_cover_files_dirs_and_utf8` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.7_IntegrationGoogleDriveLiveHttp.test_integration_google_drive_live_http::test_google_drive_backend_end_to_end_live` | IT | skip | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.8_IntegrationIterativeCycleGuardHttp.test_integration_iterative_cycle_guard_http::test_iterative_search_update_retrieve_cycle_is_bounded_and_audited` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1.9_IntegrationJsonYamlGetMergeHttp.test_integration_json_yaml_get_merge_http::test_json_yaml_file_level_operation_matrix_depth` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT1_30_AuthStatusProbe.test_auth_status_probe::test_auth_status_unauth_denied_authed_capability` | IT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.integration.IT_CFG06_A2AEvents.test_a2a_events_integration::test_it_cfg06_admin_crud_publishes_events_to_a2a_events_history` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt1_security_suite::test_qt1_1_secrets_never_logged` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt1_security_suite::test_qt1_2_path_traversal_prevention` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt1_security_suite::test_qt1_3_domain_specific_safety` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt1_security_suite::test_qt1_4_uk_english_compliance` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt26_secrets_separation::test_qt2_6_defaults_config_do_not_embed_plain_secrets` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt26_secrets_separation::test_qt2_6_no_hardcoded_secrets_in_source` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt26_secrets_separation::test_qt2_6_sensitive_env_values_use_vault_or_scoped_files` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt27_bespoke_code_scan::test_qt2_7_no_bespoke_platform_replacements` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt3_documentation_suite::test_qt3_1_required_files_exist` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt3_documentation_suite::test_qt3_2_requirement_id_format` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt3_documentation_suite::test_qt3_3_test_id_uniqueness` | QT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_config_yaml_immutable::test_runtime_source_does_not_write_immutable_config_yaml_files` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_migration_completeness::test_no_bespoke_auth` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_migration_completeness::test_no_os_environ_for_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_migration_completeness::test_no_raw_fastapi` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_migration_completeness::test_no_yaml_safe_load_for_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_api_uses_cloud_dog_api_kit` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_auth_uses_cloud_dog_idam` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_config_uses_cloud_dog_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_logging_uses_cloud_dog_logging` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_no_bespoke_db_access` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_no_bespoke_llm_calls` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_no_bespoke_vdb_calls` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_package_adoption::test_pyproject_declares_platform_packages` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_requirement_traceability_manifest::test_manifest_covers_all_requirements` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_requirement_traceability_manifest::test_manifest_entries_not_empty` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_requirement_traceability_manifest::test_manifest_mapped_paths_exist` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_file_headers_present` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_functions_have_docstrings` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_no_direct_external_imports` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_no_hardcoded_credentials` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_no_hardcoded_urls` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_no_mock_in_it_at` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_rules_compliance::test_no_skip_calls_in_it_at` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_traceability::test_all_requirements_have_code` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_traceability::test_all_requirements_have_tests` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_traceability::test_all_tests_have_requirements` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_traceability::test_delivery_matrix_complete` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_traceability::test_no_orphan_test_files` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_vault_config_contract::test_config_yaml_no_secrets` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_vault_config_contract::test_defaults_yaml_exists` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_vault_config_contract::test_defaults_yaml_no_secrets` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_vault_config_contract::test_env_files_exist_per_tier` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_vault_config_contract::test_env_files_use_vault_expressions` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_COMPLIANCE.test_qt_vault_config_contract::test_no_secrets_in_source` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_LoggingCompliance.test_logging_compliance::test_audit_events_doc_exists` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_LoggingCompliance.test_logging_compliance::test_defaults_yaml_has_integrity_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_LoggingCompliance.test_logging_compliance::test_defaults_yaml_has_retention_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_LoggingCompliance.test_logging_compliance::test_defaults_yaml_has_rotation_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_licence_exists` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_bespoke_auth` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_bespoke_config_manager` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_bespoke_logging` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_direct_llm_calls` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_hardcoded_secrets` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_internal_hostnames` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_no_memory_queue` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_readme_exists` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_runtime_config_endpoint` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_server_control_exists` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.quality.QT_PACKAGE_COMPLIANCE.test_package_compliance.TestPackageCompliance::test_ui_dist_exists` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.10_SystemLimitsTimeout.test_system_limits_timeout::test_limits_timeout_path_for_conversion` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.11_SystemReadPartialRanges.test_system_read_partial_ranges::test_read_file_partial_line_and_byte_ranges` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.11_SystemReadPartialRanges.test_system_read_partial_ranges::test_read_file_rejects_mixed_line_and_byte_ranges` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.12_SystemSedTransactionContract.test_system_sed_transaction_contract::test_sed_transaction_contract_validation_and_noop` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.12_SystemSedTransactionContract.test_system_sed_transaction_contract::test_sed_transaction_ordering_and_policy_variants` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.13_SystemSnapshotRetention.test_system_snapshot_retention::test_snapshot_retention_prunes_old_snapshot_dirs` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.14_SystemStructuredPathEdgeCases.test_system_structured_path_edge_cases::test_structured_nested_list_dict_and_root_merge_paths` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.14_SystemStructuredPathEdgeCases.test_system_structured_path_edge_cases::test_structured_path_edge_cases_and_negative_contract` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.15_SystemStructuredRollbackContract.test_system_structured_rollback_contract::test_structured_failed_mutation_is_rolled_back_and_audited` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.16_SystemValidateFileTool.test_system_validate_file_tool::test_validate_file_tool_success_and_type_inference` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.16_SystemValidateFileTool.test_system_validate_file_tool::test_validate_file_tool_unsupported_extension_fails` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.17_SystemDatabaseMigration.test_database_migration::test_st_db_01_migration_upgrade_on_fresh_sqlite` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.17_SystemDatabaseMigration.test_database_migration::test_st_db_02_crud_via_session_manager` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.17_SystemDatabaseMigration.test_database_migration_multibackend::test_st_db_03_migration_lifecycle_upgrade_downgrade_upgrade` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.17_SystemDatabaseMigration.test_database_migration_multibackend::test_st_db_04_schema_versioning_simulation` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.1_SystemAuditIntegrity.test_system_audit_integrity::test_audit_log_integrity_append_only` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.2_SystemAuthHealth.test_system_auth_health::test_auth_enforcement_and_health` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.3_SystemConversionMatrix.test_system_conversion_matrix::test_conversion_response_matrix_fields` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.4_SystemConversionOptionality.test_system_conversion_optionality::test_conversion_missing_backend_returns_warning` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.5_SystemConversionRealBackends.test_system_conversion_real_backends::test_real_libreoffice_backend_conversion` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.5_SystemConversionRealBackends.test_system_conversion_real_backends::test_real_pandoc_backend_conversion` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.6_SystemDryRunContract.test_system_dry_run_contract::test_dry_run_mutations_do_not_change_files_and_are_audited` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.7_SystemEndpointRestartThreshold.test_system_endpoint_restart_threshold::test_server_exits_when_restart_threshold_reached` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.8_SystemErrorContract.test_system_error_contract::test_error_contract_for_expected_operational_failures` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST1.9_SystemLimits.test_system_limits::test_limits_search_and_conversion_size` | ST | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST_IntegrityVerifier.test_integrity_running::test_integrity_log_file_populated` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST_IntegrityVerifier.test_integrity_running::test_integrity_record_fields` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST_IntegrityVerifier.test_integrity_running::test_integrity_verifier_starts_with_server` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST_LogRotation.test_rotation_config::test_rotation_handler_configured` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.system.ST_LogRotation.test_rotation_config::test_rotation_parameters_from_config` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_atomic_write_and_read` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_atomic_write_respects_overwrite` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_chmod_path_updates_mode_for_file` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_create_dir_and_move_rename_with_utf8_names` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_delete_file_missing_ok` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_list_dir` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.10_Filesystem.test_filesystem::test_write_text_and_copy_move` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_complete_oauth_callback_persists_to_db_and_does_not_mutate_config_yaml` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_fetch_folder_falls_back_to_name_lookup_on_404` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_merge_google_drive_into_profile_builds_db_profile_payload` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_render_link_success_page_is_styled_linked_and_leak_free` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_render_setup_page_contains_form_and_profiles` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_render_setup_page_locks_profile_when_requested` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.11_GoogleDriveAdmin.test_google_drive_admin::test_render_setup_page_prefills_values_and_masks_stored_secret` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.12_GoogleDriveOauthHelper.test_google_drive_oauth_helper::test_build_auth_url_contains_required_params` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.12_GoogleDriveOauthHelper.test_google_drive_oauth_helper::test_helper_cli_prints_auth_url_without_code` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.12_GoogleDriveOauthHelper.test_w28c_1702_fm6_anon_gate::test_fm6_admin_cookie_session_admitted` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.12_GoogleDriveOauthHelper.test_w28c_1702_fm6_anon_gate::test_fm6_anonymous_denied_on_all_four_gdrive_surfaces` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.13_GoogleDriveSetupScript.test_google_drive_setup_script::test_extract_folder_id_from_literal_id` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.13_GoogleDriveSetupScript.test_google_drive_setup_script::test_extract_folder_id_from_share_url` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.13_GoogleDriveSetupScript.test_google_drive_setup_script::test_load_google_defaults_from_credentials_file` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.13_GoogleDriveSetupScript.test_google_drive_setup_script::test_write_env_values_updates_existing_and_appends_new` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.14_GoogleDriveStorage.test_google_drive_storage::test_extract_folder_id_from_drive_url` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.14_GoogleDriveStorage.test_google_drive_storage::test_google_drive_defaults_upload_base_uri` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.14_GoogleDriveStorage.test_google_drive_storage::test_google_drive_list_dir_exposes_drive_metadata` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.14_GoogleDriveStorage.test_google_drive_storage::test_google_drive_requires_folder_id_or_url` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.14_GoogleDriveStorage.test_google_drive_storage::test_google_drive_requires_oauth_client` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.14_GoogleDriveStorage.test_google_drive_storage::test_google_drive_token_refresh_surfaces_invalid_grant` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.15_Lifecycle.test_lifecycle::test_pidfile_lifecycle` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.15_Lifecycle.test_lifecycle::test_stop_pidfile_without_pid` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.16_Observability.test_observability::test_configure_logging_for_profile_uses_role_specific_log_file` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.16_Observability.test_observability::test_operational_logger_disabled` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.16_Observability.test_observability::test_operational_logger_writes_file` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.17_Posix.test_posix::test_filter_posix_paths` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.17_Posix.test_posix::test_is_posix_path` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.17_Posix.test_posix::test_normalize_and_to_posix` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.17_Posix.test_posix::test_require_relative` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.17_Posix.test_posix::test_safe_join` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_posix_scope_allows_root_directory_for_recursive_glob` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_scope_allows_glob` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_scope_allows_root_directory_for_recursive_glob` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_scope_denies_extension` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_scope_denies_glob` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_scope_denies_outside_root` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.18_ScopePolicy.test_scope_policy::test_scope_denies_read_only_on_write` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.19_Search.test_search::test_search_content` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.19_Search.test_search::test_search_content_max_file_mb` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.19_Search.test_search::test_search_content_max_results` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.19_Search.test_search::test_search_content_regex` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.19_Search.test_search::test_search_paths` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.19_Search.test_search::test_search_paths_glob` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.1_ApiKitContract.test_api_kit_contract::test_admin_query_token_is_rejected_with_error_envelope` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.1_ApiKitContract.test_api_kit_contract::test_health_middleware_exposes_ready_and_live` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_apply_edits_atomic_on_error` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_apply_edits_success` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_delete_matching_lines` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_insert_before_after_line` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_insert_invalid_line_raises` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_replace_line_range` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.20_Sedlike.test_sedlike::test_replace_regex` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.21_ServerDispatch.test_server_dispatch::test_tools_call` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.21_ServerDispatch.test_server_dispatch::test_tools_list` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.21_ServerDispatch.test_server_dispatch::test_unknown_method` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_a2a_health_accepts_verified_bearer_credential` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_a2a_health_accepts_verified_x_api_key` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_a2a_health_rejects_invalid_well_formed_api_key` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_a2a_health_rejects_malformed_authorization_header` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_a2a_health_requires_auth_without_credentials` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_admin_profiles_api_route_supports_api_prefix_alias` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_build_tool_registry_convert_file_reports_job_id` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_build_tool_registry_includes_backend_status` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_build_tool_registry_passes_max_results_to_local_search` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_build_tool_registry_wires_real_handlers` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_compact_identity_list_aliases_return_canonical_collections[/v1/api-keys-api_keys]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_compact_identity_list_aliases_return_canonical_collections[/v1/groups-groups]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_compact_identity_list_aliases_return_canonical_collections[/v1/users-users]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_deleted_profile_name_preserves_uniqueness_budget` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_effective_config_masks_secrets_and_reports_sources` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_effective_config_reveal_requires_admin_and_returns_unmasked_values` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_google_drive_callback_applies_reload_when_enabled` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_google_drive_page_locks_profile_from_query` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_google_drive_page_prefills_config_and_masks_secret` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_google_drive_page_uses_forwarded_proto` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_google_drive_start_reuses_masked_secret` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_jobs_route_controls_job[cancel-cancelled-cancelled]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_jobs_route_controls_job[delete-deleted-archived]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_jobs_route_controls_job[retry-retried-retry_wait]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_jobs_route_filters_non_admin_to_owned_jobs` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_jobs_route_lists_jobs` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_jobs_route_reads_single_job` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_logs_route_returns_structured_rows` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_reload_enforces_token_and_returns_json` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_reload_requires_admin_gate` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_returns_ok` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_returns_status_metrics` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_serves_google_drive_admin_page` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_supports_legacy_api_alias_path` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_health_middleware_supports_legacy_root_alias_path` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_legacy_v1_jobs_paths_do_not_fallback_to_spa` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_legacy_v1_logs_paths_do_not_fallback_to_spa` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_legacy_webui_aliases_redirect_to_canonical_routes` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_merge_active_db_profiles_into_config_overrides_file_seed` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_non_ui_api_paths_do_not_fallback_to_spa` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_normalise_profile_mapping_inherits_default_auth_when_missing` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_resolve_auth_api_key_value_returns_empty_for_unresolved_placeholder` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_resolve_auth_api_key_value_unwraps_nested_env_placeholders` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_resolve_http_settings_with_base_path` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_root_route_serves_spa_index_from_configured_dist` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_root_route_with_api_accept_serves_spa_index` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_runtime_config_endpoint_returns_dynamic_script` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_runtime_config_endpoint_scopes_audit_log_path_to_selected_profile_root` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_streamable_http_accept_compatibility_middleware_patches_json_only_accept` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_ui_assets_are_served_from_dist` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_ui_routes_serve_spa_index_from_configured_dist` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_unknown_root_webui_route_falls_back_to_spa` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_version_endpoint_returns_service_version` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_web_proxy_cookie_session_adds_login_token_for_logs_routes` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_web_proxy_preserves_api_prefix_for_jobs_routes` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.22_ServerRuntime.test_server_runtime::test_web_proxy_preserves_api_prefix_for_logs_routes` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.23_ToolReuse.test_tool_reuse::test_file_tools_helpers_reusable` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.24_ToolsRegistry.test_tools_registry::test_build_registry` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.24_ToolsRegistry.test_tools_registry::test_registry_duplicate_registration` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.24_ToolsRegistry.test_tools_registry::test_registry_list_deterministic` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.24_ToolsRegistry.test_tools_registry::test_registry_register_and_get` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validate_html` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validate_json` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validate_markdown` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validate_xml` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validate_yaml` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validation_ignore_mode` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validation_strict_mode` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.25_Validate.test_validate::test_validation_warn_mode` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.26_WebdavStorage.test_webdav_storage::test_parse_retry_statuses_falls_back_for_invalid_input` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.26_WebdavStorage.test_webdav_storage::test_webdav_move_non_transient_raises` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.26_WebdavStorage.test_webdav_storage::test_webdav_move_retries_transient_then_succeeds` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.26_WebdavStorage.test_webdav_storage::test_webdav_move_treats_already_applied_as_success` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.26_WebdavStorage.test_webdav_storage::test_webdav_retry_config_is_read_from_storage_model` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.27_RemoteStoragePlaceholderValidation.test_remote_storage_placeholder_validation::test_ftp_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.27_RemoteStoragePlaceholderValidation.test_remote_storage_placeholder_validation::test_google_drive_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.27_RemoteStoragePlaceholderValidation.test_remote_storage_placeholder_validation::test_s3_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.27_RemoteStoragePlaceholderValidation.test_remote_storage_placeholder_validation::test_webdav_rejects_unresolved_placeholder_credentials` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.28_RemoteEnvHelpers.test_remote_env_helpers::test_merged_remote_env_reads_google_oauth_from_profile_config` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.29_DatabaseAbstraction.test_database_abstraction::test_ut_db_01_engine_factory_creates_sqlite_engine` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.29_DatabaseAbstraction.test_database_abstraction::test_ut_db_02_session_manager_roundtrip` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.29_DatabaseAbstraction.test_database_abstraction::test_ut_db_03_probe_database_reports_healthy` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.2_Audit.test_audit::test_audit_logger_uses_explicit_actor_identity` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.2_Audit.test_audit::test_audit_logger_writes` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.2_Audit.test_audit::test_build_event` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.2_Audit.test_audit::test_create_snapshot` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.30_AdminIdentity.test_admin_identity::test_create_group_user_and_dynamic_api_key_resolution` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.30_AdminIdentity.test_admin_identity::test_revoke_api_key_blocks_future_resolution` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.31_JobsRuntime.test_jobs_runtime::test_jobs_runtime_memory_lifecycle` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.31_JobsRuntime.test_jobs_runtime::test_jobs_runtime_sql_backend_uses_fallback_db_url` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.31_JobsRuntime.test_lifecycle_simulation::test_lifecycle_create_queue_cancel` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.31_JobsRuntime.test_lifecycle_simulation::test_lifecycle_create_queue_run_fail` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.31_JobsRuntime.test_lifecycle_simulation::test_lifecycle_create_queue_run_fail_retryable` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.31_JobsRuntime.test_lifecycle_simulation::test_lifecycle_create_queue_run_succeed` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_api_kit_tool_contract_offloads_blocking_handler` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm1_compute_profile_status_per_backend` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm1_gdrive_auth_failed_health_demotes_configured` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm2_admin_gate_denies_anonymous` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm2_redact_profile_secrets_masks_all_secret_values` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm3_build_tool_contracts_advertise_profile` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm3_explicit_profile_arg_routes_to_named_registry` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm4_factory_passes_folder_id_to_google_drive_backend` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm5_profile_names_reflect_db_merged_config_not_collapsed_env` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm5_status_profile_count_matches_active_profiles` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm7_search_paths_and_alias_registered_with_schema` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm7_search_paths_input_advertises_query` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm8_complete_oauth_callback_accepts_db_injection_kwargs` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm8_gdrive_tokens_persist_across_new_session_manager` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm9_localstorage_narrowed_to_operator_defaults` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_fm9_status_banner_is_rendered` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.33_W28C1702.test_w28c_1702_forensic_fixes::test_remote_directory_delete_skips_file_snapshot` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_bad_credentials_rejected` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_data_surfaces_gated_for_anon` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_each_flat_role_logs_in_with_expected_role` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_logout_clears_session` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_mcp_discovery_gated_for_anon` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_optional_auth_me_allows_cookie_adapter_restore_probe` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_read_only_writes_are_denied_inline_403` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_read_write_writes_are_not_pre_gated` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.35_FlatRoleLogin.test_flat_role_login::test_static_ui_is_public_for_anon` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_CookieSessionIsolation.test_cookie_session_isolation::test_cookieless_request_is_anonymous_even_with_active_admin_session` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_CookieSessionIsolation.test_cookie_session_isolation::test_expired_matching_cookie_is_anonymous` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_CookieSessionIsolation.test_cookie_session_isolation::test_explicit_fallback_flag_does_not_reintroduce_anon_leak` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_CookieSessionIsolation.test_cookie_session_isolation::test_valid_matching_cookie_returns_own_session` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_ParamAliasFallback.test_param_alias_fallback::test_admin_create_group_accepts_name_collision_source` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_ParamAliasFallback.test_param_alias_fallback::test_b64_decode_to_file_accepts_path_and_content` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_ParamAliasFallback.test_param_alias_fallback::test_b64_decode_to_file_accepts_path_and_data` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_ParamAliasFallback.test_param_alias_fallback::test_filepath_alias_to_path_still_works` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.36_ParamAliasFallback.test_param_alias_fallback::test_text_alias_to_content_still_works` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.37_RestFileLifecycle.test_rest_file_lifecycle_helpers::test_rest_file_id_round_trips_absolute_scoped_path` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.37_RestFileLifecycle.test_rest_file_lifecycle_helpers::test_rest_file_scope_allows_read_but_denies_write_for_read_only_profile` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_api_kit_tool_route_accepts_both_api_key_carriers[headers0]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_api_kit_tool_route_accepts_both_api_key_carriers[headers1]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_bearer_and_cookie_principals_reach_tool_auth_context` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_conflicting_api_key_carriers_are_rejected` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_non_admin_api_key_gets_http_403_for_admin_mcp_tool` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_primary_profile_api_key_is_not_promoted_to_admin` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_read_only_webmcp_can_read_but_cannot_write` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.38_McpRoleGuards.test_mcp_role_guards::test_x_api_key_principal_reaches_jsonrpc_tool_auth_context` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.39_W28E1846WebUiAliases.test_webui_aliases::test_profile_connection_aliases_route_to_storage_profiles` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_auth_accepts_valid_key` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_auth_rejects_invalid_key` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_auth_rejects_missing_keys` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_auth_rejects_missing_token` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_header_backend_accepts_custom_header_and_scheme` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_header_backend_rejects_wrong_scheme` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_key_fingerprint_format` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_multi_profile_verifier_accepts_canonical_x_api_key` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_multi_profile_verifier_accepts_matching_api_key_carriers` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_multi_profile_verifier_admin_api_key_gets_admin_scope` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_multi_profile_verifier_query_profile_and_key_routing` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_multi_profile_verifier_rejects_conflicting_api_key_carriers` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_multi_profile_verifier_rejects_wrong_profile_key` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_token_verifier_accepts_valid_bearer_token` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.3_Auth.test_auth::test_token_verifier_ignores_unexpanded_env_placeholders` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/.well-known/agent.json]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/a2a/tasks]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/api/v1/users]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/api]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/assets/index-abc.js]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/auth/login]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/favicon.ico]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/files/report]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/foo.js]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/health]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/idam/users]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/live]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/openapi]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/ready]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/runtime-config.js]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/sitemap.xml]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/status]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/v1/admin/users]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/version]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/weba2a/events]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/webmcp/tools]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[/webmcp]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_reserved_and_static_paths_excluded[]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/admin/preferences]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/admin/some-future-tab]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/admin]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/catalogue]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/dashboard/insights]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/research]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_blocklist_spa_document_navigations[/system/preferences]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_fm6_google_drive_settings_browser_gate_preserved` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_head_deeplink_serves_spa_shell` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_runtime_config_exposes_build_identity` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_unauth_api_paths_not_shadowed_by_spa_fallback` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_unauth_browser_deeplink_serves_spa_shell_not_404` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.41_DeepLinkBlocklistAndBuildIdentity.test_w28e_1863_fix_wave_b::test_version_endpoint_exposes_build_identity` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_coerces_numeric_api_keys_to_strings` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_defaults_only` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_env_override_precedence` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_env_overrides_literal_config_values` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_env_precedence` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_os_environ_overrides_env_file_and_config` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.4_ConfigLoader.test_config_loader::test_load_config_os_environ_precedence` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.5_Convert.test_convert::test_convert_file_max_input_mb` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.5_Convert.test_convert::test_convert_file_no_backend` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.5_Convert.test_convert::test_convert_file_timeout` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.5_Convert.test_convert::test_convert_file_with_dummy_backend` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_live_interpreter_meets_contract` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_min_python_is_313` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_new_enough_python_passes[ok0]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_new_enough_python_passes[ok1]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_new_enough_python_passes[ok2]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_new_enough_python_passes[ok3]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_older_python_fails_closed[bad0]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_older_python_fails_closed[bad1]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_older_python_fails_closed[bad2]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_older_python_fails_closed[bad3]` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_pyproject_requires_python_313` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.60_RuntimeContract.test_ut_runtime_contract::test_python_version_file_is_313` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.6_Diff.test_diff::test_diff_files` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.6_Diff.test_diff::test_diff_text_contains_changes` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.6_Diff.test_diff::test_meld_available_returns_bool` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.6_Diff.test_diff::test_meld_unavailable_returns_warning` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.7_EditStructured.test_edit_structured::test_json_yaml_crud` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.7_EditStructured.test_edit_structured::test_json_yaml_move_copy_merge_matrix` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.7_EditStructured.test_edit_structured::test_markdown_section_edits` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.7_EditStructured.test_edit_structured::test_xml_html_edits` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.8_Encoding.test_encoding::test_b64_encode_decode_roundtrip` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.8_Encoding.test_encoding::test_b64_urlsafe_roundtrip` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.9_EndpointHealth.test_endpoint_health::test_classify_google_invalid_grant_as_auth_failed` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.9_EndpointHealth.test_endpoint_health::test_classify_google_oauth_token_400_as_auth_failed` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.9_EndpointHealth.test_endpoint_health::test_classify_http_error_503_as_busy_temporary` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.9_EndpointHealth.test_endpoint_health::test_configured_backends_ignores_unresolved_placeholders` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.9_EndpointHealth.test_endpoint_health::test_recover_backend_after_failure` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT1.9_EndpointHealth.test_endpoint_health::test_run_startup_checks_marks_local_healthy` | UT | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_AuditLogFormat.test_audit_log_format::test_audit_event_has_all_au3_fields` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_AuditLogFormat.test_audit_log_format::test_audit_event_no_secrets` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_AuditLogFormat.test_audit_log_format::test_audit_event_outcome_values` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_AuditLogFormat.test_audit_log_format::test_audit_event_timestamp_format` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_CFG06_A2AEvents.test_config_change_events::test_api_key_event_does_not_leak_secret` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_CFG06_A2AEvents.test_config_change_events::test_broadcaster_is_event_broadcaster_protocol` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_CFG06_A2AEvents.test_config_change_events::test_event_shape_for_user_crud` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_CFG06_A2AEvents.test_config_change_events::test_history_filter_and_limit_work_end_to_end` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_CFG06_A2AEvents.test_config_change_events::test_router_mounts_history_and_stream_when_broadcaster_provided` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_action_backend_is_dir_criteria` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_criteria_match_is_all_or_nothing` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_empty_criteria_matches_everything` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_glob_path_criterion` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_metadata_and_metadata_keys_criteria` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_regex_path_via_re_prefix_and_explicit_regex_key` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_criteria::test_validate_rejects_unknown_field_and_bad_regex_and_bad_action` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_rest_api::test_ack_requires_ack_cursor` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_rest_api::test_anonymous_watch_access_is_rejected` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_rest_api::test_events_pull_batch_is_nonblocking_empty_when_no_events` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_rest_api::test_full_watch_lifecycle_over_rest` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_rest_api::test_read_only_role_cannot_create_but_can_read` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_rest_api::test_unknown_watch_id_returns_404` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_audit_rows_emitted_for_lifecycle_and_emission` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_backend_support_matrix_reports_honest_unsupported_rows` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_backpressure_throttles_unacked_batches` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_create_list_status_pause_resume_delete_lifecycle` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_create_watch_rejects_invalid_limits_and_criteria` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_cross_tenant_isolation_is_hard_failure` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_cursor_batch_ack_recover_flow` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_durable_sql_journal_persists_across_service_instances` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_observe_change_emits_only_to_matching_live_watches` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_observe_scoped_to_profile_and_underlying_scan_capture_tag` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_paused_watch_does_not_receive_events` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_scan_limits_are_bounded_on_every_axis` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_server_mediated_capture_create_update_delete_rename` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_service::test_test_event_injects_deterministic_event_without_backend_mutation` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_surfaces::test_all_watch_mcp_tools_are_registered` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_surfaces::test_delete_and_rename_through_mcp_are_captured` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_surfaces::test_is_watches_path_helper_matches_v1_and_api_v1` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_surfaces::test_mcp_backend_support_tool_reports_matrix` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_surfaces::test_rest_watch_routes_classify_as_guarded_with_correct_permissions` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
-| `tests.unit.UT_W28E1870B_ChangeStream.test_watch_surfaces::test_write_file_through_mcp_triggers_server_mediated_capture` | UNCLASSIFIED | pass | 2026-07-14 | `610d6dfa` | |
+| `W28A-A10-about-profile-contract.spec.ts::W28A-#38 file-mcp about/profile contract › AboutDialog exposes the 5 contract data-testid attributes with correct values` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `W28A-A10-about-profile-contract.spec.ts::W28A-#38 file-mcp about/profile contract › ProfileDialog exposes the 7 contract data-testid attributes via UserMenu.onProfile` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `W28A-A10-about-profile-contract.spec.ts::W28A-#38 file-mcp about/profile contract › Settings page renders without bespoke fallback (PS-73 SettingsPanel surface)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `W28A-A14-preprod-about-profile-contract.spec.ts::W28A-#A14 file-mcp preprod about/profile contract › AboutDialog exposes the 5 contract data-testid attributes (preprod)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `W28A-A14-preprod-about-profile-contract.spec.ts::W28A-#A14 file-mcp preprod about/profile contract › ProfileDialog exposes the 7 contract data-testid attributes via UserMenu (preprod)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `W28A-A14-preprod-about-profile-contract.spec.ts::W28A-#A14 file-mcp preprod about/profile contract › Settings page renders SettingsPanel surface (preprod)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y a2a-console has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y admin-api-keys has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y admin-groups has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y admin-rbac has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y admin-roles has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y admin-users has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y api-docs has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y audit-log has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y dashboard has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y file-browser has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y google-drive-settings has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y jobs has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y mcp-console has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y search has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y settings has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `a11y.spec.ts::@a11y storage-profiles has no wcag2aa violations` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-117-deep-ux.spec.ts::W28A-117 about, profile, and settings expose exact platform contract content` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-117-deep-ux.spec.ts::W28A-117 deterministic search term error opens the seeded file result` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-117-deep-ux.spec.ts::W28A-117 file browser has folder, metadata, preview, grid, and bulk UX depth` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-117-deep-ux.spec.ts::W28A-117 identity and RBAC pages expose CRUD, relation, and guarded binding UX` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-117-deep-ux.spec.ts::W28A-117 jobs page asserts details, action affordances, export, or explicit empty state` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-117-deep-ux.spec.ts::W28A-117 storage profile test connection exposes status, reason, and toast result` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-119A-rendered-assertions.spec.ts::W28A-119A file browser renders type icons, metadata, tree expansion, and selected preview` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-119A-rendered-assertions.spec.ts::W28A-119A search term error renders deterministic preview and opens the result` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/W28A-119A-rendered-assertions.spec.ts::W28A-119A storage profile connection test renders an inline row status` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/admin-identity.spec.ts::admin identity pages load (users, groups, api keys)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/audit-log.spec.ts::view, filter and export audit log` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/auth.spec.ts::api-key sign-in and sign-out works` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/auth.spec.ts::invalid credentials show an error` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/dashboard.spec.ts::dashboard shows health, backend and quick actions` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/file-browser.spec.ts::browse, create, edit, copy, move and delete file` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/google-drive-connected-card.spec.ts::W28C-433 UX verification › google-drive-settings requires re-authorisation when live health is auth_failed` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/google-drive-connected-card.spec.ts::W28C-433 UX verification › storage-profiles hides example-* templates by default; toggle reveals them` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/google-drive-settings.spec.ts::google drive settings page loads profile defaults` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/mcp-console-gdrive.spec.ts::MCP Console storage profile execution › reports Google re-authorisation and completes local write → read → delete` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-002 health and version return 200` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-003 runtime-config + main assets + index load without 404/500` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-004 login page renders the shared login form (no blank/pageerror)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-005 login alias /ui/login resolves without 404/5xx` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-006 bad credentials fail visibly without crashing` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-007 valid login materialises the principal via /auth/me` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-008 authenticated shell renders top bar, nav and account menu` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-009 canonical common pages render via hard navigation (no blank/pageerror)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-010 service pages render via hard navigation — the crash-class guard` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-011 anonymous + wrong-target access does not leak protected content` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-012 browser cleanliness across the full journey` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/preprod-deploy-smoke.spec.ts::PS-PREPROD-DEPLOY-SMOKE: file-mcp-server target-service smoke › PDS-013 logout returns to the login gate` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/profiles.spec.ts::browse button navigates to file browser with profile` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/profiles.spec.ts::configure button opens edit or google drive settings` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/profiles.spec.ts::create, edit, test and delete storage profile` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/profiles.spec.ts::jobs page shows full job ID with copy button` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/profiles.spec.ts::profile detail panel shows for selected profile` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/profiles.spec.ts::storage profiles page shows deterministic status` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/routes.spec.ts::canonical routes and aliases resolve deterministically` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/routes.spec.ts::unknown route renders not found` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/search.spec.ts::search by content and open result` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/settings.spec.ts::settings route renders the effective-config panel and health card` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/storage-backends-matrix.spec.ts::Storage backends matrix (W28C-433 + smoke) › file-browser loads for profile ftp` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/storage-backends-matrix.spec.ts::Storage backends matrix (W28C-433 + smoke) › file-browser loads for profile google_drive` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/storage-backends-matrix.spec.ts::Storage backends matrix (W28C-433 + smoke) › file-browser loads for profile s3` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/storage-backends-matrix.spec.ts::Storage backends matrix (W28C-433 + smoke) › remote-backend profiles show their truthful live status in Storage Profiles list` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/stream-c-proof.spec.ts::stream-c canonical pages produce browser proof` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/stream-c-proof.spec.ts::stream-c legacy aliases return 308 to canonical routes` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T1 Dashboard — HealthWidgets visible (API, MCP, A2A traffic lights)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T10 FileBrowser — Column picker dropdown works` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T11 FileBrowser — RelativeTime appears on date columns` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T12 FileBrowser — EntityDialog opens on Add File click` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T13 StorageProfiles — EntityDialog opens on Add Profile click` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T14 StorageProfiles — DataTable has sort, page jump, multi-select` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T15 Admin > Users route exists` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T16 Admin > Groups route exists` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T17 Admin > API Keys route exists` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T18 API Docs — page loads and Swagger iframe visible` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T19 Jobs — page loads with jobs list or empty state` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T2 Dashboard — MetricCards visible (file count, storage, profiles)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T20 MCP Console — ToolBrowser visible and searchable` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T20b MCP Console — execute write_file shows JsonBlock response` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T20c A2A Console — send shows JsonBlock response` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T21 Session timeout — NOT shown on login page` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T22 Session timeout — MM:SS countdown visible when authenticated` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T23 AuditLog — DataTable has sort, page jump, RelativeTime` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T24 Navigation — new pages are accessible from sidebar` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T25 No raw JSON — spot-check key pages` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T3 Dashboard — QuickActionBar buttons navigate` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T4 Dashboard — No raw JSON blocks` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T5 Dashboard — ResourceMetrics shows real data` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T6 FileBrowser — DataTable has page jump input` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T7 FileBrowser — DataTable sort arrows on column click` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T8 FileBrowser — DataTable multi-select checkboxes visible` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/ui-review2.spec.ts::T9 FileBrowser — Bulk action toolbar appears on select` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::A: 5 lifecycle states visible` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::B: 12 columns in order` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::C: badge colours` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::D: detail dialog 7 tabs + controls + Escape` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::E1: admin sees all jobs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::F1: exact Job ID search` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::F2: status filter` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::F4: pagination` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::F6: bulk Cancel confirm` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-jobs-compliance.spec.ts::G: cross-page smoke` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-rbac-e2e8.spec.ts::RBAC E2-E8 › E1: admin sees all jobs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-rbac-e2e8.spec.ts::RBAC E2-E8 › E2: non-admin sees jobs page` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-rbac-e2e8.spec.ts::RBAC E2-E8 › E4: non-admin bulk delete hidden` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-rbac-e2e8.spec.ts::RBAC E2-E8 › E5: non-admin bulk cancel own job` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r2-rbac-e2e8.spec.ts::RBAC E2-E8 › E8: admin bulk delete with confirmation` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › A: 5 lifecycle states visible on /jobs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › B1: 12 columns in PS-76 exact order` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › B2: checkbox column` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › B3: column picker` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › B4: default sort Created desc` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › B5: clickable non-empty Job IDs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › C1: succeeded green` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › C2: failed red` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › C3: retry_wait yellow` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › C4: cancelled secondary` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › C5: running neutral` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › D1: detail dialog 7 tabs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › D2: Copy/Retry/Cancel/Delete controls` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › D3: Escape closes dialog` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E1: admin sees all jobs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E2: non-admin sees only own jobs` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E3: non-admin direct URL to another actor job shows inline 403 or filtered` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E4: non-admin bulk delete is hidden` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E5: non-admin bulk cancel own job succeeds` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E6: non-admin bulk cancel another actor job shows inline 403` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E7: non-admin bulk retry own failed job succeeds` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › E8: admin bulk delete across actors with confirmation` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F1: exact Job ID search` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F2: status filter` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F3: Total Records` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F4: Page X of Y with Prev/Next` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F5: page size 10/25/50/100` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F6: bulk Cancel confirm` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F7: bulk Retry confirm` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › F8: bulk Delete confirm (admin)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-687-r3-jobs-compliance.spec.ts::W28A-687-R3 Jobs PS-76 v2 Compliance › G: cross-page smoke clean` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.1.1 A2A skill list count equals live agent card and is scrollable` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.1.1 MCP tool list count equals live tools/list and is scrollable` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.1.2 tool and skill selection populate valid request templates` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.1.3 API key field is masked with password override and no plain key leak` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.1.4 and T.1.5 submit and result/meta are directly connected` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.1.7 docs links route to the PS-74 docs page` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.2.1 and T.1.6 safe MCP list_dir returns real result and PS-40 ids` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.2.2 and T.1.8 safe A2A task returns final result and live events` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.2.3 async managed tool returns job id and links to Jobs page` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.2.4 RBAC denial surfaces inline for unbound profile` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-769-ps72-conformance.spec.ts::W28A-769 PS-72 conformance › T.2.5 API-key override succeeds for MCP and A2A` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/secret-masking-capture.spec.ts::capture 5 masked secret keys` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › 3.3 random sample of 10 keys present with source badge` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › 3.4 reveal requires explicit admin action and calls the reveal endpoint` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › 3.6 JSON explorer expand-all and collapse-all work` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A1+3.2 every effective-config key renders (incl. config-only additions); count matches` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A2+3.4 secret keys are masked by default (incl. config-only profile secrets)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A3 every rendered leaf carries a valid source badge` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A4+3.7 every server tab is non-empty` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A5+3.5 page search highlights matching nodes` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A6 reveal toggle is present for admin` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `e2e/w28a-799/settings/settings-conformance.spec.ts::W28A-799 PS-73 v2 Settings conformance › A7+3.1 page loads with the PS-81 JsonExplorer (no 4xx)` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
+| `smoke/all-pages.spec.ts::all main navigation routes load` | UNCLASSIFIED | pass | 2026-07-14 | `2285536d` | |
 
 ## 3. Failures (detail)
 

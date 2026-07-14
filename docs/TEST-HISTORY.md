@@ -23,6 +23,15 @@ doc-conformance-stamp: 2026-07-14T17:55:26Z
 
 ## Runs (most recent first)
 
+### 2026-07-14T14:04:18.739Z — W28E-1882
+- Commit: `2285536dc3e19489a133bd69509db2834695685b` (main)
+- Runtime: N/A (Node/Playwright)
+- Environment: `deployed preprod; approved runtime/Vault credentials; service E2E_BASE_URL`
+- Command: `bash /opt/iac/Development/cloud-dog-ai/tmp/W28E-1882/run-filemcp-e2e.sh FINAL`
+- Evidence: `W28E-1882-FINAL-PROOF-R2:working/evidence/W28E-1882/current/raw/file-mcp/file-mcp-server.FINAL.junit.xml`
+- Totals: 165 / P 165 / F 0 / E 0 / S 0
+- Delta: new-fails 0 | newly-green 0
+
 ### 2026-07-14T20:33:09.159075+00:00 — W28R-3013
 - Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
 - Runtime: CPython 3.13.14
