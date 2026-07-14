@@ -7176,6 +7176,11 @@ def build_tool_registry(
             stat = backend.stat(resolved_path)
             if stat is None:
                 return None
+            # Snapshots are byte-for-byte file backups.  A remote directory
+            # has no byte representation, and attempting read_bytes here
+            # prevents otherwise-supported directory deletion on WebDAV/FTP.
+            if stat.is_dir:
+                return None
             data = backend.read_bytes(resolved_path)
             snapshot = create_snapshot_bytes(snapshot_dir, resolved_path, data)
         prune_snapshots(

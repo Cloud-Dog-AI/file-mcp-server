@@ -46,6 +46,7 @@ from file_mcp_server.mcp_api_kit_layer import build_tool_contracts
 from file_mcp_server.server import HealthCheckMiddleware, build_tool_registry
 from file_mcp_server.server_runtime import create_profile_tool_handler
 from file_tools.config.models import ProfileConfig, ServerConfig
+from file_tools.storage.base import StorageStat
 from file_tools.tools import ToolDefinition, ToolMeta, ToolRegistry
 from file_tools.tools.schemas import SearchPathsInput
 
@@ -286,6 +287,49 @@ def test_fm7_search_paths_and_alias_registered_with_schema(tmp_path) -> None:
         assert model is SearchPathsInput
     # The advertised field matches the handler's `query` parameter (no TypeError).
     assert registry.get("search_paths").handler("nonexistent-xyz") == {"matches": []}
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-026")
+def test_remote_directory_delete_skips_file_snapshot(monkeypatch, tmp_path) -> None:
+    deleted: list[str] = []
+
+    class RemoteBackend:
+        backend_name = "webdav"
+
+        @staticmethod
+        def stat(path: str) -> StorageStat:
+            return StorageStat(path=path, is_dir=True)
+
+        @staticmethod
+        def read_bytes(path: str) -> bytes:
+            pytest.fail(f"directory must not be read as bytes: {path}")
+
+        @staticmethod
+        def delete_path(path: str, *, missing_ok: bool = False) -> None:
+            del missing_ok
+            deleted.append(path)
+
+    profile = ProfileConfig.model_validate(
+        {
+            "storage": {"backend": "webdav"},
+            "auth": {"api_keys": ["secret"]},
+            "scope": {"roots": ["/"], "allow_globs": ["**/*"]},
+            "snapshots": {
+                "enabled": True,
+                "mode": "on_change",
+                "dir": str(tmp_path / "snapshots"),
+            },
+        }
+    )
+    monkeypatch.setattr(sr, "build_storage_backend", lambda _profile: RemoteBackend())
+
+    registry = sr.build_tool_registry(profile)
+    result = registry.get("delete_file").handler("/folder")
+
+    assert result["ok"] is True
+    assert deleted == ["/folder"]
 
 
 # ───────────────────────────── FM8 ─────────────────────────────
