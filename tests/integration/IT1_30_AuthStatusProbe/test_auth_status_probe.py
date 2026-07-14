@@ -25,36 +25,51 @@ Runs against a live base URL (E2E_BASE_URL, default preprod filemcpserver0).
 
 from __future__ import annotations
 
-import os
-
 import httpx
 import pytest
 
-BASE = os.environ.get("E2E_BASE_URL", "https://filemcpserver0.cloud-dog.net")
-USER = os.environ.get("E2E_WEB_USERNAME", "admin")
-PASS = os.environ.get("E2E_WEB_PASSWORD", "OrangeRiverTable")
+from tests.env_runtime import env_get
+
+
 @pytest.mark.IT
 @pytest.mark.mcp
 @pytest.mark.req("FR-023")
-
-
-@pytest.mark.integration
 def test_auth_status_unauth_denied_authed_capability() -> None:
-    verify = not BASE.startswith("https://")  # preprod ICAP self-signed corporate CA
-    with httpx.Client(base_url=BASE, timeout=30.0, verify=verify or True) as client:
+    base_url = env_get("E2E_BASE_URL").strip()
+    api_key = env_get("E2E_FILE_MCP_API_KEY").strip()
+    if not base_url or not api_key:
+        pytest.fail("E2E_BASE_URL and E2E_FILE_MCP_API_KEY are required")
+
+    with httpx.Client(base_url=base_url, timeout=30.0) as client:
         # §0C: unauthenticated principal probe is denied (never an admin principal)
         for path in ("/auth/status", "/api/auth/status"):
             r = client.get(path)
             assert r.status_code == 401, f"unauth {path} must be 401, got {r.status_code}: {r.text[:120]}"
             assert '"is_system_admin": true' not in r.text and '"*"' not in r.text
 
-        # cookie login then capability probe returns 200 with the caller's real status
-        login = client.post("/auth/login", json={"username": USER, "password": PASS})
-        assert login.status_code == 200, login.text
-        for path in ("/auth/status", "/api/auth/status"):
-            r = client.get(path)
-            assert r.status_code == 200, f"authed {path} must be 200, got {r.status_code}: {r.text[:120]}"
-            body = r.json()
-            assert body.get("authenticated") is True
-            assert body.get("is_system_admin") is True
-            assert body.get("username")
+        # File MCP is API-key authenticated. Both supported carriers must
+        # resolve to the same authenticated capability response.
+        for headers in (
+            {"Authorization": f"Bearer {api_key}"},
+            {"X-API-Key": api_key},
+        ):
+            for path in ("/auth/status", "/api/auth/status"):
+                r = client.get(path, headers=headers)
+                assert r.status_code == 200, (
+                    f"authed {path} must be 200, got {r.status_code}: {r.text[:120]}"
+                )
+                body = r.json()
+                assert body.get("authenticated") is True
+                assert body.get("is_system_admin") is True
+                assert body.get("username")
+
+        assert client.get(
+            "/auth/status", headers={"X-API-Key": "invalid"}
+        ).status_code == 401
+        assert client.get(
+            "/auth/status",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "X-API-Key": "conflicting-invalid",
+            },
+        ).status_code == 401
