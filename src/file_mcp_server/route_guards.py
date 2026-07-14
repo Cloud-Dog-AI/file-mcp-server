@@ -539,6 +539,11 @@ ROUTE_GUARDS: tuple[RouteGuard, ...] = (
     ),
     RouteGuard(
         method="GET",
+        pattern=_re(r"^/v1/users/?$"),
+        permission="idam.users.read",
+    ),
+    RouteGuard(
+        method="GET",
         pattern=_re(r"^/admin/users/(?P<user_id>[^/]+)/?$"),
         permission="idam.users.read",
         resource_type="user",
@@ -569,6 +574,11 @@ ROUTE_GUARDS: tuple[RouteGuard, ...] = (
     RouteGuard(
         method="GET",
         pattern=_re(r"^/admin/groups/?$"),
+        permission="idam.groups.read",
+    ),
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^/v1/groups/?$"),
         permission="idam.groups.read",
     ),
     RouteGuard(
@@ -616,6 +626,11 @@ ROUTE_GUARDS: tuple[RouteGuard, ...] = (
     RouteGuard(
         method="GET",
         pattern=_re(r"^/admin/api-keys/?$"),
+        permission="apikeys.read_own",
+    ),
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^/v1/api-keys/?$"),
         permission="apikeys.read_own",
     ),
     RouteGuard(

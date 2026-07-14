@@ -1040,6 +1040,49 @@ def test_health_middleware_jobs_route_filters_non_admin_to_owned_jobs() -> None:
     asyncio.run(_run())
     payload = json.loads(sent[1]["body"].decode("utf-8"))
     assert [job["job_id"] for job in payload["jobs"]] == ["job-1"]
+
+
+@pytest.mark.UT
+@pytest.mark.api
+@pytest.mark.req("FR-016")
+@pytest.mark.parametrize(
+    ("path", "collection"),
+    [
+        ("/v1/users", "users"),
+        ("/v1/groups", "groups"),
+        ("/v1/api-keys", "api_keys"),
+    ],
+)
+def test_compact_identity_list_aliases_return_canonical_collections(
+    path: str, collection: str
+) -> None:
+    service = SimpleNamespace(
+        list_users=lambda: [{"id": "user-1"}],
+        list_groups=lambda: [{"id": "group-1"}],
+        list_api_keys=lambda **_kwargs: [{"id": "key-1"}],
+    )
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=_StubA2AVerifier(valid_token="admin-token"),
+        admin_identity_service=service,
+    )
+    sent = _run_middleware_request(
+        middleware,
+        path=path,
+        headers=[(b"authorization", b"Bearer admin-token")],
+    )
+
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert len(payload[collection]) == 1
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

@@ -5479,6 +5479,16 @@ class HealthCheckMiddleware:
             admin_api_path = path[len("/api") :]
         elif path == "/v1/admin" or path.startswith("/v1/admin/"):
             admin_api_path = path[len("/v1") :]
+        else:
+            compact_identity_aliases = {
+                "/v1/users": "/admin/users",
+                "/v1/groups": "/admin/groups",
+                "/v1/api-keys": "/admin/api-keys",
+            }
+            for compact_prefix, canonical_prefix in compact_identity_aliases.items():
+                if path == compact_prefix or path.startswith(f"{compact_prefix}/"):
+                    admin_api_path = f"{canonical_prefix}{path[len(compact_prefix):]}"
+                    break
         is_identity_api_route = (
             admin_api_path == "/admin/users"
             or admin_api_path.startswith("/admin/users/")
