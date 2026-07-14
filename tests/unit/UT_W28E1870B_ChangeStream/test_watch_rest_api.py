@@ -57,6 +57,8 @@ def _login(client: TestClient, creds) -> dict:
     return {k: v for k, v in resp.cookies.items()}
 
 
+@pytest.mark.UT
+@pytest.mark.api
 @pytest.mark.req("CSTREAM-009")
 def test_anonymous_watch_access_is_rejected(client: TestClient):
     # anon create + list are gated by the route-guard chokepoint (401/403)

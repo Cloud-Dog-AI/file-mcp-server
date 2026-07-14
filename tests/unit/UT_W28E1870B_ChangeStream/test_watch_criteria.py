@@ -37,6 +37,8 @@ def _cand(**kw):
     return ChangeCandidate(**kw)
 
 
+@pytest.mark.UT
+@pytest.mark.internal
 @pytest.mark.req("CSTREAM-FILE-001")
 def test_empty_criteria_matches_everything():
     m = match({}, _cand(path="anything.txt"))

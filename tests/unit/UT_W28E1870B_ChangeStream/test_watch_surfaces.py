@@ -58,6 +58,8 @@ def local_registry():
     return reg, tmp
 
 
+@pytest.mark.UT
+@pytest.mark.mcp
 @pytest.mark.req("CSTREAM-001")
 def test_all_watch_mcp_tools_are_registered(local_registry):
     reg, _tmp = local_registry

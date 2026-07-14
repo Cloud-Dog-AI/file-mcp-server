@@ -51,6 +51,8 @@ def _svc(engine=None, audit=None):
     return WatchService(engine=engine, audit_sink=sink)
 
 
+@pytest.mark.UT
+@pytest.mark.internal
 @pytest.mark.req("CSTREAM-FILE-001")
 def test_create_list_status_pause_resume_delete_lifecycle():
     ws = _svc()
