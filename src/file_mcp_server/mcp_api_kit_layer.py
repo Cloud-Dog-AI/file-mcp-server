@@ -458,6 +458,16 @@ def build_mcp_fastapi_application(
         seed_registry=seed,
         profile_tool_factory=profile_tool_factory,
     )
+    # The api-kit request-timeout middleware defaults to 30s, but individual file tools may
+    # legitimately run up to their own configured limits (search/storage up to ~30s, conversion
+    # up to ~60s) plus backend + serialization overhead — e.g. a real WebDAV content search over a
+    # remote store. A 30s HTTP request ceiling truncates those valid operations with a 504 Gateway
+    # Timeout. Set the HTTP request ceiling comfortably above the longest tool operation so the
+    # per-operation timeouts (which return a clean tool-level error) remain authoritative.
+    try:
+        _http_request_timeout_s = float(read_env_var("FILE_MCP_HTTP_REQUEST_TIMEOUT_S") or 180.0)
+    except (TypeError, ValueError):
+        _http_request_timeout_s = 180.0
     app = create_app(
         title="file-mcp-server-mcp",
         version="1.0.0",
@@ -467,6 +477,7 @@ def build_mcp_fastapi_application(
         enable_cors=False,
         register_signal_handlers_on_startup=False,
         enable_audit_logging=False,
+        timeout_seconds=_http_request_timeout_s,
     )
     app.state.file_mcp_web_sessions = session_store
     if config_event_broadcaster is not None:

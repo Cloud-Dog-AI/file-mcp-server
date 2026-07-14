@@ -96,7 +96,10 @@ class UiSession:
 
 NAV_LABELS = {
     "/dashboard": "Dashboard",
-    "/file-browser": "File Browser",
+    # File Browser was consolidated onto /catalogue (with a /file-browser -> /catalogue redirect)
+    # and its sidebar link renamed to "Catalogue"; the page heading is still "File Browser".
+    # Use the current nav label so the link click lands on the page directly (no redirect race).
+    "/file-browser": "Catalogue",
     "/search": "Search",
     "/storage-profiles": "Storage Profiles",
     "/audit-log": "Audit Log",
