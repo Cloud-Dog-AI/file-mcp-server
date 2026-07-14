@@ -25,6 +25,7 @@ Tests: ST1, IT1, AT1, QT1
 
 from __future__ import annotations
 
+import asyncio
 import json
 from os import getenv as read_env_var
 from typing import Any, Callable
@@ -329,7 +330,8 @@ def _make_dynamic_tool_handler(
         if not _scopes_allow(required, scopes):
             raise UnauthorisedError(f"Missing permission: {required}")
         try:
-            return _mcp_tool_result_payload(audited(**payload))
+            result = await asyncio.to_thread(audited, **payload)
+            return _mcp_tool_result_payload(result)
         except Exception as exc:
             return {
                 "content": [{"type": "text", "text": str(exc)}],

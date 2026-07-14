@@ -32,6 +32,7 @@ from tests.env_runtime import runtime_env  # noqa: F401  (autouse env loader)
 import asyncio
 import inspect
 import json
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -220,6 +221,44 @@ def test_fm3_build_tool_contracts_advertise_profile() -> None:
     props = contracts["ping"].input_schema.get("properties", {})
     assert "profile" in props
     assert props["profile"]["type"] == "string"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_api_kit_tool_contract_offloads_blocking_handler() -> None:
+    def blocking_handler(**_kwargs):
+        time.sleep(0.2)
+        return {"ok": True}
+
+    reg = ToolRegistry()
+    reg.register(
+        ToolDefinition(
+            meta=ToolMeta(name="ping", description="x"),
+            handler=blocking_handler,
+        )
+    )
+    contracts = build_tool_contracts(
+        lambda *a, **k: reg,
+        object(),
+        seed_registry=reg,
+        profile_tool_factory=lambda _name: blocking_handler,
+    )
+    request = SimpleNamespace(
+        user=SimpleNamespace(
+            is_authenticated=True,
+            access_token=SimpleNamespace(scopes=["*"]),
+        )
+    )
+
+    async def run() -> None:
+        task = asyncio.create_task(contracts["ping"].handler({}, request))
+        await asyncio.sleep(0.03)
+        assert task.done() is False
+        result = await task
+        assert result["structuredContent"]["ok"] is True
+
+    asyncio.run(run())
 
 
 # ───────────────────────────── FM7 ─────────────────────────────

@@ -1340,13 +1340,11 @@ def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
     src = tmp_path / "doc.txt"
     out = tmp_path / "doc.md"
     src.write_text("hello", encoding="utf-8")
-    result = asyncio.run(
-        registry.get("convert_file").handler(
-            str(src),
-            "md",
-            str(out),
-            backend="builtin-text-copy",
-        )
+    result = registry.get("convert_file").handler(
+        str(src),
+        "md",
+        str(out),
+        backend="builtin-text-copy",
     )
 
     assert result["ok"] is True
@@ -1359,55 +1357,6 @@ def test_build_tool_registry_convert_file_reports_job_id(tmp_path) -> None:
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")
-def test_convert_file_keeps_event_loop_responsive_while_job_is_running(tmp_path) -> None:
-    class TrackingJobs:
-        def __init__(self) -> None:
-            self.status = "missing"
-
-        def submit_job(self, **_kwargs) -> str:
-            self.status = "created"
-            return "job-responsive"
-
-        def mark_running(self, _job_id: str) -> None:
-            self.status = "running"
-
-        def mark_succeeded(self, _job_id: str) -> None:
-            self.status = "succeeded"
-
-        def mark_failed(self, _job_id: str, **_kwargs) -> None:
-            self.status = "failed"
-
-    profile = _profile(tmp_path)
-    jobs = TrackingJobs()
-    registry = build_tool_registry(profile, jobs_runtime=jobs)
-    src = tmp_path / "responsive.txt"
-    out = tmp_path / "responsive.html"
-    src.write_text("responsive", encoding="utf-8")
-
-    async def run() -> dict:
-        task = asyncio.create_task(
-            registry.get("convert_file").handler(
-                str(src),
-                "html",
-                str(out),
-                backend="pandoc",
-                simulate_delay_s=0.25,
-                timeout_s=2,
-            )
-        )
-        await asyncio.sleep(0.05)
-        assert jobs.status == "running"
-        assert task.done() is False
-        return await task
-
-    result = asyncio.run(run())
-    assert result["job_id"] == "job-responsive"
-    assert jobs.status in {"succeeded", "failed"}
-@pytest.mark.UT
-@pytest.mark.mcp
-@pytest.mark.req("FR-017")
-
-
 def test_streamable_http_accept_compatibility_middleware_patches_json_only_accept() -> (
     None
 ):
