@@ -17,8 +17,8 @@ cloud_dog_config==0.3.4
 hvac>=2.0
 cloud_dog_logging>=0.3.3
 cloud_dog_api_kit[change-stream-db]>=0.14.0
-cloud_dog_idam==0.5.3
-cloud_dog_llm==0.4.0
+cloud_dog_idam==0.5.4
+cloud_dog_llm==0.4.1
 cloud_dog_jobs>=0.3.0
 cloud_dog_db>=0.2.0
 cloud_dog_storage>=0.1.4

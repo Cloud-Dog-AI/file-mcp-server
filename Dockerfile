@@ -50,8 +50,8 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       "cloud-dog-config==0.3.4" \
       cloud-dog-logging \
       "cloud-dog-api-kit[change-stream-db]>=0.14.0" \
-      "cloud-dog-idam==0.5.3" \
-      "cloud-dog-llm==0.4.0" \
+      "cloud-dog-idam==0.5.4" \
+      "cloud-dog-llm==0.4.1" \
       "cloud-dog-db>=0.2.0" \
       cloud-dog-jobs \
       cloud-dog-storage
