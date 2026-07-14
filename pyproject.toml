@@ -93,6 +93,8 @@ markers = [
     "llm: LLM endpoint required",
     "external: External service",
     "flaky: Known-flaky",
+    "unit: Unit-test metadata alias (canonical tier marker remains UT)",
+    "fast: Fast-running test metadata",
     "req(*ids): Bind to REQ-IDs",
 ]
 

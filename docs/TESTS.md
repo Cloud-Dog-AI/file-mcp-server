@@ -3,11 +3,11 @@ template-id: T-TST
 template-version: 1.1
 applies-to: docs/TESTS.md
 project: file-mcp-server
-doc-last-updated: 2026-07-14T17:39:54Z
-doc-git-commit: 996fcf87480b92760553547e702ebe72215bcb35
+doc-last-updated: 2026-07-14
+doc-git-commit: 2fc3bb8f7dfd5d99ab4cc2b99aa95055465729e4
 doc-git-branch: main
 doc-age-policy: 90d
-doc-conformance-stamp: 2026-07-14T17:39:54Z
+doc-conformance-stamp: 2026-07-14T17:55:26Z
 req-trace-version: 1.0
 total-tests: 388
 coverage-percent: 100
@@ -15,49 +15,13 @@ coverage-percent: 100
 
 # Tests
 
-## 2026-07-14 W28R-3013 R4 — retained-run provenance imported (supersedes Group B backfill)
+## 2026-07-14 evidence disposition
 
-The earlier "Group B backfill" recorded that `W28R-3013` R2 evidence was **NOT
-IMPORTED** because its pytest logs did not retain original UTC timestamps or JUnit
-XML, so no qualifying evidence existed for generated state import. **R4 closes that
-gap.** Qualifying JUnit XML with original UTC run times and an immutable tested
-commit is now retained under
-`W28R-3013-FINAL-PROOF-R4:working/evidence/W28R-3013/current/working/r4-raw/junit/`;
-these results were imported into generated `docs/TEST-STATUS.md` and appended to
-`docs/TEST-HISTORY.md` via `scripts/update-test-state.py`. Totals below are the
-per-test JUnit truth (not lane-level PASS labels). The earlier R2 failing totals
-(IT 7 errors, AT 4 failed, deployed 8 failed) were the pre-fix R2 runs; they were
-corrected at source in R3 (nav-label, WebDAV 504, Watches CRUD, jobs-page race) and
-re-run green here.
+No W28R-3013 or W28E-1882 result is canonically imported. The cited R4 JUnit directory and R4 immutable tags do not exist on the remote evidence branch. The R3 deployed 166/166 JUnit is immutable and timestamped, but its ledger summarizes the command and the raw output records `args=<full>` rather than the literal invocation. R2 and W28E-1882 have the same command/provenance gap.
 
-| Lane | Runtime | Scope / command | Tested commit | Totals | Evidence (JUnit) | Import state |
-|---|---|---|---|---|---|---|
-| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-UT tests/unit/` | `996fcf8` | 336 passed / 0 failed / 0 errors / 0 skipped | `…/r4-raw/junit/ut.junit.xml` (2026-07-14T17:20:20Z) | **IMPORTED** |
-| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-QT tests/quality/` | `996fcf8` | 61 passed / 0 failed / 0 errors / 0 skipped | `…/r4-raw/junit/qt.junit.xml` (2026-07-14T17:20:38Z) | **IMPORTED** |
-| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-ST tests/system/` | `996fcf8` | 30 passed / 0 failed / 0 errors / 0 skipped | `…/r4-raw/junit/st.junit.xml` (2026-07-14T17:25:06Z) | **IMPORTED** |
-| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-AT-lane-r3 tests/application/AT_WEBUI_EndToEnd/ tests/application/AT1.13_ApplicationWebUiAdmin/` | `996fcf8` | 15 passed / 0 failed / 0 errors / 0 skipped (complete local application WebUI incl the Watches CRUD/manage functional test, which itself proves 1 passed) | `…/r4-raw/junit/at.junit.xml` (2026-07-14T17:29:09Z) | **IMPORTED** |
-| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-IT-lane-r3 tests/integration/` (real WebDAV/FTP/S3; WebDAV 504 repaired) | `996fcf8` | 50 passed / 0 failed / 0 errors + 1 `NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY` | `…/r4-raw/junit/it.junit.xml` (2026-07-14T17:35:17Z) | **IMPORTED** |
-| `W28R-3013` | N/A (Node/Playwright, retries disabled) | `npx playwright test --retries=0` vs deployed `https://filemcpserver0.cloud-dog.net` | `b1df2f3` (runtime byte-identical to current main; `83638a5` delta is docs-only, outside the Docker build context) | 166 passed / 0 failed / 0 skipped | `W28R-3013-FINAL-PROOF-R3:…/r3-raw/deployed-r3-final.junit.xml` (2026-07-14T16:21:03Z) | **IMPORTED (retained R3 acceptance)** |
+All known outcomes remain visible in `TEST-STATUS.md`, including R2 IT 7 errors and 1 skip, AT 4 failures and 1 skip, Docker IT 1 failure, and deployed browser 8 failures, 10 skips, and 50 tests not run. Later R3 and claimed R4 green totals remain **NOT IMPORTED**, not erased. CPython 3.12 is separately **NOT RUN**.
 
-**External-boundary disposition.** The single integration skip,
-`tests/integration/IT_GoogleDriveLiveHttp/test_integration_google_drive_live_http.py::test_google_drive_backend_end_to_end_live`
-(and the paired `AT1.12_GoogleDriveOauthLive`), exercises a live external Google
-OAuth token exchange against `oauth2.googleapis.com` / a real Google Drive account.
-It is classified `NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY` — it is **not** an
-executed PASS and **not** a worker-approved PASS; it is out of scope for the
-Cloud-Dog-only boundary (no external third-party account is provisioned in the lane
-or preprod environments). All in-boundary Google Drive semantics are covered by the
-non-live UT/IT suites (`UT1.14_GoogleDriveStorage`, `test_google_drive_storage.py`,
-`test_google_drive_oauth_helper.py`).
-
-**Watches functional coverage.** UC-WEB-06 Watches CRUD/manage is covered
-functionally by the AT `test_webui_t14_watches_crud_manage` (create → list → pause →
-resume → delete vs live `/v1/watches*`) and the monorepo Playwright
-`watches.spec.ts`; both are green in the totals above.
-
-The CPython 3.12 suite is intentionally not run: the project runtime contract pins
-CPython ≥ 3.13 (`.python-version`, `pyproject.requires-python`, `_runtime`
-preflight); below-minimum interpreters are rejected by design.
+Every supplied candidate is classified in [TEST-CANDIDATE-DISPOSITION.tsv](TEST-CANDIDATE-DISPOSITION.tsv); the ledger contains exactly the 81 supplied inventory rows.
 
 ## Service Scope
 Deterministic file operations, structured edits, conversion, validation, and storage-backend actions exposed through profile-governed HTTP and MCP surfaces.
