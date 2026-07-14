@@ -31,6 +31,7 @@ from os import getenv as read_env_var
 from typing import Any, Callable
 
 from fastapi import Request
+from mcp.server.auth.middleware.auth_context import AuthContextMiddleware
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from starlette.authentication import AuthCredentials
 from starlette.responses import JSONResponse
@@ -439,12 +440,24 @@ def build_mcp_fastapi_application(
     if config_event_broadcaster is not None:
         # W28A-1002-APPLY-A — CFG-06: expose broadcaster + register SSE/history routes.
         app.state.config_event_broadcaster = config_event_broadcaster
+    auth_middlewares = auth_verifier.get_middleware()
+    context_middlewares = [
+        mw for mw in auth_middlewares if mw.cls is AuthContextMiddleware
+    ]
+    authentication_middlewares = [
+        mw for mw in auth_middlewares if mw.cls is not AuthContextMiddleware
+    ]
+    # Starlette inserts each newly-added middleware at the outside of the
+    # stack. Build Authentication -> cookie fallback -> AuthContext so both
+    # bearer and WebUI-cookie principals reach tools through auth_context_var.
+    for mw in context_middlewares:
+        app.add_middleware(mw.cls, *mw.args, **mw.kwargs)
     app.add_middleware(
         WebMcpCookieAuthMiddleware,
         session_store=session_store,
         cookie_name=web_cookie_name,
     )
-    for mw in auth_verifier.get_middleware():
+    for mw in reversed(authentication_middlewares):
         app.add_middleware(mw.cls, *mw.args, **mw.kwargs)
 
     def _request_context_hook(request: Request) -> dict[str, Any]:

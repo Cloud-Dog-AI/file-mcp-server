@@ -12,6 +12,7 @@ import time
 
 import pytest
 from fastapi.testclient import TestClient
+from mcp.server.auth.middleware.auth_context import get_access_token
 
 from file_mcp_server.auth import MultiProfileApiKeyTokenVerifier
 from file_mcp_server.mcp_api_kit_layer import build_mcp_fastapi_application
@@ -32,6 +33,15 @@ def _client() -> TestClient:
         ToolDefinition(
             meta=ToolMeta(name="write_file", description="Write file", mutating=True),
             handler=lambda path=".", content="": {"ok": True},
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            meta=ToolMeta(name="whoami", description="Current principal"),
+            handler=lambda: {
+                "client_id": getattr(get_access_token(), "client_id", None),
+                "claims": getattr(get_access_token(), "claims", {}),
+            },
         )
     )
     registry.register(
@@ -171,3 +181,26 @@ def test_read_only_webmcp_can_read_but_cannot_write() -> None:
     )
     assert write_response.status_code == 403
     assert "file:write" in write_response.text
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_bearer_and_cookie_principals_reach_tool_auth_context() -> None:
+    client = _client()
+
+    bearer_response = client.post(
+        "/mcp",
+        headers={"Authorization": "Bearer profile-api-key"},
+        json=_tools_call("whoami"),
+    )
+    assert bearer_response.status_code == 200
+    assert '"client_id": null' not in bearer_response.text
+
+    cookie_response = client.post(
+        "/webmcp",
+        cookies={"file_web_session": "read-only-session"},
+        json=_tools_call("whoami"),
+    )
+    assert cookie_response.status_code == 200
+    assert "u-read-only" in cookie_response.text

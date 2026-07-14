@@ -138,7 +138,14 @@ class _StubJobsRuntime:
                 "job_id": "job-1",
                 "status": "succeeded",
                 "job_type": "file.convert",
-            }
+                "user_id": "user-a",
+            },
+            "job-2": {
+                "job_id": "job-2",
+                "status": "succeeded",
+                "job_type": "file.convert",
+                "user_id": "admin",
+            },
         }
 
     def list_jobs(
@@ -150,12 +157,14 @@ class _StubJobsRuntime:
         job_type: str | None = None,
         user_id: str | None = None,
     ) -> list[dict]:
-        del session_id, user_id
+        del session_id
         jobs = list(self._jobs.values())
         if status:
             jobs = [job for job in jobs if job.get("status") == status]
         if job_type:
             jobs = [job for job in jobs if job.get("job_type") == job_type]
+        if user_id is not None:
+            jobs = [job for job in jobs if job.get("user_id") == user_id]
         return jobs[:limit]
 
     def queue_status(self) -> dict[str, int]:
@@ -982,6 +991,55 @@ def test_health_middleware_jobs_route_lists_jobs() -> None:
     assert payload["ok"] is True
     assert payload["queue_backend"] == "memory"
     assert payload["jobs"][0]["job_id"] == "job-1"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_health_middleware_jobs_route_filters_non_admin_to_owned_jobs() -> None:
+    sent = []
+
+    class NonAdminVerifier(_StubA2AVerifier):
+        async def verify_token_for_profile(self, token: str, profile_name: str):
+            if token == self.valid_token and profile_name == "default":
+                return SimpleNamespace(
+                    subject="user-a", scopes=["jobs.read"], roles=["user"]
+                )
+            return None
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=NonAdminVerifier(valid_token="user-token"),
+        jobs_runtime_provider=lambda _profile_name: _StubJobsRuntime(),
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/v1/jobs",
+            "headers": [(b"authorization", b"Bearer user-token")],
+            "query_string": b"limit=100",
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert [job["job_id"] for job in payload["jobs"]] == ["job-1"]
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")
