@@ -969,7 +969,7 @@ def test_webui_t13_cw_canonical_testids(ui_session: UiSession) -> None:
 
     CW-T1: the Dashboard "Recent file activity" panel renders a @cloud-dog/ui
            DataTable, so the post-login dashboard exposes CW-T1.
-    CW-F1: opening the Add-User EntityDialog (modal CRUD container) renders CW-F1.
+    CW-F1: opening the Add Storage Profile EntityDialog renders CW-F1.
     """
     page = ui_session.page
 
@@ -980,10 +980,15 @@ def test_webui_t13_cw_canonical_testids(ui_session: UiSession) -> None:
     assert cw_t1.count() > 0, "Expected canonical PS-77 data-testid='CW-T1' (DataTable root) on dashboard."
     assert cw_t1.first.is_visible(), "data-testid='CW-T1' (DataTable root) element is not visible."
 
-    # (CW-F1) EntityDialog root — open the Add-User modal CRUD dialog.
-    _open_admin_section(page, ui_session.base_url, "/admin/users", "Users")
-    page.get_by_role("button", name="Add User").click()
+    # (CW-F1) EntityDialog root — open file-MCP's Storage Profile CRUD dialog.
+    _goto_authenticated(
+        page, ui_session.base_url, "/storage-profiles", "Storage Profiles"
+    )
+    page.get_by_role("button", name="Add Storage Profile").click()
     cw_f1 = page.get_by_test_id("CW-F1")
     cw_f1.first.wait_for(timeout=15_000)
-    assert cw_f1.count() > 0, "Expected canonical PS-77 data-testid='CW-F1' (EntityDialog root) when Add-User dialog opens."
+    assert cw_f1.count() > 0, "Expected canonical PS-77 data-testid='CW-F1' (EntityDialog root) when Add Storage Profile dialog opens."
     assert cw_f1.first.is_visible(), "data-testid='CW-F1' (EntityDialog root) element is not visible."
+    page.get_by_role("dialog", name="Add Storage Profile").get_by_role(
+        "button", name="Cancel"
+    ).click()

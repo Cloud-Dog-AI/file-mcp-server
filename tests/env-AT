@@ -65,7 +65,7 @@ FILE_MCP_WEBDAV_USERNAME=${vault.dev.storage.webdav.username}
 FILE_MCP_WEBDAV_PASSWORD=${vault.dev.storage.webdav.password}
 
 FILE_MCP_FTP_HOST=${vault.dev.storage.ftp.host}
-FILE_MCP_FTP_PORT=${vault.dev.storage.ftp.port}
+FILE_MCP_FTP_PORT=21
 FILE_MCP_FTP_USERNAME=${vault.dev.storage.ftp.username}
 FILE_MCP_FTP_PASSWORD=${vault.dev.storage.ftp.password}
 FILE_MCP_FTP_BASE_DIR=/
@@ -83,4 +83,4 @@ FILE_MCP_GDRIVE_REDIRECT_URI=
 FILE_MCP_GDRIVE_TOKEN_URI=${vault.dev.storage.google_drive.token_uri}
 
 CLOUD_DOG__DB__DIALECT=sqlite
-CLOUD_DOG__DB__DATABASE=./database/file_mcp.db
+CLOUD_DOG__DB__DATABASE=./working/test-env-at/file_mcp.db
