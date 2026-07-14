@@ -7,7 +7,7 @@ name = "file-mcp-server"
 version = "0.1.2RC1"
 description = "File MCP server and reusable file tools"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 license = { text = "Apache-2.0" }
 authors = [
   { name = "Cloud-Dog, Viewdeck Engineering Limited" }
@@ -17,12 +17,12 @@ dependencies = [
   "argon2-cffi>=23.0",
   "beautifulsoup4>=4.12,<5.0",
   "chardet>=5.2,<6.0",
-  "cloud_dog_api_kit[change-stream-db]>=0.14.0",
+  "cloud_dog_api_kit[change-stream-db]>=0.14.1",
   "cloud_dog_config==0.3.4",
-  "cloud_dog_db>=0.2.0",
+  "cloud_dog_db>=0.3.3",
   "cloud_dog_idam==0.5.4",
   "cloud_dog_llm==0.4.1",
-  "cloud_dog_jobs>=0.3.0",
+  "cloud_dog_jobs>=0.4.4",
   "cloud_dog_logging>=0.4.1",
   "cloud_dog_storage>=0.1.8",
   "cryptography>=42.0",
@@ -96,8 +96,12 @@ markers = [
     "req(*ids): Bind to REQ-IDs",
 ]
 
+[tool.ruff]
+# W28R-3013 supply-chain remediation: project-local Python 3.13 runtime contract.
+target-version = "py313"
+
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 
 [[tool.mypy.overrides]]
 module = ["cloud_dog_db", "cloud_dog_db.*"]

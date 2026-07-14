@@ -22,7 +22,11 @@
 # Select via: docker-build.sh --variant public
 
 # ── Builder ──────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+# W28R-3013 supply-chain remediation: public base bumped python:3.12-slim ->
+# python:3.13-slim (clears the fixable CPython High CVEs). The public variant
+# intentionally stays on the public boundary base (built by publication lanes);
+# the internal deployed image (Dockerfile) uses the internal Cloud-Dog 3.13.14 base.
+FROM python:3.13-slim AS builder
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -72,20 +76,20 @@ ARG PYPI_INDEX_URL=https://pypi.org/simple
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir \
       "cloud-dog-config==0.3.4" \
-      cloud-dog-logging \
-      cloud-dog-api-kit==0.13.0 \
+      "cloud-dog-logging>=0.4.1" \
+      "cloud-dog-api-kit[change-stream-db]>=0.14.1" \
       "cloud-dog-idam==0.5.4" \
       "cloud-dog-llm==0.4.1" \
-      cloud-dog-db \
-      cloud-dog-jobs \
-      cloud-dog-storage
+      "cloud-dog-db>=0.3.3" \
+      "cloud-dog-jobs>=0.4.4" \
+      "cloud-dog-storage>=0.1.8"
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'
 
 # ── Final ────────────────────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.13-slim
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_BRANCH=unknown
 LABEL org.opencontainers.image.licenses="Apache-2.0"
@@ -122,7 +126,7 @@ RUN set -eux; \
       pandoc; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src ./src

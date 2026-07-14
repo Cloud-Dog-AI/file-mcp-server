@@ -14,6 +14,9 @@
 
 """File-mcp storage-profile change-watch adapter (PS-102 §4.1, CSTREAM-FILE-001/002).
 
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+
 ``WatchService`` is a *thin adapter* over the common change-stream foundation
 published in ``cloud_dog_api_kit.change_stream`` (PS-102 §9 / RULES §1.4). It:
 

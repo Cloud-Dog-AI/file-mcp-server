@@ -26,7 +26,7 @@ doc-conformance-stamp: 2026-06-18T09:40:00Z
 Prerequisites:
 
 - Docker 24 or newer with BuildKit enabled
-- Python 3.10 or newer if you run the package locally
+- Python 3.13 or newer if you run the package locally (NF-006 runtime contract)
 - Public package source: `https://pypi.org/simple` (third-party deps). Cloud-Dog
   platform packages are published to the public index under the
   Cloud-Dog-External namespace, or installed from GitHub-mirrored source.
@@ -44,7 +44,7 @@ The smoke run uses Docker defaults from [env-docker-defaults](env-docker-default
 ## Local Development
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv        # NF-006: Python 3.13 runtime contract
 . .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[dev]" --index-url https://pypi.org/simple

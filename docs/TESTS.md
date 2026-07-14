@@ -305,6 +305,11 @@ module; a module may contain several `def test_*` functions sharing the module's
 | `tests/unit/UT1.38_McpRoleGuards/test_mcp_role_guards.py` | UT | UC-001 | `CS-010` | `mcp` | McpRoleGuards | read-write/read-only | tests/env-UT | — | run: WS-A |
 | `tests/unit/UT1.39_W28E1846WebUiAliases/test_webui_aliases.py` | UT | UC-001 | `FR-022` | `webui` | WebUiRouteAliases | route redirects | tests/env-UT | — | run: WS-A |
 | `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py` | UT | UC-001 | `FR-017`, `FR-026` | `webui` | DeepLinkBlocklistBuildIdentity | SPA deep-link gate | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT1.60_RuntimeContract/test_ut_runtime_contract.py` | UT | UC-001 | `NF-006` | `internal` | RuntimeContract | Python 3.13 runtime preflight (fail-closed < 3.13) | tests/env-UT | — | run: W28R-3013 |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_criteria.py` | UT | UC-001 | `CSTREAM-FILE-001`, `CSTREAM-FILE-002` | `internal` | ChangeStreamCriteria | criteria matching | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_service.py` | UT | UC-001 | `CSTREAM-001`, `CSTREAM-002` | `internal` | ChangeStreamService | watch adapter | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_rest_api.py` | UT | UC-001 | `CST-API-001` | `api` | ChangeStreamRestApi | watch REST surface | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_surfaces.py` | UT | UC-001 | `CSTREAM-005`, `CSTREAM-006`, `CSTREAM-007` | `internal` | ChangeStreamSurfaces | watch MCP/A2A surfaces | tests/env-UT | — | run: WS-A |
 | `tests/integration/IT1.27_RestFileLifecycle/test_rest_file_lifecycle_http.py` | IT | UC-008 | `FR-012`, `FR-016`, `FR-017`, `FR-029`, `CS-002`, `CS-009` | `api` | RestFileLifecycleHttp | REST file contract | tests/env-IT | — | run: WS-A |
 | `tests/application/AT1.14_RestFileLifecycle/test_application_rest_file_lifecycle.py` | AT | UC-002 | `FR-012`, `FR-016`, `FR-027`, `FR-029` | `api` | RestFileLifecycleWorkflow | end-to-end REST files | tests/env-AT | — | run: WS-A |
 | `ST1.1_SystemAuditIntegrity` | ST | UC-018 | `NF-003` | `internal` | AuditAppendOnly | — | tests/env-ST | — | design-bound (run: Stream-B) |

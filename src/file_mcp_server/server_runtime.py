@@ -230,7 +230,7 @@ from file_tools.convert import (
     ConversionError,
     convert_file as run_convert_file,
 )
-from file_tools.limits import LimitError, enforce_timeout
+from file_tools.limits import LimitError, call_with_timeout, enforce_timeout
 from file_tools.validate.policy import validate_with_mode
 from starlette.requests import HTTPConnection
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -8316,7 +8316,7 @@ def build_tool_registry(
                     }
                 )
 
-            with enforce_timeout(effective_timeout):
+            def _run_conversion() -> Any:
                 if simulate_delay_s and simulate_delay_s > 0:
                     time.sleep(simulate_delay_s)
                 # Conversion backends operate on local filesystem paths. For remote storage,
@@ -8326,7 +8326,7 @@ def build_tool_registry(
                     output_path_local = (
                         path_utils.as_path(resolved_output) if resolved_output else None
                     )
-                    result = run_convert_file(
+                    return run_convert_file(
                         input_path,
                         target_format,
                         output_path=output_path_local,
@@ -8334,28 +8334,35 @@ def build_tool_registry(
                         timeout_s=None,
                         preferred_backend=backend if backend else None,
                     )
-                else:
-                    import tempfile
+                import tempfile
 
-                    ext = path_utils.suffix(resolved) or ""
-                    with tempfile.TemporaryDirectory() as td:
-                        in_path = path_utils.as_path(path_utils.join(td, f"input{ext}"))
-                        path_utils.write_bytes(str(in_path), storage_backend.read_bytes(resolved))
-                        out_path = path_utils.as_path(path_utils.join(td, f"output.{target_format}"))
-                        result = run_convert_file(
-                            in_path,
-                            target_format,
-                            output_path=out_path,
-                            max_input_mb=effective_max_mb,
-                            timeout_s=None,
-                            preferred_backend=backend if backend else None,
+                ext = path_utils.suffix(resolved) or ""
+                with tempfile.TemporaryDirectory() as td:
+                    in_path = path_utils.as_path(path_utils.join(td, f"input{ext}"))
+                    path_utils.write_bytes(str(in_path), storage_backend.read_bytes(resolved))
+                    out_path = path_utils.as_path(path_utils.join(td, f"output.{target_format}"))
+                    conv = run_convert_file(
+                        in_path,
+                        target_format,
+                        output_path=out_path,
+                        max_input_mb=effective_max_mb,
+                        timeout_s=None,
+                        preferred_backend=backend if backend else None,
+                    )
+                    if resolved_output and conv.output_path:
+                        storage_backend.write_bytes(
+                            resolved_output,
+                            path_utils.read_bytes(str(conv.output_path)),
+                            overwrite=True,
                         )
-                        if resolved_output and result.output_path:
-                            storage_backend.write_bytes(
-                                resolved_output,
-                                path_utils.read_bytes(str(result.output_path)),
-                                overwrite=True,
-                            )
+                    return conv
+
+            # W28R-3013: enforce the conversion timeout regardless of the dispatch
+            # thread. MCP tools are dispatched on anyio worker threads where the
+            # signal-based enforce_timeout silently no-ops (proven identical on the
+            # deployed 3.12 image and local 3.13). call_with_timeout raises
+            # TimeoutError on overrun, caught below and mapped to code="timeout".
+            result = call_with_timeout(_run_conversion, effective_timeout)
             payload: Dict[str, Any] = {
                 "ok": True,
                 "backend": result.backend or "auto",

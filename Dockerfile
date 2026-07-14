@@ -1,8 +1,14 @@
 # Apache-2.0
 # Copyright (C) Cloud-Dog, Viewdeck Engineering Ltd.
 # file-mcp-server container image
+#
+# W28R-3013 supply-chain remediation: python:3.12-slim -> internal Cloud-Dog
+# CPython 3.13.14 base image. This clears the 7 fixable CPython High CVEs
+# (CVE-2026-3298/3644/4224/4786/6100/7210/9669) that the 3.12 base carried, and
+# keeps the build inside the Cloud-Dog-only boundary (no docker.io pull) per the
+# W28R-3008..3021 addendum and AGENT-LESSONS §6.183.
 
-FROM python:3.12-slim AS builder
+FROM registry.cloud-dog.net:443/cloud-dog/python-runtime:3.13-slim-20260713 AS builder
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -48,18 +54,18 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       --trusted-host ${PYPI_TRUSTED_HOST} \
       --trusted-host files.pythonhosted.org \
       "cloud-dog-config==0.3.4" \
-      cloud-dog-logging \
-      "cloud-dog-api-kit[change-stream-db]>=0.14.0" \
+      "cloud-dog-logging>=0.4.1" \
+      "cloud-dog-api-kit[change-stream-db]>=0.14.1" \
       "cloud-dog-idam==0.5.4" \
       "cloud-dog-llm==0.4.1" \
-      "cloud-dog-db>=0.2.0" \
-      cloud-dog-jobs \
-      cloud-dog-storage
+      "cloud-dog-db>=0.3.3" \
+      "cloud-dog-jobs>=0.4.4" \
+      "cloud-dog-storage>=0.1.8"
 RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'
 
-FROM python:3.12-slim
+FROM registry.cloud-dog.net:443/cloud-dog/python-runtime:3.13-slim-20260713
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_BRANCH=unknown
 # W28E-1863 fix-wave-b (WSC-014): build timestamp for build-identity provenance.
@@ -111,7 +117,7 @@ RUN set -eux; \
       pandoc; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY src ./src

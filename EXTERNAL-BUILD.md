@@ -42,7 +42,7 @@ registry, package index, or secret store.
 | Component | Minimum | Notes |
 |-----------|---------|-------|
 | Docker    | 24+     | BuildKit enabled (default in 24+). Required for the container path. |
-| Python    | 3.12    | Required only for the pure-source path and the lockfile check. |
+| Python    | 3.13    | Required only for the pure-source path and the lockfile check (NF-006 runtime contract). |
 | Node.js   | 20+     | Only if you rebuild the UI bundle. The published tree ships a prebuilt `ui/`. |
 | OS        | Linux, macOS, or Windows | Docker path is identical on all three. Shell snippets below are bash; on Windows use WSL2 or Git Bash. |
 
@@ -82,12 +82,12 @@ count as PASS because they prove the surface is up and routing.
 
 ```bash
 # Linux / macOS
-python3 -m venv .venv
+python3.13 -m venv .venv
 . .venv/bin/activate
 pip install --upgrade pip
 
 # Windows (PowerShell)
-#   py -3.12 -m venv .venv
+#   py -3.13 -m venv .venv
 #   .venv\Scripts\Activate.ps1
 #   python -m pip install --upgrade pip
 

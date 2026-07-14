@@ -36,6 +36,13 @@ from pathlib import Path
 from os import environ as runtime_env
 from typing import Optional
 
+# W28R-3013: enforce the project-local Python 3.13 runtime contract (NF-006)
+# before any platform import, so a wrong interpreter fails closed with a clear
+# message for the container, the local .venv, and the test harness alike.
+from file_mcp_server._runtime import enforce_runtime
+
+enforce_runtime()
+
 from cloud_dog_storage import path_utils
 
 import typer

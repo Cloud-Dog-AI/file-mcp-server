@@ -21,7 +21,7 @@ doc-conformance-stamp: 2026-06-18T09:40:00Z
 
 ## 1. Prerequisites
 
-- Python 3.10+
+- Python 3.13+ (project runtime contract NF-006 — the server fails closed on Python < 3.13)
 - `pip` and virtualenv support
 - Access to Cloud-Dog package index (`https://your-package-index/simple/`)
 - Docker 24+ (optional for container build/test)
@@ -30,7 +30,7 @@ doc-conformance-stamp: 2026-06-18T09:40:00Z
 
 ```bash
 cd ./file-mcp-server
-python3 -m venv .venv
+python3.13 -m venv .venv        # NF-006: Python 3.13 runtime contract
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e ".[dev]" --index-url https://your-package-index/simple/

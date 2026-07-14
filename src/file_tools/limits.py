@@ -29,11 +29,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Callable, Iterator, Optional, TypeVar
 
+import concurrent.futures
 import os
 import signal
 import threading
+
+_T = TypeVar("_T")
 
 
 class LimitError(RuntimeError):
@@ -83,3 +86,39 @@ def enforce_timeout(timeout_s: Optional[int]) -> Iterator[None]:
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
+
+
+def call_with_timeout(func: Callable[[], _T], timeout_s: Optional[float]) -> _T:
+    """Run ``func()`` under a wall-clock timeout that works on ANY thread.
+
+    ``enforce_timeout`` relies on POSIX signals, which are only valid on the main
+    thread; MCP tool calls are dispatched on anyio worker threads, so the signal
+    timer silently no-ops there (W28R-3013: proven identical on deployed 3.12 and
+    local 3.13). This helper enforces the timeout regardless of dispatch thread:
+
+    - On the main POSIX thread it uses the precise signal timer (interrupts
+      blocking syscalls in-place).
+    - Otherwise it runs ``func`` in a single-worker executor and abandons it on
+      timeout, raising :class:`TimeoutError` so the caller returns a timeout
+      result instead of blocking for the full operation.
+
+    Raises:
+        TimeoutError: if ``func`` does not complete within ``timeout_s``.
+    """
+    if timeout_s is None or timeout_s <= 0:
+        return func()
+    if os.name == "posix" and threading.current_thread() is threading.main_thread():
+        with enforce_timeout(int(timeout_s) if float(timeout_s).is_integer() else timeout_s):
+            return func()
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=1, thread_name_prefix="file-mcp-timeout"
+    )
+    future = executor.submit(func)
+    try:
+        return future.result(timeout=float(timeout_s))
+    except concurrent.futures.TimeoutError as exc:  # pragma: no cover - timing
+        raise TimeoutError("Operation timed out") from exc
+    finally:
+        # Do not block on an abandoned task (wait=False); the worker thread
+        # unwinds on its own. Python 3.9+ cancels not-yet-started futures.
+        executor.shutdown(wait=False, cancel_futures=True)

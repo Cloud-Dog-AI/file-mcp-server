@@ -14,6 +14,9 @@
 
 """File-mcp storage change-watch criteria matching (PS-102 CSTREAM-FILE-001/002).
 
+License: Apache 2.0
+Ownership: Cloud-Dog, Viewdeck Engineering Ltd.
+
 The criteria matcher is a *pure* function over a proposed :class:`ChangeCandidate`
 (a storage-profile object path + action + backend + directory/size/mtime/etag
 metadata) and a watch's declarative ``criteria`` mapping. It decides whether an
