@@ -38,8 +38,6 @@ import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-from tests.integration._docker_source_images import ensure_cloud_dog_source_images
-
 def _pick_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -294,14 +292,10 @@ def docker_image() -> str:
             raise RuntimeError(f"Requested docker test image not found: {requested}")
         return requested
 
-    ensure_cloud_dog_source_images(
-        repo_root=repo_root,
-        docker_cmd=_docker_cmd,
-        run_cmd=lambda cmd, cwd, check: _run(cmd, cwd=cwd, check=check),
+    pytest.fail(
+        "FILE_MCP_DOCKER_TEST_IMAGE must name an image built through "
+        "docker-build.sh --variant dev"
     )
-    tag = "cloud-dog/file-mcp-server:test"
-    _run(_docker_cmd("build", "--network=host", "-t", tag, "."), cwd=repo_root)
-    return tag
 @pytest.mark.IT
 @pytest.mark.mcp
 @pytest.mark.req("FR-029")

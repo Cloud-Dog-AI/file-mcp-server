@@ -122,6 +122,24 @@ class _StubA2AVerifier:
         assert profile_name == "default"
         return "Authorization", "Bearer"
 
+    def resolve_request_credential(
+        self, headers: dict[str, str], profile_name: str
+    ) -> tuple[str | None, str]:
+        assert profile_name == "default"
+        x_api_key = str(headers.get("x-api-key") or "").strip()
+        authorization = str(headers.get("authorization") or "").strip()
+        bearer = (
+            authorization[7:].strip()
+            if authorization.lower().startswith("bearer ")
+            else ""
+        )
+        if authorization and not bearer:
+            return None, "malformed_credentials"
+        if x_api_key and bearer and x_api_key != bearer:
+            return None, "conflicting_credentials"
+        token = x_api_key or bearer
+        return (token or None), ("" if token else "missing_credentials")
+
     async def verify_token_for_profile(self, token: str, profile_name: str):
         self.verify_calls.append((token, profile_name))
         if token == self.valid_token and profile_name == "default":
@@ -813,13 +831,8 @@ def test_a2a_health_requires_auth_without_credentials() -> None:
 @pytest.mark.req("FR-017")
 
 
-def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
-    """W28A-742: with a Bearer token, the request carries credentials so
-    the chokepoint falls through to the existing dispatch. The existing
-    ``/a2a/health`` handler at server_runtime.py serves the 200 payload
-    for authenticated callers; the verifier itself is not consulted
-    (the test stub's empty ``verify_calls`` list confirms that).
-    """
+def test_a2a_health_accepts_verified_bearer_credential() -> None:
+    """A syntactically valid carrier must also pass API-key verification."""
     sent = []
 
     async def fake_app(
@@ -858,7 +871,87 @@ def test_a2a_health_ignores_auth_header_verifier_contract() -> None:
     body = json.loads(sent[1]["body"].decode("utf-8"))
     assert body["status"] == "ok"
     assert body["a2a"]["base_path"] == "/a2a"
-    assert verifier.verify_calls == []
+    assert verifier.verify_calls == [("12345678", "default")]
+
+
+@pytest.mark.UT
+@pytest.mark.a2a
+@pytest.mark.req("FR-017")
+def test_a2a_health_accepts_verified_x_api_key() -> None:
+    sent = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/a2a/health",
+            "headers": [(b"x-api-key", b"12345678")],
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 200
+    assert verifier.verify_calls == [("12345678", "default")]
+
+
+@pytest.mark.UT
+@pytest.mark.a2a
+@pytest.mark.req("FR-017")
+def test_a2a_health_rejects_invalid_well_formed_api_key() -> None:
+    sent = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    verifier = _StubA2AVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+    )
+
+    async def _run() -> None:
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/a2a/health",
+            "headers": [(b"x-api-key", b"wrong-key")],
+        }
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    assert sent[0]["status"] == 401
+    assert verifier.verify_calls == [("wrong-key", "default")]
 
 
 @pytest.mark.UT

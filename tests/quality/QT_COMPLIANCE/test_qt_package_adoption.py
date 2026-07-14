@@ -242,9 +242,7 @@ def test_pyproject_declares_platform_packages(project_root: Path) -> None:
         data = tomllib.loads(content)
         deps = set(data["project"].get("dependencies", []))
         dep_names = {
-            # Strip environment markers, version specifiers, AND extras suffix
-            # (e.g. "cloud_dog_api_kit[change-stream-db]>=0.14.1" -> "cloud_dog_api_kit").
-            dep.split(";")[0].split(">=")[0].split("==")[0].split("[")[0].strip()
+            re.split(r"[\[<>=!~]", dep.split(";")[0], maxsplit=1)[0].strip()
             for dep in deps
         }
     else:

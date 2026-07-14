@@ -39,10 +39,14 @@ def _inject_static_a2a_key(*, defaults_path: Path, config_path: Path) -> None:
         path.write_text(content.replace(marker, replacement, 1), encoding="utf-8")
 
 
-def _request_status(url: str, *, auth: str | None = None) -> tuple[int, dict]:
-    headers = {}
+def _request_status(
+    url: str, *, auth: str | None = None, api_key: str | None = None
+) -> tuple[int, dict]:
+    headers: dict[str, str] = {}
     if auth:
         headers["Authorization"] = auth
+    if api_key:
+        headers["X-API-Key"] = api_key
     req = Request(url, headers=headers, method="GET")
     try:
         with urlopen(req, timeout=2.0) as response:
@@ -55,7 +59,7 @@ def _request_status(url: str, *, auth: str | None = None) -> tuple[int, dict]:
         return int(exc.code), payload
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("FR-029")
+@pytest.mark.req("FR-017")
 
 
 def test_a2a_health_auth_matrix_401_401_200(tmp_path: Path) -> None:
@@ -88,9 +92,18 @@ def test_a2a_health_auth_matrix_401_401_200(tmp_path: Path) -> None:
         valid_auth_status, valid_payload = _request_status(
             endpoint, auth="Bearer 12345678"
         )
+        valid_api_key_status, valid_api_key_payload = _request_status(
+            endpoint, api_key="12345678"
+        )
+        invalid_api_key_status, _ = _request_status(
+            endpoint, api_key="wrong-key"
+        )
 
         assert no_auth_status == 401
         assert wrong_auth_status == 401
         assert valid_auth_status == 200
+        assert valid_api_key_status == 200
+        assert invalid_api_key_status == 401
         assert valid_payload["status"] == "ok"
         assert valid_payload["service"] == "file-mcp-server"
+        assert valid_api_key_payload == valid_payload

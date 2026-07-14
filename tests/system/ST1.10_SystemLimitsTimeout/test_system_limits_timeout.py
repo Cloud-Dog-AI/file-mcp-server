@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from pathlib import Path
 from tests.path_helpers import project_root
 
@@ -40,6 +41,7 @@ def test_limits_timeout_path_for_conversion(tmp_path: Path) -> None:
     root_dir.mkdir(parents=True, exist_ok=True)
     src = root_dir / "doc.txt"
     src.write_text("hello", encoding="utf-8")
+    output = root_dir / "timed-out.md"
 
     defaults_path, config_path, env_path, pidfile, _ = write_server_config(
         tmp_path,
@@ -69,6 +71,7 @@ def test_limits_timeout_path_for_conversion(tmp_path: Path) -> None:
                     {
                         "path": str(src),
                         "target_format": "md",
+                        "output_path": str(output),
                         "timeout_s": 1,
                         "simulate_delay_s": 2.0,
                     },
@@ -84,3 +87,6 @@ def test_limits_timeout_path_for_conversion(tmp_path: Path) -> None:
         assert payload["ok"] is False
         assert payload["error_code"] == "timeout"
         assert payload["warnings"]
+        assert not output.exists()
+        time.sleep(1.5)
+        assert not output.exists(), "timed-out worker committed output after response"

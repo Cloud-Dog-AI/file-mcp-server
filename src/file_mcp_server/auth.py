@@ -74,7 +74,10 @@ class MultiProfileTokenVerifierProtocol:
     """Protocol for token verifiers that support multi-profile resolution."""
 
     def resolve_profile(self, conn: HTTPConnection) -> str: ...
-    def header_for_profile(self, profile: str) -> str: ...
+    def header_for_profile(self, profile: str) -> tuple[str, str | None]: ...
+    def resolve_request_credential(
+        self, headers: Mapping[str, str], profile: str
+    ) -> tuple[str | None, str]: ...
     def verify_token_for_profile(self, token: str, profile: str) -> AccessToken: ...
 
 
@@ -229,19 +232,12 @@ class HeaderTokenAuthBackend(AuthenticationBackend):
             )
             profile_name = profile_verifier.resolve_profile(conn)
             set_request_profile_name(profile_name)
-            header_name, header_scheme = profile_verifier.header_for_profile(
-                profile_name
+            token, failure_reason = profile_verifier.resolve_request_credential(
+                conn.headers, profile_name
             )
-            raw_header = conn.headers.get(header_name)
-            if not raw_header:
-                self._record_failure(
-                    reason="missing_credentials", conn=conn, profile_name=profile_name
-                )
-                return None
-            token = self._extract_token(raw_header, header_scheme)
             if not token:
                 self._record_failure(
-                    reason="malformed_credentials", conn=conn, profile_name=profile_name
+                    reason=failure_reason, conn=conn, profile_name=profile_name
                 )
                 return None
             auth_info = await profile_verifier.verify_token_for_profile(
@@ -604,6 +600,66 @@ class MultiProfileApiKeyTokenVerifier(_IDAMAuditMixin):
         """Execute header for profile."""
         state = self._profiles[profile_name]
         return state.header_name, state.header_scheme
+
+    def resolve_request_credential(
+        self, headers: Mapping[str, str], profile_name: str
+    ) -> tuple[str | None, str]:
+        """Resolve one API key from every supported request carrier.
+
+        ``X-API-Key`` is the canonical API-key carrier and
+        ``Authorization: Bearer`` remains supported for existing clients. A
+        profile may additionally configure a custom header. Multiple carriers
+        are accepted only when they contain the same key; conflicting or
+        malformed credentials fail closed to prevent header-smuggling
+        ambiguity.
+        """
+        state = self._profiles.get(profile_name)
+        if state is None:
+            return None, "unknown_profile"
+
+        candidates: list[str] = []
+        malformed = False
+
+        x_api_key = str(headers.get("x-api-key") or "").strip()
+        if x_api_key:
+            if state.header_name == "x-api-key" and state.header_scheme:
+                configured_x_api_key = HeaderTokenAuthBackend._extract_token(
+                    x_api_key, state.header_scheme
+                )
+                candidates.append(configured_x_api_key or x_api_key)
+            else:
+                candidates.append(x_api_key)
+
+        authorization = str(headers.get("authorization") or "").strip()
+        if authorization:
+            bearer = HeaderTokenAuthBackend._extract_token(
+                authorization, "Bearer"
+            )
+            if bearer:
+                candidates.append(bearer)
+            else:
+                malformed = True
+
+        if state.header_name not in {"authorization", "x-api-key"}:
+            configured_raw = str(headers.get(state.header_name) or "").strip()
+            if configured_raw:
+                configured = HeaderTokenAuthBackend._extract_token(
+                    configured_raw, state.header_scheme
+                )
+                if configured:
+                    candidates.append(configured)
+                else:
+                    malformed = True
+
+        if malformed:
+            return None, "malformed_credentials"
+        if not candidates:
+            return None, "missing_credentials"
+
+        selected = candidates[0]
+        if any(not compare_digest(selected, candidate) for candidate in candidates[1:]):
+            return None, "conflicting_credentials"
+        return selected, ""
 
     def record_auth_failure(
         self,

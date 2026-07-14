@@ -230,7 +230,12 @@ from file_tools.convert import (
     ConversionError,
     convert_file as run_convert_file,
 )
-from file_tools.limits import LimitError, call_with_timeout, enforce_timeout
+from file_tools.limits import (
+    LimitError,
+    call_with_timeout,
+    enforce_timeout,
+    raise_if_operation_cancelled,
+)
 from file_tools.validate.policy import validate_with_mode
 from starlette.requests import HTTPConnection
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -3720,25 +3725,35 @@ class HealthCheckMiddleware:
             except Exception:
                 profile_name = self.profile_name
 
-        header_name = "authorization"
-        header_scheme: str | None = "Bearer"
-        if hasattr(verifier, "header_for_profile") and callable(
-            getattr(verifier, "header_for_profile")
+        token: str | None = None
+        if hasattr(verifier, "resolve_request_credential") and callable(
+            getattr(verifier, "resolve_request_credential")
         ):
             try:
-                resolved_header_name, resolved_header_scheme = (
-                    verifier.header_for_profile(profile_name)
+                token, _failure_reason = verifier.resolve_request_credential(
+                    headers, profile_name
                 )
-                header_name = (
-                    str(resolved_header_name).strip().lower() or "authorization"
-                )
-                header_scheme = resolved_header_scheme
             except Exception:
-                header_name = "authorization"
-                header_scheme = "Bearer"
-
-        raw_header = headers.get(header_name, "")
-        token = self._extract_auth_token(raw_header, header_scheme)
+                token = None
+        else:
+            header_name = "authorization"
+            header_scheme: str | None = "Bearer"
+            if hasattr(verifier, "header_for_profile") and callable(
+                getattr(verifier, "header_for_profile")
+            ):
+                try:
+                    resolved_header_name, resolved_header_scheme = (
+                        verifier.header_for_profile(profile_name)
+                    )
+                    header_name = (
+                        str(resolved_header_name).strip().lower() or "authorization"
+                    )
+                    header_scheme = resolved_header_scheme
+                except Exception:
+                    header_name = "authorization"
+                    header_scheme = "Bearer"
+            raw_header = headers.get(header_name, "")
+            token = self._extract_auth_token(raw_header, header_scheme)
         if not token:
             session = self._get_session_from_cookie(headers)
             if session is not None:
@@ -5404,6 +5419,17 @@ class HealthCheckMiddleware:
             and method == "GET"
             and scope.get("path") == f"{self.mcp_path.rstrip('/')}/tools"
         ):
+            auth_info, _selected_profile = await self._authenticate_request(
+                scope=scope, headers=headers
+            )
+            if auth_info is None:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return
             payload = self._list_tools_payload()
             body = json.dumps(payload).encode("utf-8")
             await self._send_bytes(
@@ -5415,6 +5441,17 @@ class HealthCheckMiddleware:
             and method == "GET"
             and scope.get("path") == f"{self.web_mcp_path.rstrip('/')}/tools"
         ):
+            auth_info, _selected_profile = await self._authenticate_request(
+                scope=scope, headers=headers
+            )
+            if auth_info is None:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return
             payload = self._list_tools_payload()
             body = json.dumps(payload).encode("utf-8")
             await self._send_bytes(
@@ -5432,9 +5469,17 @@ class HealthCheckMiddleware:
             and method == "GET"
             and path == self.a2a_health_path
         ):
-            # Authed-and-allowed (post-chokepoint) → serve the same payload
-            # as before. The 200 path was the legitimate behaviour for an
-            # authenticated caller; only the anon bypass was the defect.
+            auth_info, _selected_profile = await self._authenticate_request(
+                scope=scope, headers=headers
+            )
+            if auth_info is None:
+                await self._send_api_error(
+                    send,
+                    status=401,
+                    code="UNAUTHENTICATED",
+                    message="Unauthorised",
+                )
+                return
             body = json.dumps(
                 {
                     "status": "ok",
@@ -8294,6 +8339,7 @@ def build_tool_registry(
                     "utf-8", errors="replace"
                 )
                 if resolved_output:
+                    raise_if_operation_cancelled()
                     storage_backend.write_bytes(
                         resolved_output, content.encode("utf-8"), overwrite=True
                     )
@@ -8319,43 +8365,72 @@ def build_tool_registry(
             def _run_conversion() -> Any:
                 if simulate_delay_s and simulate_delay_s > 0:
                     time.sleep(simulate_delay_s)
+                    raise_if_operation_cancelled()
                 # Conversion backends operate on local filesystem paths. For remote storage,
                 # stage the input into a temporary file and optionally upload the output.
                 if storage_backend.backend_name == "local":
                     input_path = path_utils.as_path(resolved)
-                    output_path_local = (
-                        path_utils.as_path(resolved_output) if resolved_output else None
-                    )
-                    return run_convert_file(
-                        input_path,
-                        target_format,
-                        output_path=output_path_local,
-                        max_input_mb=effective_max_mb,
-                        timeout_s=None,
-                        preferred_backend=backend if backend else None,
-                    )
-                import tempfile
+                    if resolved_output:
+                        import tempfile
 
-                ext = path_utils.suffix(resolved) or ""
-                with tempfile.TemporaryDirectory() as td:
-                    in_path = path_utils.as_path(path_utils.join(td, f"input{ext}"))
-                    path_utils.write_bytes(str(in_path), storage_backend.read_bytes(resolved))
-                    out_path = path_utils.as_path(path_utils.join(td, f"output.{target_format}"))
-                    conv = run_convert_file(
-                        in_path,
-                        target_format,
-                        output_path=out_path,
-                        max_input_mb=effective_max_mb,
-                        timeout_s=None,
-                        preferred_backend=backend if backend else None,
-                    )
-                    if resolved_output and conv.output_path:
-                        storage_backend.write_bytes(
-                            resolved_output,
-                            path_utils.read_bytes(str(conv.output_path)),
-                            overwrite=True,
+                        with tempfile.TemporaryDirectory() as td:
+                            staged_output = path_utils.as_path(
+                                path_utils.join(td, f"output.{target_format}")
+                            )
+                            result = run_convert_file(
+                                input_path,
+                                target_format,
+                                output_path=staged_output,
+                                max_input_mb=effective_max_mb,
+                                timeout_s=None,
+                                preferred_backend=backend if backend else None,
+                            )
+                            raise_if_operation_cancelled()
+                            if result.output_path:
+                                storage_backend.write_bytes(
+                                    resolved_output,
+                                    path_utils.read_bytes(str(result.output_path)),
+                                    overwrite=True,
+                                )
+                    else:
+                        result = run_convert_file(
+                            input_path,
+                            target_format,
+                            output_path=None,
+                            max_input_mb=effective_max_mb,
+                            timeout_s=None,
+                            preferred_backend=backend if backend else None,
                         )
-                    return conv
+                        raise_if_operation_cancelled()
+                    return result
+                else:
+                    import tempfile
+
+                    ext = path_utils.suffix(resolved) or ""
+                    with tempfile.TemporaryDirectory() as td:
+                        in_path = path_utils.as_path(path_utils.join(td, f"input{ext}"))
+                        path_utils.write_bytes(
+                            str(in_path), storage_backend.read_bytes(resolved)
+                        )
+                        out_path = path_utils.as_path(
+                            path_utils.join(td, f"output.{target_format}")
+                        )
+                        result = run_convert_file(
+                            in_path,
+                            target_format,
+                            output_path=out_path,
+                            max_input_mb=effective_max_mb,
+                            timeout_s=None,
+                            preferred_backend=backend if backend else None,
+                        )
+                        raise_if_operation_cancelled()
+                        if resolved_output and result.output_path:
+                            storage_backend.write_bytes(
+                                resolved_output,
+                                path_utils.read_bytes(str(result.output_path)),
+                                overwrite=True,
+                            )
+                        return result
 
             # W28R-3013: enforce the conversion timeout regardless of the dispatch
             # thread. MCP tools are dispatched on anyio worker threads where the
@@ -8395,6 +8470,7 @@ def build_tool_registry(
                     "utf-8", errors="replace"
                 )
                 if resolved_output:
+                    raise_if_operation_cancelled()
                     storage_backend.write_bytes(
                         resolved_output, content.encode("utf-8"), overwrite=True
                     )

@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 from os import getenv as read_env_var
+import threading
 from typing import Any, Callable
 
 from fastapi import Request
@@ -54,6 +55,10 @@ except ImportError:
     from .mcp_tool_audit_shim import mcp_tool_audit_middleware
 
 from file_tools.tools.registry import ToolRegistry
+from file_tools.limits import (
+    reset_operation_cancel_event,
+    set_operation_cancel_event,
+)
 
 from .web_flat_roles import permissions_for_role
 
@@ -330,15 +335,42 @@ def _make_dynamic_tool_handler(
         scopes = list(getattr(token, "scopes", None) or [])
         if not _scopes_allow(required, scopes):
             raise UnauthorisedError(f"Missing permission: {required}")
+        timeout_seconds: float | None = None
+        raw_timeout = payload.get("timeout_s") if tool_name == "convert_file" else None
+        if raw_timeout is not None:
+            try:
+                candidate_timeout = float(raw_timeout)
+            except (TypeError, ValueError):
+                candidate_timeout = 0.0
+            if candidate_timeout > 0:
+                timeout_seconds = candidate_timeout
+
+        cancel_event = threading.Event()
+        cancel_token = set_operation_cancel_event(cancel_event)
         try:
-            result = await asyncio.to_thread(audited, **payload)
+            execution = asyncio.to_thread(audited, **payload)
+            if timeout_seconds is None:
+                result = await execution
+            else:
+                result = await asyncio.wait_for(execution, timeout=timeout_seconds)
             return _mcp_tool_result_payload(result)
+        except TimeoutError:
+            cancel_event.set()
+            return _mcp_tool_result_payload(
+                {
+                    "ok": False,
+                    "error_code": "timeout",
+                    "warnings": ["Operation timed out"],
+                }
+            )
         except Exception as exc:
             return {
                 "content": [{"type": "text", "text": str(exc)}],
                 "structuredContent": {"error": str(exc)},
                 "isError": True,
             }
+        finally:
+            reset_operation_cancel_event(cancel_token)
 
     return _handler
 

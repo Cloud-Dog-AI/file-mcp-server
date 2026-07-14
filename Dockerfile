@@ -8,7 +8,8 @@
 # keeps the build inside the Cloud-Dog-only boundary (no docker.io pull) per the
 # W28R-3008..3021 addendum and AGENT-LESSONS §6.183.
 
-FROM registry.cloud-dog.net:443/cloud-dog/python-runtime:3.13-slim-20260713 AS builder
+ARG CLOUD_DOG_PYTHON_BASE=registry.cloud-dog.net:443/cloud-dog/python-runtime@sha256:e23c4110eb0c8a2995635a97dee0fff83d5b729de611dfb1e31850c67b33ec60
+FROM ${CLOUD_DOG_PYTHON_BASE} AS builder
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -33,39 +34,27 @@ RUN set -e; \
       update-ca-certificates; \
     fi
 
-RUN set -eux; \
-    apt-get update; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      gcc \
-      libxml2-dev \
-      libxslt1-dev \
-      libmagic1 \
-      libmagic-dev \
-      curl; \
-    rm -rf /var/lib/apt/lists/*
-
 COPY REQUIREMENTS.txt ./REQUIREMENTS.txt
-# Install platform packages from the internal package index per §3.2.0, then remaining deps from REQUIREMENTS.
+# Install all dependencies from the single authenticated internal package index.
 ARG PYPI_URL=https://pypi.cloud-dog.net/simple
 ARG PYPI_TRUSTED_HOST=pypi.cloud-dog.net
 RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir \
-      --extra-index-url ${PYPI_URL} \
       --trusted-host ${PYPI_TRUSTED_HOST} \
-      --trusted-host files.pythonhosted.org \
       "cloud-dog-config==0.3.4" \
-      "cloud-dog-logging>=0.4.1" \
-      "cloud-dog-api-kit[change-stream-db]>=0.14.1" \
+      "cloud-dog-logging==0.4.1" \
+      "cloud-dog-api-kit[change-stream-db]==0.14.1" \
       "cloud-dog-idam==0.5.4" \
       "cloud-dog-llm==0.4.1" \
-      "cloud-dog-db>=0.3.3" \
-      "cloud-dog-jobs>=0.4.4" \
-      "cloud-dog-storage>=0.1.8"
-RUN grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
+      "cloud-dog-db==0.3.3" \
+      "cloud-dog-jobs==0.4.4" \
+      "cloud-dog-storage==0.1.8"
+RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
+    grep -v '^cloud_dog_' REQUIREMENTS.txt > /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'
 
-FROM registry.cloud-dog.net:443/cloud-dog/python-runtime:3.13-slim-20260713
+FROM ${CLOUD_DOG_PYTHON_BASE}
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_BRANCH=unknown
 # W28E-1863 fix-wave-b (WSC-014): build timestamp for build-identity provenance.
@@ -105,17 +94,6 @@ RUN set -e; \
       cp "${CUSTOM_CA_CERT}" /usr/local/share/ca-certificates/custom-ca.crt && \
       update-ca-certificates; \
     fi
-
-RUN set -eux; \
-    apt-get update; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      curl \
-      netcat-openbsd \
-      procps \
-      net-tools \
-      libmagic1 \
-      pandoc; \
-    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin

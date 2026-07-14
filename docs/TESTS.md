@@ -284,8 +284,8 @@ module; a module may contain several `def test_*` functions sharing the module's
 | `UT1.9_EndpointHealth` | UT | UC-010 | `FR-014`, `FR-020` | `internal` | EndpointHealthClassifyRecover | — | tests/env-UT | — | design-bound (run: Stream-B) |
 | `AT1.12_GoogleDriveOauthLive` | AT | UC-011 | `FR-015` | `api` | GoogleDriveOAuthBinding | — | tests/env-AT | — | design-bound (run: Stream-B) |
 | `IT1.12_IntegrationMultiProfileRoutingHttp` | IT | UC-014 | `FR-016` | `api` | MultiProfileRouting | query/header | tests/env-IT | — | design-bound (run: Stream-B) |
-| `UT1.3_Auth` | UT | UC-001 | `FR-017` | `api` | ApiKeyProfileAwareAuth | — | tests/env-UT | — | design-bound (run: Stream-B) |
-| `IT1.25_IntegrationA2AAuthContract` | IT | UC-001 | `FR-017` | `a2a` | A2AHealthAuthContract | 401/200 | tests/env-IT | — | design-bound (run: Stream-B) |
+| `UT1.3_Auth` | UT | UC-001 | `FR-017` | `api` | ApiKeyProfileAwareAuth | X-API-Key/bearer/matching/conflicting | tests/env-UT | — | W28R-3008 |
+| `IT1.25_IntegrationA2AAuthContract` | IT | UC-001 | `FR-017` | `a2a` | A2AHealthAuthContract | anon/invalid/X-API-Key/bearer | tests/env-IT | — | W28R-3008 |
 | `UT1.10_Filesystem` | UT | UC-001 | `FR-018` | `mcp` | FileReadWriteAtomic | — | tests/env-UT | — | design-bound (run: Stream-B) |
 | `ST1.11_SystemReadPartialRanges` | ST | UC-001 | `FR-018` | `mcp` | PartialRangeRead | byte/line | tests/env-ST | — | design-bound (run: Stream-B) |
 | `IT1.16_IntegrationSearchHttp` | IT | UC-003 | `FR-019` | `mcp` | Search | glob/regex/content | tests/env-IT | — | design-bound (run: Stream-B) |
@@ -306,10 +306,10 @@ module; a module may contain several `def test_*` functions sharing the module's
 | `tests/unit/UT1.39_W28E1846WebUiAliases/test_webui_aliases.py` | UT | UC-001 | `FR-022` | `webui` | WebUiRouteAliases | route redirects | tests/env-UT | — | run: WS-A |
 | `tests/unit/UT1.41_DeepLinkBlocklistAndBuildIdentity/test_w28e_1863_fix_wave_b.py` | UT | UC-001 | `FR-017`, `FR-026` | `webui` | DeepLinkBlocklistBuildIdentity | SPA deep-link gate | tests/env-UT | — | run: WS-A |
 | `tests/unit/UT1.60_RuntimeContract/test_ut_runtime_contract.py` | UT | UC-001 | `NF-006` | `internal` | RuntimeContract | Python 3.13 runtime preflight (fail-closed < 3.13) | tests/env-UT | — | run: W28R-3013 |
-| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_criteria.py` | UT | UC-001 | `CSTREAM-FILE-001`, `CSTREAM-FILE-002` | `internal` | ChangeStreamCriteria | criteria matching | tests/env-UT | — | run: WS-A |
-| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_service.py` | UT | UC-001 | `CSTREAM-001`, `CSTREAM-002` | `internal` | ChangeStreamService | watch adapter | tests/env-UT | — | run: WS-A |
-| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_rest_api.py` | UT | UC-001 | `CST-API-001` | `api` | ChangeStreamRestApi | watch REST surface | tests/env-UT | — | run: WS-A |
-| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_surfaces.py` | UT | UC-001 | `CSTREAM-005`, `CSTREAM-006`, `CSTREAM-007` | `internal` | ChangeStreamSurfaces | watch MCP/A2A surfaces | tests/env-UT | — | run: WS-A |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_criteria.py` | UT | UC-001 | `CSTREAM-FILE-001` | `internal` | ChangeWatchCriteria | glob/regex/action/backend/metadata | tests/env-UT | — | W28E-1870B |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_rest_api.py` | UT | UC-001 | `CST-API-001`, `CSTREAM-002`, `CSTREAM-005`, `CSTREAM-009` | `api` | ChangeWatchRestApi | lifecycle/pull/recover/RBAC | tests/env-UT | — | W28E-1870B |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_service.py` | UT | UC-001 | `CSTREAM-002`, `CSTREAM-005`–`CSTREAM-007`, `CSTREAM-009`, `CSTREAM-010`, `CSTREAM-FILE-001`, `CSTREAM-FILE-002` | `internal` | ChangeWatchService | journal/backpressure/recovery/audit/backend | tests/env-UT | — | W28E-1870B |
+| `tests/unit/UT_W28E1870B_ChangeStream/test_watch_surfaces.py` | UT | UC-001 | `CSTREAM-001`, `CSTREAM-002`, `CSTREAM-009`, `CSTREAM-FILE-002` | `mcp` | ChangeWatchSurfaces | MCP/A2A/REST/capture/RBAC | tests/env-UT | — | W28E-1870B |
 | `tests/integration/IT1.27_RestFileLifecycle/test_rest_file_lifecycle_http.py` | IT | UC-008 | `FR-012`, `FR-016`, `FR-017`, `FR-029`, `CS-002`, `CS-009` | `api` | RestFileLifecycleHttp | REST file contract | tests/env-IT | — | run: WS-A |
 | `tests/application/AT1.14_RestFileLifecycle/test_application_rest_file_lifecycle.py` | AT | UC-002 | `FR-012`, `FR-016`, `FR-027`, `FR-029` | `api` | RestFileLifecycleWorkflow | end-to-end REST files | tests/env-AT | — | run: WS-A |
 | `ST1.1_SystemAuditIntegrity` | ST | UC-018 | `NF-003` | `internal` | AuditAppendOnly | — | tests/env-ST | — | design-bound (run: Stream-B) |

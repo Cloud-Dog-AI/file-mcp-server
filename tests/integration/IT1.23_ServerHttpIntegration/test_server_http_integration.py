@@ -24,7 +24,8 @@ import sys
 import time
 from pathlib import Path
 from tests.path_helpers import project_root
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
@@ -48,9 +49,19 @@ def _wait_for_health(url: str, timeout_s: float = 10.0) -> dict:
             time.sleep(0.1)
             continue
     raise RuntimeError(f"Health check timed out: {url}")
+
+
+def _request_json(url: str, *, headers: dict[str, str]) -> tuple[int, dict]:
+    request = Request(url, headers=headers, method="GET")
+    try:
+        with urlopen(request, timeout=2.0) as response:
+            return int(response.status), json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+        return int(exc.code), json.loads(body) if body else {}
 @pytest.mark.IT
 @pytest.mark.mcp
-@pytest.mark.req("FR-029")
+@pytest.mark.req("FR-017")
 
 
 def test_http_health_and_authenticated_tool_call(tmp_path: Path) -> None:
@@ -165,10 +176,10 @@ http:
         assert health["status"] == "ok"
         assert health["service"] == "file-mcp-server"
 
-        async def _call_read_file() -> str:
+        async def _call_read_file(headers: dict[str, str]) -> str:
             transport = StreamableHttpTransport(
                 f"http://127.0.0.1:{port}/mcp",
-                headers={"Authorization": "Bearer secret"},
+                headers=headers,
             )
             async with Client(transport) as client:
                 tools = await client.list_tools()
@@ -179,8 +190,31 @@ http:
                 ]
                 return "\n".join(text_blocks)
 
-        response_text = asyncio.run(_call_read_file())
-        assert "hello over http" in response_text
+        bearer_text = asyncio.run(
+            _call_read_file({"Authorization": "Bearer secret"})
+        )
+        x_api_key_text = asyncio.run(_call_read_file({"X-API-Key": "secret"}))
+        assert "hello over http" in bearer_text
+        assert "hello over http" in x_api_key_text
+
+        for auth_headers in (
+            {"Authorization": "Bearer secret"},
+            {"X-API-Key": "secret"},
+        ):
+            status, payload = _request_json(
+                f"http://127.0.0.1:{port}/auth/me", headers=auth_headers
+            )
+            assert status == 200
+            assert payload["user"]["id"]
+
+        conflict_status, _ = _request_json(
+            f"http://127.0.0.1:{port}/auth/me",
+            headers={
+                "X-API-Key": "secret",
+                "Authorization": "Bearer wrong-key",
+            },
+        )
+        assert conflict_status == 401
     finally:
         process.terminate()
         try:

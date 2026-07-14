@@ -274,6 +274,84 @@ def test_multi_profile_verifier_query_profile_and_key_routing() -> None:
     result = asyncio.run(backend.authenticate(conn))
     assert result is not None
     assert verifier.resolve_profile(conn) == "s3"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_multi_profile_verifier_accepts_canonical_x_api_key() -> None:
+    verifier = MultiProfileApiKeyTokenVerifier(
+        {"default": (["profile-key"], "Authorization", "Bearer")},
+        default_profile="default",
+    )
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="authorization", header_scheme="Bearer"
+    )
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": b"",
+            "headers": [(b"x-api-key", b"profile-key")],
+        }
+    )
+
+    assert asyncio.run(backend.authenticate(conn)) is not None
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_multi_profile_verifier_accepts_matching_api_key_carriers() -> None:
+    verifier = MultiProfileApiKeyTokenVerifier(
+        {"default": (["profile-key"], "Authorization", "Bearer")},
+        default_profile="default",
+    )
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="authorization", header_scheme="Bearer"
+    )
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": b"",
+            "headers": [
+                (b"x-api-key", b"profile-key"),
+                (b"authorization", b"Bearer profile-key"),
+            ],
+        }
+    )
+
+    assert asyncio.run(backend.authenticate(conn)) is not None
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_multi_profile_verifier_rejects_conflicting_api_key_carriers() -> None:
+    verifier = MultiProfileApiKeyTokenVerifier(
+        {"default": (["profile-key"], "Authorization", "Bearer")},
+        default_profile="default",
+    )
+    backend = HeaderTokenAuthBackend(
+        verifier, header_name="authorization", header_scheme="Bearer"
+    )
+    conn = HTTPConnection(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": b"",
+            "headers": [
+                (b"x-api-key", b"profile-key"),
+                (b"authorization", b"Bearer different-key"),
+            ],
+        }
+    )
+
+    assert asyncio.run(backend.authenticate(conn)) is None
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-026")

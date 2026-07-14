@@ -27,6 +27,7 @@ Recent Change History:
 
 from __future__ import annotations
 
+import contextvars
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterator, Optional, TypeVar
@@ -39,8 +40,34 @@ import threading
 _T = TypeVar("_T")
 
 
+_operation_cancel_event: contextvars.ContextVar[threading.Event | None] = (
+    contextvars.ContextVar("file_mcp_operation_cancel_event", default=None)
+)
+
+
 class LimitError(RuntimeError):
     """Raised when an operational limit is exceeded."""
+
+
+def set_operation_cancel_event(
+    event: threading.Event,
+) -> contextvars.Token[threading.Event | None]:
+    """Bind a cooperative cancellation event to the current tool execution."""
+    return _operation_cancel_event.set(event)
+
+
+def reset_operation_cancel_event(
+    token: contextvars.Token[threading.Event | None],
+) -> None:
+    """Restore the prior tool-execution cancellation context."""
+    _operation_cancel_event.reset(token)
+
+
+def raise_if_operation_cancelled() -> None:
+    """Raise a timeout when the async transport deadline has expired."""
+    event = _operation_cancel_event.get()
+    if event is not None and event.is_set():
+        raise TimeoutError("Operation timed out")
 
 
 def exceeds_max_file_size(path: Path, max_mb: Optional[int]) -> bool:
@@ -113,10 +140,16 @@ def call_with_timeout(func: Callable[[], _T], timeout_s: Optional[float]) -> _T:
     executor = concurrent.futures.ThreadPoolExecutor(
         max_workers=1, thread_name_prefix="file-mcp-timeout"
     )
-    future = executor.submit(func)
+    # Preserve the cooperative cancellation context when an MCP worker thread
+    # delegates the blocking operation to this timeout executor.
+    context = contextvars.copy_context()
+    future = executor.submit(context.run, func)
     try:
         return future.result(timeout=float(timeout_s))
     except concurrent.futures.TimeoutError as exc:  # pragma: no cover - timing
+        cancel_event = _operation_cancel_event.get()
+        if cancel_event is not None:
+            cancel_event.set()
         raise TimeoutError("Operation timed out") from exc
     finally:
         # Do not block on an abandoned task (wait=False); the worker thread

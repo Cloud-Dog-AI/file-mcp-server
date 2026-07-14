@@ -140,6 +140,9 @@ System shall support simple server start/stop/status routines suitable for local
 
 ### FR1.5: Authentication
 - The system SHALL require an API key for all tool calls.
+- Every protected API, MCP, and A2A interface SHALL accept the canonical `X-API-Key: <key>` carrier.
+- Existing clients using the standard bearer-token HTTP carrier SHALL remain supported on those interfaces.
+- When both carriers are supplied they SHALL contain the same key; conflicting or malformed credentials SHALL fail closed.
 - The system SHALL support multiple keys per profile (key rotation).
 - API key validation SHALL be profile-aware; a key valid for profile `A` SHALL NOT authenticate profile `B`.
 - The system SHALL NOT log raw API keys.
@@ -362,7 +365,7 @@ Reference: ARCHITECTURE.md § Storage Backend Management
 ### FR1.46: A2A Health Auth Contract
 - The server SHALL expose `GET /a2a/health` in local-server and local-docker runtime modes.
 - `GET /a2a/health` without valid auth SHALL return `401`.
-- `GET /a2a/health` with `Authorisation: Bearer 12345678` SHALL return `200` in strict local test mode.
+- `GET /a2a/health` with a valid `X-API-Key` or standard bearer-token credential SHALL return `200`; a well-formed but invalid key SHALL return `401`.
 - A2A auth verification SHALL use the same API-key authority as MCP/API auth verification (no separate A2A key store).
 
 ### FR1.47: Web UI Standards Merge (W28A-896)
@@ -759,7 +762,7 @@ test module. Full binding is enforced by `@pytest.mark.req("FR-NNN")` markers an
 | `FR-014` | Endpoint health startup checks — probe configured storage endpoints at startup, record per-backend status (`healthy`/`temporary_unavailable`/`busy_temporary`/`auth_failed`/`failed`) with configurable retry behaviour | `internal`, `api` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.30 | `UC-010` | `UT1.9_EndpointHealth` |
 | `FR-015` | Google Drive OAuth & folder binding — configure Drive as a backend via OAuth credentials, resolve a folder id or URL, and provide an auth-helper flow; admin hot-reload applies the bound profile without restart | `api`, `webui`, `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.32, FR1.34 | `UC-011`, `UC-013` | `AT1.12_GoogleDriveOauthLive`, `UT1.12_GoogleDriveOauthHelper` |
 | `FR-016` | Single-server multi-profile routing — one process hosts multiple profiles concurrently, selects per request via query/header with deterministic fallback, and enforces profile-local controls (keys, scope roots, allow/deny, extensions, limits) | `api`, `mcp`, `webui` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.36 | `UC-014` | `IT1.12_IntegrationMultiProfileRoutingHttp` |
-| `FR-017` | Authentication & A2A health-auth contract — API key required on every tool call, profile-aware key validation (a key for profile A must not authenticate B), `GET /a2a/health` returns 401 anon / 200 with valid bearer, using the same API-key authority as MCP/API (no separate A2A key store); raw keys never logged | `api`, `mcp`, `a2a` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.5, FR1.46 | `UC-001` | `UT1.3_Auth`, `IT1.25_IntegrationA2AAuthContract` |
+| `FR-017` | Authentication & A2A health-auth contract — API key required on every protected API/MCP/A2A operation; canonical `X-API-Key` and compatible bearer-token carriers use the same profile-aware key authority; matching dual carriers pass, conflicting/malformed carriers fail closed; a key for profile A must not authenticate B; raw keys never logged | `api`, `mcp`, `a2a` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.5, FR1.46 | `UC-001` | `UT1.3_Auth`, `UT1.38_McpRoleGuards`, `IT1.23_ServerHttpIntegration`, `IT1.25_IntegrationA2AAuthContract` |
 | `FR-018` | File read operations — read text and binary files within scope, with encoding detection, explicit encoding hints, and partial (byte/line range) reads for large files | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.7 | `UC-001` | `UT1.10_Filesystem`, `ST1.11_SystemReadPartialRanges` |
 | `FR-019` | Search — filename/path glob+regex and content literal+regex search with context lines, honouring scope deny patterns, size limits, and optional traversal depth/timeout controls | `mcp`, `api` | `must` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.9 | `UC-003` | `UT1.19_Search`, `IT1.16_IntegrationSearchHttp` |
 | `FR-020` | Endpoint health runtime classification & recovery — classify backend errors (busy/temporary/auth-failed), attempt recovery after a configurable cooldown, track consecutive failures and the restart-required threshold, and return deterministic backend-unavailable errors | `internal` | `should` | `4986e9e` | docs/REQUIREMENTS.md §4 FR1.31, FR1.33 | `UC-010`, `UC-012` | `UT1.9_EndpointHealth` |

@@ -204,3 +204,52 @@ def test_bearer_and_cookie_principals_reach_tool_auth_context() -> None:
     )
     assert cookie_response.status_code == 200
     assert "u-read-only" in cookie_response.text
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_x_api_key_principal_reaches_jsonrpc_tool_auth_context() -> None:
+    response = _client().post(
+        "/mcp",
+        headers={"X-API-Key": "profile-api-key"},
+        json=_tools_call("whoami"),
+    )
+
+    assert response.status_code == 200
+    assert '"client_id": null' not in response.text
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-017")
+def test_conflicting_api_key_carriers_are_rejected() -> None:
+    response = _client().post(
+        "/mcp",
+        headers={
+            "X-API-Key": "profile-api-key",
+            "Authorization": "Bearer different-key",
+        },
+        json=_tools_call("whoami"),
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.UT
+@pytest.mark.api
+@pytest.mark.req("FR-017")
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"X-API-Key": "profile-api-key"},
+        {"Authorization": "Bearer profile-api-key"},
+    ],
+)
+def test_api_kit_tool_route_accepts_both_api_key_carriers(
+    headers: dict[str, str],
+) -> None:
+    response = _client().post("/mcp/tools/whoami", headers=headers, json={})
+
+    assert response.status_code == 200
+    assert '"client_id": null' not in response.text
