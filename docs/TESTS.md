@@ -3,11 +3,11 @@ template-id: T-TST
 template-version: 1.1
 applies-to: docs/TESTS.md
 project: file-mcp-server
-doc-last-updated: 2026-07-14
-doc-git-commit: 2fc3bb8f7dfd5d99ab4cc2b99aa95055465729e4
+doc-last-updated: 2026-07-14T20:34:34Z
+doc-git-commit: 610d6dfad271e3b547ae6be57c96e86dd713357e
 doc-git-branch: main
 doc-age-policy: 90d
-doc-conformance-stamp: 2026-07-14T17:55:26Z
+doc-conformance-stamp: 2026-07-14T20:34:34Z
 req-trace-version: 1.0
 total-tests: 388
 coverage-percent: 100
@@ -15,13 +15,49 @@ coverage-percent: 100
 
 # Tests
 
-## 2026-07-14 evidence disposition
+## 2026-07-14 evidence disposition (R4 reconciled)
 
-No W28R-3013 or W28E-1882 result is canonically imported. The cited R4 JUnit directory and R4 immutable tags do not exist on the remote evidence branch. The R3 deployed 166/166 JUnit is immutable and timestamped, but its ledger summarizes the command and the raw output records `args=<full>` rather than the literal invocation. R2 and W28E-1882 have the same command/provenance gap.
+**Update (R4, this commit).** The condition that blocked import in the earlier "evidence
+disposition" pass — *"the cited R4 JUnit directory and R4 immutable tags do not exist on the remote
+evidence branch"* — is now **resolved**. The R4 evidence is cut and pushed: immutable tags
+`W28R-3013-EVIDENCE-R4` / `W28R-3013-FINAL-PROOF-R4` on branch `w28r-3013-evidence`, with the cited
+JUnit directory `working/evidence/W28R-3013/current/working/r4-raw/junit/` (UT/QT/ST/AT/IT with original
+UTC run times against immutable tested commit `996fcf8`, plus the retained R3 deployed 166 JUnit). These
+are now qualifying canonical runs, so they are **IMPORTED** into generated `TEST-STATUS.md` (493 tests:
+492 passed / 0 failed / 0 errors / 1 external-OAuth skip) and appended to `TEST-HISTORY.md` with full
+provenance (see the R4 retained-run table below).
 
-All known outcomes remain visible in `TEST-STATUS.md`, including R2 IT 7 errors and 1 skip, AT 4 failures and 1 skip, Docker IT 1 failure, and deployed browser 8 failures, 10 skips, and 50 tests not run. Later R3 and claimed R4 green totals remain **NOT IMPORTED**, not erased. CPython 3.12 is separately **NOT RUN**.
+**Preserved honest record (still true).** R2 and W28E-1882 retain a command/provenance gap and remain
+**NOT IMPORTED** (their raw ledgers summarize commands / record `args=<full>` rather than a literal
+invocation, and lack a qualifying tagged JUnit). Their outcomes stay visible in history, not erased.
+CPython 3.12 is separately **NOT RUN** by design (runtime contract pins CPython ≥ 3.13). Every supplied
+candidate is classified in [TEST-CANDIDATE-DISPOSITION.tsv](TEST-CANDIDATE-DISPOSITION.tsv) (the 81
+supplied inventory rows), retained unchanged.
 
-Every supplied candidate is classified in [TEST-CANDIDATE-DISPOSITION.tsv](TEST-CANDIDATE-DISPOSITION.tsv); the ledger contains exactly the 81 supplied inventory rows.
+### R4 retained-run provenance (imported)
+
+Qualifying JUnit with original UTC run times + immutable tested commit, under
+`W28R-3013-FINAL-PROOF-R4:working/evidence/W28R-3013/current/working/r4-raw/junit/`:
+
+| Lane | Runtime | Command | Tested commit | Totals | Evidence (JUnit) |
+|---|---|---|---|---|---|
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-UT tests/unit/` | `996fcf8` | 336 passed / 0 / 0 / 0 | `…/r4-raw/junit/ut.junit.xml` (2026-07-14T17:20:20Z) |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-QT tests/quality/` | `996fcf8` | 61 passed / 0 / 0 / 0 | `…/r4-raw/junit/qt.junit.xml` (2026-07-14T17:20:38Z) |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-ST tests/system/` | `996fcf8` | 30 passed / 0 / 0 / 0 | `…/r4-raw/junit/st.junit.xml` (2026-07-14T17:25:06Z) |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-AT-lane-r3 tests/application/AT_WEBUI_EndToEnd/ tests/application/AT1.13_ApplicationWebUiAdmin/` | `996fcf8` | 15 passed / 0 / 0 / 0 (incl Watches CRUD/manage = 1) | `…/r4-raw/junit/at.junit.xml` (2026-07-14T17:29:09Z) |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-IT-lane-r3 tests/integration/` (real WebDAV/FTP/S3; WebDAV 504 repaired) | `996fcf8` | 50 passed / 0 / 0 + 1 `NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY` | `…/r4-raw/junit/it.junit.xml` (2026-07-14T17:35:17Z) |
+| `W28R-3013` | N/A (Playwright preprod, retries disabled) | `npx playwright test --retries=0` vs `https://filemcpserver0.cloud-dog.net` | R3 build (runtime byte-identical to current main) | 166 passed / 0 / 0 | `W28R-3013-FINAL-PROOF-R3:…/r3-raw/deployed-r3-final.junit.xml` (2026-07-14T16:21:03Z) |
+
+**External-boundary disposition.** The single integration skip,
+`tests/integration/IT_GoogleDriveLiveHttp/test_integration_google_drive_live_http.py::test_google_drive_backend_end_to_end_live`
+(and the paired `AT1.12_GoogleDriveOauthLive`), exercises a live external Google OAuth token exchange /
+real Google Drive account. It is `NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY` — **not** an executed PASS and
+**not** a worker-approved PASS; out of scope for the Cloud-Dog-only boundary (no external third-party
+account provisioned). In-boundary Google Drive semantics are covered by the non-live UT/IT suites.
+
+**Watches functional coverage.** UC-WEB-06 Watches CRUD/manage is covered by AT
+`test_webui_t14_watches_crud_manage` (create→list→pause→resume→delete vs live `/v1/watches*`) and the
+monorepo Playwright `watches.spec.ts`; both green above.
 
 ## Service Scope
 Deterministic file operations, structured edits, conversion, validation, and storage-backend actions exposed through profile-governed HTTP and MCP surfaces.

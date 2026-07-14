@@ -23,6 +23,69 @@ doc-conformance-stamp: 2026-07-14T17:55:26Z
 
 ## Runs (most recent first)
 
+### 2026-07-14T20:33:09.159075+00:00 — W28R-3013
+- Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
+- Runtime: CPython 3.13.14
+- Environment: `tests/env-{UT,QT,ST,AT-lane-r3,IT-lane-r3}`
+- Command: `.venv/bin/python -m pytest -p no:cacheprovider tests/{unit,quality,system,application,integration}/  (consolidated local Python suite; deployed 166 tracked separately as N/A Playwright)`
+- Evidence: `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/ (consolidated local Python suite UT+QT+ST+AT+IT)`
+- Totals: 493 / P 492 / F 0 / E 0 / S 1
+- Delta: new-fails 0 | newly-green 0
+
+### 2026-07-14T17:35:17Z — W28R-3013
+- Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
+- Runtime: CPython 3.13.14
+- Environment: `tests/env-IT-lane-r3`
+- Command: `.venv/bin/python -m pytest -p no:cacheprovider --env tests/env-IT-lane-r3 tests/integration/ -q`
+- Evidence: `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/it.junit.xml (1 skip = tests/integration/.../test_google_drive_backend_end_to_end_live :: NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY, not an executed PASS)`
+- Totals: 51 / P 50 / F 0 / E 0 / S 1
+- Delta: new-fails 0 | newly-green 0
+
+### 2026-07-14T17:29:09Z — W28R-3013
+- Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
+- Runtime: CPython 3.13.14
+- Environment: `tests/env-AT-lane-r3`
+- Command: `.venv/bin/python -m pytest -p no:cacheprovider --env tests/env-AT-lane-r3 tests/application/AT_WEBUI_EndToEnd/ tests/application/AT1.13_ApplicationWebUiAdmin/ -q`
+- Evidence: `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/at.junit.xml (complete local application WebUI incl Watches CRUD/manage functional test)`
+- Totals: 15 / P 15 / F 0 / E 0 / S 0
+- Delta: new-fails 0 | newly-green 0
+
+### 2026-07-14T17:25:06Z — W28R-3013
+- Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
+- Runtime: CPython 3.13.14
+- Environment: `tests/env-ST`
+- Command: `.venv/bin/python -m pytest -p no:cacheprovider --env tests/env-ST tests/system/ -q`
+- Evidence: `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/st.junit.xml`
+- Totals: 30 / P 30 / F 0 / E 0 / S 0
+- Delta: new-fails 0 | newly-green 0
+
+### 2026-07-14T17:20:38Z — W28R-3013
+- Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
+- Runtime: CPython 3.13.14
+- Environment: `tests/env-QT`
+- Command: `.venv/bin/python -m pytest -p no:cacheprovider --env tests/env-QT tests/quality/ -q`
+- Evidence: `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/qt.junit.xml`
+- Totals: 61 / P 61 / F 0 / E 0 / S 0
+- Delta: new-fails 0 | newly-green 0
+
+### 2026-07-14T17:20:20Z — W28R-3013
+- Commit: `610d6dfad271e3b547ae6be57c96e86dd713357e` (main)
+- Runtime: CPython 3.13.14
+- Environment: `tests/env-UT`
+- Command: `.venv/bin/python -m pytest -p no:cacheprovider --env tests/env-UT tests/unit/ -q`
+- Evidence: `W28R-3013 R4 :: working/evidence/W28R-3013/current/working/r4-raw/junit/ut.junit.xml`
+- Totals: 336 / P 336 / F 0 / E 0 / S 0
+- Delta: new-fails 0 | newly-green 0
+
+### 2026-07-14T16:21:03Z — W28R-3013
+- Commit: `b1df2f38443980f9d398b3f018564ddd15891ec3` (main)
+- Runtime: N/A (Node 20 / Playwright preprod, retries disabled)
+- Environment: `playwright.preprod (E2E_AUTH_MODE=cookie)`
+- Command: `npx playwright test --retries=0 --reporter=list,json,junit  (target https://filemcpserver0.cloud-dog.net)`
+- Evidence: `W28R-3013-FINAL-PROOF-R3 :: working/evidence/W28R-3013/current/working/r4-raw/junit/deployed-r3-final.junit.xml (retained R3 acceptance; current main 83638a5 delta is docs-only and outside the Docker build context, runtime byte-identical)`
+- Totals: 166 / P 166 / F 0 / E 0 / S 0
+- Delta: new-fails 0 | newly-green 0
+
 ### 2026-07-14T17:55:26Z - W28R-3013 traceability correction
 - Timestamp source: `date -u +%Y-%m-%dT%H:%M:%SZ` captured `2026-07-14T17:55:26Z` (epoch `1784051726`).
 - Commit: `2fc3bb8f7dfd5d99ab4cc2b99aa95055465729e4` (`origin/main` documentation review baseline)
