@@ -40,6 +40,7 @@ from playwright.sync_api import (
     Locator,
     Page,
     TimeoutError as PlaywrightTimeoutError,
+    expect,
     sync_playwright,
 )
 
@@ -995,3 +996,53 @@ def test_webui_t13_cw_canonical_testids(ui_session: UiSession) -> None:
     page.get_by_role("dialog", name="Add Storage Profile").get_by_role(
         "button", name="Cancel"
     ).click()
+
+
+@pytest.mark.AT
+@pytest.mark.webui
+@pytest.mark.req("FR-012")
+def test_webui_t14_watches_crud_manage(ui_session: UiSession) -> None:
+    """UC-WEB-06: real Change-Watch create -> list -> pause -> resume -> delete.
+
+    Exercises the /watches page's ChangeWatchPanel + CriteriaBuilder mapped onto the
+    live /v1/watches* REST surface (W28E-1870B CSTREAM) — functional CRUD/manage, not
+    route-only navigation.
+    """
+    import re as _re
+    import time as _time
+
+    page = ui_session.page
+    _goto_authenticated(page, ui_session.base_url, "/watches", "Change Watches")
+
+    pattern = f"w28r3013-r3-{int(_time.time())}-*.txt"
+
+    # Create
+    page.get_by_role("button", name=_re.compile(r"^create watch$", _re.I)).click()
+    dialog = page.get_by_role("dialog", name=_re.compile(r"create change-watch", _re.I))
+    dialog.wait_for(timeout=15_000)
+    dialog.get_by_label(_re.compile(r"^storage profile$", _re.I)).fill("default")
+    dialog.get_by_role("button", name=_re.compile(r"^add criterion$", _re.I)).click()
+    dialog.get_by_label(_re.compile(r"criterion .* pattern", _re.I)).first.fill(pattern)
+    dialog.get_by_label(_re.compile(r"^action created$", _re.I)).check()
+    dialog.get_by_role("button", name=_re.compile(r"^create$", _re.I)).click()
+    expect(page.locator("div[role=\"status\"]").last).to_contain_text(
+        _re.compile(r"watch created", _re.I), timeout=30_000
+    )
+
+    # List — the created watch appears in the Change watches table (default profile row)
+    watch_row = page.get_by_role("row").filter(has_text="default").first
+    watch_row.wait_for(timeout=30_000)
+
+    # Manage: pause -> resume -> delete (real REST calls, per-action status feedback)
+    watch_row.get_by_role("button", name=_re.compile(r"^pause$", _re.I)).click()
+    expect(page.locator("div[role=\"status\"]").last).to_contain_text(
+        _re.compile(r"watch paused", _re.I), timeout=30_000
+    )
+    watch_row.get_by_role("button", name=_re.compile(r"^resume$", _re.I)).click()
+    expect(page.locator("div[role=\"status\"]").last).to_contain_text(
+        _re.compile(r"watch resumed", _re.I), timeout=30_000
+    )
+    watch_row.get_by_role("button", name=_re.compile(r"^delete$", _re.I)).click()
+    expect(page.locator("div[role=\"status\"]").last).to_contain_text(
+        _re.compile(r"watch deleted", _re.I), timeout=30_000
+    )
