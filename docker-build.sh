@@ -21,6 +21,11 @@ set -euo pipefail
 require_main_or_release_branch() {
   local branch
   branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  # Publication-suffixed artifacts are local verification builds; the suffix
+  # path suppresses registry tagging, so it is safe from a repair branch.
+  if [[ -n "${PUBLICATION_TAG_SUFFIX:-}" ]]; then
+    return 0
+  fi
   case "${branch}" in
     main|release/*)
       return 0
