@@ -54,7 +54,7 @@ cloud-dog-api-kit==0.14.1
     # via
     #   -r REQUIREMENTS.txt
     #   cloud-dog-api-kit
-cloud-dog-config==0.3.4
+cloud-dog-config==0.3.5
     # via -r REQUIREMENTS.txt
 cloud-dog-db==0.3.3
     # via
