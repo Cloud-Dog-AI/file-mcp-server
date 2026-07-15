@@ -44,13 +44,13 @@ Qualifying JUnit with original UTC run times + immutable tested commit, under
 | `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-UT tests/unit/` | `996fcf8` | 336 passed / 0 / 0 / 0 | `…/r4-raw/junit/ut.junit.xml` (2026-07-14T17:20:20Z) |
 | `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-QT tests/quality/` | `996fcf8` | 61 passed / 0 / 0 / 0 | `…/r4-raw/junit/qt.junit.xml` (2026-07-14T17:20:38Z) |
 | `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-ST tests/system/` | `996fcf8` | 30 passed / 0 / 0 / 0 | `…/r4-raw/junit/st.junit.xml` (2026-07-14T17:25:06Z) |
-| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-AT-lane-r3 tests/application/AT_WEBUI_EndToEnd/ tests/application/AT1.13_ApplicationWebUiAdmin/` | `996fcf8` | 15 passed / 0 / 0 / 0 (incl Watches CRUD/manage = 1) | `…/r4-raw/junit/at.junit.xml` (2026-07-14T17:29:09Z) |
+| `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-AT-lane-r3 tests/application/AT_WEBUI_EndToEnd/ tests/application/AT1.13_ApplicationWebUiAdmin/` (`FR1.44`) | `996fcf8` | 15 passed / 0 / 0 / 0 (incl Watches CRUD/manage = 1) | `…/r4-raw/junit/at.junit.xml` (2026-07-14T17:29:09Z) |
 | `W28R-3013` | CPython 3.13.14 | `.venv/bin/python -m pytest --env tests/env-IT-lane-r3 tests/integration/` (real WebDAV/FTP/S3; WebDAV 504 repaired) | `996fcf8` | 50 passed / 0 / 0 + 1 `NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY` | `…/r4-raw/junit/it.junit.xml` (2026-07-14T17:35:17Z) |
 | `W28R-3013` | N/A (Playwright preprod, retries disabled) | `npx playwright test --retries=0` vs `https://filemcpserver0.cloud-dog.net` | R3 build (runtime byte-identical to current main) | 166 passed / 0 / 0 | `W28R-3013-FINAL-PROOF-R3:…/r3-raw/deployed-r3-final.junit.xml` (2026-07-14T16:21:03Z) |
 
 **External-boundary disposition.** The single integration skip,
 `tests/integration/IT_GoogleDriveLiveHttp/test_integration_google_drive_live_http.py::test_google_drive_backend_end_to_end_live`
-(and the paired `AT1.12_GoogleDriveOauthLive`), exercises a live external Google OAuth token exchange /
+(and the paired `AT1.12_GoogleDriveOauthLive`, `FR1.32`), exercises a live external Google OAuth token exchange /
 real Google Drive account. It is `NOT_APPLICABLE_EXTERNAL_OAUTH_BOUNDARY` — **not** an executed PASS and
 **not** a worker-approved PASS; out of scope for the Cloud-Dog-only boundary (no external third-party
 account provisioned). In-boundary Google Drive semantics are covered by the non-live UT/IT suites.
