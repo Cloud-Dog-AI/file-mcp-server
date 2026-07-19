@@ -56,6 +56,7 @@ rationale.
 from __future__ import annotations
 
 import json
+from hmac import compare_digest
 from typing import Any
 
 from . import route_guards
@@ -220,6 +221,20 @@ def _resolve_principal_lightweight(
                 "scopes": set(session.get("scopes") or ()),
                 "source": "cookie",
             }
+
+    supplied_admin_token = str(headers.get("x-admin-token") or "")
+    configured_admin_token = str(getattr(runtime, "admin_ui_token", "") or "")
+    if (
+        supplied_admin_token
+        and configured_admin_token
+        and compare_digest(supplied_admin_token, configured_admin_token)
+    ):
+        return {
+            "user_id": "admin-ui-token",
+            "role": "admin",
+            "scopes": {"*"},
+            "source": "admin_ui_token",
+        }
 
     raw_key = headers.get("x-api-key") or headers.get("authorization") or ""
     if raw_key:

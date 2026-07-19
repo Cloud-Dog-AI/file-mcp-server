@@ -1656,6 +1656,64 @@ def test_web_proxy_cookie_session_adds_login_token_for_logs_routes() -> None:
     assert sent[0]["status"] == 200
     payload = json.loads(sent[1]["body"].decode("utf-8"))
     assert payload["proxied_path"] == "/v1/logs"
+
+
+@pytest.mark.UT
+@pytest.mark.webui
+@pytest.mark.api
+@pytest.mark.req("FR-012")
+def test_web_proxy_cookie_session_forwards_admin_credentials_to_profiles() -> None:
+    proxy = _StubWebApiProxy()
+    token = "session-token"
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - fallback path
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        web_sessions={
+            token: {
+                "user": "admin",
+                "user_id": "1",
+                "role": "admin",
+                "_created": time.time(),
+            }
+        },
+    )
+    middleware.api_proxy = proxy
+    middleware._login_access_token = "secret"
+    middleware.admin_ui_token = "admin-token"
+
+    sent = _run_middleware_request(
+        middleware,
+        path="/admin/profiles",
+        headers=[
+            (b"cookie", f"file_web_session={token}".encode("utf-8")),
+            (b"accept", b"application/json"),
+        ],
+    )
+
+    assert proxy.calls == [
+        {
+            "method": "GET",
+            "path": "/admin/profiles",
+            "json": None,
+            "params": None,
+            "headers": {
+                "accept": "application/json",
+                "authorization": "Bearer secret",
+                "x-admin-token": "admin-token",
+            },
+            "cookies": {"file_web_session": token},
+        }
+    ]
+    assert sent[0]["status"] == 200
+    payload = json.loads(sent[1]["body"].decode("utf-8"))
+    assert payload["proxied_path"] == "/admin/profiles"
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

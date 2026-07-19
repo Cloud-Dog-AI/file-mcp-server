@@ -1469,6 +1469,13 @@ class HealthCheckMiddleware:
             or path == "/v1/logs"
             or path.startswith("/v1/logs/")
             or self._is_watches_path(path)
+            # The SPA loads storage profiles from this canonical admin API
+            # after cookie login.  The API role cannot validate the web role's
+            # in-memory session, so carry its authenticated proxy credentials.
+            or path == "/admin/profiles"
+            or path.startswith("/admin/profiles/")
+            or path == "/api/admin/profiles"
+            or path.startswith("/api/admin/profiles/")
         )
         if (
             path == self.web_mcp_path

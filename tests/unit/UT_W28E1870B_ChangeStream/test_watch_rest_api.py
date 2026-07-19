@@ -67,6 +67,36 @@ def test_anonymous_watch_access_is_rejected(client: TestClient):
 
 
 @pytest.mark.req("CST-API-001")
+def test_admin_ui_token_supports_watch_lifecycle_across_web_to_api_boundary():
+    R.set_shared_watch_service(None)
+    middleware = HealthCheckMiddleware(
+        _inner, health_path="/health", profile_name="default", transport="streamable-http"
+    )
+    middleware.admin_ui_token = "internal-admin-token"
+    client = TestClient(middleware, raise_server_exceptions=False)
+    headers = {"x-admin-token": "internal-admin-token"}
+
+    create = client.post(
+        "/v1/watches",
+        json={"profile": "default", "criteria": {"path": "*.txt"}},
+        headers=headers,
+    )
+    assert create.status_code == 201, create.text[:300]
+    watch_id = create.json()["watch_id"]
+
+    listing = client.get("/v1/watches", headers=headers)
+    assert listing.status_code == 200
+    assert any(item["watch_id"] == watch_id for item in listing.json()["watches"])
+
+    paused = client.post(f"/v1/watches/{watch_id}/pause", headers=headers)
+    assert paused.status_code == 200 and paused.json()["state"] == "paused"
+    resumed = client.post(f"/v1/watches/{watch_id}/resume", headers=headers)
+    assert resumed.status_code == 200 and resumed.json()["state"] == "live"
+    deleted = client.delete(f"/v1/watches/{watch_id}", headers=headers)
+    assert deleted.status_code == 200 and deleted.json()["deleted"] is True
+
+
+@pytest.mark.req("CST-API-001")
 def test_full_watch_lifecycle_over_rest(client: TestClient):
     cookies = _login(client, _ADMIN)
     # create
