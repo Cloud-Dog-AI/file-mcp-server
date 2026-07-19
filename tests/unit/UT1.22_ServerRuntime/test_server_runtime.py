@@ -998,6 +998,81 @@ def test_a2a_health_rejects_malformed_authorization_header() -> None:
     assert sent[0]["status"] == 401
     body = json.loads(sent[1]["body"].decode("utf-8"))
     assert body["errors"][0]["code"] == "UNAUTHENTICATED"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-023")
+def test_auth_status_accepts_verified_api_key_carriers_and_rejects_invalid() -> None:
+    """Both capability aliases must authenticate the same verified API key."""
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    class FileScopedVerifier(_StubA2AVerifier):
+        async def verify_token_for_profile(self, token: str, profile_name: str):
+            self.verify_calls.append((token, profile_name))
+            if token == self.valid_token and profile_name == "default":
+                return SimpleNamespace(
+                    subject="file-api-key",
+                    scopes=["files:read"],
+                    roles=["file_reader"],
+                )
+            return None
+
+    verifier = FileScopedVerifier(valid_token="12345678")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+    )
+
+    async def request(path: str, headers: list[tuple[bytes, bytes]]) -> tuple[int, dict]:
+        sent = []
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(
+            {"type": "http", "method": "GET", "path": path, "headers": headers},
+            receive,
+            send,
+        )
+        return sent[0]["status"], json.loads(sent[1]["body"].decode("utf-8"))
+
+    for path in ("/auth/status", "/api/auth/status"):
+        status, body = asyncio.run(request(path, []))
+        assert status == 401
+        assert body["detail"] == "Not authenticated"
+        for headers in (
+            [(b"authorization", b"Bearer 12345678")],
+            [(b"x-api-key", b"12345678")],
+        ):
+            status, body = asyncio.run(request(path, headers))
+            assert status == 200
+            assert body["authenticated"] is True
+            assert body["is_system_admin"] is False
+            assert body["username"] == "file-api-key"
+
+    status, _body = asyncio.run(
+        request("/auth/status", [(b"authorization", b"Bearer invalid")])
+    )
+    assert status == 401
+    status, _body = asyncio.run(
+        request(
+            "/auth/status",
+            [
+                (b"authorization", b"Bearer 12345678"),
+                (b"x-api-key", b"invalid"),
+            ],
+        )
+    )
+    assert status == 401
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

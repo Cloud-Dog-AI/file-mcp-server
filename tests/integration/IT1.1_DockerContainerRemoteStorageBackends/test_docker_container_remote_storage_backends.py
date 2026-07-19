@@ -22,6 +22,7 @@ Description: Validate that the containerized server works against real WebDAV/FT
 from __future__ import annotations
 
 from tests.env_runtime import env_get
+from tests.docker_test_image import require_dev_docker_test_image
 
 import asyncio
 import json
@@ -122,16 +123,7 @@ def docker_image() -> str:
         pytest.skip("Docker daemon unavailable")
 
     repo_root = project_root(Path(__file__))
-    requested = env_get("FILE_MCP_DOCKER_TEST_IMAGE", "").strip()
-    if requested:
-        if not _docker_image_exists(repo_root, requested):
-            raise RuntimeError(f"Requested docker test image not found: {requested}")
-        return requested
-
-    pytest.fail(
-        "FILE_MCP_DOCKER_TEST_IMAGE must name an image built through "
-        "docker-build.sh --variant dev"
-    )
+    return require_dev_docker_test_image(repo_root, _docker_cmd())
 @pytest.mark.IT
 @pytest.mark.mcp
 @pytest.mark.req("FR-029")
