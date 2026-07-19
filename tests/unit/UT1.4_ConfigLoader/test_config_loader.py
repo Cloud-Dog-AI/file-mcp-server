@@ -33,6 +33,7 @@ import pytest
 from pathlib import Path
 
 from file_tools.config.adapter import get_profile, load_config
+from tests import conftest as test_conftest
 
 
 def _write_yaml(path: Path, content: str) -> None:
@@ -375,3 +376,18 @@ profiles:
 
     # Literal config values in config.yaml override placeholder values.
     assert profile.observability.level == "WARN"
+
+
+@pytest.mark.UT
+@pytest.mark.mcp
+@pytest.mark.req("FR-013")
+def test_test_env_loader_preserves_explicit_process_override(
+    tmp_path: Path, monkeypatch
+) -> None:
+    env_path = tmp_path / "env"
+    _write_env(env_path, {"FILE_MCP_DOCKER_TEST_IMAGE": ""})
+    monkeypatch.setenv("FILE_MCP_DOCKER_TEST_IMAGE", "cloud-dog/file-mcp-server:latest")
+
+    test_conftest._load_env_file(env_path)
+
+    assert test_conftest.runtime_env["FILE_MCP_DOCKER_TEST_IMAGE"] == "cloud-dog/file-mcp-server:latest"

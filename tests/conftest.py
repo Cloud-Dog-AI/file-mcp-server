@@ -105,7 +105,9 @@ def _load_env_file(path: Path) -> None:
         key = key.strip()
         if not key:
             continue
-        runtime_env[key] = _resolve_env_value(value.strip())
+        # Explicit process values select runtime-specific test resources such as
+        # the image built by docker-build.sh; an env file supplies only defaults.
+        runtime_env.setdefault(key, _resolve_env_value(value.strip()))
 
 
 def _consume_optional_test_env_keys() -> None:
