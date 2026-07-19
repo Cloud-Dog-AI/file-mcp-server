@@ -127,6 +127,26 @@ fi
 PYPI_USERNAME="${PYPI_USERNAME:-}"
 PYPI_PASSWORD="${PYPI_PASSWORD:-}"
 
+# Vault stores the internal registry as its canonical root URL. pip requires the
+# PEP 503 simple endpoint, so normalise that one approved internal host here.
+PYPI_URL="$(python3 - "${PYPI_URL}" <<'PY'
+from urllib.parse import urlsplit, urlunsplit
+import sys
+
+url = sys.argv[1]
+parts = urlsplit(url)
+if parts.hostname and parts.hostname.endswith("pypi.cloud-dog.net"):
+    path = parts.path.rstrip("/")
+    if not path:
+        url = urlunsplit((parts.scheme, parts.netloc, "/simple/", parts.query, parts.fragment))
+    elif path != "/simple" and not path.endswith("/simple"):
+        url = urlunsplit((parts.scheme, parts.netloc, f"{path}/simple/", parts.query, parts.fragment))
+    elif not parts.path.endswith("/"):
+        url = urlunsplit((parts.scheme, parts.netloc, f"{path}/", parts.query, parts.fragment))
+print(url)
+PY
+)"
+
 PYPI_HOST="$(python3 -c "from urllib.parse import urlsplit; print(urlsplit('${PYPI_URL}').hostname or 'pypi.org')")"
 
 if [[ "${VARIANT}" == "public" ]]; then

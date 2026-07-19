@@ -18,6 +18,7 @@ from tests.env_runtime import runtime_env
 
 import asyncio
 import json
+from pathlib import Path
 import re
 import time
 from types import SimpleNamespace
@@ -1506,6 +1507,16 @@ def test_web_role_proxies_watch_create_to_api_before_local_dispatch(monkeypatch)
     ]
     assert sent[0]["status"] == 200
     assert json.loads(sent[1]["body"].decode("utf-8"))["proxied_path"] == "/v1/watches"
+
+
+@pytest.mark.UT
+@pytest.mark.internal
+@pytest.mark.req("NF-006")
+def test_docker_build_normalises_internal_vault_registry_root() -> None:
+    wrapper = Path("docker-build.sh").read_text(encoding="utf-8")
+    assert 'parts.hostname.endswith("pypi.cloud-dog.net")' in wrapper
+    assert '"/simple/"' in wrapper
+    assert 'PYPI_URL="$(python3 - "${PYPI_URL}"' in wrapper
 
 
 @pytest.mark.UT
