@@ -286,6 +286,7 @@ def _run_middleware_request(
     method: str = "GET",
     headers=None,
     query_string: bytes = b"",
+    body: bytes = b"",
 ):
     sent: list[dict] = []
 
@@ -299,7 +300,7 @@ def _run_middleware_request(
         }
 
         async def receive():
-            return {"type": "http.request", "body": b"", "more_body": False}
+            return {"type": "http.request", "body": body, "more_body": False}
 
         async def send(message):
             sent.append(message)
@@ -1454,6 +1455,57 @@ def test_web_proxy_preserves_api_prefix_for_logs_routes() -> None:
     assert sent[0]["status"] == 200
     payload = json.loads(sent[1]["body"].decode("utf-8"))
     assert payload["proxied_path"] == "/api/v1/logs"
+
+
+@pytest.mark.UT
+@pytest.mark.webui
+@pytest.mark.api
+@pytest.mark.req("FR-012")
+def test_web_role_proxies_watch_create_to_api_before_local_dispatch(monkeypatch) -> None:
+    proxy = _StubWebApiProxy()
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover - proxy must handle it
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b"not-found"})
+
+    monkeypatch.setitem(runtime_env, "FILE_MCP_ACTIVE_SERVER_ROLE", "web")
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+    )
+    middleware.api_proxy = proxy
+
+    payload = {"profile": "default", "criteria": {"path": "*.txt"}}
+    sent = _run_middleware_request(
+        middleware,
+        path="/v1/watches",
+        method="POST",
+        headers=[
+            (b"authorization", b"Bearer secret"),
+            (b"content-type", b"application/json"),
+            (b"accept", b"application/json"),
+        ],
+        body=json.dumps(payload).encode("utf-8"),
+    )
+
+    assert proxy.calls == [
+        {
+            "method": "POST",
+            "path": "/v1/watches",
+            "json": payload,
+            "params": None,
+            "headers": {
+                "authorization": "Bearer secret",
+                "content-type": "application/json",
+                "accept": "application/json",
+            },
+            "cookies": None,
+        }
+    ]
+    assert sent[0]["status"] == 200
+    assert json.loads(sent[1]["body"].decode("utf-8"))["proxied_path"] == "/v1/watches"
 
 
 @pytest.mark.UT

@@ -1362,6 +1362,7 @@ class HealthCheckMiddleware:
             or path.startswith("/api/v1/logs/")
             or path == "/v1/logs"
             or path.startswith("/v1/logs/")
+            or self._is_watches_path(path)
             or path == "/files"
             or path.startswith("/files/")
         )
@@ -1467,6 +1468,7 @@ class HealthCheckMiddleware:
             or path.startswith("/api/v1/logs/")
             or path == "/v1/logs"
             or path.startswith("/v1/logs/")
+            or self._is_watches_path(path)
         )
         if (
             path == self.web_mcp_path
@@ -5098,6 +5100,24 @@ class HealthCheckMiddleware:
         # (CSTREAM-002). RBAC is enforced inside the handler via the
         # lightweight principal resolver; the chokepoint classifies these as
         # guarded and has already resolved/denied anonymous callers above.
+        # The web role must proxy watches to the API role before considering the
+        # local handler: the API role owns the process-shared watch service.
+        if (
+            scope.get("type") == "http"
+            and self.server_role == "web"
+            and self._is_watches_path(path)
+            and await self._maybe_proxy_web_request(
+                scope=scope,
+                receive=receive,
+                send=send,
+                headers=headers,
+                path=path,
+                method=method,
+                accept=accept,
+            )
+        ):
+            return
+
         if scope.get("type") == "http" and self._is_watches_path(path):
             if await self._handle_watches(scope, receive, send, method=method, path=path, headers=headers):
                 return
