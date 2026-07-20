@@ -31,8 +31,23 @@ from tests.env_runtime import runtime_env
 
 pytestmark = [pytest.mark.UT, pytest.mark.api]
 
-_ADMIN = ("admin", "OrangeRiverTable")
-_RO = ("read-only", "GreenRiverDesk")
+def _admin() -> tuple[str, str]:
+    # W28A-SEC-R17: credentials come from the environment (the same config the
+    # server resolves) — no credential literals in the test.
+    return (
+        runtime_env.get("CLOUD_DOG_WEB_LOGIN_USERNAME", "admin") or "admin",
+        runtime_env.get("CLOUD_DOG_WEB_LOGIN_PASSWORD", ""),
+    )
+
+
+def _ro() -> tuple[str, str]:
+    # read-only falls back to the resolved admin password when its own override
+    # is unset — mirrors the server's flat-role resolution (W28A-SEC-R17).
+    admin_pw = runtime_env.get("CLOUD_DOG_WEB_LOGIN_PASSWORD", "")
+    return (
+        runtime_env.get("CLOUD_DOG_WEB_LOGIN_READ_ONLY_USERNAME", "read-only") or "read-only",
+        runtime_env.get("CLOUD_DOG_WEB_LOGIN_READ_ONLY_PASSWORD") or admin_pw,
+    )
 
 
 async def _inner(scope, receive, send) -> None:  # pragma: no cover - fallthrough sink
@@ -98,7 +113,7 @@ def test_admin_ui_token_supports_watch_lifecycle_across_web_to_api_boundary():
 
 @pytest.mark.req("CST-API-001")
 def test_full_watch_lifecycle_over_rest(client: TestClient):
-    cookies = _login(client, _ADMIN)
+    cookies = _login(client, _admin())
     # create
     create = client.post(
         "/v1/watches",
@@ -150,7 +165,7 @@ def test_full_watch_lifecycle_over_rest(client: TestClient):
 
 @pytest.mark.req("CSTREAM-002")
 def test_events_pull_batch_is_nonblocking_empty_when_no_events(client: TestClient):
-    cookies = _login(client, _ADMIN)
+    cookies = _login(client, _admin())
     wid = client.post("/v1/watches", json={"profile": "default", "criteria": {}}, cookies=cookies).json()["watch_id"]
     # a pull-batch with no pending events returns immediately with an empty batch
     events = client.get(f"/v1/watches/{wid}/events?wait_seconds=5", cookies=cookies)
@@ -161,10 +176,10 @@ def test_events_pull_batch_is_nonblocking_empty_when_no_events(client: TestClien
 @pytest.mark.req("CSTREAM-009")
 def test_read_only_role_cannot_create_but_can_read(client: TestClient):
     # admin creates a watch
-    admin_cookies = _login(client, _ADMIN)
+    admin_cookies = _login(client, _admin())
     wid = client.post("/v1/watches", json={"profile": "default", "criteria": {}}, cookies=admin_cookies).json()["watch_id"]
     # read-only role: create is denied (403), list is allowed (200)
-    ro_cookies = _login(client, _RO)
+    ro_cookies = _login(client, _ro())
     denied = client.post("/v1/watches", json={"profile": "default"}, cookies=ro_cookies)
     assert denied.status_code == 403, denied.text[:200]
     allowed = client.get("/v1/watches", cookies=ro_cookies)
@@ -174,7 +189,7 @@ def test_read_only_role_cannot_create_but_can_read(client: TestClient):
 
 @pytest.mark.req("CSTREAM-005")
 def test_ack_requires_ack_cursor(client: TestClient):
-    cookies = _login(client, _ADMIN)
+    cookies = _login(client, _admin())
     wid = client.post("/v1/watches", json={"profile": "default", "criteria": {}}, cookies=cookies).json()["watch_id"]
     resp = client.post(f"/v1/watches/{wid}/ack", json={}, cookies=cookies)
     assert resp.status_code == 422
@@ -182,6 +197,6 @@ def test_ack_requires_ack_cursor(client: TestClient):
 
 @pytest.mark.req("CST-API-001")
 def test_unknown_watch_id_returns_404(client: TestClient):
-    cookies = _login(client, _ADMIN)
+    cookies = _login(client, _admin())
     resp = client.get("/v1/watches/does-not-exist/status", cookies=cookies)
     assert resp.status_code == 404

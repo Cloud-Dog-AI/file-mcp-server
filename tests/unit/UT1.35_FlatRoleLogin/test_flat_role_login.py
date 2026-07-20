@@ -51,13 +51,28 @@ from file_mcp_server.web_flat_roles import (
     role_can_write,
 )
 
-# Demo flat-role credentials (env-overridable CLOUD_DOG_WEB_LOGIN_*; defaults
-# live in code so the three roles are demoable out of the box).
-ACCOUNTS = {
-    ADMIN_ROLE: ("admin", "OrangeRiverTable"),
-    READ_WRITE_ROLE: ("read-write", "BlueRiverChair"),
-    READ_ONLY_ROLE: ("read-only", "GreenRiverDesk"),
-}
+# Flat-role credentials. W28A-SEC-R17: no credential literals live in this test;
+# the passwords are resolved from the environment (the same CLOUD_DOG_WEB_LOGIN_*
+# config the server reads) at call time, after the env fixture has loaded. The
+# read-write / read-only passwords fall back to the resolved admin password when
+# their own override is unset — mirroring the server's flat-role resolution.
+def _account_creds(role: str) -> "tuple[str, str]":
+    admin_pw = runtime_env.get("CLOUD_DOG_WEB_LOGIN_PASSWORD", "")
+    table = {
+        ADMIN_ROLE: (
+            runtime_env.get("CLOUD_DOG_WEB_LOGIN_USERNAME", "admin") or "admin",
+            admin_pw,
+        ),
+        READ_WRITE_ROLE: (
+            runtime_env.get("CLOUD_DOG_WEB_LOGIN_READ_WRITE_USERNAME", "read-write") or "read-write",
+            runtime_env.get("CLOUD_DOG_WEB_LOGIN_READ_WRITE_PASSWORD") or admin_pw,
+        ),
+        READ_ONLY_ROLE: (
+            runtime_env.get("CLOUD_DOG_WEB_LOGIN_READ_ONLY_USERNAME", "read-only") or "read-only",
+            runtime_env.get("CLOUD_DOG_WEB_LOGIN_READ_ONLY_PASSWORD") or admin_pw,
+        ),
+    }
+    return table[role]
 
 # Public static shell an anon browser must be able to load.
 PUBLIC_STATIC = ("/runtime-config.js", "/login")
@@ -113,7 +128,7 @@ def web_client() -> TestClient:
 
 
 def _login(client: TestClient, role: str) -> "dict[str, str]":
-    user, pw = ACCOUNTS[role]
+    user, pw = _account_creds(role)
     resp = client.post("/auth/login", json={"username": user, "password": pw})
     assert resp.status_code == 200, f"{role} login: {resp.status_code} {resp.text[:200]}"
     return {k: v for k, v in resp.cookies.items()}

@@ -127,15 +127,19 @@ fi
 PYPI_USERNAME="${PYPI_USERNAME:-}"
 PYPI_PASSWORD="${PYPI_PASSWORD:-}"
 
-# Vault stores the internal registry as its canonical root URL. pip requires the
-# PEP 503 simple endpoint, so normalise that one approved internal host here.
+# pip requires the PEP 503 "simple" endpoint. A configured index URL may be
+# supplied as a bare root URL (some registries store their canonical root), so
+# normalise ANY index URL to a "/simple/" path here. This is host-agnostic: the
+# published build script embeds no internal registry hostname (W28A-SEC-R17) —
+# the concrete index host is supplied by the caller/CI via PYPI_URL at build
+# time, and the public variant already defaults to https://pypi.org/simple.
 PYPI_URL="$(python3 - "${PYPI_URL}" <<'PY'
 from urllib.parse import urlsplit, urlunsplit
 import sys
 
 url = sys.argv[1]
 parts = urlsplit(url)
-if parts.hostname and parts.hostname.endswith("pypi.cloud-dog.net"):
+if parts.scheme and parts.netloc:
     path = parts.path.rstrip("/")
     if not path:
         url = urlunsplit((parts.scheme, parts.netloc, "/simple/", parts.query, parts.fragment))

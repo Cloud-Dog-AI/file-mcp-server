@@ -848,21 +848,26 @@ class HealthCheckMiddleware:
         # principal (state-replay mitigation).
         self._oauth_state_principal: dict[str, str] = {}
         # Thread-a (PROGRAM-IDAM-RECOVERY-2, W28A-728-R4) flat WebUI login
-        # accounts: the three flat roles admin / read-write / read-only. The
-        # admin account keeps its historical env-resolved credentials
-        # (back-compat with existing demo scripts/tests); read-write and
-        # read-only are seeded so all three flat roles are demoable out of the
-        # box. Credentials are env-overridable (the same read_env_var accessor
-        # the admin account already uses — §1.4.1-compliant, config-routed, no
-        # direct-env reads);
-        # roles/permissions come from the ONE shared cloud_dog_idam guard (see
-        # web_flat_roles.py — no per-service RBAC fork).
+        # accounts: the three flat roles admin / read-write / read-only.
+        #
+        # W28A-SEC-R17: the public dev/test credential literals were removed from
+        # source. The admin password now comes ONLY from the environment
+        # (CLOUD_DOG_WEB_LOGIN_PASSWORD — injected on every deployed container),
+        # and read-write / read-only fall back to the RESOLVED ADMIN password
+        # when their own env override is unset (never a hardcoded string). This
+        # keeps all three flat roles logging in out of the box while shipping no
+        # credential value in source, and is strictly more secure (rw/ro stop
+        # using a public value). An unset admin password fails closed: the
+        # empty-password guard in _handle_auth_login rejects it, so no account
+        # can authenticate with an empty secret. Usernames are non-secret
+        # defaults. Roles/permissions come from the ONE shared cloud_dog_idam
+        # guard (see web_flat_roles.py — no per-service RBAC fork).
         self._admin_username = read_env_var("CLOUD_DOG_WEB_LOGIN_USERNAME") or "admin"
-        self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or "OrangeRiverTable"
+        self._admin_password = read_env_var("CLOUD_DOG_WEB_LOGIN_PASSWORD") or ""
         self._rw_username = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_WRITE_USERNAME") or "read-write"
-        self._rw_password = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_WRITE_PASSWORD") or "BlueRiverChair"
+        self._rw_password = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_WRITE_PASSWORD") or self._admin_password
         self._ro_username = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_ONLY_USERNAME") or "read-only"
-        self._ro_password = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_ONLY_PASSWORD") or "GreenRiverDesk"
+        self._ro_password = read_env_var("CLOUD_DOG_WEB_LOGIN_READ_ONLY_PASSWORD") or self._admin_password
         # username -> (password, flat-role). Built once; the comparison in
         # _handle_auth_login is constant-time per candidate (secrets.compare_digest)
         # so a wrong username and a wrong password are indistinguishable.

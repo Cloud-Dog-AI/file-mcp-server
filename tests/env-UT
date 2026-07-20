@@ -40,6 +40,12 @@ TEST_API_BASE_PATH=/app/v1
 TEST_MCP_BASE_PATH=/mcp
 TEST_WEB_BASE_PATH=/
 TEST_A2A_BASE_PATH=/a2a
+# W28A-SEC-R17: flat WebUI login admin credential for UT (config-sourced; the
+# server ships no credential literal). read-write / read-only are intentionally
+# left unset so the UT exercises the fall-back-to-resolved-admin path that the
+# deployed containers rely on. Internal UT-only value (not the demo family).
+CLOUD_DOG_WEB_LOGIN_USERNAME=admin
+CLOUD_DOG_WEB_LOGIN_PASSWORD=ut-file-web-admin-secret
 FILE_MCP_S3_ENDPOINT=
 FILE_MCP_S3_BUCKET=
 FILE_MCP_S3_REGION=

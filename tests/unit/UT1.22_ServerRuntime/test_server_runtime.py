@@ -1588,10 +1588,16 @@ def test_web_role_proxies_watch_create_to_api_before_local_dispatch(monkeypatch)
 @pytest.mark.internal
 @pytest.mark.req("NF-006")
 def test_docker_build_normalises_internal_vault_registry_root() -> None:
+    # W28A-SEC-R17: the PEP 503 "/simple/" index normalisation still exists and
+    # still targets "/simple/", but it is now host-agnostic — the published
+    # build script must NOT embed any internal registry hostname (the public
+    # leakage gate FAILs on it). This test also guards against re-introducing
+    # that literal.
     wrapper = Path("docker-build.sh").read_text(encoding="utf-8")
-    assert 'parts.hostname.endswith("pypi.cloud-dog.net")' in wrapper
-    assert '"/simple/"' in wrapper
     assert 'PYPI_URL="$(python3 - "${PYPI_URL}"' in wrapper
+    assert '"/simple/"' in wrapper
+    assert "if parts.scheme and parts.netloc:" in wrapper
+    assert "pypi.cloud-dog.net" not in wrapper
 
 
 @pytest.mark.UT
