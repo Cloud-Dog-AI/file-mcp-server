@@ -137,7 +137,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 RUN find /usr/local/lib/python${PYTHON_VERSION}/site-packages -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 COPY src ./src
+# Strip __pycache__ from application source (may carry test credentials in bytecode)
+RUN find /app/src -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 COPY scripts ./scripts
+# Strip internal build scripts from public image (not needed at runtime)
+RUN rm -f /app/scripts/publish-before-pin-guard.sh /app/scripts/publish_before_pin_guard.py 2>/dev/null; true
 COPY pyproject.toml ./pyproject.toml
 COPY server_control.sh ./server_control.sh
 COPY defaults.yaml ./defaults.yaml
