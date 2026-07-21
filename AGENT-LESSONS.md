@@ -1,6 +1,6 @@
 # Agent lessons — file-mcp-server
 
-Last reviewed: 2026-07-15
+Last reviewed: 2026-07-21
 Scope: durable project-specific knowledge only.
 
 ## Authority and use
