@@ -55,6 +55,16 @@ def _require_env(key: str) -> str:
 
 
 def _web_base_url() -> str:
+    # A full base URL (e.g. the deployed preprod HTTPS ingress) takes precedence so the
+    # maintained WebUI flow set runs unchanged against a deployed target as well as the
+    # locally-started server (W28R-3023 R3). Local envs set neither var and fall through
+    # to the host:port form, so their behaviour is unchanged.
+    override = (
+        env_get("FILE_MCP_WEBUI_BASE_URL", "").strip()
+        or env_get("TEST_BASE_URL", "").strip()
+    )
+    if override:
+        return override.rstrip("/")
     host = _require_env("FILE_MCP_HTTP_HOST")
     port = _require_env("CLOUD_DOG__WEB_SERVER__PORT")
     return f"http://{host}:{port}"
