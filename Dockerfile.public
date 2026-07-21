@@ -27,6 +27,7 @@
 # intentionally stays on the public boundary base (built by publication lanes);
 # the internal deployed image (Dockerfile) uses the internal Cloud-Dog 3.13.14 base.
 FROM python:3.13-slim AS builder
+ARG PYTHON_VERSION=3.13
 
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
@@ -79,7 +80,7 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
       "cloud-dog-logging==0.4.1" \
       "cloud-dog-api-kit[change-stream-db]==0.14.1" \
       "cloud-dog-idam==0.5.4" \
-      "cloud-dog-llm==0.4.1" \
+      "cloud-dog-llm==0.4.4" \
       "cloud-dog-db==0.3.3" \
       "cloud-dog-jobs==0.4.4" \
       "cloud-dog-storage==0.1.8"
@@ -88,8 +89,12 @@ RUN --mount=type=secret,id=pip_conf,target=/etc/pip.conf \
     pip install --no-cache-dir -r /tmp/REQUIREMENTS.docker.txt && \
     pip install --no-cache-dir 'redis>=5.0'
 
+# Strip __pycache__ from site-packages — leaves only .py source.
+RUN find /usr/local/lib/python${PYTHON_VERSION}/site-packages -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
+
 # ── Final ────────────────────────────────────────────────────────
 FROM python:3.13-slim
+ARG PYTHON_VERSION=3.13
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_BRANCH=unknown
 LABEL org.opencontainers.image.licenses="Apache-2.0"
@@ -128,6 +133,8 @@ RUN set -eux; \
 
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+# Double-check: strip any residual __pycache__
+RUN find /usr/local/lib/python${PYTHON_VERSION}/site-packages -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 COPY src ./src
 COPY scripts ./scripts
