@@ -956,6 +956,58 @@ def test_a2a_health_rejects_invalid_well_formed_api_key() -> None:
     assert verifier.verify_calls == [("wrong-key", "default")]
 
 
+def _run_a2a_task(headers: list[tuple[bytes, bytes]], verifier) -> list[dict]:
+    """Drive a POST /a2a/tasks (skill_id=health) through HealthCheckMiddleware."""
+    sent: list[dict] = []
+
+    async def fake_app(scope, receive, send) -> None:  # pragma: no cover
+        await send({"type": "http.response.start", "status": 404, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    middleware = HealthCheckMiddleware(
+        fake_app,
+        health_path="/health",
+        profile_name="default",
+        transport="streamable-http",
+        a2a_auth_verifier=verifier,
+    )
+
+    async def _run() -> None:
+        scope = {"type": "http", "method": "POST", "path": "/a2a/tasks", "headers": headers}
+        body = json.dumps({"id": "t", "skill_id": "health", "input": {"text": ""}}).encode()
+
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        await middleware(scope, receive, send)
+
+    asyncio.run(_run())
+    return sent
+
+
+@pytest.mark.UT
+@pytest.mark.a2a
+@pytest.mark.req("FR-017")
+def test_a2a_tasks_auth_matrix_401_401_200() -> None:
+    """W28R-3023 R3: /a2a/tasks must reject no-auth and wrong-key, accept valid.
+
+    The A2A task surface previously dispatched skills with no authentication,
+    so no-auth and wrong-key both returned 200. It must now enforce the same
+    verified-credential contract as /a2a/health and the MCP tier.
+    """
+    no_auth = _run_a2a_task([], _StubA2AVerifier(valid_token="12345678"))
+    assert no_auth[0]["status"] == 401
+
+    wrong = _run_a2a_task([(b"x-api-key", b"wrong-key")], _StubA2AVerifier(valid_token="12345678"))
+    assert wrong[0]["status"] == 401
+
+    valid = _run_a2a_task([(b"x-api-key", b"12345678")], _StubA2AVerifier(valid_token="12345678"))
+    assert valid[0]["status"] == 200
+
+
 @pytest.mark.UT
 @pytest.mark.mcp
 @pytest.mark.req("FR-017")

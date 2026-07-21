@@ -5251,6 +5251,20 @@ class HealthCheckMiddleware:
 
         # A2A task submission
         if scope.get("type") == "http" and method == "POST" and path in ("/a2a/tasks", "/tasks"):
+            # W28R-3023 R3: the A2A task surface MUST authenticate the caller,
+            # mirroring the MCP/API tiers. Previously this handler dispatched the
+            # skill with no auth check, so a no-auth or wrong-key request returned
+            # 200 (RULES §12: an unauthenticated A2A surface is a defect to fix).
+            if not await self._is_a2a_authorized(scope=scope, headers=headers):
+                await self._send_bytes(
+                    send,
+                    status=401,
+                    body=json.dumps(
+                        {"status": "failed", "error": "Unauthorised: a valid A2A credential is required"}
+                    ).encode("utf-8"),
+                    content_type="application/json",
+                )
+                return
             body_chunks = []
             while True:
                 message = await receive()
