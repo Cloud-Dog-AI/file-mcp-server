@@ -307,7 +307,16 @@ def ui_session(request: pytest.FixtureRequest) -> UiSession:
         screenshot_dir.mkdir(parents=True, exist_ok=True)
         safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "_", request.node.nodeid)
         screenshot_path = screenshot_dir / f"{safe_name}__{status}.png"
-        page.screenshot(path=str(screenshot_path), full_page=True)
+        # Best-effort diagnostic capture: a teardown screenshot must never turn a passing
+        # test into an errored one, and browser/playwright cleanup must always run. Under a
+        # heavily loaded host a full-page screenshot can exceed the default 30s deadline
+        # (W28R-3023 R3); swallow that so it stays a diagnostic, not a gate.
+        try:
+            page.screenshot(
+                path=str(screenshot_path), full_page=True, timeout=120_000
+            )
+        except Exception:  # noqa: BLE001 - diagnostic artefact only, cleanup must proceed
+            pass
         context.close()
         browser.close()
         playwright.stop()
