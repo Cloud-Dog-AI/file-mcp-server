@@ -1,6 +1,0 @@
-CLOUD_DOG_DB__DIALECT=mysql
-CLOUD_DOG_DB__HOST=${vault.dev.databases.filemcp_dev_mysql.server}
-CLOUD_DOG_DB__PORT=${vault.dev.databases.filemcp_dev_mysql.port}
-CLOUD_DOG_DB__USERNAME=${vault.dev.databases.filemcp_dev_mysql.username}
-CLOUD_DOG_DB__PASSWORD=${vault.dev.databases.filemcp_dev_mysql.password}
-CLOUD_DOG_DB__DATABASE=${vault.dev.databases.filemcp_dev_mysql.database}
