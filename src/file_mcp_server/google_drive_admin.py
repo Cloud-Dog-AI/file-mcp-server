@@ -27,7 +27,7 @@ from html import escape
 from pathlib import Path
 from threading import Lock
 import secrets
-from typing import Dict
+from typing import Dict, MutableMapping
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from file_tools.adapters import get as http_get
@@ -424,7 +424,11 @@ def render_setup_page(
 """
 
 
-def begin_oauth(data: dict[str, str]) -> str:
+def begin_oauth(
+    data: dict[str, str],
+    *,
+    pending_store: MutableMapping[str, PendingGoogleDriveAuth] | None = None,
+) -> str:
     """Execute begin oauth."""
     profile = _clean(data.get("profile"))
     folder_input = _clean(data.get("folder_input"))
@@ -469,7 +473,10 @@ def begin_oauth(data: dict[str, str]) -> str:
         token_uri=token_uri,
     )
     with _PENDING_LOCK:
-        _PENDING[state] = pending
+        # The HTTP runtime supplies its own store so the issued CSRF principal
+        # and its pending OAuth data have one lifetime.  The module-global
+        # store remains the compatibility default for direct helper callers.
+        (pending_store if pending_store is not None else _PENDING)[state] = pending
     return _build_auth_url(
         client_id=client_id,
         redirect_uri=redirect_uri,
@@ -479,10 +486,16 @@ def begin_oauth(data: dict[str, str]) -> str:
     )
 
 
-def _take_pending(state: str) -> PendingGoogleDriveAuth:
+def _take_pending(
+    state: str,
+    *,
+    pending_store: MutableMapping[str, PendingGoogleDriveAuth] | None = None,
+) -> PendingGoogleDriveAuth:
     """Handle take pending."""
     with _PENDING_LOCK:
-        pending = _PENDING.pop(state, None)
+        pending = (pending_store if pending_store is not None else _PENDING).pop(
+            state, None
+        )
     if pending is None:
         raise RuntimeError("Invalid or expired OAuth state")
     return pending
@@ -699,6 +712,7 @@ def complete_oauth_callback(
     db_session_manager=None,
     file_storage_profile_model=None,
     reload_callback=None,
+    pending_store: MutableMapping[str, PendingGoogleDriveAuth] | None = None,
 ) -> GoogleDriveBindResult:
     """Execute complete oauth callback.
 
@@ -720,7 +734,7 @@ def complete_oauth_callback(
             "OAuth secrets are never written to config.yaml, so without the DB the "
             "captured credentials would be lost on container recreate."
         )
-    pending = _take_pending(state)
+    pending = _take_pending(state, pending_store=pending_store)
     access_token, refresh_token = _exchange_code(pending, code)
     folder_id, folder_name, folder_url = _fetch_folder(
         access_token, pending.folder_input, api_base_uri=pending.api_base_uri

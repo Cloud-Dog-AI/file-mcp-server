@@ -312,16 +312,58 @@ async def check_route_guard(
     if _is_html_fallback(headers, path, ui_base_path=ui_base_path):
         return False
 
-    if _request_carries_credentials(runtime, headers):
-        # Credentials present → existing dispatch (cookie middleware +
-        # MultiProfileApiKeyTokenVerifier + per-tool/per-route RBAC)
-        # verifies them and decides. The chokepoint does not duplicate
-        # that work.
+    execution_path = (
+        path.rstrip("/")
+        in {"/mcp", "/messages", "/message", "/webmcp", "/sse", "/a2a/tasks", "/tasks", "/weba2a"}
+        or path.startswith("/mcp/")
+        or path.startswith("/webmcp/")
+    )
+
+    # Trusted caller-role forwarding may only narrow a validated principal.
+    restricted_roles = {
+        item.strip().lower()
+        for item in str(headers.get("x-cloud-dog-auth-roles") or "").split(",")
+        if item.strip()
+    }
+    if execution_path and restricted_roles and not (
+        restricted_roles
+        & {"admin", "file.admin", "file.operator", "file-mcp.admin", "file-mcp.operator"}
+    ):
+        await _send_status(
+            send,
+            403,
+            _denied_body("FORBIDDEN", "caller role is not authorised"),
+        )
+        return True
+
+    # The bespoke JSON-RPC compatibility transports historically treated any
+    # non-empty credential header as authorised. Verify them at the chokepoint,
+    # before body parsing or tool enumeration. Other guarded APIs retain their
+    # existing downstream authentication/RBAC to avoid double verification.
+    if path.rstrip("/") in {"/mcp", "/messages", "/message", "/webmcp", "/sse"}:
+        try:
+            auth_info, _profile = await runtime._authenticate_request(  # noqa: SLF001
+                scope=scope, headers=headers
+            )
+        except Exception:
+            auth_info = None
+        if auth_info is None:
+            await _send_status(
+                send,
+                401,
+                _denied_body("UNAUTHENTICATED", "valid authentication required"),
+            )
+            return True
         return False
 
-    # Anonymous request to a guarded route → F-741-1 closure.
-    await _send_status(send, 401, _denied_body("UNAUTHENTICATED", "authentication required"))
+    if _request_carries_credentials(runtime, headers):
+        return False
+
+    await _send_status(
+        send, 401, _denied_body("UNAUTHENTICATED", "authentication required")
+    )
     return True
+
 
 
 __all__ = ["check_route_guard"]

@@ -262,8 +262,9 @@ def _make_dynamic_tool_handler(
     profile_tool_factory: Callable[[str], Callable[..., Any]],
     *,
     verifier: MultiProfileApiKeyTokenVerifier,
+    operation_timeout_provider: Callable[[str | None, str], float | None] | None = None,
 ) -> Callable[[dict[str, Any], Request], Any]:
-    """Wrap profile tool factory with PS-50 MCP audit + RBAC."""
+    """Wrap profile tool factory with PS-50 MCP audit, RBAC and bounded I/O."""
 
     required = tool_required_permission(tool_name)
 
@@ -344,6 +345,33 @@ def _make_dynamic_tool_handler(
                 candidate_timeout = 0.0
             if candidate_timeout > 0:
                 timeout_seconds = candidate_timeout
+        if timeout_seconds is None and operation_timeout_provider is not None:
+            # Every storage operation must use its configured profile limit.
+            # ``asyncio.to_thread`` cannot forcibly stop a blocked filesystem or
+            # remote-backend call, but this boundary returns a fail-closed MCP
+            # result promptly instead of holding the request until the HTTP
+            # ceiling.  The runtime provider resolves this from the active
+            # profile's typed ``limits`` configuration; no timeout is sourced
+            # from an ad-hoc environment read here.
+            requested_profile = (
+                str(
+                    payload.get("profile")
+                    or request.headers.get("X-File-MCP-Profile")
+                    or ""
+                ).strip()
+                or None
+            )
+            try:
+                candidate_timeout = operation_timeout_provider(
+                    requested_profile, tool_name
+                )
+                timeout_seconds = (
+                    float(candidate_timeout)
+                    if candidate_timeout is not None and float(candidate_timeout) > 0
+                    else None
+                )
+            except (TypeError, ValueError):
+                timeout_seconds = None
 
         cancel_event = threading.Event()
         cancel_token = set_operation_cancel_event(cancel_event)
@@ -360,7 +388,9 @@ def _make_dynamic_tool_handler(
                 {
                     "ok": False,
                     "error_code": "timeout",
-                    "warnings": ["Operation timed out"],
+                    "warnings": [
+                        f"Operation timed out: {tool_name} exceeded its configured profile limit"
+                    ],
                 }
             )
         except Exception as exc:
@@ -381,13 +411,17 @@ def build_tool_contracts(
     *,
     seed_registry: ToolRegistry,
     profile_tool_factory: Callable[[str], Callable[..., Any]],
+    operation_timeout_provider: Callable[[str | None, str], float | None] | None = None,
 ) -> dict[str, ToolContract]:
     """Build ToolContract map from seed registry tool names (dynamic dispatch)."""
     out: dict[str, ToolContract] = {}
     for definition in seed_registry.list_tools():
         name = definition.meta.name
         handler = _make_dynamic_tool_handler(
-            name, profile_tool_factory, verifier=verifier
+            name,
+            profile_tool_factory,
+            verifier=verifier,
+            operation_timeout_provider=operation_timeout_provider,
         )
         tool_input_schema: dict[str, Any] = {}
         if definition.schema_def.input_model is not None:
@@ -428,6 +462,7 @@ def build_mcp_fastapi_application(
     auth_verifier: MultiProfileApiKeyTokenVerifier,
     *,
     profile_tool_factory: Callable[[str], Callable[..., Any]],
+    operation_timeout_provider: Callable[[str | None, str], float | None] | None = None,
     web_session_store: dict[str, dict[str, Any]] | None = None,
     web_cookie_name: str = "file_web_session",
     config_event_broadcaster: EventBroadcaster | None = None,
@@ -457,6 +492,7 @@ def build_mcp_fastapi_application(
         auth_verifier,
         seed_registry=seed,
         profile_tool_factory=profile_tool_factory,
+        operation_timeout_provider=operation_timeout_provider,
     )
     # The api-kit request-timeout middleware defaults to 30s, but individual file tools may
     # legitimately run up to their own configured limits (search/storage up to ~30s, conversion

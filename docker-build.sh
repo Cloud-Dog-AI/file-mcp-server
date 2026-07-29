@@ -39,7 +39,13 @@ require_main_or_release_branch() {
 require_main_or_release_branch
 
 # ── Argument parsing ────────────────────────────────────────────
-VARIANT="${PUBLICATION_BUILD_VARIANT:-public}"
+# Estate builds use the single authorised internal package index (with
+# Vault-sourced credentials) — the dev variant. The public variant exists ONLY
+# for explicitly dispatched publication lanes, which set
+# PUBLICATION_BUILD_VARIANT/--variant public themselves; it must never be the
+# accidental default (W28M-1636B: a default public build resolved from
+# anonymous pypi.org and failed the internal pin preflight).
+VARIANT="${PUBLICATION_BUILD_VARIANT:-dev}"
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,7 +84,16 @@ fi
 
 VERSION="${1:-latest}"
 CONTAINER="file-mcp-server"
-FOLDER="cloud-dog"
+# Keep the repository namespace runtime-configurable.  Internal developer
+# builds obtain this from the approved registry configuration; publication
+# callers retain the historical public namespace unless they set it explicitly.
+FOLDER="${IMAGE_NAMESPACE:-cloud-dog}"
+FOLDER="${FOLDER#/}"
+FOLDER="${FOLDER%/}"
+if [[ -z "${FOLDER}" ]]; then
+  echo "ERROR: IMAGE_NAMESPACE must not be empty" >&2
+  exit 2
+fi
 REGISTRY="${REGISTRY:-}"
 SOURCE_COMMIT="$(git rev-parse HEAD)"
 SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
@@ -115,14 +130,67 @@ echo "=========================================="
 # ── PyPI Configuration ───────────────────────────────────────────
 # Default index depends on variant:
 #   public → public PyPI (single index, no extra-index-url; PS-97 §3.3 / §4).
-#   dev    → caller-supplied approved development index.
+#   dev    → caller-supplied or Vault-bootstrap-approved development index.
+load_private_pypi_from_vault() {
+  if [[ -n "${PYPI_URL:-}" && -n "${PYPI_USERNAME:-}" && -n "${PYPI_PASSWORD:-}" ]]; then
+    export PYPI_URL PYPI_USERNAME PYPI_PASSWORD
+    return 0
+  fi
+
+  if [[ -z "${VAULT_ADDR:-}" || -z "${VAULT_TOKEN:-}" || -z "${VAULT_MOUNT_POINT:-}" || -z "${VAULT_CONFIG_PATH:-}" ]]; then
+    return 0
+  fi
+
+  local vault_raw
+  vault_raw="$(curl -skfsS -H "X-Vault-Token: ${VAULT_TOKEN}" "${VAULT_ADDR%/}/v1/${VAULT_MOUNT_POINT}/data/${VAULT_CONFIG_PATH}" 2>/dev/null || true)"
+  if [[ -z "${vault_raw}" ]]; then
+    return 0
+  fi
+
+  vault_extract_pypi() {
+    VAULT_RAW_INPUT="${vault_raw}" python3 - "$1" <<'PY'
+import json
+import os
+import sys
+
+document = json.loads(os.environ["VAULT_RAW_INPUT"])
+config = document["data"]["data"].get("json", document["data"]["data"])
+if isinstance(config.get("dev"), dict):
+    config = config["dev"]
+value = config
+for part in sys.argv[1].split("."):
+    value = value[part]
+if not isinstance(value, str):
+    raise TypeError(f"{sys.argv[1]} is not a string")
+print(value)
+PY
+  }
+
+  if [[ -z "${PYPI_URL:-}" ]]; then
+    PYPI_URL="$(vault_extract_pypi "repository.pypi.url" 2>/dev/null || true)"
+  fi
+  if [[ -z "${PYPI_USERNAME:-}" ]]; then
+    PYPI_USERNAME="$(vault_extract_pypi "repository.pypi.username" 2>/dev/null || true)"
+  fi
+  if [[ -z "${PYPI_PASSWORD:-}" ]]; then
+    PYPI_PASSWORD="$(vault_extract_pypi "repository.pypi.password" 2>/dev/null || true)"
+  fi
+  unset vault_raw
+  unset -f vault_extract_pypi
+
+  export PYPI_URL PYPI_USERNAME PYPI_PASSWORD
+}
+
 if [[ -n "${PYPI_URL:-}" ]]; then
   : # honour caller override
 elif [[ "${VARIANT}" == "public" ]]; then
   PYPI_URL="https://pypi.org/simple"
 else
-  echo "ERROR: --variant dev requires an explicit PYPI_URL" >&2
-  exit 2
+  load_private_pypi_from_vault
+  if [[ -z "${PYPI_URL:-}" ]]; then
+    echo "ERROR: --variant dev requires PYPI_URL from the caller or Vault bootstrap" >&2
+    exit 2
+  fi
 fi
 PYPI_USERNAME="${PYPI_USERNAME:-}"
 PYPI_PASSWORD="${PYPI_PASSWORD:-}"

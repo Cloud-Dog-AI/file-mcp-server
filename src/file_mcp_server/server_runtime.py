@@ -33,7 +33,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Protocol, TextIO
-from threading import RLock
+from threading import RLock, Thread
 from html import escape
 from types import SimpleNamespace
 
@@ -176,6 +176,7 @@ from cloud_dog_logging.correlation import (  # type: ignore[import-untyped]
     set_correlation_id,
 )
 from file_tools.config.models import (
+    GoogleDriveStorageConfig,
     HttpServerConfig,
     ProfileConfig,
     ServerConfig,
@@ -416,6 +417,146 @@ def _profile_config_to_mapping(
     return payload if isinstance(payload, dict) else {}
 
 
+_PROFILE_SECRET_KEYS = frozenset(
+    {
+        "access_key",
+        "secret_key",
+        "secret_access_key",
+        "password",
+        "client_secret",
+        "refresh_token",
+        "access_token",
+        "api_key",
+    }
+)
+
+# Google Drive connection identity is controlled by the approved runtime
+# configuration, while OAuth grants remain stateful.  The values below are safe
+# to render in the settings form and must follow the current configured profile
+# rather than an older database form submission.  Tokens and client secrets are
+# deliberately absent: an approved OAuth callback remains the only writer for
+# those stateful credentials.
+_GOOGLE_DRIVE_RUNTIME_MANAGED_PUBLIC_KEYS = frozenset(
+    {
+        "user_email",
+        "folder_id",
+        "folder_url",
+        "client_id",
+        "redirect_uri",
+        "token_uri",
+        "oauth_scope",
+        "oauth_authorize_uri",
+        "api_base_uri",
+    }
+)
+
+_GOOGLE_DRIVE_RUNTIME_MANAGED_ENV_KEYS = {
+    "user_email": "FILE_MCP_GDRIVE_USER_EMAIL",
+    "folder_id": "FILE_MCP_GDRIVE_FOLDER_ID",
+    "folder_url": "FILE_MCP_GDRIVE_FOLDER_URL",
+    "client_id": "FILE_MCP_GDRIVE_CLIENT_ID",
+    "redirect_uri": "FILE_MCP_GDRIVE_REDIRECT_URI",
+    "token_uri": "FILE_MCP_GDRIVE_TOKEN_URI",
+    "oauth_scope": "FILE_MCP_GDRIVE_SCOPE",
+    "oauth_authorize_uri": "FILE_MCP_GDRIVE_AUTHORIZE_URI",
+    "api_base_uri": "FILE_MCP_GDRIVE_API_BASE_URI",
+}
+
+
+def _profile_value_needs_fallback(value: Any) -> bool:
+    """Return whether a DB profile value cannot supply an effective runtime value."""
+    if value is None:
+        return True
+    if not isinstance(value, str):
+        return False
+    candidate = value.strip()
+    if not candidate:
+        return True
+    match = re.fullmatch(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", candidate)
+    return bool(match and read_env_var(match.group(1)) in (None, ""))
+
+
+def _fill_missing_profile_values_from_fallbacks(
+    profile: dict[str, Any] | None,
+    *,
+    fallback_profile: ProfileConfig | dict[str, Any] | None = None,
+    default_profile: ProfileConfig | dict[str, Any] | None = None,
+    include_secret_values: bool,
+    prefer_runtime_managed_google_drive_values: bool = False,
+) -> dict[str, Any]:
+    """Fill ineffective DB fields from configured profile defaults.
+
+    An active DB profile is a sparse overlay, not a replacement for the selected
+    file-backed profile.  In particular, a stale empty or unresolved ``${ENV}``
+    field must not hide a configured runtime value.  Runtime callers may use
+    secret fallbacks in memory; UI/API callers deliberately do not copy them.
+    Google Drive's connection identity is runtime-managed when requested: a
+    current configured folder or endpoint must win over an old database form
+    value, while OAuth secrets remain stateful DB data.  Nothing returned by
+    this helper is persisted to the DB profile row.
+    """
+    defaults: dict[str, Any] = {}
+
+    def _overlay(base: dict[str, Any], patch: dict[str, Any]) -> None:
+        for key, value in patch.items():
+            if isinstance(base.get(key), dict) and isinstance(value, dict):
+                _overlay(base[key], value)
+            else:
+                base[key] = json.loads(json.dumps(value))
+
+    # Default is the lowest priority fallback; a same-name configured profile
+    # takes precedence where it supplies a value.
+    for source in (default_profile, fallback_profile):
+        source_mapping = _profile_config_to_mapping(source)
+        if source_mapping:
+            _overlay(defaults, source_mapping)
+
+    resolved = json.loads(json.dumps(profile if isinstance(profile, dict) else {}))
+
+    def _fill(target: dict[str, Any], source: dict[str, Any]) -> None:
+        for key, source_value in source.items():
+            if key in _PROFILE_SECRET_KEYS and not include_secret_values:
+                continue
+            target_value = target.get(key)
+            if isinstance(target_value, dict) and isinstance(source_value, dict):
+                _fill(target_value, source_value)
+            elif key not in target or _profile_value_needs_fallback(target_value):
+                target[key] = json.loads(json.dumps(source_value))
+
+    _fill(resolved, defaults)
+
+    if prefer_runtime_managed_google_drive_values:
+        storage = resolved.get("storage")
+        configured_storage = defaults.get("storage")
+        if isinstance(storage, dict):
+            backend = str(storage.get("backend") or "").strip().lower()
+            drive_backends = {"google_drive", "gdrive", "drive"}
+            configured_drive = (
+                configured_storage.get("google_drive")
+                if isinstance(configured_storage, dict)
+                else {}
+            )
+            if backend in drive_backends:
+                drive = storage.get("google_drive")
+                if not isinstance(drive, dict):
+                    drive = {}
+                    storage["google_drive"] = drive
+                for key in _GOOGLE_DRIVE_RUNTIME_MANAGED_PUBLIC_KEYS:
+                    env_value = read_env_var(
+                        _GOOGLE_DRIVE_RUNTIME_MANAGED_ENV_KEYS[key]
+                    )
+                    configured_value = (
+                        configured_drive.get(key)
+                        if isinstance(configured_drive, dict)
+                        else None
+                    )
+                    if not _profile_value_needs_fallback(env_value):
+                        drive[key] = env_value
+                    elif not _profile_value_needs_fallback(configured_value):
+                        drive[key] = json.loads(json.dumps(configured_value))
+    return resolved
+
+
 def _normalise_profile_mapping(
     profile: dict[str, Any] | None,
     *,
@@ -473,6 +614,77 @@ def _normalise_profile_mapping(
     return normalized
 
 
+def _resolve_profile_environment_placeholders(
+    profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Resolve exact environment placeholders for a DB-backed runtime profile.
+
+    Active ``file_storage_profiles`` rows deliberately retain references such as
+    ``${FILE_MCP_GDRIVE_REFRESH_TOKEN}`` instead of copying credentials into the
+    database.  File-backed configuration goes through the configuration loader,
+    which resolves those references before constructing ``ProfileConfig``.  DB
+    overlays must provide the same runtime behaviour, while retaining the
+    placeholder in ``config_json`` so secrets are never persisted by a reload.
+    """
+
+    placeholder = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+    def _resolve(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(key): _resolve(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [_resolve(item) for item in value]
+        if not isinstance(value, str):
+            return value
+        match = placeholder.fullmatch(value.strip())
+        if not match:
+            return value
+        resolved = read_env_var(match.group(1))
+        # Preserve an unresolved reference so the configured backend continues
+        # to fail closed with its existing placeholder guard.
+        return resolved if resolved not in (None, "") else value
+
+    return _resolve(profile if isinstance(profile, dict) else {})
+
+
+def _resolve_profile_public_environment_placeholders(
+    profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Resolve safe DB-profile placeholders for admin UI/API responses.
+
+    Storage-profile rows retain ``${ENV_VAR}`` references so credentials are
+    never copied into the database.  The runtime resolves those values before
+    using a backend, but the profile-admin API previously returned the raw
+    database row.  That caused the Google Drive Settings SPA to put literal
+    placeholder strings into the OAuth form.
+
+    Resolve only public configuration here.  Secret-bearing keys deliberately
+    remain references and are masked by ``_redact_profile_secrets`` at every
+    JSON boundary.  This keeps the UI's editable public defaults consistent
+    with the runtime without widening the secret exposure surface.
+    """
+
+    placeholder = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+    def _resolve(value: Any, *, key: str = "") -> Any:
+        if isinstance(value, dict):
+            return {str(item_key): _resolve(item, key=str(item_key)) for item_key, item in value.items()}
+        if isinstance(value, list):
+            return [_resolve(item, key=key) for item in value]
+        if key in _PROFILE_SECRET_KEYS or not isinstance(value, str):
+            return value
+        match = placeholder.fullmatch(value.strip())
+        if not match:
+            return value
+        resolved = read_env_var(match.group(1))
+        # Do not expose a DB-only reference as an editable UI/API value when
+        # its runtime environment variable is absent.  This response helper
+        # does not alter the persisted profile, so the backend's placeholder
+        # guard still fails closed at execution time.
+        return resolved if resolved not in (None, "") else ""
+
+    return _resolve(profile if isinstance(profile, dict) else {})
+
+
 def _merge_active_db_profiles_into_config(
     config: ServerConfig,
     *,
@@ -501,8 +713,17 @@ def _merge_active_db_profiles_into_config(
             if normalized_config != raw_config:
                 row.config_json = json.dumps(normalized_config)
                 updated_rows = True
+            runtime_config = _resolve_profile_environment_placeholders(
+                _fill_missing_profile_values_from_fallbacks(
+                    normalized_config,
+                    fallback_profile=config.profiles.get(row.name),
+                    default_profile=default_profile,
+                    include_secret_values=True,
+                    prefer_runtime_managed_google_drive_values=True,
+                )
+            )
             try:
-                profile_config = ProfileConfig.model_validate(normalized_config)
+                profile_config = ProfileConfig.model_validate(runtime_config)
             except Exception:
                 if logger:
                     logger.warning(
@@ -514,6 +735,92 @@ def _merge_active_db_profiles_into_config(
 
         if updated_rows:
             session.commit()
+    return _share_managed_google_drive_credentials(config, logger=logger)
+
+
+def _google_drive_value_resolved(value: object) -> str:
+    """Return a usable Drive setting, treating ``${ENV}`` placeholders as absent.
+
+    Mirrors the storage factory's fail-closed placeholder boundary so the
+    sharing decision below agrees exactly with what the factory will accept.
+    """
+    text = str(value or "").strip()
+    return "" if "${" in text else text
+
+
+def _share_managed_google_drive_credentials(
+    config: ServerConfig, *, logger: LogLike | None = None
+) -> ServerConfig:
+    """Share the managed Drive connection's stateful credentials in memory.
+
+    The approved OAuth callback is the only writer of Drive tokens, and it
+    writes them onto the connected (DB) profile only.  File-backed profiles
+    configure the same runtime-managed Drive identity, but tokens are never
+    environment or config data — so their ``google_drive`` backend could never
+    authenticate and the default profile sat permanently at
+    ``startup_probe_failed`` even after the Drive connection was completed.
+
+    Fill ONLY unresolved token fields, in memory, from a connected profile
+    that uses the same OAuth client.  Nothing is persisted, no resolved value
+    is overwritten, and a client-id mismatch fails closed (a refresh token is
+    only valid for the OAuth client that issued it).
+    """
+    source: tuple[str, GoogleDriveStorageConfig] | None = None
+    for name in sorted(config.profiles):
+        profile = config.profiles[name]
+        drive = getattr(profile.storage, "google_drive", None)
+        if drive is None:
+            continue
+        if not (
+            _google_drive_value_resolved(drive.refresh_token)
+            or _google_drive_value_resolved(drive.access_token)
+        ):
+            continue
+        is_active_drive_profile = (
+            str(profile.storage.backend or "").strip().lower() == "google_drive"
+        )
+        if source is None or is_active_drive_profile:
+            source = (name, drive)
+        if is_active_drive_profile:
+            break
+    if source is None:
+        return config
+
+    source_name, source_drive = source
+    source_client = _google_drive_value_resolved(source_drive.client_id)
+    for name, profile in config.profiles.items():
+        if name == source_name:
+            continue
+        drive = getattr(profile.storage, "google_drive", None)
+        if drive is None:
+            continue
+        if _google_drive_value_resolved(drive.refresh_token) or _google_drive_value_resolved(
+            drive.access_token
+        ):
+            continue  # profile has its own credentials; never overwrite
+        target_client = _google_drive_value_resolved(drive.client_id)
+        if target_client and source_client and target_client != source_client:
+            if logger:
+                logger.warning(
+                    "Not sharing Drive credentials across differing OAuth clients",
+                    profile_name=name,
+                    source_profile=source_name,
+                )
+            continue
+        drive.refresh_token = source_drive.refresh_token
+        drive.access_token = source_drive.access_token
+        if not target_client:
+            drive.client_id = source_drive.client_id
+        if not _google_drive_value_resolved(drive.client_secret):
+            drive.client_secret = source_drive.client_secret
+        if not _google_drive_value_resolved(drive.token_uri):
+            drive.token_uri = source_drive.token_uri
+        if logger:
+            logger.info(
+                "Shared managed Drive credentials in memory",
+                profile_name=name,
+                source_profile=source_name,
+            )
     return config
 
 
@@ -847,6 +1154,10 @@ class HealthCheckMiddleware:
         # it on /start, so /callback can reject a state replayed by a different
         # principal (state-replay mitigation).
         self._oauth_state_principal: dict[str, str] = {}
+        # Keep the pending OAuth data in the same runtime-owned lifetime as its
+        # principal binding.  A module-global pending map can diverge from this
+        # middleware instance and falsely reject a valid callback.
+        self._oauth_pending: dict[str, Any] = {}
         # Thread-a (PROGRAM-IDAM-RECOVERY-2, W28A-728-R4) flat WebUI login
         # accounts: the three flat roles admin / read-write / read-only.
         #
@@ -2784,12 +3095,15 @@ class HealthCheckMiddleware:
         body: bytes,
         content_type: str = "text/plain; charset=utf-8",
         close: bool = False,
+        cache_control: str | None = None,
     ) -> None:
         """Handle send bytes."""
         response_headers = [
             (b"content-type", content_type.encode("utf-8")),
             (b"content-length", str(len(body)).encode("utf-8")),
         ]
+        if cache_control:
+            response_headers.append((b"cache-control", cache_control.encode("utf-8")))
         if close:
             response_headers.append((b"connection", b"close"))
         await send(
@@ -2839,10 +3153,19 @@ class HealthCheckMiddleware:
         await send({"type": "http.response.body", "body": b""})
 
     async def _send_json(self, send, *, status: int, payload: dict[str, Any]) -> None:
-        """Send a JSON response payload."""
+        """Send a non-cacheable JSON response payload.
+
+        Management and storage responses are live state, not immutable assets.
+        In particular, browser-side refreshes after an IDAM mutation must not
+        reuse the pre-mutation list from the HTTP cache.
+        """
         body = json.dumps(payload).encode("utf-8")
         await self._send_bytes(
-            send, status=status, body=body, content_type="application/json"
+            send,
+            status=status,
+            body=body,
+            content_type="application/json",
+            cache_control="no-store",
         )
 
     # ── W28E-1870-B storage change-watch REST surface (PS-102 §5.5) ──────────
@@ -4449,10 +4772,18 @@ class HealthCheckMiddleware:
 
     def _profile_payload(self, *, name: str, profile: dict[str, Any]) -> dict[str, Any]:
         """Normalise a profile entry for API/UI responses."""
-        normalized_profile = _normalise_profile_mapping(
-            profile,
-            fallback_profile=(self.config.profiles.get(name) if self.config else None),
-            default_profile=(self.config.profiles.get("default") if self.config else None),
+        normalized_profile = _resolve_profile_public_environment_placeholders(
+            _fill_missing_profile_values_from_fallbacks(
+                _normalise_profile_mapping(
+                    profile,
+                    fallback_profile=(self.config.profiles.get(name) if self.config else None),
+                    default_profile=(self.config.profiles.get("default") if self.config else None),
+                ),
+                fallback_profile=(self.config.profiles.get(name) if self.config else None),
+                default_profile=(self.config.profiles.get("default") if self.config else None),
+                include_secret_values=False,
+                prefer_runtime_managed_google_drive_values=True,
+            )
         )
         storage = normalized_profile.get("storage") if isinstance(normalized_profile, dict) else {}
         scope = normalized_profile.get("scope") if isinstance(normalized_profile, dict) else {}
@@ -5388,9 +5719,21 @@ class HealthCheckMiddleware:
                     or path == "/admin/runtime-config"
                     or path == "/admin/effective-config"
                 )
+                # Google Drive setup is a server-rendered OAuth control surface,
+                # not a React route.  In particular, a browser navigation carries
+                # ``Accept: text/html``; allowing the generic SPA fallback to win
+                # here hides the managed form and leaves stale client-side values
+                # able to reach the start handler.  Let the dedicated, admin-gated
+                # handlers below own every Google Drive setup route.
+                google_drive_admin_candidate = (
+                    path == "/admin/google-drive"
+                    or path.startswith("/admin/google-drive/")
+                )
                 # Keep browser navigations on SPA routes while allowing API clients
                 # (fetch/curl with non-HTML Accept) to hit JSON admin endpoints.
-                if admin_api_get_candidates and "text/html" not in accept:
+                if google_drive_admin_candidate or (
+                    admin_api_get_candidates and "text/html" not in accept
+                ):
                     pass
                 else:
                     await self._serve_spa_index(send, method=method)
@@ -5661,7 +6004,11 @@ class HealthCheckMiddleware:
                 keep_blank_values=True,
             )
             _cb_state = (_cb_query.get("state") or [""])[0]
-            if not _cb_state or _cb_state not in self._oauth_state_principal:
+            if (
+                not _cb_state
+                or _cb_state not in self._oauth_state_principal
+                or _cb_state not in self._oauth_pending
+            ):
                 await self._send_api_error(
                     send,
                     status=403,
@@ -6293,10 +6640,9 @@ class HealthCheckMiddleware:
                         await self._send_json(
                             send,
                             status=200,
-                            payload={
-                                "ok": True,
-                                "group": service.get_group(segments[2]),
-                            },
+                            # Shared @cloud-dog/idam consumes a group detail
+                            # record directly when populating its edit dialog.
+                            payload=service.get_group(segments[2]),
                         )
                         return
                     if len(segments) == 3 and method in {"PUT", "PATCH"}:
@@ -6532,38 +6878,37 @@ class HealthCheckMiddleware:
             body = await self._read_http_body(receive)
             try:
                 data = parse_form_urlencoded(body)
-                callback_uri = (data.get("redirect_uri") or "").strip()
-                if not callback_uri:
-                    callback_uri = self._compute_callback_url(scope, headers)
+                callback_uri = self._compute_callback_url(scope, headers)
                 profile_name = (data.get("profile") or "").strip() or self.profile_name
                 stored_values = self._load_google_profile_values(
                     profile_name=profile_name,
                     callback_url=callback_uri,
                 )
 
-                client_secret = (data.get("client_secret") or "").strip()
-                if not client_secret or client_secret == MASKED_CLIENT_SECRET:
-                    data["client_secret"] = stored_values.get("client_secret", "")
-                if not (data.get("client_id") or "").strip():
-                    data["client_id"] = stored_values.get("client_id", "")
+                # The managed Google OAuth client is server-owned.  Browser
+                # form state can outlive a client rotation, so never let it
+                # select a different client for the configured profile.
+                data["client_id"] = stored_values.get("client_id", "")
+                data["client_secret"] = stored_values.get("client_secret", "")
                 if not (data.get("folder_input") or "").strip():
                     data["folder_input"] = stored_values.get("folder_input", "")
                 if not (data.get("user_email") or "").strip():
                     data["user_email"] = stored_values.get("user_email", "")
-                if not (data.get("redirect_uri") or "").strip():
-                    data["redirect_uri"] = stored_values.get("redirect_uri", "")
-                if (data.get("redirect_uri") or "").strip().lower() == OOB_REDIRECT_URI:
-                    data["redirect_uri"] = callback_uri
-                if not (data.get("token_uri") or "").strip():
-                    data["token_uri"] = stored_values.get("token_uri", "")
-                if not (data.get("oauth_scope") or "").strip():
-                    data["oauth_scope"] = stored_values.get("oauth_scope", "")
-                if not (data.get("oauth_authorize_uri") or "").strip():
-                    data["oauth_authorize_uri"] = stored_values.get(
-                        "oauth_authorize_uri", ""
-                    )
-                if not (data.get("api_base_uri") or "").strip():
-                    data["api_base_uri"] = stored_values.get("api_base_uri", "")
+                # OAuth callbacks are a server-owned PREPROD endpoint.  Never
+                # reuse a stale browser-local value or a profile placeholder:
+                # either can produce Google's opaque HTTP 400 before consent.
+                data["redirect_uri"] = callback_uri
+                # These endpoints are part of the managed OAuth client rather
+                # than operator input.  A stale page, a persisted placeholder or
+                # a tampered POST must never override the resolved runtime config.
+                # This closes the failure mode where the callback attempted to
+                # post to the literal ``${FILE_MCP_GDRIVE_TOKEN_URI}`` string.
+                data["token_uri"] = stored_values.get("token_uri", "")
+                data["oauth_scope"] = stored_values.get("oauth_scope", "")
+                data["oauth_authorize_uri"] = stored_values.get(
+                    "oauth_authorize_uri", ""
+                )
+                data["api_base_uri"] = stored_values.get("api_base_uri", "")
 
                 self.logger.info(
                     "admin_google_drive_start",
@@ -6576,7 +6921,7 @@ class HealthCheckMiddleware:
                         ),
                     },
                 )
-                location = begin_oauth(data)
+                location = begin_oauth(data, pending_store=self._oauth_pending)
                 # W28C-1702 (FM6): bind the issued OAuth `state` to the principal
                 # that started the flow so /callback can reject a replayed state.
                 _start_state = (
@@ -6654,6 +6999,7 @@ class HealthCheckMiddleware:
                     reload_callback=self.reload_callback
                     if self.admin_apply_on_callback and callable(self.reload_callback)
                     else None,
+                    pending_store=self._oauth_pending,
                 )
                 # complete_oauth_callback already triggers reload_callback when DB
                 # args are supplied; this block narrates the durability outcome.
@@ -6707,6 +7053,12 @@ class HealthCheckMiddleware:
                     html=f"<h1>OAuth callback failed</h1><pre>{exc}</pre>",
                 )
                 return
+            finally:
+                # States are single-use.  Remove both runtime bindings together
+                # after completion or failure so a replay is rejected at the
+                # callback boundary instead of appearing as an internal expiry.
+                self._oauth_state_principal.pop(state, None)
+                self._oauth_pending.pop(state, None)
         if (
             scope.get("type") == "http"
             and scope.get("method") == "POST"
@@ -6916,6 +7268,53 @@ def _to_int(value: Any, default: int) -> int:
         except ValueError:
             return default
     return default
+
+
+def _endpoint_health_requires_blocking_startup(config: ServerConfig) -> bool:
+    """Return whether endpoint checks must finish before the HTTP listener starts.
+
+    Ordinary endpoint monitoring is advisory: a temporarily unavailable remote
+    backend must not prevent FileMCP from serving its health, admin and other
+    configured profile routes.  An operator that explicitly enables restart on
+    a health threshold is asking for startup enforcement, so that policy keeps
+    the historical blocking behaviour.
+    """
+
+    return any(
+        _to_bool(profile.endpoint_health.restart_on_threshold, default=False)
+        for profile in config.profiles.values()
+    )
+
+
+def _run_startup_endpoint_health_checks(
+    config: ServerConfig,
+    *,
+    logger: Any | None,
+    enforce_restart_threshold: bool,
+) -> None:
+    """Record startup endpoint state and optionally enforce restart policy."""
+
+    for profile_name, profile in config.profiles.items():
+        ENDPOINT_HEALTH_MANAGER.run_startup_checks(
+            profile_name=profile_name, profile=profile, logger=logger
+        )
+        if not enforce_restart_threshold:
+            continue
+        if not _to_bool(profile.endpoint_health.restart_on_threshold, default=False):
+            continue
+        exit_code = _to_int(profile.endpoint_health.restart_exit_code, default=75)
+        states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
+        for state in states.values():
+            if not state.requires_restart:
+                continue
+            if logger:
+                logger.error(
+                    "Endpoint startup health exceeded restart threshold",
+                    profile=profile_name,
+                    backend=state.backend,
+                    restart_exit_code=exit_code,
+                )
+            raise SystemExit(exit_code)
 
 
 def _normalize_path(path: str | None, *, default: str) -> str:
@@ -9058,9 +9457,17 @@ def build_tool_registry(
         return {"ok": True, "api_key": api_key}
 
     from file_tools.tools.schemas import (
-        ReadFileInput, WriteFileInput, CreateDirInput, ListDirInput,
-        ConvertFileInput, ValidateFileInput, SearchContentInput,
-        SedEditFileInput, ReplaceRegexInput, SearchPathsInput,
+        B64DecodeToFileInput,
+        ReadFileInput,
+        WriteFileInput,
+        CreateDirInput,
+        ListDirInput,
+        ConvertFileInput,
+        ValidateFileInput,
+        SearchContentInput,
+        SedEditFileInput,
+        ReplaceRegexInput,
+        SearchPathsInput,
     )
 
     tools = ToolRegistry()
@@ -9248,6 +9655,7 @@ def build_tool_registry(
                 mutating=True,
                 supports_dry_run=True,
             ),
+            schema_def=ToolSchema(input_model=B64DecodeToFileInput),
             handler=b64_decode_to_file,
         )
     )
@@ -10375,6 +10783,41 @@ def build_mcp_server(
             logger=logger,
         )
 
+    def _operation_timeout_provider(
+        requested_profile: str | None, tool_name: str
+    ) -> float | None:
+        """Return the current typed profile limit for an MCP tool operation.
+
+        Storage mutations and reads use ``storage_timeout_s``; searches and
+        conversions retain their own existing limits.  The selector is shared
+        with dynamic profile routing so an explicit per-call profile cannot
+        accidentally inherit a different profile's timeout.
+        """
+        selected = (
+            str(requested_profile or "").strip()
+            or get_request_profile_name(default_profile_name)
+            or default_profile_name
+        )
+        with registry_lock:
+            profile = profiles_holder.get(selected) or profiles_holder.get(
+                default_profile_name
+            )
+        if profile is None:
+            return None
+        limits = profile.limits
+        raw_limit = (
+            limits.conversion_timeout_s
+            if tool_name == "convert_file"
+            else limits.search_timeout_s
+            if tool_name in {"search_content", "search_paths", "search_path_names"}
+            else limits.storage_timeout_s
+        )
+        try:
+            value = float(raw_limit)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
     # PS-92 (W28A-970h-V2): read MCP + A2A base paths from config, fall back to
     # platform canonical defaults. `http.base_path` is a distinct transport-layer
     # concern and is NOT consulted here.
@@ -10388,6 +10831,7 @@ def build_mcp_server(
         _registry_provider,
         auth,
         profile_tool_factory=_profile_tool_factory,
+        operation_timeout_provider=_operation_timeout_provider,
         web_session_store={},
         web_cookie_name="file_web_session",
         config_event_broadcaster=config_event_broadcaster,
@@ -10485,23 +10929,24 @@ async def run_mcp_http_server(
 
     db_sync_url = db_runtime.settings.to_sync_url()
     http = resolve_http_settings(http_config)
-    for profile_name, profile in config.profiles.items():
-        ENDPOINT_HEALTH_MANAGER.run_startup_checks(
-            profile_name=profile_name, profile=profile, logger=logger
+    if _endpoint_health_requires_blocking_startup(config):
+        _run_startup_endpoint_health_checks(
+            config,
+            logger=logger,
+            enforce_restart_threshold=True,
         )
-        if _to_bool(profile.endpoint_health.restart_on_threshold, default=False):
-            exit_code = _to_int(profile.endpoint_health.restart_exit_code, default=75)
-            states = ENDPOINT_HEALTH_MANAGER.get_profile_states(profile_name)
-            for state in states.values():
-                if state.requires_restart:
-                    if logger:
-                        logger.error(
-                            "Endpoint startup health exceeded restart threshold",
-                            profile=profile_name,
-                            backend=state.backend,
-                            restart_exit_code=exit_code,
-                        )
-                    raise SystemExit(exit_code)
+    else:
+        # Remote probes may consume their configured storage timeout and retry
+        # window.  Run advisory checks outside the startup critical path so an
+        # unavailable optional backend cannot make the entire HTTP service fail
+        # readiness before it has bound a listener.
+        Thread(
+            target=_run_startup_endpoint_health_checks,
+            args=(config,),
+            kwargs={"logger": logger, "enforce_restart_threshold": False},
+            name="file-mcp-endpoint-startup-health",
+            daemon=True,
+        ).start()
     server = build_mcp_server(
         default_profile_name,
         config,

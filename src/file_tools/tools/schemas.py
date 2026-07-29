@@ -50,6 +50,16 @@ class CreateDirInput(BaseModel):
     dry_run: bool = Field(False, description="Preview without creating")
 
 
+class B64DecodeToFileInput(BaseModel):
+    """Input contract for binary FileMCP writes from a base64 payload."""
+
+    path: str = Field(..., description="Destination path relative to workspace root")
+    data: str = Field(..., description="Base64-encoded file content")
+    urlsafe: bool = Field(False, description="Decode using the URL-safe base64 alphabet")
+    overwrite: bool = Field(True, description="Overwrite an existing destination file")
+    dry_run: bool = Field(False, description="Validate the write without persisting it")
+
+
 class ListDirInput(BaseModel):
     path: str = Field(".", description="Directory path relative to workspace root")
     recursive: bool = Field(False, description="List recursively")

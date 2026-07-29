@@ -79,11 +79,6 @@ FILE_MCP_PUBLIC_ALLOWLIST: frozenset[str] = frozenset({
     # validates the OAuth ``state`` CSRF token (minted only by the admin-authed
     # /admin/google-drive/start), so the token exchange only proceeds for a pending state.
     "/admin/google-drive/callback",
-    "/.well-known/agent.json",   # INTERNAL (Traefik also maps
-                                  #   external /a2a/.well-known/agent.json
-                                  #   to this same handler — see
-                                  #   server_runtime.py:1744 "Traefik-stripped
-                                  #   of /a2a prefix")
 })
 
 
@@ -252,6 +247,18 @@ def _re(pattern: str) -> re.Pattern[str]:
 #: specific patterns come before less-specific ones (e.g. the per-resource
 #: detail route before its list/collection root).
 ROUTE_GUARDS: tuple[RouteGuard, ...] = (
+    # Skill discovery and every MCP compatibility transport authenticate before
+    # any package route can parse or dispatch a request.
+    RouteGuard(
+        method="GET",
+        pattern=_re(r"^(?:/a2a)?/\.well-known/agent\.json/?$"),
+        permission="a2a.access",
+    ),
+    RouteGuard(
+        method="*",
+        pattern=_re(r"^/(?:mcp|messages|message|sse)/?$"),
+        permission="mcp.access",
+    ),
     # ── Row 1: F-741-1 fix — /a2a/health now requires auth ──
     RouteGuard(
         method="GET",

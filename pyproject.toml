@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "file-mcp-server"
-version = "0.1.2RC1"
+version = "0.1.2RC2"
 description = "File MCP server and reusable file tools"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -18,7 +18,7 @@ dependencies = [
   "beautifulsoup4>=4.12,<5.0",
   "chardet>=5.2,<6.0",
   "cloud_dog_api_kit[change-stream-db]==0.14.1",
-  "cloud_dog_config==0.3.5",
+  "cloud_dog_config==0.3.6",
   "cloud_dog_db==0.3.3",
   "cloud_dog_idam==0.5.4",
   "cloud_dog_llm==0.4.4",
